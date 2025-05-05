@@ -1,5 +1,6 @@
 VERSION		:= $(shell git describe --tags --always --dirty)
 GO_FLAGS	:= -ldflags "-X 'main.Version=$(VERSION)'"
+SOURCES		:= $(shell find . -name '*.go')
 
 ##@ Development
 
@@ -13,7 +14,7 @@ run: bin/kommodity ## Run the application locally.
 
 build: bin/kommodity ## Build the application.
 
-bin/kommodity: ## Build the application.
+bin/kommodity: $(SOURCES) ## Build the application.
 	go build $(GO_FLAGS) -o bin/kommodity cmd/kommodity/main.go
 
 .PHONY: clean

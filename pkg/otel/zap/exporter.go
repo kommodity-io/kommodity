@@ -9,6 +9,8 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
+var _ sdklog.Exporter = (*Exporter)(nil)
+
 // Option is a function that configures the zap logger.
 type Option func(*Exporter)
 

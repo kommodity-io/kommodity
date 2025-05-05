@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"net/http"
+	"os"
 
 	"github.com/kommodity-io/kommodity/pkg/kms"
 	"github.com/kommodity-io/kommodity/pkg/otel"
@@ -26,7 +27,10 @@ func main() {
 	srv := NewServer(ctx)
 
 	if err := srv.ListenAndServe(ctx); err != nil {
-		logger.Fatal("failed to start server", zap.Error(err))
+		logger.Error("Failed to start server", zap.Error(err))
+
+		loggerProvider.Shutdown(ctx)
+		os.Exit(1)
 	}
 }
 
