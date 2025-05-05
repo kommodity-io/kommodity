@@ -42,7 +42,11 @@ func NewServer(ctx context.Context) *server.Server {
 			return nil
 		}).
 		WithHTTPMuxInitializer(func(mux *http.ServeMux) error {
-			mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+			mux.HandleFunc("/readyz", func(w http.ResponseWriter, r *http.Request) {
+				w.Write([]byte("OK"))
+			})
+
+			mux.HandleFunc("/livez", func(w http.ResponseWriter, r *http.Request) {
 				w.Write([]byte("OK"))
 			})
 
