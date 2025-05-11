@@ -1,3 +1,5 @@
+// Package kms implements the Talos Linux KMS service, which provides
+// a networked key management system for full disk encryption.
 package kms
 
 import (
@@ -13,15 +15,22 @@ import (
 var (
 	// ErrEmptyClientContext is an error that indicates the client context is empty.
 	ErrEmptyClientContext = errors.New("client context is empty")
+	// ErrEmptyData is an error that indicates the data is empty.
+	ErrEmptyData = errors.New("data is empty")
 )
 
-// KMSServiceServer is a struct that implements the KMSServiceServer interface.
-type KMSServiceServer struct {
+const (
+	pseudoSeal = "sealed:"
+)
+
+// ServiceServer is a struct that implements the ServiceServer interface.
+type ServiceServer struct {
 	kms.UnimplementedKMSServiceServer
 }
 
 // Seal is a method encrypts data using the KMS service.
-func (s *KMSServiceServer) Seal(ctx context.Context, req *kms.Request) (*kms.Response, error) {
+// DISCLAIMER: This is a mock implementation.
+func (s *ServiceServer) Seal(ctx context.Context, req *kms.Request) (*kms.Response, error) {
 	// We need the source IP for security hardening.
 	client, ok := peer.FromContext(ctx)
 	if !ok {
@@ -33,17 +42,26 @@ func (s *KMSServiceServer) Seal(ctx context.Context, req *kms.Request) (*kms.Res
 		return nil, fmt.Errorf("failed to extract client IP: %w", err)
 	}
 
-	// TODO: Check if the server is currently part of a cluster.
-	// TODO: If part of cluster, check if it is online. If online, and not in maintenance mode,
-	//       reject the request.
-	// TODO: How does gRPC handle reverse proxying? What about trusted proxies?
+	// Check if the server is currently part of a cluster.
+	// If part of cluster, check if it is online.
+	// If online, and not in maintenance mode,
+	// reject the request.
+
+	// How does gRPC handle reverse proxying? What about trusted proxies?
 	_ = host
 
-	// Example implementation
-	return &kms.Response{Data: append([]byte("sealed:"), req.Data...)}, nil
+	data := req.GetData()
+
+	return &kms.Response{Data: append([]byte(pseudoSeal), data...)}, nil
 }
 
-func (s *KMSServiceServer) Unseal(ctx context.Context, req *kms.Request) (*kms.Response, error) {
-	// Example implementation
-	return &kms.Response{Data: req.Data[len("sealed:"):]}, nil
+// Unseal is a method decrypts data using the KMS service.
+// DISCLAIMER: This is a mock implementation.
+func (s *ServiceServer) Unseal(_ context.Context, req *kms.Request) (*kms.Response, error) {
+	data := req.GetData()
+	if len(data) == 0 {
+		return nil, fmt.Errorf("failed to unseal data: %w", ErrEmptyData)
+	}
+
+	return &kms.Response{Data: data[len(pseudoSeal):]}, nil
 }

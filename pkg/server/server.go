@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/soheilhy/cmux"
 	"go.uber.org/zap"
@@ -79,7 +80,11 @@ func New(ctx context.Context) *Server {
 	}
 }
 
-func (s *Server) ListenAndServe(ctx context.Context) error {
+// ListenAndServe starts the server and listens for incoming requests.
+// It initializes the HTTP and gRPC servers and starts the cmux server.
+// The HTTP server is wrapped with h2c support to allow HTTP/2 connections.
+// The gRPC server is registered with reflection to allow for introspection.
+func (s *Server) ListenAndServe(_ context.Context) error {
 	for _, initilizer := range s.httpServer.initializers {
 		if err := initilizer(); err != nil {
 			s.logger.Error("Failed to initialize HTTP server", zap.Error(err))
@@ -104,39 +109,21 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 	s.muxServer.listener = muxListener
 	s.muxServer.cmux = cmux.New(muxListener)
 
-	s.grpcServer.listener = s.muxServer.cmux.MatchWithWriters(cmux.HTTP2MatchHeaderFieldPrefixSendSettings("content-type", "application/grpc"))
+	s.grpcServer.listener = s.muxServer.cmux.MatchWithWriters(
+		cmux.HTTP2MatchHeaderFieldPrefixSendSettings("content-type", "application/grpc"),
+	)
 	s.httpServer.listener = s.muxServer.cmux.Match(cmux.Any())
 
 	go s.serveHTTP()
 	go s.serveGRPC()
 
 	s.logger.Info("Starting cmux server", zap.Int("port", s.port))
+
 	if err := s.muxServer.cmux.Serve(); err != nil {
 		s.logger.Error("Failed to run cmux server", zap.Error(err), zap.Int("port", s.port))
 	}
 
 	return nil
-}
-
-func (s *Server) serveHTTP() {
-	// Wrap the HTTP handler to provide h2c support.
-	h2cHandler := h2c.NewHandler(s.httpServer.mux, &http2.Server{})
-
-	s.logger.Info("Starting REST server", zap.Int("port", s.port))
-
-	if err := http.Serve(s.httpServer.listener, h2cHandler); err != nil {
-		s.logger.Error("Failed to run REST server", zap.Error(err), zap.Int("port", s.port))
-	}
-}
-
-func (s *Server) serveGRPC() {
-	// Allow reflection to enable tools like grpcurl.
-	reflection.Register(s.grpcServer.server)
-
-	s.logger.Info("Starting gRPC server", zap.Int("port", s.port))
-	if err := s.grpcServer.server.Serve(s.grpcServer.listener); err != nil {
-		s.logger.Error("Failed to run gRPC server", zap.Error(err), zap.Int("port", s.port))
-	}
 }
 
 // WithHTTPMuxInitializer registers a HTTP service.
@@ -165,4 +152,46 @@ func (s *Server) WithGRPCServerInitializer(initialize GRPCInitializer) *Server {
 	})
 
 	return s
+}
+
+// Shutdown gracefully shuts down the server.
+func (s *Server) Shutdown(ctx context.Context) error {
+	s.grpcServer.server.GracefulStop()
+
+	if err := s.httpServer.server.Shutdown(ctx); err != nil {
+		s.logger.Error("Failed to shutdown HTTP server", zap.Error(err))
+	}
+
+	if err := s.muxServer.listener.Close(); err != nil {
+		s.logger.Error("Failed to close mux listener", zap.Error(err))
+	}
+
+	return nil
+}
+
+func (s *Server) serveHTTP() {
+	// Wrap the HTTP handler to provide h2c support.
+	h2cHandler := h2c.NewHandler(s.httpServer.mux, &http2.Server{})
+
+	httpServer := http.Server{
+		Handler:           h2cHandler,
+		ReadHeaderTimeout: 1 * time.Second,
+	}
+
+	s.logger.Info("Starting REST server", zap.Int("port", s.port))
+
+	if err := httpServer.Serve(s.httpServer.listener); err != nil {
+		s.logger.Error("Failed to run REST server", zap.Error(err), zap.Int("port", s.port))
+	}
+}
+
+func (s *Server) serveGRPC() {
+	// Allow reflection to enable tools like grpcurl.
+	reflection.Register(s.grpcServer.server)
+
+	s.logger.Info("Starting gRPC server", zap.Int("port", s.port))
+
+	if err := s.grpcServer.server.Serve(s.grpcServer.listener); err != nil {
+		s.logger.Error("Failed to run gRPC server", zap.Error(err), zap.Int("port", s.port))
+	}
 }

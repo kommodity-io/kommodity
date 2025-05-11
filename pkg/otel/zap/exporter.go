@@ -1,7 +1,11 @@
+// Package zap implements the OpenTelemetry log.Exporter interface
+// to allow sending logs to an OTEL collector an the console during
+// local development and when using `kubectl logs` or similar tools.
 package zap
 
 import (
 	"context"
+	"fmt"
 
 	"go.opentelemetry.io/otel/log"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
@@ -53,8 +57,35 @@ func New(opts ...Option) *Exporter {
 	return exporter
 }
 
+// Export exports a batch of log records.
+func (e *Exporter) Export(ctx context.Context, records []sdklog.Record) error {
+	for _, rec := range records {
+		e.exportOne(ctx, rec)
+	}
+
+	return nil
+}
+
+// ForceFlush forces the exporter to flush any buffered log records.
+func (e *Exporter) ForceFlush(_ context.Context) error {
+	if err := e.logger.Sync(); err != nil {
+		return fmt.Errorf("failed to sync logger: %w", err)
+	}
+
+	return nil
+}
+
+// Shutdown flushes any buffered log records and closes the logger.
+func (e *Exporter) Shutdown(_ context.Context) error {
+	if err := e.logger.Sync(); err != nil {
+		return fmt.Errorf("failed to sync logger: %w", err)
+	}
+
+	return nil
+}
+
 // exportOne prints a single log record.
-func (e *Exporter) exportOne(_ context.Context, rec sdklog.Record) error {
+func (e *Exporter) exportOne(_ context.Context, rec sdklog.Record) {
 	// Convert the log record to a zap field
 	fields := make([]zapcore.Field, 0, rec.AttributesLen())
 	rec.WalkAttributes(func(kv log.KeyValue) bool {
@@ -64,7 +95,7 @@ func (e *Exporter) exportOne(_ context.Context, rec sdklog.Record) error {
 	})
 
 	logFunc := map[log.Severity]func(string, ...zapcore.Field){
-		// TODO: Should this be "info" instead of "panic"?
+		// Should this be "info" instead of "panic"?
 		log.SeverityUndefined: e.logger.Panic,
 		log.SeverityTrace1:    e.logger.Debug,
 		log.SeverityTrace2:    e.logger.Debug,
@@ -100,35 +131,4 @@ func (e *Exporter) exportOne(_ context.Context, rec sdklog.Record) error {
 	}
 
 	log(rec.Body().String(), fields...)
-
-	return nil
-}
-
-// Export exports a batch of log records.
-func (e *Exporter) Export(ctx context.Context, records []sdklog.Record) error {
-	for _, rec := range records {
-		if err := e.exportOne(ctx, rec); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-// ForceFlush forces the exporter to flush any buffered log records.
-func (e *Exporter) ForceFlush(ctx context.Context) error {
-	if err := e.logger.Sync(); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// Shutdown flushes any buffered log records and closes the logger.
-func (e *Exporter) Shutdown(ctx context.Context) error {
-	if err := e.logger.Sync(); err != nil {
-		return err
-	}
-
-	return nil
 }
