@@ -2,7 +2,11 @@ package main_test
 
 import (
 	"context"
+	"crypto/rand"
+	"errors"
+	"math/big"
 	"net/http"
+	"strconv"
 	"testing"
 	"time"
 
@@ -15,45 +19,59 @@ import (
 	"google.golang.org/grpc/reflection/grpc_reflection_v1"
 )
 
-func TestKMSService(t *testing.T) {
-	// Arrange.
-	port := "50051"
-	t.Setenv("PORT", port)
+func randomPort(t *testing.T) string {
+	t.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+	offset, err := rand.Int(rand.Reader, big.NewInt(1000))
+	require.NoError(t, err, "Failed to generate random offset")
+
+	return strconv.FormatInt(55000+offset.Int64(), 10)
+}
+
+func setupTestServer(t *testing.T) context.Context {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	t.Cleanup(cancel)
 
 	// Start the server in a goroutine
 	go func() {
-		main.NewServer(ctx).ListenAndServe(ctx)
+		srv := main.NewServer(ctx)
+
+		if err := srv.ListenAndServe(ctx); err != nil {
+			if !errors.Is(err, http.ErrServerClosed) {
+				t.Errorf("Server failed to start: %s", err)
+			}
+		}
+
+		t.Cleanup(func() {
+			if err := srv.Shutdown(ctx); err != nil {
+				t.Errorf("Failed to shutdown server: %s", err)
+			}
+		})
 	}()
 
-	// Query the /health endpoint until we get a 200 response.
-	retries := 0
-	for range retries {
-		if retries > 10 {
-			t.Fatalf("Server failed to start")
-		}
+	return ctx
+}
 
-		resp, err := http.Get("http://localhost:" + port + "/health")
-		require.NoError(t, err, "Failed to query /health endpoint")
+func TestSeal(t *testing.T) {
+	port := randomPort(t)
 
-		if resp.StatusCode == http.StatusOK {
-			break
-		}
+	t.Setenv("PORT", port)
 
-		time.Sleep(100 * time.Millisecond)
-	}
+	ctx := setupTestServer(t)
 
-	// Create a client connection.
+	// Arrange: Create a client connection.
 	conn, err := grpc.NewClient("localhost:"+port, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err, "Failed to connect to server")
 
 	t.Cleanup(func() {
-		conn.Close()
+		if err := conn.Close(); err != nil {
+			t.Errorf("Failed to close connection: %s", err)
+		}
 	})
 
-	// Create a client.
+	// Arrange: Create a client.
 	client := taloskms.NewKMSServiceClient(conn)
 
 	// Act: Test Seal
@@ -64,19 +82,60 @@ func TestKMSService(t *testing.T) {
 
 	// Assert: Seal.
 	require.NoError(t, err, "Seal failed")
-	assert.Equal(t, "sealed:test data", string(sealResp.Data), "Unexpected seal response")
+	assert.Equal(t, "sealed:test data", string(sealResp.GetData()), "Unexpected seal response")
+}
 
-	// Act: Test Unseal.
+// TestUnseal tests the Unseal method of the KMS service.
+func TestUnseal(t *testing.T) {
+	port := randomPort(t)
+
+	t.Setenv("PORT", port)
+
+	ctx := setupTestServer(t)
+
+	// Arrange: Create a client connection.
+	conn, err := grpc.NewClient("localhost:"+port, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	require.NoError(t, err, "Failed to connect to server")
+
+	t.Cleanup(func() {
+		if err := conn.Close(); err != nil {
+			t.Errorf("Failed to close connection: %s", err)
+		}
+	})
+
+	// Arrange: Create a client.
+	client := taloskms.NewKMSServiceClient(conn)
+
+	// Act: Test Unseal
 	unsealReq := &taloskms.Request{
-		Data: sealResp.Data,
+		Data: []byte("sealed:test data"),
 	}
 	unsealResp, err := client.Unseal(ctx, unsealReq)
 
 	// Assert: Unseal.
 	require.NoError(t, err, "Unseal failed")
-	assert.Equal(t, "test data", string(unsealResp.Data), "Unexpected unseal response")
+	assert.Equal(t, "test data", string(unsealResp.GetData()), "Unexpected unseal response")
+}
 
-	// Arrange: Test reflection.
+// TestReflection tests the reflection service of the KMS server.
+func TestReflection(t *testing.T) {
+	port := randomPort(t)
+
+	t.Setenv("PORT", port)
+
+	ctx := setupTestServer(t)
+
+	// Arrange: Create a client connection.
+	conn, err := grpc.NewClient("localhost:"+port, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	require.NoError(t, err, "Failed to connect to server")
+
+	t.Cleanup(func() {
+		if err := conn.Close(); err != nil {
+			t.Errorf("Failed to close connection: %s", err)
+		}
+	})
+
+	// Arrange: Create a reflection client.
 	reflectionClient := grpc_reflection_v1.NewServerReflectionClient(conn)
 
 	stream, err := reflectionClient.ServerReflectionInfo(ctx)
@@ -93,9 +152,9 @@ func TestKMSService(t *testing.T) {
 	require.NoError(t, err, "Receiving reflection response should not fail")
 
 	// Assert: Reflection.
-	serviceNames := make([]string, len(resp.GetListServicesResponse().Service))
-	for i, service := range resp.GetListServicesResponse().Service {
-		serviceNames[i] = service.Name
+	serviceNames := make([]string, len(resp.GetListServicesResponse().GetService()))
+	for i, service := range resp.GetListServicesResponse().GetService() {
+		serviceNames[i] = service.GetName()
 	}
 
 	assert.Contains(t, serviceNames, "grpc.reflection.v1.ServerReflection", "ServerReflection service should be listed")
