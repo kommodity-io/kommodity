@@ -15,7 +15,7 @@ import (
 	"google.golang.org/grpc"
 )
 
-var Version = "dev"
+var version = "dev"
 
 func main() {
 	ctx := context.Background()
@@ -37,7 +37,7 @@ func main() {
 	logger := zap.New(otelzap.NewCore("kommodity", otelzap.WithLoggerProvider(loggerProvider)))
 	zap.ReplaceGlobals(logger)
 
-	logger.Info("Starting kommodity server", zap.String("version", Version))
+	logger.Info("Starting kommodity server", zap.String("version", version))
 
 	srv := NewServer(ctx)
 
