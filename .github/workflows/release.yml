@@ -71,6 +71,7 @@ jobs:
     permissions:
       id-token: write
       pages: write
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -124,6 +125,8 @@ jobs:
     name: Release
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs:
+      - build
     permissions:
       contents: write
       pull-requests: write
