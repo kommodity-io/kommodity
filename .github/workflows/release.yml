@@ -154,19 +154,12 @@ jobs:
 
       - name: Download binaries
         uses: actions/download-artifact@v4
+        with:
+          path: release
+          merge-multiple: true
 
-      - name: Move binaries
-        run: |
-          set -eou pipefail
-
-          mkdir -p release
-
-          mapfile -t binaries < <(find . -type d -name 'kommodity-*' -print0 | xargs -0 -I {} find {} -type f)
-          for binary in "${binaries[@]}"; do
-            mv "$binary" "release/$(basename "$binary")"
-          done
-
-          ls -lah release
+      - name: List binaries
+        run: ls -lah release
 
   release:
     name: Release
