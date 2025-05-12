@@ -1,6 +1,7 @@
-VERSION		:= $(shell git describe --tags --always --dirty)
+VERSION		?= $(shell git describe --tags --always --dirty)
 GO_FLAGS	:= -ldflags "-X 'main.version=$(VERSION)'"
 SOURCES		:= $(shell find . -name '*.go')
+UPX_FLAGS	?= -qq
 
 .PHONY: help
 help: ## Display this help.
@@ -33,6 +34,9 @@ build: bin/kommodity ## Build the application.
 
 bin/kommodity: $(SOURCES) ## Build the application.
 	go build $(GO_FLAGS) -o bin/kommodity cmd/kommodity/main.go
+ifneq ($(UPX_FLAGS),)
+	upx $(UPX_FLAGS) bin/kommodity
+endif
 
 .PHONY: clean
 clean: ## Clean the build artifacts.

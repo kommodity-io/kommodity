@@ -57,7 +57,8 @@ jobs:
       - name: Install dependencies
         run: go mod download
 
-      - uses: gwatts/go-coverage-action@v2
+      - name: Calculate test coverage
+        uses: gwatts/go-coverage-action@v2
         id: coverage
         with:
           # Disable coverage threshold.
@@ -72,6 +73,10 @@ jobs:
       id-token: write
       pages: write
       contents: write
+    strategy:
+      matrix:
+        os: [linux, windows, darwin]
+        arch: [amd64, arm64]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -106,20 +111,57 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Compute version
+      - name: Compute version and compression
         id: version
         run: |
           set -eou pipefail
 
           version="${{ steps.semantic.outputs.git-tag }}"
+          compression="--ultra-brute -9"
           if [[ -z "$version" ]]; then
             version="$(git describe --tags --always)"
+            compression="-qq"
+          fi
+
+          # Avoid compression for darwin as it is not supported on MacOS 13+.
+          # Reference: https://github.com/upx/upx/issues/612
+          if [[ "${{ matrix.os }}" == "darwin" ]]; then
+            compression=""
+          fi
+
+          # Avoid compression for windows/arm64 as it is not supported.
+          # Reference: https://github.com/upx/upx/issues/650
+          if [[ "${{ matrix.os }}" == "windows" && "${{ matrix.arch }}" == "arm64" ]]; then
+            compression=""
           fi
 
           echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "compression=$compression" >> "$GITHUB_OUTPUT"
 
       - name: Build
-        run: VERSION="${{ steps.version.outputs.version }}" make build
+        run: make build
+        env:
+          GOOS: "${{ matrix.os }}"
+          GOARCH: "${{ matrix.arch }}"
+          VERSION: "${{ steps.version.outputs.version }}"
+          UPX_FLAGS: "${{ steps.version.outputs.compression }}"
+
+      - name: Rename binary
+        run: |
+          set -eou pipefail
+
+          target="kommodity-${{ matrix.os }}-${{ matrix.arch }}-${{ steps.version.outputs.version }}"
+          if [[ "${{ matrix.os }}" == "windows" ]]; then
+            target="${target}.exe"
+          fi
+
+          mv bin/kommodity bin/${target}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kommodity-${{ matrix.os }}-${{ matrix.arch }}-${{ steps.version.outputs.version }}
+          path: bin/kommodity-*
 
   release:
     name: Release
@@ -135,6 +177,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Download binaries
+        uses: actions/download-artifact@v4
+
+      - name: Download binaries
+        uses: actions/download-artifact@v4
+        with:
+          path: release
+          merge-multiple: true
+
       - name: Create release
         uses: docker://ghcr.io/codfish/semantic-release-action:v3
         with:
@@ -147,7 +198,7 @@ jobs:
             [
               "@semantic-release/commit-analyzer",
               "@semantic-release/release-notes-generator",
-              "@semantic-release/github"
+              ["@semantic-release/github", { assets: [{ path: "release/**"}] }]
             ]
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
