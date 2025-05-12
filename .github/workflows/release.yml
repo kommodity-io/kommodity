@@ -123,6 +123,11 @@ jobs:
             compression="-qq"
           fi
 
+          # Avoid compression for darwin as it is not supported.
+          if [[ "${{ matrix.os }}" == "darwin" ]]; then
+            compression=""
+          fi
+
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "compression=$compression" >> "$GITHUB_OUTPUT"
 
