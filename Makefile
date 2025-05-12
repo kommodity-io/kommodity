@@ -1,7 +1,7 @@
-VERSION		:= $(shell git describe --tags --always --dirty)
+VERSION		?= $(shell git describe --tags --always --dirty)
 GO_FLAGS	:= -ldflags "-X 'main.version=$(VERSION)'"
 SOURCES		:= $(shell find . -name '*.go')
-UPX_FLAGS	?= -qq -9
+UPX_FLAGS	?= -qq
 
 .PHONY: help
 help: ## Display this help.
