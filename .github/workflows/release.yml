@@ -123,8 +123,15 @@ jobs:
             compression="-qq"
           fi
 
-          # Avoid compression for darwin as it is not supported.
+          # Avoid compression for darwin as it is not supported on MacOS 13+.
+          # Reference: https://github.com/upx/upx/issues/612
           if [[ "${{ matrix.os }}" == "darwin" ]]; then
+            compression=""
+          fi
+
+          # Avoid compression for windows/arm64 as it is not supported.
+          # Reference: https://github.com/upx/upx/issues/650
+          if [[ "${{ matrix.os }}" == "windows" && "${{ matrix.arch }}" == "arm64" ]]; then
             compression=""
           fi
 
