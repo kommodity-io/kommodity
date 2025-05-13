@@ -8,7 +8,9 @@ import (
 	"fmt"
 	"net"
 
+	"github.com/kommodity-io/kommodity/pkg/server"
 	"github.com/siderolabs/kms-client/api/kms"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/peer"
 )
 
@@ -64,4 +66,14 @@ func (s *ServiceServer) Unseal(_ context.Context, req *kms.Request) (*kms.Respon
 	}
 
 	return &kms.Response{Data: data[len(pseudoSeal):]}, nil
+}
+
+// NewGRPCServerFactory returns an initializer function that initializes the KMS service.
+func NewGRPCServerFactory() server.GRPCServerFactory {
+	return func(srv *grpc.Server) error {
+		// Create a new KMS service server and register it with the gRPC server.
+		kms.RegisterKMSServiceServer(srv, &ServiceServer{})
+
+		return nil
+	}
 }
