@@ -14,7 +14,6 @@ func WithGRPCServerFactory(factory GRPCServerFactory) Option {
 			}
 
 			return nil
-
 		})
 	}
 }

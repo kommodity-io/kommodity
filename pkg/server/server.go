@@ -171,6 +171,7 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		s.httpServer.server.SetKeepAlivesEnabled(false)
 
 		s.logger.Info("Shutting down HTTP server", zap.Int("port", s.port))
+
 		if err := s.httpServer.server.Shutdown(ctx); err != nil {
 			// This is expected when the server is shut down via cmux.
 			// Reference: https://github.com/soheilhy/cmux/pull/92
@@ -201,7 +202,8 @@ func (s *Server) serveHTTP() {
 
 	s.httpServer.server = &http.Server{
 		// Wrap the HTTP handler to provide h2c support.
-		Handler:           h2c.NewHandler(s.httpServer.mux, &http2.Server{}),
+		Handler: h2c.NewHandler(s.httpServer.mux, &http2.Server{}),
+		// This prevents slowloris attacks, but may be rather aggressive.
 		ReadHeaderTimeout: 1 * time.Second,
 	}
 
@@ -250,9 +252,11 @@ func (s *Server) readyz(res http.ResponseWriter, _ *http.Request) {
 		}
 
 		res.WriteHeader(code)
+
 		if err := encoding.NewKubeJSONEncoder(res).Encode(status); err != nil {
 			s.logger.Error("Failed to encode status", zap.Error(err))
-			res.WriteHeader(http.StatusInternalServerError)
+
+			http.Error(res, encoding.ErrEncodingFailed.Error(), http.StatusInternalServerError)
 
 			return
 		}
@@ -269,9 +273,11 @@ func (s *Server) readyz(res http.ResponseWriter, _ *http.Request) {
 	}
 
 	res.WriteHeader(code)
+
 	if err := encoding.NewKubeJSONEncoder(res).Encode(status); err != nil {
 		s.logger.Error("Failed to encode status", zap.Error(err))
-		res.WriteHeader(http.StatusInternalServerError)
+
+		http.Error(res, encoding.ErrEncodingFailed.Error(), http.StatusInternalServerError)
 
 		return
 	}
@@ -290,9 +296,11 @@ func (s *Server) livez(res http.ResponseWriter, _ *http.Request) {
 	}
 
 	res.WriteHeader(code)
+
 	if err := encoding.NewKubeJSONEncoder(res).Encode(status); err != nil {
 		s.logger.Error("Failed to encode status", zap.Error(err))
-		res.WriteHeader(http.StatusInternalServerError)
+
+		http.Error(res, encoding.ErrEncodingFailed.Error(), http.StatusInternalServerError)
 
 		return
 	}

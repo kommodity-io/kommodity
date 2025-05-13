@@ -1,12 +1,20 @@
+// Package encoding provides a custom JSON encoder for Kubernetes
+// API objects, based on the implementation used in kubectl.
 package encoding
 
 import (
+	"errors"
 	"fmt"
 	"io"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/kubectl/pkg/scheme"
+)
+
+var (
+	// ErrEncodingFailed is an error that indicates the encoding failed.
+	ErrEncodingFailed = errors.New("encoding failed")
 )
 
 // KubeJSONEncoder is a custom JSON encoder.
