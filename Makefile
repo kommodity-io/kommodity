@@ -27,8 +27,8 @@ $(LINTER):
 ##@ Development
 
 .PHONY: run
-run: bin/kommodity ## Run the application locally.
-	bin/kommodity
+run: ## Run the application locally.
+	go run $(GO_FLAGS) cmd/kommodity/main.go
 
 build: bin/kommodity ## Build the application.
 
