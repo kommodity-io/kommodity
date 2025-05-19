@@ -26,6 +26,15 @@ golangci-lint: $(LINTER) ## Download golangci-lint locally if necessary.
 $(LINTER):
 	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
 
+# Set up the deepcopy generator.
+DEEPGEN := $(GOBIN)/deepcopy-gen
+
+.PHONY: deepcopy-gen
+deepcopy-gen: $(DEEPGEN) ## Generate deepcopy methods for API types.
+
+$(DEEPGEN):
+	go install k8s.io/code-generator/cmd/deepcopy-gen@v0.33.1
+
 ##@ Development
 
 .PHONY: run
@@ -50,3 +59,6 @@ test: ## Run the tests.
 
 lint: $(LINTER) ## Run the linter.
 	$(LINTER) run
+
+generate: deepcopy-gen ## Run code generation.
+	go generate ./...
