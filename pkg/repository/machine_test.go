@@ -16,14 +16,14 @@ import (
 )
 
 func TestMachine_New(t *testing.T) {
-	machine := &Machine{}
+	machine := NewMachine()
 	obj := machine.New()
 
 	assert.IsType(t, &machinev1.Machine{}, obj)
 }
 
 func TestMachine_Create(t *testing.T) {
-	machine := &Machine{}
+	machine := NewMachine()
 	input := &machinev1.Machine{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "test-machine",
@@ -43,7 +43,21 @@ func TestMachine_Create(t *testing.T) {
 }
 
 func TestMachine_Get(t *testing.T) {
-	machine := &Machine{}
+	machine := NewMachine()
+
+	// First create a machine
+	input := &machinev1.Machine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-machine",
+		},
+		Spec: machinev1.MachineSpec{
+			Test: "test-value",
+		},
+	}
+	_, err := machine.Create(context.Background(), input, nil, &metav1.CreateOptions{})
+	require.NoError(t, err)
+
+	// Then try to get it
 	obj, err := machine.Get(context.Background(), "test-machine", &metav1.GetOptions{})
 	require.NoError(t, err)
 
@@ -54,13 +68,29 @@ func TestMachine_Get(t *testing.T) {
 }
 
 func TestMachine_List(t *testing.T) {
-	machine := &Machine{}
+	machine := NewMachine()
+
+	// First create a machine
+	input := &machinev1.Machine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-machine",
+		},
+		Spec: machinev1.MachineSpec{
+			Test: "test-value",
+		},
+	}
+	_, err := machine.Create(context.Background(), input, nil, &metav1.CreateOptions{})
+	require.NoError(t, err)
+
+	// Then try to list it
 	obj, err := machine.List(context.Background(), &metav1.ListOptions{})
 	require.NoError(t, err)
 
 	output, ok := obj.(*machinev1.MachineList)
 	require.True(t, ok)
-	assert.Empty(t, output.Items)
+	assert.Len(t, output.Items, 1)
+	assert.Equal(t, "test-machine", output.Items[0].Name)
+	assert.Equal(t, "test-value", output.Items[0].Spec.Test)
 }
 
 func TestMachine_HTTPHandlers(t *testing.T) {
@@ -128,7 +158,7 @@ func TestMachine_HTTPHandlers(t *testing.T) {
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
 
-		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
 
 	t.Run("MethodNotAllowed", func(t *testing.T) {
