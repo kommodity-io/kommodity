@@ -1,2 +1,5 @@
 # Ignore built binaries.
 bin/
+
+# Ignore the environment configuration files.
+.env

@@ -1,4 +1,4 @@
-package main_test
+package server_test
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	main "github.com/kommodity-io/kommodity/cmd/kommodity"
+	"github.com/kommodity-io/kommodity/pkg/server"
 	taloskms "github.com/siderolabs/kms-client/api/kms"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -36,7 +36,8 @@ func setupTestServer(t *testing.T) context.Context {
 
 	// Start the server in a goroutine
 	go func() {
-		srv := main.NewServer(ctx)
+		srv, err := server.New(ctx)
+		require.NoError(t, err, "should create server without error")
 
 		if err := srv.ListenAndServe(ctx); err != nil {
 			if !errors.Is(err, http.ErrServerClosed) {
