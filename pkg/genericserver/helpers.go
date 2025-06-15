@@ -1,4 +1,4 @@
-package server
+package genericserver
 
 import (
 	"context"

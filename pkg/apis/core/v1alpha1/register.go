@@ -1,4 +1,4 @@
-package v1beta1
+package v1alpha1
 
 import (
 	"k8s.io/apimachinery/pkg/runtime"
@@ -9,7 +9,7 @@ const (
 	// GroupName is the group name used in this package.
 	GroupName = "core.kommodity.io"
 	// Version is the version used in this package.
-	Version = "v1beta1"
+	Version = "v1alpha1"
 )
 
 // SchemeGroupVersion is group version used to register these objects.
@@ -35,8 +35,8 @@ var (
 // Adds the list of known types to Scheme.
 func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(SchemeGroupVersion,
-		&Machine{},
-		&MachineList{},
+		&TalosCluster{},
+		&TalosClusterList{},
 	)
 
 	return nil

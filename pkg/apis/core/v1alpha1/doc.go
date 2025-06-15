@@ -16,7 +16,7 @@ limitations under the License.
 
 // +k8s:deepcopy-gen=package
 
-//go:generate go run k8s.io/code-generator/cmd/deepcopy-gen@v0.33.1 github.com/kommodity-io/kommodity/pkg/apis/core/v1beta1 --output-file=zz_generated.deepcopy.go
+//go:generate go run k8s.io/code-generator/cmd/deepcopy-gen@v0.33.1 github.com/kommodity-io/kommodity/pkg/apis/core/v1alpha1 --output-file=zz_generated.deepcopy.go
 
-// Package v1beta1 is the internal version of the API.
-package v1beta1
+// Package v1alpha1 is the internal version of the API.
+package v1alpha1
