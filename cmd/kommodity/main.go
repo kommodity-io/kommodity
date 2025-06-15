@@ -8,9 +8,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/kommodity-io/kommodity/pkg/kms"
 	"github.com/kommodity-io/kommodity/pkg/otel"
-	"github.com/kommodity-io/kommodity/pkg/repository"
 	"github.com/kommodity-io/kommodity/pkg/server"
 	"github.com/soheilhy/cmux"
 	"go.opentelemetry.io/contrib/bridges/otelzap"
@@ -45,7 +43,15 @@ func main() {
 	logger.Info("Starting kommodity server", zap.String("version", version))
 
 	go func() {
-		srv := NewServer(ctx)
+		srv, err := server.New(ctx)
+		if err != nil {
+			logger.Error("Failed to create server", zap.Error(err))
+
+			// Ensure that the server is shut down gracefully when an error occurs.
+			signals <- syscall.SIGTERM
+
+			return
+		}
 
 		finalizers = append(finalizers, srv.Shutdown)
 
@@ -69,14 +75,4 @@ func main() {
 			logger.Error("Failed to shutdown", zap.Error(err))
 		}
 	}
-}
-
-// NewServer create a new kommodity server instance.
-func NewServer(ctx context.Context) *server.Server {
-	srv := server.New(ctx,
-		server.WithGRPCServerFactory(kms.NewGRPCServerFactory()),
-		server.WithHTTPMuxFactory(repository.NewHTTPMuxFactory()),
-	)
-
-	return srv
 }

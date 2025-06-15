@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/kommodity-io/kommodity/pkg/server"
+	"github.com/kommodity-io/kommodity/pkg/genericserver"
 	"github.com/siderolabs/kms-client/api/kms"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/peer"
@@ -30,7 +30,7 @@ type ServiceServer struct {
 	kms.UnimplementedKMSServiceServer
 }
 
-// Seal is a method encrypts data using the KMS service.
+// Seal is a method that encrypts data using the KMS service.
 // DISCLAIMER: This is a mock implementation.
 func (s *ServiceServer) Seal(ctx context.Context, req *kms.Request) (*kms.Response, error) {
 	// We need the source IP for security hardening.
@@ -57,7 +57,7 @@ func (s *ServiceServer) Seal(ctx context.Context, req *kms.Request) (*kms.Respon
 	return &kms.Response{Data: append([]byte(pseudoSeal), data...)}, nil
 }
 
-// Unseal is a method decrypts data using the KMS service.
+// Unseal is a method that decrypts data using the KMS service.
 // DISCLAIMER: This is a mock implementation.
 func (s *ServiceServer) Unseal(_ context.Context, req *kms.Request) (*kms.Response, error) {
 	data := req.GetData()
@@ -69,7 +69,7 @@ func (s *ServiceServer) Unseal(_ context.Context, req *kms.Request) (*kms.Respon
 }
 
 // NewGRPCServerFactory returns an initializer function that initializes the KMS service.
-func NewGRPCServerFactory() server.GRPCServerFactory {
+func NewGRPCServerFactory() genericserver.GRPCServerFactory {
 	return func(srv *grpc.Server) error {
 		// Create a new KMS service server and register it with the gRPC server.
 		kms.RegisterKMSServiceServer(srv, &ServiceServer{})
