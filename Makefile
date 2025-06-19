@@ -1,5 +1,6 @@
 VERSION		?= $(shell git describe --tags --always --dirty)
-GO_FLAGS	:= -ldflags "-X 'main.version=$(VERSION)'"
+COMMIT		?= $(shell git rev-parse HEAD)
+GO_FLAGS	:= -ldflags "-X 'main.version=$(VERSION)' -X 'main.commit=$(COMMIT)'"
 SOURCES		:= $(shell find . -name '*.go')
 UPX_FLAGS	?= -qq
 

@@ -4,15 +4,18 @@ package genericserver
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
 	"net/http"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/blang/semver/v4"
 	"github.com/kommodity-io/kommodity/pkg/encoding"
 	"github.com/soheilhy/cmux"
 	"go.uber.org/zap"
@@ -21,8 +24,9 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
+	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/version"
 	"k8s.io/apiserver/pkg/registry/rest"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 )
@@ -59,13 +63,14 @@ type MuxServer struct {
 
 // GenericServer is a struct that contains the server configuration.
 type GenericServer struct {
-	muxServer  *MuxServer
-	grpcServer *GRPCServer
-	httpServer *HTTPServer
-	logger     *zap.Logger
-	port       int
-	ready      bool
-	apiGroups  []metav1.APIGroup
+	muxServer   *MuxServer
+	grpcServer  *GRPCServer
+	httpServer  *HTTPServer
+	logger      *zap.Logger
+	port        int
+	ready       bool
+	apiGroups   []metav1.APIGroup
+	versionInfo *version.Info
 	sync.RWMutex
 }
 
@@ -89,6 +94,17 @@ func New(ctx context.Context, opts ...Option) *GenericServer {
 		},
 		logger: zap.L(),
 		port:   getPort(ctx),
+		versionInfo: &version.Info{
+			Major:        "1",
+			Minor:        "0",
+			GitVersion:   "v1.0.0",
+			GitCommit:    "unknown",
+			GitTreeState: "clean",
+			BuildDate:    time.Now().UTC().Format(time.RFC3339),
+			GoVersion:    runtime.Version(),
+			Compiler:     runtime.Compiler,
+			Platform:     fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH),
+		},
 	}
 
 	for _, opt := range opts {
@@ -238,11 +254,47 @@ func (s *GenericServer) InstallAPIGroup(apiGroupInfo *genericapiserver.APIGroupI
 	return nil
 }
 
+// SetVersion sets the version information for the server.
+// This only accepts GitVersion and GitCommit from the version.Info struct.
+// All other fields are automatically computed based on the runtime information.
+func (s *GenericServer) SetVersion(info *version.Info) {
+	s.Lock()
+	defer s.Unlock()
+
+	// Strip the "v" prefix if it exists and parse the semantic version.
+	semantic, err := semver.Parse(strings.TrimPrefix(info.GitVersion, "v"))
+	if err != nil {
+		s.logger.Warn("Failed to parse semantic version", zap.String("version", info.GitVersion), zap.Error(err))
+
+		semantic = semver.Version{
+			Major: 0,
+			Minor: 0,
+		}
+	}
+
+	treeState := "clean"
+	if strings.HasSuffix(info.GitVersion, "-dirty") {
+		treeState = "dirty"
+	}
+
+	s.versionInfo = &version.Info{
+		Major:        strconv.FormatUint(semantic.Major, 10),
+		Minor:        strconv.FormatUint(semantic.Minor, 10),
+		GitVersion:   info.GitVersion,
+		GitCommit:    info.GitCommit,
+		GitTreeState: treeState,
+		BuildDate:    time.Now().UTC().Format(time.RFC3339),
+		GoVersion:    runtime.Version(),
+		Compiler:     runtime.Compiler,
+		Platform:     runtime.GOOS + "/" + runtime.GOARCH,
+	}
+}
+
 // APIVersionHandler handles requests for API resources.
 type APIVersionHandler struct {
 	groupVersion                 schema.GroupVersion
 	storage                      map[string]rest.Storage
-	serializer                   runtime.NegotiatedSerializer
+	serializer                   k8sruntime.NegotiatedSerializer
 	minRequestTimeout            time.Duration
 	enableAPIResponseCompression bool
 }
@@ -425,6 +477,9 @@ func (s *GenericServer) serveHTTP() {
 	s.httpServer.mux.HandleFunc("/readyz", s.readyz)
 	s.httpServer.mux.HandleFunc("/livez", s.livez)
 
+	// Register the Kubernetes-compatible version endpoint
+	s.httpServer.mux.HandleFunc("/version", s.versionHandler)
+
 	// Register the API discovery endpoint
 	s.httpServer.mux.HandleFunc("/apis", s.listAPIGroups)
 	s.httpServer.mux.HandleFunc("/apis/", s.listAPIGroups)
@@ -552,6 +607,19 @@ func (s *GenericServer) listAPIGroups(res http.ResponseWriter, _ *http.Request) 
 
 	if err := encoding.NewKubeJSONEncoder(res).Encode(apiGroupList); err != nil {
 		s.logger.Error("Failed to encode API group list", zap.Error(err))
+		http.Error(res, encoding.ErrEncodingFailed.Error(), http.StatusInternalServerError)
+	}
+}
+
+// versionHandler handles requests for the /version endpoint.
+func (s *GenericServer) versionHandler(res http.ResponseWriter, _ *http.Request) {
+	s.RLock()
+	defer s.RUnlock()
+
+	res.Header().Set("Content-Type", "application/json")
+
+	if err := json.NewEncoder(res).Encode(s.versionInfo); err != nil {
+		s.logger.Error("Failed to encode version info", zap.Error(err))
 		http.Error(res, encoding.ErrEncodingFailed.Error(), http.StatusInternalServerError)
 	}
 }

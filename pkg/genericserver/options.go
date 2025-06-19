@@ -1,6 +1,10 @@
 package genericserver
 
-import "fmt"
+import (
+	"fmt"
+
+	"k8s.io/apimachinery/pkg/version"
+)
 
 // Option is a function that configures the server.
 type Option func(*GenericServer)
@@ -28,5 +32,12 @@ func WithHTTPMuxFactory(factory HTTPMuxFactory) Option {
 
 			return nil
 		})
+	}
+}
+
+// WithVersionInfo sets the version information for the server.
+func WithVersionInfo(versionInfo *version.Info) Option {
+	return func(s *GenericServer) {
+		s.versionInfo = versionInfo
 	}
 }

@@ -13,9 +13,14 @@ import (
 	"github.com/soheilhy/cmux"
 	"go.opentelemetry.io/contrib/bridges/otelzap"
 	"go.uber.org/zap"
+	kubeversion "k8s.io/apimachinery/pkg/version"
 )
 
-var version = "dev"
+var (
+	version = "dev"
+	//nolint:gochecknoglobals // commit is set by the build system to the git commit hash.
+	commit = "unknown"
+)
 
 func main() {
 	ctx := context.Background()
@@ -52,6 +57,12 @@ func main() {
 
 			return
 		}
+
+		// Set the server version.
+		srv.SetVersion(&kubeversion.Info{
+			GitVersion: version,
+			GitCommit:  commit,
+		})
 
 		finalizers = append(finalizers, srv.Shutdown)
 
