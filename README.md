@@ -20,6 +20,8 @@ As a build system, we use `make`.
 make build
 # Run the application locally.
 make run
+# Test the application via `kubectl`.
+kubectl --kubeconfig kommodity.yaml api-versions
 ```
 
 ## License
