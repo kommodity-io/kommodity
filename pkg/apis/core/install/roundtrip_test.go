@@ -1,4 +1,4 @@
-package install
+package install_test
 
 // TODO: Implement roundtrip tests for the core API group.
 //       This requires creating a fuzzer implementation.

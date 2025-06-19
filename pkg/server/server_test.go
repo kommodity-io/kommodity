@@ -34,11 +34,11 @@ func setupTestServer(t *testing.T) context.Context {
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	t.Cleanup(cancel)
 
+	srv, err := server.New(ctx)
+	require.NoError(t, err, "should create server without error")
+
 	// Start the server in a goroutine
 	go func() {
-		srv, err := server.New(ctx)
-		require.NoError(t, err, "should create server without error")
-
 		if err := srv.ListenAndServe(ctx); err != nil {
 			if !errors.Is(err, http.ErrServerClosed) {
 				t.Errorf("Server failed to start: %s", err)

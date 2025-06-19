@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -20,6 +21,9 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apiserver/pkg/registry/rest"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 )
 
@@ -190,7 +194,187 @@ func (s *GenericServer) Shutdown(ctx context.Context) error {
 
 // InstallAPIGroup installs the API group into the server.
 func (s *GenericServer) InstallAPIGroup(apiGroupInfo *genericapiserver.APIGroupInfo) error {
-	return errors.New("InstallAPIGroup is not implemented")
+	// Add the factory to the HTTP server factories.
+	s.httpServer.factories = append(s.httpServer.factories, func() error {
+		return s.newAPIGroupFactory(apiGroupInfo)(s.httpServer.mux)
+	})
+
+	return nil
+}
+
+// APIVersionHandler handles requests for API resources.
+type APIVersionHandler struct {
+	groupVersion                 schema.GroupVersion
+	storage                      map[string]rest.Storage
+	serializer                   runtime.NegotiatedSerializer
+	minRequestTimeout            time.Duration
+	enableAPIResponseCompression bool
+}
+
+// ServeHTTP handles API requests. This is a mock implementation.
+// In a full implementation, this would:
+// 1. Parse the URL to extract the resource and name.
+// 2. Get the appropriate storage.
+// 3. Use the storage to handle the request (get, list, create, update, delete).
+// 4. Serialize the response.
+func (h *APIVersionHandler) ServeHTTP(res http.ResponseWriter, _ *http.Request) {
+	res.Header().Set("Content-Type", "application/json")
+
+	status := &metav1.Status{
+		Status:  "Failure",
+		Code:    int32(http.StatusNotImplemented),
+		Reason:  metav1.StatusReasonNotFound,
+		Message: "API endpoint not implemented yet",
+	}
+
+	res.WriteHeader(http.StatusNotImplemented)
+
+	if err := encoding.NewKubeJSONEncoder(res).Encode(status); err != nil {
+		http.Error(res, encoding.ErrEncodingFailed.Error(), http.StatusInternalServerError)
+	}
+}
+
+// getVerbs returns the supported verbs for the given storage.
+func getVerbs(storage rest.Storage) []string {
+	verbs := []string{}
+
+	if _, ok := storage.(rest.Getter); ok {
+		verbs = append(verbs, "get")
+	}
+
+	if _, ok := storage.(rest.Lister); ok {
+		verbs = append(verbs, "list")
+	}
+
+	//nolint:misspell // Creater is the correct term used in the Kubernetes API.
+	if _, ok := storage.(rest.Creater); ok {
+		verbs = append(verbs, "create")
+	}
+
+	if _, ok := storage.(rest.Updater); ok {
+		verbs = append(verbs, "update")
+	}
+
+	if _, ok := storage.(rest.GracefulDeleter); ok {
+		verbs = append(verbs, "delete")
+	}
+
+	if _, ok := storage.(rest.CollectionDeleter); ok {
+		verbs = append(verbs, "deletecollection")
+	}
+
+	if _, ok := storage.(rest.Watcher); ok {
+		verbs = append(verbs, "watch")
+	}
+
+	if _, ok := storage.(rest.Patcher); ok {
+		verbs = append(verbs, "patch")
+	}
+
+	return verbs
+}
+
+// newAPIGroupFactory creates a new factory function that initializes the API group.
+func (s *GenericServer) newAPIGroupFactory(apiGroupInfo *genericapiserver.APIGroupInfo) HTTPMuxFactory {
+	return func(mux *http.ServeMux) error {
+		// Use the first prioritized version's group name for logging
+		groupName := apiGroupInfo.PrioritizedVersions[0].Group
+
+		// Register the API group and versions in the HTTP mux.
+		prefix := "/apis/" + groupName
+
+		// Register API resources for each version.
+		for _, groupVersion := range apiGroupInfo.PrioritizedVersions {
+			versionHandler := &APIVersionHandler{
+				groupVersion:                 groupVersion,
+				storage:                      apiGroupInfo.VersionedResourcesStorageMap[groupVersion.Version],
+				serializer:                   apiGroupInfo.NegotiatedSerializer,
+				minRequestTimeout:            1 * time.Minute,
+				enableAPIResponseCompression: true,
+			}
+
+			versionPath := prefix + "/" + groupVersion.Version
+
+			// Install handlers for the version.
+			mux.Handle(versionPath+"/", versionHandler)
+
+			// Register discovery information for this version.
+			mux.HandleFunc(versionPath, func(res http.ResponseWriter, _ *http.Request) {
+				resources := []metav1.APIResource{}
+
+				for resource, storage := range apiGroupInfo.VersionedResourcesStorageMap[groupVersion.Version] {
+					// Skip subresources.
+					if strings.Contains(resource, "/") {
+						continue
+					}
+
+					namespaced := false
+					if scoper, ok := storage.(rest.Scoper); ok {
+						namespaced = scoper.NamespaceScoped()
+					}
+
+					// Try to get kind information.
+					kind := ""
+					newFunc := storage.New()
+
+					if newFunc != nil {
+						kind = newFunc.GetObjectKind().GroupVersionKind().Kind
+					}
+
+					resources = append(resources, metav1.APIResource{
+						Name:       resource,
+						Namespaced: namespaced,
+						Kind:       kind,
+						Verbs:      getVerbs(storage),
+					})
+				}
+
+				resourceList := &metav1.APIResourceList{
+					GroupVersion: groupVersion.String(),
+					APIResources: resources,
+				}
+
+				res.Header().Set("Content-Type", "application/json")
+
+				if err := encoding.NewKubeJSONEncoder(res).Encode(resourceList); err != nil {
+					s.logger.Error("Failed to encode API resource list", zap.Error(err))
+					http.Error(res, encoding.ErrEncodingFailed.Error(), http.StatusInternalServerError)
+				}
+			})
+		}
+
+		// Register API group discovery information.
+		mux.HandleFunc(prefix, func(res http.ResponseWriter, _ *http.Request) {
+			versions := []metav1.GroupVersionForDiscovery{}
+
+			for _, groupVersion := range apiGroupInfo.PrioritizedVersions {
+				versions = append(versions, metav1.GroupVersionForDiscovery{
+					GroupVersion: groupVersion.String(),
+					Version:      groupVersion.Version,
+				})
+			}
+
+			apiGroup := &metav1.APIGroup{
+				Name:     groupName,
+				Versions: versions,
+				PreferredVersion: metav1.GroupVersionForDiscovery{
+					GroupVersion: apiGroupInfo.PrioritizedVersions[0].String(),
+					Version:      apiGroupInfo.PrioritizedVersions[0].Version,
+				},
+			}
+
+			res.Header().Set("Content-Type", "application/json")
+
+			if err := encoding.NewKubeJSONEncoder(res).Encode(apiGroup); err != nil {
+				s.logger.Error("Failed to encode API group", zap.Error(err))
+				http.Error(res, encoding.ErrEncodingFailed.Error(), http.StatusInternalServerError)
+			}
+		})
+
+		s.logger.Info("Installed API group", zap.String("group", groupName))
+
+		return nil
+	}
 }
 
 // setReady sets the server's readiness state.
