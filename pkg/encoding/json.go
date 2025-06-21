@@ -15,6 +15,8 @@ import (
 var (
 	// ErrEncodingFailed is an error that indicates the encoding failed.
 	ErrEncodingFailed = errors.New("encoding failed")
+	// ErrDecodingFailed is an error that indicates the decoding failed.
+	ErrDecodingFailed = errors.New("decoding failed")
 )
 
 // KubeJSONEncoder is a custom JSON encoder.
