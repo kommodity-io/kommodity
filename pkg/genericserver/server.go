@@ -24,10 +24,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	k8sruntime "k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/version"
-	"k8s.io/apiserver/pkg/registry/rest"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 )
 
@@ -290,78 +287,6 @@ func (s *GenericServer) SetVersion(info *version.Info) {
 	}
 }
 
-// APIVersionHandler handles requests for API resources.
-type APIVersionHandler struct {
-	groupVersion                 schema.GroupVersion
-	storage                      map[string]rest.Storage
-	serializer                   k8sruntime.NegotiatedSerializer
-	minRequestTimeout            time.Duration
-	enableAPIResponseCompression bool
-}
-
-// ServeHTTP handles API requests. This is a mock implementation.
-// In a full implementation, this would:
-// 1. Parse the URL to extract the resource and name.
-// 2. Get the appropriate storage.
-// 3. Use the storage to handle the request (get, list, create, update, delete).
-// 4. Serialize the response.
-func (h *APIVersionHandler) ServeHTTP(res http.ResponseWriter, _ *http.Request) {
-	res.Header().Set("Content-Type", "application/json")
-
-	status := &metav1.Status{
-		Status:  "Failure",
-		Code:    int32(http.StatusNotImplemented),
-		Reason:  metav1.StatusReasonNotFound,
-		Message: "API endpoint not implemented yet",
-	}
-
-	res.WriteHeader(http.StatusNotImplemented)
-
-	if err := encoding.NewKubeJSONEncoder(res).Encode(status); err != nil {
-		http.Error(res, encoding.ErrEncodingFailed.Error(), http.StatusInternalServerError)
-	}
-}
-
-// getVerbs returns the supported verbs for the given storage.
-func getVerbs(storage rest.Storage) []string {
-	verbs := []string{}
-
-	if _, ok := storage.(rest.Getter); ok {
-		verbs = append(verbs, "get")
-	}
-
-	if _, ok := storage.(rest.Lister); ok {
-		verbs = append(verbs, "list")
-	}
-
-	//nolint:misspell // Creater is the correct term used in the Kubernetes API.
-	if _, ok := storage.(rest.Creater); ok {
-		verbs = append(verbs, "create")
-	}
-
-	if _, ok := storage.(rest.Updater); ok {
-		verbs = append(verbs, "update")
-	}
-
-	if _, ok := storage.(rest.GracefulDeleter); ok {
-		verbs = append(verbs, "delete")
-	}
-
-	if _, ok := storage.(rest.CollectionDeleter); ok {
-		verbs = append(verbs, "deletecollection")
-	}
-
-	if _, ok := storage.(rest.Watcher); ok {
-		verbs = append(verbs, "watch")
-	}
-
-	if _, ok := storage.(rest.Patcher); ok {
-		verbs = append(verbs, "patch")
-	}
-
-	return verbs
-}
-
 // newAPIGroupFactory creates a new factory function that initializes the API group.
 func (s *GenericServer) newAPIGroupFactory(apiGroupInfo *genericapiserver.APIGroupInfo) HTTPMuxFactory {
 	return func(mux *http.ServeMux) error {
@@ -369,7 +294,7 @@ func (s *GenericServer) newAPIGroupFactory(apiGroupInfo *genericapiserver.APIGro
 		groupName := apiGroupInfo.PrioritizedVersions[0].Group
 
 		// Register the API group and versions in the HTTP mux.
-		prefix := "/apis/" + groupName
+		prefix := "GET /apis/" + groupName
 
 		// Register API resources for each version.
 		for _, groupVersion := range apiGroupInfo.PrioritizedVersions {
@@ -387,77 +312,11 @@ func (s *GenericServer) newAPIGroupFactory(apiGroupInfo *genericapiserver.APIGro
 			mux.Handle(versionPath+"/", versionHandler)
 
 			// Register discovery information for this version.
-			mux.HandleFunc(versionPath, func(res http.ResponseWriter, _ *http.Request) {
-				resources := []metav1.APIResource{}
-
-				for resource, storage := range apiGroupInfo.VersionedResourcesStorageMap[groupVersion.Version] {
-					// Skip subresources.
-					if strings.Contains(resource, "/") {
-						continue
-					}
-
-					namespaced := false
-					if scoper, ok := storage.(rest.Scoper); ok {
-						namespaced = scoper.NamespaceScoped()
-					}
-
-					// Try to get kind information.
-					kind := ""
-					newFunc := storage.New()
-
-					if newFunc != nil {
-						kind = newFunc.GetObjectKind().GroupVersionKind().Kind
-					}
-
-					resources = append(resources, metav1.APIResource{
-						Name:       resource,
-						Namespaced: namespaced,
-						Kind:       kind,
-						Verbs:      getVerbs(storage),
-					})
-				}
-
-				resourceList := &metav1.APIResourceList{
-					GroupVersion: groupVersion.String(),
-					APIResources: resources,
-				}
-
-				res.Header().Set("Content-Type", "application/json")
-
-				if err := encoding.NewKubeJSONEncoder(res).Encode(resourceList); err != nil {
-					s.logger.Error("Failed to encode API resource list", zap.Error(err))
-					http.Error(res, encoding.ErrEncodingFailed.Error(), http.StatusInternalServerError)
-				}
-			})
+			mux.HandleFunc(versionPath, newGroupVersionDiscoveryHandler(s.logger, apiGroupInfo, groupVersion))
 		}
 
 		// Register API group discovery information.
-		mux.HandleFunc(prefix, func(res http.ResponseWriter, _ *http.Request) {
-			versions := []metav1.GroupVersionForDiscovery{}
-
-			for _, groupVersion := range apiGroupInfo.PrioritizedVersions {
-				versions = append(versions, metav1.GroupVersionForDiscovery{
-					GroupVersion: groupVersion.String(),
-					Version:      groupVersion.Version,
-				})
-			}
-
-			apiGroup := &metav1.APIGroup{
-				Name:     groupName,
-				Versions: versions,
-				PreferredVersion: metav1.GroupVersionForDiscovery{
-					GroupVersion: apiGroupInfo.PrioritizedVersions[0].String(),
-					Version:      apiGroupInfo.PrioritizedVersions[0].Version,
-				},
-			}
-
-			res.Header().Set("Content-Type", "application/json")
-
-			if err := encoding.NewKubeJSONEncoder(res).Encode(apiGroup); err != nil {
-				s.logger.Error("Failed to encode API group", zap.Error(err))
-				http.Error(res, encoding.ErrEncodingFailed.Error(), http.StatusInternalServerError)
-			}
-		})
+		mux.HandleFunc(prefix, newGroupDiscoveryHandler(s.logger, apiGroupInfo, groupName))
 
 		return nil
 	}
@@ -474,15 +333,15 @@ func (s *GenericServer) setReady(ready bool) {
 // serveHTTP starts the HTTP server and listens for incoming requests.
 func (s *GenericServer) serveHTTP() {
 	// Register standard health endpoints
-	s.httpServer.mux.HandleFunc("/readyz", s.readyz)
-	s.httpServer.mux.HandleFunc("/livez", s.livez)
+	s.httpServer.mux.HandleFunc("GET /readyz", s.readyz)
+	s.httpServer.mux.HandleFunc("GET /livez", s.livez)
 
 	// Register the Kubernetes-compatible version endpoint
-	s.httpServer.mux.HandleFunc("/version", s.versionHandler)
+	s.httpServer.mux.HandleFunc("GET /version", s.versionHandler)
 
 	// Register the API discovery endpoint
-	s.httpServer.mux.HandleFunc("/apis", s.listAPIGroups)
-	s.httpServer.mux.HandleFunc("/apis/", s.listAPIGroups)
+	s.httpServer.mux.HandleFunc("GET /apis", s.listAPIGroups)
+	s.httpServer.mux.HandleFunc("GET /apis/", s.listAPIGroups)
 
 	s.httpServer.server = &http.Server{
 		// Wrap the HTTP handler to provide h2c support.
@@ -528,27 +387,7 @@ func (s *GenericServer) readyz(res http.ResponseWriter, _ *http.Request) {
 	s.RLock()
 	defer s.RUnlock()
 
-	if !s.ready {
-		code := http.StatusServiceUnavailable
-		status := &metav1.Status{
-			Status:  "Failure",
-			Code:    int32(code),
-			Message: "Not ready to serve requests",
-			Reason:  metav1.StatusReason(http.StatusText(code)),
-		}
-
-		res.WriteHeader(code)
-
-		if err := encoding.NewKubeJSONEncoder(res).Encode(status); err != nil {
-			s.logger.Error("Failed to encode status", zap.Error(err))
-
-			http.Error(res, encoding.ErrEncodingFailed.Error(), http.StatusInternalServerError)
-
-			return
-		}
-
-		return
-	}
+	// This would be a great place to check downstream dependencies.
 
 	code := http.StatusOK
 	status := &metav1.Status{
@@ -556,6 +395,16 @@ func (s *GenericServer) readyz(res http.ResponseWriter, _ *http.Request) {
 		Code:    int32(code),
 		Reason:  metav1.StatusReason(http.StatusText(code)),
 		Message: "Ready to serve requests",
+	}
+
+	if !s.ready {
+		code = http.StatusServiceUnavailable
+		status = &metav1.Status{
+			Status:  "Failure",
+			Code:    int32(code),
+			Message: "Not ready to serve requests",
+			Reason:  metav1.StatusReason(http.StatusText(code)),
+		}
 	}
 
 	res.WriteHeader(code)
@@ -569,7 +418,9 @@ func (s *GenericServer) readyz(res http.ResponseWriter, _ *http.Request) {
 	}
 }
 
-// livez checks if the server is alive and running.
+// livez checks if the server is alive and running. We do not check downstream
+// dependencies here to avoid "CrashLoopBackOff" issues in Kubernetes during
+// transient failures of dependent services.
 func (s *GenericServer) livez(res http.ResponseWriter, _ *http.Request) {
 	s.RLock()
 	defer s.RUnlock()
@@ -618,6 +469,8 @@ func (s *GenericServer) versionHandler(res http.ResponseWriter, _ *http.Request)
 
 	res.Header().Set("Content-Type", "application/json")
 
+	// This endpoint does not require the scheme for encoding,
+	// so we can use the standard JSON encoder.
 	if err := json.NewEncoder(res).Encode(s.versionInfo); err != nil {
 		s.logger.Error("Failed to encode version info", zap.Error(err))
 		http.Error(res, encoding.ErrEncodingFailed.Error(), http.StatusInternalServerError)

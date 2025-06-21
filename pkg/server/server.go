@@ -36,6 +36,7 @@ func New(ctx context.Context) (*genericserver.GenericServer, error) {
 	apiGroupInfo := genericapiserver.NewDefaultAPIGroupInfo(v1alpha1.GroupName, scheme, metav1.ParameterCodec, codecs)
 
 	v1alpha1Storage := map[string]rest.Storage{}
+	//nolint:godox // This PR is already too big, we will implement the storage in another PR.
 	// TODO: Add storage for v1alpha1 resources.
 	apiGroupInfo.VersionedResourcesStorageMap["v1alpha1"] = v1alpha1Storage
 
@@ -53,10 +54,12 @@ func newScheme() *runtime.Scheme {
 	// Install the Kommodity API group into the scheme.
 	install.Install(scheme)
 
+	//nolint:godox // This is not something we can easily fix today.
 	// TODO: Remove this once this is no longer needed.
 	//       Reference: https://github.com/kubernetes/sample-apiserver/blob/master/pkg/apiserver/apiserver.go
 	metav1.AddToGroupVersion(scheme, schema.GroupVersion{Version: "v1"})
 
+	//nolint:godox // This is not something we can easily fix today.
 	// TODO: Remove this once this is no longer needed.
 	//       Reference: https://github.com/kubernetes/sample-apiserver/blob/master/pkg/apiserver/apiserver.go
 	unversioned := schema.GroupVersion{Group: "", Version: "v1"}
