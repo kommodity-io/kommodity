@@ -6,3 +6,10 @@ linters:
     - depguard
     # We may enable this in the future.
     - exhaustruct
+  exclusions:
+    warn-unused: true
+    rules:
+      - path: "pkg/storage/memory/jsonblob_rest.go"
+        linters:
+          - ireturn
+        reason: "The correspoding interfaces require us to return the runtime.Object interface."

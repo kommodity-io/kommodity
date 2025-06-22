@@ -20,6 +20,8 @@ var (
 	version = "dev"
 	//nolint:gochecknoglobals // commit is set by the build system to the git commit hash.
 	commit = "unknown"
+	//nolint:gochecknoglobals // buildDate is set by the build system to the date of the build.
+	buildDate = "unknown"
 )
 
 func main() {
@@ -62,6 +64,7 @@ func main() {
 		srv.SetVersion(&kubeversion.Info{
 			GitVersion: version,
 			GitCommit:  commit,
+			BuildDate:  buildDate,
 		})
 
 		finalizers = append(finalizers, srv.Shutdown)
