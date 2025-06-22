@@ -2,6 +2,8 @@ package memory
 
 import "k8s.io/apimachinery/pkg/watch"
 
+const watchBufferSize = 10
+
 // jsonWatch represents a watch on a JSON BLOB resource.
 type jsonWatch struct {
 	j  *jsonblobREST
@@ -15,7 +17,7 @@ func newJSONWatch(j *jsonblobREST, id int) *jsonWatch {
 		j:  j,
 		id: id,
 		// Buffered channel to avoid blocking
-		ch: make(chan watch.Event, 10),
+		ch: make(chan watch.Event, watchBufferSize),
 	}
 }
 

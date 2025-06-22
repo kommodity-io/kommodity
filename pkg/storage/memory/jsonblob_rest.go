@@ -26,6 +26,8 @@ var (
 	ErrNamespaceNotFound = errors.New("namespace not found in request context")
 	// ErrResourceExists is returned when trying to create an object that already exists.
 	ErrResourceExists = errors.New("resource already exists")
+	// ErrRuntimeObjectConversion is returned when a value cannot be converted to a runtime.Object.
+	ErrRuntimeObjectConversion = errors.New("value cannot be converted to runtime.Object")
 )
 
 // Ensure that the necessary interfaces are implemented.
@@ -43,14 +45,13 @@ func NewJSONBLOBREST(
 	newFunc func() runtime.Object,
 	newListFunc func() runtime.Object,
 ) rest.Storage {
-
 	rest := &jsonblobREST{
 		TableConvertor: rest.NewDefaultTableConvertor(groupResource),
 		codec:          codec,
 		isNamespaced:   isNamespaced,
 		newFunc:        newFunc,
 		newListFunc:    newListFunc,
-		watchers:       make(map[int]*jsonWatch, 10),
+		watchers:       make(map[int]*jsonWatch),
 	}
 
 	return rest
@@ -96,7 +97,7 @@ func (j *jsonblobREST) NamespaceScoped() bool {
 func (j *jsonblobREST) Get(
 	ctx context.Context,
 	name string,
-	options *metav1.GetOptions,
+	_ *metav1.GetOptions,
 ) (runtime.Object, error) {
 	j.muStore.RLock()
 	defer j.muStore.RUnlock()
@@ -116,8 +117,8 @@ func (j *jsonblobREST) Get(
 
 // List returns a list of objects.
 func (j *jsonblobREST) List(
-	ctx context.Context,
-	options *metainternalversion.ListOptions,
+	_ context.Context,
+	_ *metainternalversion.ListOptions,
 ) (runtime.Object, error) {
 	j.muStore.RLock()
 	defer j.muStore.RUnlock()
@@ -129,7 +130,7 @@ func (j *jsonblobREST) List(
 		return nil, fmt.Errorf("failed to get list pointer: %w", err)
 	}
 
-	for key, _ := range j.store {
+	for key := range j.store {
 		obj, err := j.read(key)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read JSON BLOB for key %s: %w", key, err)
@@ -146,7 +147,7 @@ func (j *jsonblobREST) Create(
 	ctx context.Context,
 	obj runtime.Object,
 	createValidation rest.ValidateObjectFunc,
-	options *metav1.CreateOptions,
+	_ *metav1.CreateOptions,
 ) (runtime.Object, error) {
 	j.muStore.Lock()
 	defer j.muStore.Unlock()
@@ -184,6 +185,8 @@ func (j *jsonblobREST) Create(
 }
 
 // Update updates an existing object in the store.
+//
+//nolint:cyclop,funlen // This function needs to handle both creation and update.
 func (j *jsonblobREST) Update(
 	ctx context.Context,
 	name string,
@@ -191,7 +194,7 @@ func (j *jsonblobREST) Update(
 	createValidation rest.ValidateObjectFunc,
 	updateValidation rest.ValidateObjectUpdateFunc,
 	forceAllowCreate bool,
-	options *metav1.UpdateOptions,
+	_ *metav1.UpdateOptions,
 ) (runtime.Object, bool, error) {
 	j.muStore.Lock()
 	defer j.muStore.Unlock()
@@ -259,7 +262,7 @@ func (j *jsonblobREST) Delete(
 	ctx context.Context,
 	name string,
 	deleteValidation rest.ValidateObjectFunc,
-	options *metav1.DeleteOptions,
+	_ *metav1.DeleteOptions,
 ) (runtime.Object, bool, error) {
 	j.muStore.Lock()
 	defer j.muStore.Unlock()
@@ -300,8 +303,8 @@ func (j *jsonblobREST) Delete(
 func (j *jsonblobREST) DeleteCollection(
 	ctx context.Context,
 	deleteValidation rest.ValidateObjectFunc,
-	options *metav1.DeleteOptions,
-	listOptions *metainternalversion.ListOptions,
+	_ *metav1.DeleteOptions,
+	_ *metainternalversion.ListOptions,
 ) (runtime.Object, error) {
 	j.muStore.Lock()
 	defer j.muStore.Unlock()
@@ -313,7 +316,7 @@ func (j *jsonblobREST) DeleteCollection(
 		return nil, fmt.Errorf("failed to get list pointer: %w", err)
 	}
 
-	for key, _ := range j.store {
+	for key := range j.store {
 		if !j.exists(key) {
 			return nil, ErrNotFound
 		}
@@ -363,7 +366,13 @@ func (j *jsonblobREST) Watch(
 	items := danger.FieldByName("Items")
 
 	for i := range items.Len() {
-		obj := items.Index(i).Addr().Interface().(runtime.Object)
+		value := items.Index(i).Addr().Interface()
+
+		obj, ok := value.(runtime.Object)
+		if !ok {
+			return nil, fmt.Errorf("%w: %T", ErrRuntimeObjectConversion, value)
+		}
+
 		watcher.ch <- watch.Event{
 			Type:   watch.Added,
 			Object: obj,
@@ -419,6 +428,7 @@ func (j *jsonblobREST) read(key string) (runtime.Object, error) {
 	}
 
 	newObj := j.newFunc()
+
 	decodedObj, _, err := j.codec.Decode([]byte(data), nil, newObj)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode JSON BLOB: %w", err)
