@@ -21,6 +21,7 @@ require (
 	k8s.io/apiserver v0.33.1
 	k8s.io/cli-runtime v0.33.1
 	k8s.io/kubectl v0.33.1
+	sigs.k8s.io/apiserver-runtime v1.1.1
 )
 
 require (
