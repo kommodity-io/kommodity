@@ -274,13 +274,20 @@ func (s *GenericServer) SetVersion(info *version.Info) {
 		treeState = "dirty"
 	}
 
+	buildDate := info.BuildDate
+
+	parsedBuildDate, err := time.Parse(time.RFC3339, info.BuildDate)
+	if err == nil {
+		buildDate = parsedBuildDate.UTC().Format(time.RFC3339)
+	}
+
 	s.versionInfo = &version.Info{
 		Major:        strconv.FormatUint(semantic.Major, 10),
 		Minor:        strconv.FormatUint(semantic.Minor, 10),
 		GitVersion:   info.GitVersion,
 		GitCommit:    info.GitCommit,
 		GitTreeState: treeState,
-		BuildDate:    time.Now().UTC().Format(time.RFC3339),
+		BuildDate:    buildDate,
 		GoVersion:    runtime.Version(),
 		Compiler:     runtime.Compiler,
 		Platform:     runtime.GOOS + "/" + runtime.GOARCH,
