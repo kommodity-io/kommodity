@@ -30,6 +30,13 @@ make run
 kubectl --kubeconfig kommodity.yaml api-versions
 ```
 
+## Mock KMS Service
+
+The `kms` package provides a mock implementation of the Talos Linux Key Management Service (KMS). This implementation:
+
+- Exposes SideroLabs KMS API via gRPC.
+- Includes mock `Seal` and `Unseal` methods.
+
 ## License
 
 Kommodity is licensed under the [Apache License 2.0](LICENSE).
