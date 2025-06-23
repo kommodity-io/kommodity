@@ -12,7 +12,7 @@ Kommodity is an open-source infrastructure platform to commoditize compute, stor
 
 ## Development
 
-Make sure to have a recent version of Go installed. We recommend using [gvm](https://github.com/moovweb/gvm) to install Go.
+Make sure to have a recent version of Go installed. We recommend using [gvm][gvm] to install Go.
 
 ```bash
 gvm install go1.24.2 -B
@@ -26,10 +26,38 @@ As a build system, we use `make`.
 make build
 # Run the application locally.
 make run
+```
+
+## Demo
+
+```bash
 # Test the application via `kubectl`.
 kubectl --kubeconfig kommodity.yaml api-versions
+# Test gRPC reflection.
+grpcurl -plaintext localhost:8080 list
+```
+
+### Mock KMS Service
+
+The `kms` package provides a mock implementation of the [Talos Linux Key Management Service (KMS)][talos-kms-api]. This implementation:
+
+- Exposes SideroLabs KMS API via gRPC.
+- Includes mock `Seal` and `Unseal` methods:
+  - `Seal` prepends the string "sealed:" to the input data.
+  - `Unseal` removes the "sealed:" prefix from the input data.
+
+```bash
+# Test sealing.
+export SECRET="This is super secret"
+grpcurl -plaintext -d "{\"data\": \"$(echo -n "$SECRET" | base64)\"}" localhost:8080 sidero.kms.KMSService/Seal | jq -r '.data' | base64 --decode
+# Test unsealing.
+export SEALED="sealed:This is super secret"
+grpcurl -plaintext -d "{\"data\": \"$(echo -n "$SEALED" | base64)\"}" localhost:8080 sidero.kms.KMSService/Unseal | jq -r '.data' | base64 --decode
 ```
 
 ## License
 
 Kommodity is licensed under the [Apache License 2.0](LICENSE).
+
+[gvm]: https://github.com/moovweb/gvm
+[talos-kms-api]: https://github.com/siderolabs/kms-client/blob/main/api/kms/kms.proto
