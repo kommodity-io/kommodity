@@ -68,7 +68,8 @@ func (e *Exporter) Export(ctx context.Context, records []sdklog.Record) error {
 
 // ForceFlush forces the exporter to flush any buffered log records.
 func (e *Exporter) ForceFlush(_ context.Context) error {
-	if err := e.logger.Sync(); err != nil {
+	err := e.logger.Sync()
+	if err != nil {
 		return fmt.Errorf("failed to sync logger: %w", err)
 	}
 
@@ -77,7 +78,8 @@ func (e *Exporter) ForceFlush(_ context.Context) error {
 
 // Shutdown flushes any buffered log records and closes the logger.
 func (e *Exporter) Shutdown(_ context.Context) error {
-	if err := e.logger.Sync(); err != nil {
+	err := e.logger.Sync()
+	if err != nil {
 		return fmt.Errorf("failed to sync logger: %w", err)
 	}
 

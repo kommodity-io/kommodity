@@ -38,7 +38,8 @@ func (h *APIVersionHandler) ServeHTTP(res http.ResponseWriter, _ *http.Request) 
 
 	res.WriteHeader(http.StatusNotImplemented)
 
-	if err := encoding.NewKubeJSONEncoder(res).Encode(status); err != nil {
+	err := encoding.NewKubeJSONEncoder(res).Encode(status)
+	if err != nil {
 		http.Error(res, encoding.ErrEncodingFailed.Error(), http.StatusInternalServerError)
 	}
 }

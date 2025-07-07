@@ -66,7 +66,8 @@ func main() {
 
 		finalizers = append(finalizers, srv.Shutdown)
 
-		if err := srv.ListenAndServe(ctx); err != nil {
+		err = srv.ListenAndServe(ctx)
+		if err != nil {
 			// This is expected as part of the shutdown process.
 			// Reference: https://github.com/soheilhy/cmux/issues/39
 			if errors.Is(err, cmux.ErrListenerClosed) {
@@ -82,7 +83,8 @@ func main() {
 
 	// Call the finalizers in reverse order.
 	for i := len(finalizers) - 1; i >= 0; i-- {
-		if err := finalizers[i](ctx); err != nil {
+		err := finalizers[i](ctx)
+		if err != nil {
 			logger.Error("Failed to shutdown", zap.Error(err))
 		}
 	}
