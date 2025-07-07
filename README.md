@@ -51,10 +51,14 @@ The `kms` package provides a mock implementation of the [Talos Linux Key Managem
 ```bash
 # Test sealing.
 export SECRET="This is super secret"
-grpcurl -plaintext -d "{\"data\": \"$(echo -n "$SECRET" | base64)\"}" localhost:8080 sidero.kms.KMSService/Seal | jq -r '.data' | base64 --decode
+grpcurl -plaintext -d "{\"data\": \"$(echo -n "$SECRET" | base64)\"}" \
+  localhost:8080 sidero.kms.KMSService/Seal \
+  | jq -r '.data' | base64 --decode
 # Test unsealing.
 export SEALED="sealed:This is super secret"
-grpcurl -plaintext -d "{\"data\": \"$(echo -n "$SEALED" | base64)\"}" localhost:8080 sidero.kms.KMSService/Unseal | jq -r '.data' | base64 --decode
+grpcurl -plaintext -d "{\"data\": \"$(echo -n "$SEALED" | base64)\"}" \
+  localhost:8080 sidero.kms.KMSService/Unseal \
+  | jq -r '.data' | base64 --decode
 ```
 
 ## License
