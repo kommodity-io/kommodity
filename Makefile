@@ -19,6 +19,14 @@ else
 GOBIN=$(shell go env GOBIN)
 endif
 
+# Set up grpcurl.
+GRPCURL := $(GOBIN)/grpcurl
+
+.PHONY: grpcurl
+grpcurl: $(GRPCURL) ## Download grpcurl locally if necessary.
+$(GRPCURL):
+	go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest
+
 # Set up the linter.
 LINTER := $(GOBIN)/golangci-lint
 

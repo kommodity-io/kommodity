@@ -1,5 +1,8 @@
 // Package kms implements the Talos Linux KMS service, which provides
 // a networked key management system for full disk encryption.
+//
+// This package includes a mock implementation of the gRPC server for
+// the SideroLabs KMS API.
 package kms
 
 import (
@@ -31,7 +34,7 @@ type ServiceServer struct {
 }
 
 // Seal is a method that encrypts data using the KMS service.
-// DISCLAIMER: This is a mock implementation.
+// DISCLAIMER: This is a mock implementation that appends a "sealed:" prefix to the input data.
 func (s *ServiceServer) Seal(ctx context.Context, req *kms.Request) (*kms.Response, error) {
 	// We need the source IP for security hardening.
 	client, ok := peer.FromContext(ctx)
@@ -58,7 +61,7 @@ func (s *ServiceServer) Seal(ctx context.Context, req *kms.Request) (*kms.Respon
 }
 
 // Unseal is a method that decrypts data using the KMS service.
-// DISCLAIMER: This is a mock implementation.
+// DISCLAIMER: This is a mock implementation that removes the "sealed:" prefix from the input data.
 func (s *ServiceServer) Unseal(_ context.Context, req *kms.Request) (*kms.Response, error) {
 	data := req.GetData()
 	if len(data) == 0 {
@@ -68,7 +71,7 @@ func (s *ServiceServer) Unseal(_ context.Context, req *kms.Request) (*kms.Respon
 	return &kms.Response{Data: data[len(pseudoSeal):]}, nil
 }
 
-// NewGRPCServerFactory returns an initializer function that initializes the KMS service.
+// NewGRPCServerFactory returns an initializer function that initializes the mock KMS service.
 func NewGRPCServerFactory() genericserver.GRPCServerFactory {
 	return func(srv *grpc.Server) error {
 		// Create a new KMS service server and register it with the gRPC server.
