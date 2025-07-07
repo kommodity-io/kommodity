@@ -39,7 +39,8 @@ func newGroupDiscoveryHandler(
 
 		res.Header().Set("Content-Type", "application/json")
 
-		if err := encoding.NewKubeJSONEncoder(res).Encode(apiGroup); err != nil {
+		err := encoding.NewKubeJSONEncoder(res).Encode(apiGroup)
+		if err != nil {
 			logger.Error("Failed to encode API group", zap.Error(err))
 			http.Error(res, encoding.ErrEncodingFailed.Error(), http.StatusInternalServerError)
 		}
@@ -89,7 +90,8 @@ func newGroupVersionDiscoveryHandler(
 
 		res.Header().Set("Content-Type", "application/json")
 
-		if err := encoding.NewKubeJSONEncoder(res).Encode(resourceList); err != nil {
+		err := encoding.NewKubeJSONEncoder(res).Encode(resourceList)
+		if err != nil {
 			logger.Error("Failed to encode API resource list", zap.Error(err))
 			http.Error(res, encoding.ErrEncodingFailed.Error(), http.StatusInternalServerError)
 		}

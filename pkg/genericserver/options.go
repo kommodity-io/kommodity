@@ -13,7 +13,8 @@ type Option func(*GenericServer)
 func WithGRPCServerFactory(factory GRPCServerFactory) Option {
 	return func(s *GenericServer) {
 		s.grpcServer.factories = append(s.grpcServer.factories, func() error {
-			if err := factory(s.grpcServer.server); err != nil {
+			err := factory(s.grpcServer.server)
+			if err != nil {
 				return fmt.Errorf("failed to run gRPC server factory: %w", err)
 			}
 
@@ -26,7 +27,8 @@ func WithGRPCServerFactory(factory GRPCServerFactory) Option {
 func WithHTTPMuxFactory(factory HTTPMuxFactory) Option {
 	return func(s *GenericServer) {
 		s.httpServer.factories = append(s.httpServer.factories, func() error {
-			if err := factory(s.httpServer.mux); err != nil {
+			err := factory(s.httpServer.mux)
+			if err != nil {
 				return fmt.Errorf("failed to run HTTP factory: %w", err)
 			}
 

@@ -4,5 +4,7 @@ linters:
   default: all
   disable:
     - depguard
+    # Deprecated linters.
+    - wsl
     # We may enable this in the future.
     - exhaustruct

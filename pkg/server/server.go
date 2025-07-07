@@ -40,7 +40,8 @@ func New(ctx context.Context) (*genericserver.GenericServer, error) {
 	// TODO: Add storage for v1alpha1 resources.
 	apiGroupInfo.VersionedResourcesStorageMap["v1alpha1"] = v1alpha1Storage
 
-	if err := srv.InstallAPIGroup(&apiGroupInfo); err != nil {
+	err := srv.InstallAPIGroup(&apiGroupInfo)
+	if err != nil {
 		return nil, fmt.Errorf("failed to install API group: %w", err)
 	}
 

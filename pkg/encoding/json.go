@@ -47,7 +47,8 @@ func (e *KubeJSONEncoder) EncodeWithScheme(obj runtime.Object, customScheme *run
 		return fmt.Errorf("failed to create printer: %w", err)
 	}
 
-	if err := printer.PrintObj(obj, e.writer); err != nil {
+	err = printer.PrintObj(obj, e.writer)
+	if err != nil {
 		return fmt.Errorf("failed to print object: %w", err)
 	}
 

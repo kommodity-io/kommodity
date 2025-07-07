@@ -39,14 +39,16 @@ func setupTestServer(t *testing.T) context.Context {
 
 	// Start the server in a goroutine
 	go func() {
-		if err := srv.ListenAndServe(ctx); err != nil {
+		err := srv.ListenAndServe(ctx)
+		if err != nil {
 			if !errors.Is(err, http.ErrServerClosed) {
 				t.Errorf("Server failed to start: %s", err)
 			}
 		}
 
 		t.Cleanup(func() {
-			if err := srv.Shutdown(ctx); err != nil {
+			err := srv.Shutdown(ctx)
+			if err != nil {
 				t.Errorf("Failed to shutdown server: %s", err)
 			}
 		})
@@ -67,7 +69,8 @@ func TestSeal(t *testing.T) {
 	require.NoError(t, err, "Failed to connect to server")
 
 	t.Cleanup(func() {
-		if err := conn.Close(); err != nil {
+		err := conn.Close()
+		if err != nil {
 			t.Errorf("Failed to close connection: %s", err)
 		}
 	})
@@ -99,7 +102,8 @@ func TestUnseal(t *testing.T) {
 	require.NoError(t, err, "Failed to connect to server")
 
 	t.Cleanup(func() {
-		if err := conn.Close(); err != nil {
+		err := conn.Close()
+		if err != nil {
 			t.Errorf("Failed to close connection: %s", err)
 		}
 	})
@@ -131,7 +135,8 @@ func TestReflection(t *testing.T) {
 	require.NoError(t, err, "Failed to connect to server")
 
 	t.Cleanup(func() {
-		if err := conn.Close(); err != nil {
+		err := conn.Close()
+		if err != nil {
 			t.Errorf("Failed to close connection: %s", err)
 		}
 	})
@@ -143,9 +148,10 @@ func TestReflection(t *testing.T) {
 	require.NoError(t, err, "Getting reflection info should not fail")
 
 	// Act: Request list of services
-	if err := stream.Send(&grpc_reflection_v1.ServerReflectionRequest{
+	err = stream.Send(&grpc_reflection_v1.ServerReflectionRequest{
 		MessageRequest: &grpc_reflection_v1.ServerReflectionRequest_ListServices{},
-	}); err != nil {
+	})
+	if err != nil {
 		t.Fatalf("Failed to send request: %v", err)
 	}
 

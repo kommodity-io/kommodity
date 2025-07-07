@@ -60,6 +60,8 @@ type MuxServer struct {
 
 // GenericServer is a struct that contains the server configuration.
 type GenericServer struct {
+	sync.RWMutex
+
 	muxServer   *MuxServer
 	grpcServer  *GRPCServer
 	httpServer  *HTTPServer
@@ -68,7 +70,6 @@ type GenericServer struct {
 	ready       bool
 	apiGroups   []metav1.APIGroup
 	versionInfo *version.Info
-	sync.RWMutex
 }
 
 // New creates a new server instance.
@@ -117,7 +118,8 @@ func New(ctx context.Context, opts ...Option) *GenericServer {
 // The gRPC server is registered with reflection to allow for introspection.
 func (s *GenericServer) ListenAndServe(_ context.Context) error {
 	for _, factory := range s.httpServer.factories {
-		if err := factory(); err != nil {
+		err := factory()
+		if err != nil {
 			s.logger.Error("Failed to initialize HTTP server", zap.Error(err))
 
 			return err
@@ -125,7 +127,8 @@ func (s *GenericServer) ListenAndServe(_ context.Context) error {
 	}
 
 	for _, factory := range s.grpcServer.factories {
-		if err := factory(); err != nil {
+		err := factory()
+		if err != nil {
 			s.logger.Error("Failed to initialize gRPC server", zap.Error(err))
 
 			return err
@@ -152,7 +155,8 @@ func (s *GenericServer) ListenAndServe(_ context.Context) error {
 
 	s.logger.Info("Starting cmux server", zap.Int("port", s.port))
 
-	if err := s.muxServer.cmux.Serve(); err != nil {
+	err = s.muxServer.cmux.Serve()
+	if err != nil {
 		// This is expected when the server is shut down gracefully.
 		// Reference: https://github.com/soheilhy/cmux/pull/92
 		if !errors.Is(err, net.ErrClosed) {
@@ -190,7 +194,8 @@ func (s *GenericServer) Shutdown(ctx context.Context) error {
 
 		s.logger.Info("Shutting down HTTP server", zap.Int("port", s.port))
 
-		if err := s.httpServer.server.Shutdown(ctx); err != nil {
+		err := s.httpServer.server.Shutdown(ctx)
+		if err != nil {
 			// This is expected when the server is shut down via cmux.
 			// Reference: https://github.com/soheilhy/cmux/pull/92
 			if errors.Is(err, net.ErrClosed) {
@@ -237,7 +242,8 @@ func (s *GenericServer) InstallAPIGroup(apiGroupInfo *genericapiserver.APIGroupI
 		s.apiGroups = append(s.apiGroups, apiGroup)
 		s.Unlock()
 
-		if err := s.newAPIGroupFactory(apiGroupInfo)(s.httpServer.mux); err != nil {
+		err := s.newAPIGroupFactory(apiGroupInfo)(s.httpServer.mux)
+		if err != nil {
 			return fmt.Errorf("failed to install API group %s: %w", groupName, err)
 		}
 
@@ -352,7 +358,8 @@ func (s *GenericServer) serveHTTP() {
 
 	s.logger.Info("Starting HTTP server", zap.Int("port", s.port))
 
-	if err := s.httpServer.server.Serve(s.httpServer.listener); err != nil {
+	err := s.httpServer.server.Serve(s.httpServer.listener)
+	if err != nil {
 		if errors.Is(err, http.ErrServerClosed) {
 			// This is expected when the server is shut down gracefully.
 			return
@@ -374,7 +381,8 @@ func (s *GenericServer) serveGRPC() {
 
 	s.logger.Info("Starting gRPC server", zap.Int("port", s.port))
 
-	if err := s.grpcServer.server.Serve(s.grpcServer.listener); err != nil {
+	err := s.grpcServer.server.Serve(s.grpcServer.listener)
+	if err != nil {
 		// This is expected when the server is shut down gracefully.
 		if !errors.Is(err, grpc.ErrServerStopped) {
 			s.logger.Error("Failed to run gRPC server", zap.Error(err), zap.Int("port", s.port))
@@ -409,7 +417,8 @@ func (s *GenericServer) readyz(res http.ResponseWriter, _ *http.Request) {
 
 	res.WriteHeader(code)
 
-	if err := encoding.NewKubeJSONEncoder(res).Encode(status); err != nil {
+	err := encoding.NewKubeJSONEncoder(res).Encode(status)
+	if err != nil {
 		s.logger.Error("Failed to encode status", zap.Error(err))
 
 		http.Error(res, encoding.ErrEncodingFailed.Error(), http.StatusInternalServerError)
@@ -435,7 +444,8 @@ func (s *GenericServer) livez(res http.ResponseWriter, _ *http.Request) {
 
 	res.WriteHeader(code)
 
-	if err := encoding.NewKubeJSONEncoder(res).Encode(status); err != nil {
+	err := encoding.NewKubeJSONEncoder(res).Encode(status)
+	if err != nil {
 		s.logger.Error("Failed to encode status", zap.Error(err))
 
 		http.Error(res, encoding.ErrEncodingFailed.Error(), http.StatusInternalServerError)
@@ -456,7 +466,8 @@ func (s *GenericServer) listAPIGroups(res http.ResponseWriter, _ *http.Request) 
 
 	res.Header().Set("Content-Type", "application/json")
 
-	if err := encoding.NewKubeJSONEncoder(res).Encode(apiGroupList); err != nil {
+	err := encoding.NewKubeJSONEncoder(res).Encode(apiGroupList)
+	if err != nil {
 		s.logger.Error("Failed to encode API group list", zap.Error(err))
 		http.Error(res, encoding.ErrEncodingFailed.Error(), http.StatusInternalServerError)
 	}
@@ -471,7 +482,8 @@ func (s *GenericServer) versionHandler(res http.ResponseWriter, _ *http.Request)
 
 	// This endpoint does not require the scheme for encoding,
 	// so we can use the standard JSON encoder.
-	if err := json.NewEncoder(res).Encode(s.versionInfo); err != nil {
+	err := json.NewEncoder(res).Encode(s.versionInfo)
+	if err != nil {
 		s.logger.Error("Failed to encode version info", zap.Error(err))
 		http.Error(res, encoding.ErrEncodingFailed.Error(), http.StatusInternalServerError)
 	}
