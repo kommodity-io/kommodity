@@ -10,6 +10,8 @@
 
 Kommodity is an open-source infrastructure platform to commoditize compute, storage, and networking.
 
+> 🚧 EXPERIMENTAL 🚧: This project is in an early stage of development and is not yet ready for production use. APIs may break between minor releases, and the project is not yet feature-complete. The project does however adhere to [semantic versioning][semver], so patch releases will never break the API.
+
 ## Development
 
 Make sure to have a recent version of Go installed. We recommend using [gvm][gvm] to install Go.
@@ -61,3 +63,4 @@ Kommodity is licensed under the [Apache License 2.0](LICENSE).
 
 [gvm]: https://github.com/moovweb/gvm
 [talos-kms-api]: https://github.com/siderolabs/kms-client/blob/main/api/kms/kms.proto
+[semver]: https://semver.org

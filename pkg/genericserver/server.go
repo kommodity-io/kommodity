@@ -17,6 +17,7 @@ import (
 
 	"github.com/blang/semver/v4"
 	"github.com/kommodity-io/kommodity/pkg/encoding"
+	"github.com/kommodity-io/kommodity/pkg/logging"
 	"github.com/soheilhy/cmux"
 	"go.uber.org/zap"
 	"golang.org/x/net/http2"
@@ -90,8 +91,10 @@ func New(ctx context.Context, opts ...Option) *GenericServer {
 			listener:  nil,
 			factories: []Factory{},
 		},
-		logger: zap.L(),
-		port:   getPort(ctx),
+		logger: logging.FromContext(ctx).With(
+			zap.String("component", "genericserver"),
+		),
+		port: getPort(ctx),
 		versionInfo: &version.Info{
 			Major:        "1",
 			Minor:        "0",
@@ -286,7 +289,7 @@ func (s *GenericServer) SetVersion(info *version.Info) {
 		GitVersion:   info.GitVersion,
 		GitCommit:    info.GitCommit,
 		GitTreeState: treeState,
-		BuildDate:    time.Now().UTC().Format(time.RFC3339),
+		BuildDate:    info.BuildDate,
 		GoVersion:    runtime.Version(),
 		Compiler:     runtime.Compiler,
 		Platform:     runtime.GOOS + "/" + runtime.GOARCH,
