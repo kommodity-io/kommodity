@@ -1,8 +1,9 @@
-VERSION		?= $(shell git describe --tags --always --dirty)
-COMMIT		?= $(shell git rev-parse HEAD)
-GO_FLAGS	:= -ldflags "-X 'main.version=$(VERSION)' -X 'main.commit=$(COMMIT)'"
-SOURCES		:= $(shell find . -name '*.go')
-UPX_FLAGS	?= -qq
+VERSION			?= $(shell git describe --tags --always --dirty)
+COMMIT			?= $(shell git rev-parse HEAD)
+BUILD_DATE	?= $(shell date -u +'%Y-%m-%dT%H:%M:%SZ')
+GO_FLAGS		:= -ldflags "-X 'main.version=$(VERSION)' -X 'main.commit=$(COMMIT)' -X 'main.buildDate=$(BUILD_DATE)'"
+SOURCES			:= $(shell find . -name '*.go')
+UPX_FLAGS		?= -qq
 
 ##@ General
 
@@ -48,6 +49,8 @@ $(DEEPGEN):
 
 .PHONY: run
 run: ## Run the application locally.
+	LOG_FORMAT=console \
+	LOG_LEVEL=info \
 	go run $(GO_FLAGS) cmd/kommodity/main.go
 
 build: bin/kommodity ## Build the application.

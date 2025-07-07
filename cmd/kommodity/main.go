@@ -8,10 +8,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/kommodity-io/kommodity/pkg/otel"
+	"github.com/kommodity-io/kommodity/pkg/logging"
 	"github.com/kommodity-io/kommodity/pkg/server"
 	"github.com/soheilhy/cmux"
-	"go.opentelemetry.io/contrib/bridges/otelzap"
 	"go.uber.org/zap"
 	kubeversion "k8s.io/apimachinery/pkg/version"
 )
@@ -20,10 +19,13 @@ var (
 	version = "dev"
 	//nolint:gochecknoglobals // commit is set by the build system to the git commit hash.
 	commit = "unknown"
+	//nolint:gochecknoglobals // buildDate is set by the build system to the build date.
+	buildDate = "unknown"
 )
 
 func main() {
-	ctx := context.Background()
+	logger := logging.NewLogger()
+	ctx := logging.WithLogger(context.Background(), logger)
 
 	triggers := []os.Signal{
 		os.Interrupt,
@@ -37,15 +39,14 @@ func main() {
 
 	finalizers := make([]func(context.Context) error, 0)
 
-	// Configure opentelemetry logger provider.
-	loggerProvider := otel.NewLoggerProvider(ctx)
-	finalizers = append(finalizers, loggerProvider.Shutdown)
-
 	// Configure the zap OTEL logger.
-	logger := zap.New(otelzap.NewCore("kommodity", otelzap.WithLoggerProvider(loggerProvider)))
 	zap.ReplaceGlobals(logger)
 
-	logger.Info("Starting kommodity server", zap.String("version", version))
+	logger.Info("Starting kommodity server",
+		zap.String("version", version),
+		zap.String("commit", commit),
+		zap.String("buildDate", buildDate),
+	)
 
 	go func() {
 		srv, err := server.New(ctx)
@@ -62,6 +63,7 @@ func main() {
 		srv.SetVersion(&kubeversion.Info{
 			GitVersion: version,
 			GitCommit:  commit,
+			BuildDate:  buildDate,
 		})
 
 		finalizers = append(finalizers, srv.Shutdown)
