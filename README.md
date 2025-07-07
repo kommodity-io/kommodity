@@ -44,9 +44,9 @@ grpcurl -plaintext localhost:8080 list
 The `kms` package provides a mock implementation of the [Talos Linux Key Management Service (KMS)][talos-kms-api]. This implementation:
 
 - Exposes SideroLabs KMS API via gRPC.
-- Includes mock `Seal` and `Unseal` methods:
-  - `Seal` prepends the string "sealed:" to the input data.
-  - `Unseal` removes the "sealed:" prefix from the input data.
+- Includes mock `Seal` and `Unseal` methods.
+
+`Seal` prepends the string `sealed:` to the input data.
 
 ```bash
 # Test sealing.
@@ -54,6 +54,11 @@ export SECRET="This is super secret"
 grpcurl -plaintext -d "{\"data\": \"$(echo -n "$SECRET" | base64)\"}" \
   localhost:8080 sidero.kms.KMSService/Seal \
   | jq -r '.data' | base64 --decode
+```
+
+`Unseal` removes the `sealed:` prefix from the input data.
+
+```bash
 # Test unsealing.
 export SEALED="sealed:This is super secret"
 grpcurl -plaintext -d "{\"data\": \"$(echo -n "$SEALED" | base64)\"}" \
