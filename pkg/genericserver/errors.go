@@ -13,4 +13,8 @@ var (
 	ErrResourceNotFound = errors.New("resource not found")
 	// ErrFailedToCreateResource indicates that creating a resource failed.
 	ErrFailedToCreateResource = errors.New("failed to create resource")
+	// ErrNotValidatable indicates that the object does not implement the Validatable interface.
+	ErrNotValidatable = errors.New("object does not implement Validatable interface")
+	// ErrNotUpdatedObjectInfo indicates that the object does not implement the UpdatedObjectInfo interface.
+	ErrNotUpdatedObjectInfo = errors.New("object does not implement UpdatedObjectInfo interface")
 )

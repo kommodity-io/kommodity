@@ -11,8 +11,6 @@ import (
 	_ "github.com/lib/pq" // PostgreSQL driver
 )
 
-var ErrKommodityDBEnvVarNotSet = fmt.Errorf("KOMMODITY_DB_URI environment variable is not set")
-
 // SetupDB initializes the database connection using the KOMMODITY_DB_URI environment variable.
 func SetupDB() (*sqlx.DB, error) {
 	dbURI := os.Getenv("KOMMODITY_DB_URI")

@@ -115,9 +115,6 @@ func (h *APIVersionHandler) ServeHTTP(res http.ResponseWriter, req *http.Request
 	res.WriteHeader(statusCode)
 }
 
-var ErrNotValidatable = fmt.Errorf("object does not implement Validatable interface")
-var ErrNotUpdatedObjectInfo = fmt.Errorf("object does not implement UpdatedObjectInfo interface")
-
 func handleRequest(
 	ctx context.Context,
 	req *http.Request,
