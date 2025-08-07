@@ -73,6 +73,7 @@ func NewStorageREST(
 
 type storageREST struct {
 	rest.TableConvertor
+
 	codec        runtime.Codec
 	isNamespaced bool
 

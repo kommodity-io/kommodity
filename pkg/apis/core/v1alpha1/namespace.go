@@ -65,8 +65,10 @@ func (t Namespace) UpdatedObject(ctx context.Context, oldObj runtime.Object) (ne
 
 type NamespaceList struct {
 	metav1.TypeMeta `json:",inline"`
+
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []Namespace `json:"items"`
+
+	Items []Namespace `json:"items"`
 }
 
 func (in *NamespaceList) DeepCopyObject() runtime.Object {
