@@ -43,6 +43,8 @@ func (t Namespace) IsStorageVersion() bool {
 }
 
 // New returns a new Namespace object.
+//
+//nolint:ireturn
 func (t Namespace) New() runtime.Object {
 	return &Namespace{}
 }
@@ -85,6 +87,8 @@ type NamespaceList struct {
 }
 
 // DeepCopyObject returns a deep copy of the NamespaceList object.
+//
+//nolint:ireturn
 func (in *NamespaceList) DeepCopyObject() runtime.Object {
 	if in == nil {
 		return nil
@@ -100,6 +104,8 @@ func (in *NamespaceList) DeepCopyObject() runtime.Object {
 }
 
 // NewList returns a new NamespaceList object.
+//
+//nolint:ireturn
 func (t Namespace) NewList() runtime.Object {
 	return &NamespaceList{}
 }

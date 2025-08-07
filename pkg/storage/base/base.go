@@ -49,6 +49,8 @@ var (
 )
 
 // NewStorageREST instantiates a new REST storage for generic resources using an abstracted store.
+//
+//nolint:ireturn
 func NewStorageREST(
 	groupResource schema.GroupResource,
 	codec runtime.Codec,
@@ -85,12 +87,14 @@ type storageREST struct {
 	newListFunc func() runtime.Object
 }
 
+//nolint:ireturn
 func (s *storageREST) New() runtime.Object {
 	return s.newFunc()
 }
 
 func (s *storageREST) Destroy() {}
 
+//nolint:ireturn
 func (s *storageREST) NewList() runtime.Object {
 	return s.newListFunc()
 }
@@ -99,6 +103,7 @@ func (s *storageREST) NamespaceScoped() bool {
 	return s.isNamespaced
 }
 
+//nolint:ireturn
 func (s *storageREST) Get(
 	ctx context.Context,
 	name string,
@@ -117,6 +122,7 @@ func (s *storageREST) Get(
 	return obj, nil
 }
 
+//nolint:ireturn
 func (s *storageREST) List(
 	ctx context.Context,
 	_ *metainternalversion.ListOptions,
@@ -147,6 +153,7 @@ func (s *storageREST) List(
 	return newListObj, nil
 }
 
+//nolint:ireturn
 func (s *storageREST) Create(
 	ctx context.Context,
 	obj runtime.Object,
@@ -199,6 +206,7 @@ func (s *storageREST) Create(
 	return obj, nil
 }
 
+//nolint:ireturn
 func (s *storageREST) Update(
 	ctx context.Context,
 	name string,
@@ -284,6 +292,7 @@ func (s *storageREST) Update(
 	return updatedObj, false, nil
 }
 
+//nolint:ireturn
 func (s *storageREST) Delete(
 	ctx context.Context,
 	name string,
@@ -329,6 +338,7 @@ func (s *storageREST) Delete(
 	return oldObj, true, nil
 }
 
+//nolint:ireturn
 func (s *storageREST) DeleteCollection(
 	ctx context.Context,
 	deleteValidation rest.ValidateObjectFunc,
@@ -382,6 +392,7 @@ func (s *storageREST) DeleteCollection(
 	return newListObj, nil
 }
 
+//nolint:ireturn
 func (s *storageREST) Watch(
 	ctx context.Context,
 	options *metainternalversion.ListOptions,
