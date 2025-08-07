@@ -1,3 +1,4 @@
+// Package genericserver provides error definitions for http server operations.
 package genericserver
 
 import (

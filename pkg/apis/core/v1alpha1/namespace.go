@@ -3,6 +3,7 @@ package v1alpha1
 import (
 	"context"
 
+	"github.com/kommodity-io/kommodity/pkg/validation"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -21,6 +22,8 @@ type Namespace struct {
 }
 
 var _ rest.ShortNamesProvider = &Namespace{}
+var _ rest.UpdatedObjectInfo = &Namespace{}
+var _ validation.Validatable = &Namespace{}
 
 // GetGroupVersionResource returns the GroupVersionResource for Namespace and is fulfilling runtime.Object interface.
 func (t Namespace) GetGroupVersionResource() schema.GroupVersionResource {
@@ -55,24 +58,48 @@ func (t Namespace) ShortNames() []string {
 }
 
 // CreateValidation implements Validatable interface and is used for validating the creation of a Namespace.
-func (Namespace) CreateValidation(ctx context.Context, obj runtime.Object) error {
+func (Namespace) CreateValidation(_ context.Context, _ runtime.Object) error {
+	// Intentionally left blank
 	return nil
 }
 
 // DeleteValidation implements Validatable interface and is used for validating the deletion of a Namespace.
-func (Namespace) DeleteValidation(ctx context.Context, obj runtime.Object) error {
+func (Namespace) DeleteValidation(_ context.Context, _ runtime.Object) error {
+	// Intentionally left blank
+	return nil
+}
+
+// Preconditions returns preconditions built from the updated object, if applicable.
+func (Namespace) Preconditions() *metav1.Preconditions {
+	// Intentionally left blank
 	return nil
 }
 
 // UpdateValidation implements Validatable interface and is used for validating the update of a Namespace.
-func (Namespace) UpdateValidation(ctx context.Context, obj, old runtime.Object) error {
+func (Namespace) UpdateValidation(_ context.Context, obj, old runtime.Object) error {
+	oldNamespace, success := old.(Namespace)
+	if !success {
+		return ErrNotOfTypeNamespace
+	}
+
+	newNamespace, success := obj.(Namespace)
+	if !success {
+		return ErrNotOfTypeNamespace
+	}
+
+	if oldNamespace.Name != newNamespace.Name {
+		return ErrNameCannotBeChanged
+	}
+
 	return nil
 }
 
 // UpdatedObject implements rest.UpdatedObjectInfo interface and is used to update the Namespace object.
-func (t Namespace) UpdatedObject(ctx context.Context, oldObj runtime.Object) (newObj runtime.Object, err error) {
+//
+//nolint:ireturn
+func (t Namespace) UpdatedObject(_ context.Context, _ runtime.Object) (runtime.Object, error) {
 	// t is the newObject, oldObj is the existing object.
-	return nil, nil
+	return t, nil
 }
 
 // NamespaceList is a list of Namespace resources.
