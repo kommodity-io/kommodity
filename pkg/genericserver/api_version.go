@@ -115,6 +115,9 @@ func (h *APIVersionHandler) ServeHTTP(res http.ResponseWriter, req *http.Request
 	res.WriteHeader(statusCode)
 }
 
+var ErrNotValidatable = fmt.Errorf("object does not implement Validatable interface")
+var ErrNotUpdatedObjectInfo = fmt.Errorf("object does not implement UpdatedObjectInfo interface")
+
 func handleRequest(
 	ctx context.Context,
 	req *http.Request,
@@ -175,7 +178,7 @@ func handleRequest(
 
 		validationObj, ok := obj.(validation.Validatable)
 		if !ok {
-			return nil, http.StatusBadRequest, fmt.Errorf("object does not implement Validatable interface")
+			return nil, http.StatusBadRequest, ErrNotValidatable
 		}
 
 		//nolint:misspell
@@ -206,12 +209,12 @@ func handleRequest(
 
 		validationObj, ok := obj.(validation.Validatable)
 		if !ok {
-			return nil, http.StatusBadRequest, fmt.Errorf("object does not implement Validatable interface")
+			return nil, http.StatusBadRequest, ErrNotValidatable
 		}
 
 		updatedObject, ok := obj.(rest.UpdatedObjectInfo)
 		if !ok {
-			return nil, http.StatusBadRequest, fmt.Errorf("object does not implement UpdatedObjectInfo interface")
+			return nil, http.StatusBadRequest, ErrNotUpdatedObjectInfo
 		}
 
 		obj, _, apiErr := updater.Update(ctx, params.maybeResourceName, updatedObject,
