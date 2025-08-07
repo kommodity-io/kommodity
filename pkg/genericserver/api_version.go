@@ -255,6 +255,10 @@ func handleRequest(
 	return nil, http.StatusMethodNotAllowed, ErrMethodNotAllowed
 }
 
+const minSegmentsForAllResources = 4
+const minSegmentsForNamespaceResources = 7
+const minSegmentsForOtherResources = 5
+
 func extractRoutingParameters(r *http.Request) (*RoutingParameters, error) {
 	// Example path: /apis/<group>/<version>/namespaces/<namespace>/<resource>/<name>
 	// Or:           /apis/<group>/<version>/<resource>/<name> (cluster-scoped)
@@ -270,7 +274,7 @@ func extractRoutingParameters(r *http.Request) (*RoutingParameters, error) {
 	}
 
 	// Must have at least: apis, group, version, resource
-	if len(segments) < 4 {
+	if len(segments) < minSegmentsForAllResources {
 		return nil, http.ErrNotSupported
 	}
 
@@ -283,12 +287,12 @@ func extractRoutingParameters(r *http.Request) (*RoutingParameters, error) {
 		namespace = segments[4]
 		resource = segments[5]
 
-		if len(segments) >= 7 {
+		if len(segments) >= minSegmentsForNamespaceResources {
 			name = segments[6]
 		}
 	} else {
 		resource = segments[3]
-		if len(segments) >= 5 {
+		if len(segments) >= minSegmentsForOtherResources {
 			name = segments[4]
 		}
 	}

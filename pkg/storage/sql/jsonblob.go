@@ -145,6 +145,7 @@ func NewJSONStorageProvider(obj resource.Object, db *sqlx.DB) apiserver.Resource
 		}
 
 		jsonStore := NewJSONDatabaseStore(db, gvr)
+
 		err = jsonStore.Migrate()
 		if err != nil {
 			return nil, fmt.Errorf("failed to migrate JSON database store: %w", err)
