@@ -54,6 +54,7 @@ func (j JSONDatabaseStore) Delete(ctx context.Context, ref types.NamespacedName)
 // Exists implements storage.StorageStore.
 func (j JSONDatabaseStore) Exists(ctx context.Context, ref types.NamespacedName) (bool, error) {
 	query := fmt.Sprintf("SELECT EXISTS(SELECT 1 FROM %s WHERE name = $1 AND namespace = $2)", j.tableName)
+
 	var exists bool
 	err := j.db.GetContext(ctx, &exists, query, ref.Name, ref.Namespace)
 	return exists, err
@@ -88,6 +89,7 @@ func (j JSONDatabaseStore) ListWithKeys(ctx context.Context) (map[string][]byte,
 // Read implements storage.StorageStore.
 func (j JSONDatabaseStore) Read(ctx context.Context, ref types.NamespacedName) ([]byte, error) {
 	query := fmt.Sprintf("SELECT data FROM %s WHERE name = $1 AND namespace = $2", j.tableName)
+
 	var data []byte
 	err := j.db.GetContext(ctx, &data, query, ref.Name, ref.Namespace)
 	return data, err

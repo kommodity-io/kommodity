@@ -97,6 +97,7 @@ func (s *Server) WithResourceAndHandler(obj resource.Object, sp ResourceHandlerP
 	if s.storageProvider == nil {
 		s.storageProvider = make(map[schema.GroupVersionResource]*ResourceProvider)
 	}
+
 	s.schemeBuilder.Register(resource.AddToScheme(obj))
 
 	gvr := obj.GetGroupVersionResource()

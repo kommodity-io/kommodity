@@ -126,6 +126,7 @@ func handleRequest(
 			if apiErr != nil {
 				return nil, apiErr, http.StatusInternalServerError
 			}
+
 			if obj == nil {
 				return nil, fmt.Errorf("resource not found"), http.StatusNotFound
 			}
@@ -141,6 +142,7 @@ func handleRequest(
 			if apiErr != nil {
 				return nil, apiErr, http.StatusInternalServerError
 			}
+
 			if obj == nil {
 				return nil, fmt.Errorf("no resources found"), http.StatusNotFound
 			}
@@ -186,10 +188,10 @@ func handleRequest(
 
 		obj, _, apiErr := updater.Update(ctx, params.maybeResourceName, updatedObject,
 			validationObj.CreateValidation, validationObj.UpdateValidation, false, nil)
-
 		if apiErr != nil {
 			return nil, apiErr, http.StatusInternalServerError
 		}
+
 		if obj == nil {
 			return nil, fmt.Errorf("failed to update resource"), http.StatusInternalServerError
 		}
@@ -207,8 +209,8 @@ func handleRequest(
 			}
 
 			var instant bool
-			obj, instant, apiErr := deleter.Delete(ctx, params.maybeResourceName, validationObj.DeleteValidation, nil)
 
+			obj, instant, apiErr := deleter.Delete(ctx, params.maybeResourceName, validationObj.DeleteValidation, nil)
 			if apiErr != nil {
 				return nil, apiErr, http.StatusInternalServerError
 			}
@@ -218,7 +220,6 @@ func handleRequest(
 			} else {
 				return obj, nil, http.StatusNoContent
 			}
-
 		} else {
 			// Handle DELETE for a collection of resources.
 			deleter, ok := storage.(rest.CollectionDeleter)
@@ -227,7 +228,6 @@ func handleRequest(
 			}
 
 			obj, apiErr := deleter.DeleteCollection(ctx, validationObj.DeleteValidation, nil, nil)
-
 			if apiErr != nil {
 				return nil, apiErr, http.StatusInternalServerError
 			}
@@ -260,11 +260,13 @@ func extractRoutingParameters(r *http.Request) (*RoutingParameters, error) {
 
 	group := segments[1]
 	version := segments[2]
+
 	var namespace, resource, name string
 
 	if len(segments) >= 6 && segments[3] == "namespaces" {
 		namespace = segments[4]
 		resource = segments[5]
+
 		if len(segments) >= 7 {
 			name = segments[6]
 		}
@@ -287,6 +289,7 @@ func handleError(res http.ResponseWriter, err error, statusCode int) {
 	res.WriteHeader(statusCode)
 
 	jsonErr := map[string]string{"error": err.Error()}
+
 	encodeErr := json.NewEncoder(res).Encode(jsonErr)
 	if encodeErr != nil {
 		http.Error(res, "Failed to encode error response", http.StatusInternalServerError)

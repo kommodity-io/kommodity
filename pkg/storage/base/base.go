@@ -132,10 +132,12 @@ func (s *storageREST) List(
 
 	for _, data := range dataList {
 		newObj := s.newFunc()
+
 		obj, _, err := s.codec.Decode(data, nil, newObj)
 		if err != nil {
 			return nil, err
 		}
+
 		appendItem(value, obj)
 	}
 	return newListObj, nil
@@ -152,14 +154,17 @@ func (s *storageREST) Create(
 			return nil, fmt.Errorf("failed to validate object: %w", err)
 		}
 	}
+
 	accessor, err := meta.Accessor(obj)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get object accessor: %w", err)
 	}
+
 	key, err := s.objectKey(ctx, accessor.GetName())
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve object key: %w", err)
 	}
+
 	exists, err := s.store.Exists(ctx, key)
 	if err != nil {
 		return nil, err
@@ -219,6 +224,7 @@ func (s *storageREST) Update(
 		if err := s.store.Write(ctx, key, buf.Bytes()); err != nil {
 			return nil, false, fmt.Errorf("failed to write JSON BLOB: %w", err)
 		}
+
 		s.notifyWatchers(watch.Event{
 			Type:   watch.Added,
 			Object: updatedObj,
@@ -299,6 +305,7 @@ func (s *storageREST) DeleteCollection(
 
 	for key, data := range dataMap {
 		newObj := s.newFunc()
+
 		obj, _, err := s.codec.Decode(data, nil, newObj)
 		if err != nil {
 			return nil, err
@@ -336,6 +343,7 @@ func (s *storageREST) Watch(
 		return nil, fmt.Errorf("failed to list objects for watch: %w", err)
 	}
 	danger := reflect.ValueOf(list).Elem()
+
 	items := danger.FieldByName("Items")
 	for i := range items.Len() {
 		value := items.Index(i).Addr().Interface()
@@ -343,6 +351,7 @@ func (s *storageREST) Watch(
 		if !ok {
 			return nil, fmt.Errorf("%w: %T", ErrRuntimeObjectConversion, value)
 		}
+
 		watcher.ch <- watch.Event{
 			Type:   watch.Added,
 			Object: obj,
@@ -357,6 +366,7 @@ func (s *storageREST) Watch(
 func (s *storageREST) notifyWatchers(event watch.Event) {
 	s.muWatchers.RLock()
 	defer s.muWatchers.RUnlock()
+
 	for _, watcher := range s.watchers {
 		watcher.ch <- event
 	}
