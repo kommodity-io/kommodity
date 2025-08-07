@@ -1,0 +1,9 @@
+# Example TalosCluster resource
+apiVersion: core.kommodity.io/v1alpha1
+kind: TalosCluster
+metadata:
+  name: example-taloscluster
+  namespace: default
+spec:
+  kubernetesVersion: "1.29.0"
+  talosVersion: "1.6.0"

@@ -17,6 +17,8 @@ var (
 	ErrEncodingFailed = errors.New("encoding failed")
 	// ErrDecodingFailed is an error that indicates the decoding failed.
 	ErrDecodingFailed = errors.New("decoding failed")
+	// ErrNoDataRead is an error that indicates no data was read from the reader.
+	ErrNoDataRead = errors.New("no data read from reader")
 )
 
 // KubeJSONEncoder is a custom JSON encoder.
@@ -50,6 +52,36 @@ func (e *KubeJSONEncoder) EncodeWithScheme(obj runtime.Object, customScheme *run
 	err = printer.PrintObj(obj, e.writer)
 	if err != nil {
 		return fmt.Errorf("failed to print object: %w", err)
+	}
+
+	return nil
+}
+
+// KubeJSONDecoder is a custom JSON decoder.
+type KubeJSONDecoder struct {
+	reader io.ReadCloser
+}
+
+// NewKubeJSONDecoder creates a new JSON decoder.
+func NewKubeJSONDecoder(reader io.ReadCloser) *KubeJSONDecoder {
+	return &KubeJSONDecoder{
+		reader: reader,
+	}
+}
+
+// Decode decodes JSON into a Kubernetes API object.
+func (e *KubeJSONDecoder) Decode(obj runtime.Object) error {
+	data, err := io.ReadAll(e.reader)
+	if err != nil {
+		return fmt.Errorf("failed to read from reader: %w", err)
+	}
+
+	if len(data) == 0 {
+		return fmt.Errorf("no data read from reader: %w", ErrNoDataRead)
+	}
+
+	if err := runtime.DecodeInto(scheme.Codecs.UniversalDecoder(), data, obj); err != nil {
+		return fmt.Errorf("failed to decode object: %w", ErrDecodingFailed)
 	}
 
 	return nil

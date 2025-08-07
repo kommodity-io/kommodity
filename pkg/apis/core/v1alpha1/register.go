@@ -39,6 +39,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(SchemeGroupVersion(),
 		&TalosCluster{},
 		&TalosClusterList{},
+		&Namespace{},
+		&NamespaceList{},
 	)
 
 	return nil

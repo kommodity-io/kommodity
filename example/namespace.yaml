@@ -1,0 +1,5 @@
+# Example Namespace resource
+apiVersion: core.kommodity.io/v1alpha1
+kind: Namespace
+metadata:
+  name: example-namespace

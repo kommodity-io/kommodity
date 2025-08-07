@@ -69,7 +69,6 @@ type GenericServer struct {
 	logger      *zap.Logger
 	port        int
 	ready       bool
-	apiGroups   []metav1.APIGroup
 	versionInfo *version.Info
 }
 
@@ -214,52 +213,6 @@ func (s *GenericServer) Shutdown(ctx context.Context) error {
 	return nil
 }
 
-// InstallAPIGroup installs the API group into the server.
-func (s *GenericServer) InstallAPIGroup(apiGroupInfo *genericapiserver.APIGroupInfo) error {
-	// Add a factory that installs this API group
-	factory := func() error {
-		// Use the first prioritized version's group name for logging
-		groupName := apiGroupInfo.PrioritizedVersions[0].Group
-		s.logger.Info("Installing API group", zap.String("group", groupName))
-
-		// Create API group for discovery
-		versions := []metav1.GroupVersionForDiscovery{}
-		for _, groupVersion := range apiGroupInfo.PrioritizedVersions {
-			versions = append(versions, metav1.GroupVersionForDiscovery{
-				GroupVersion: groupVersion.String(),
-				Version:      groupVersion.Version,
-			})
-		}
-
-		apiGroup := metav1.APIGroup{
-			Name:     groupName,
-			Versions: versions,
-			PreferredVersion: metav1.GroupVersionForDiscovery{
-				GroupVersion: apiGroupInfo.PrioritizedVersions[0].String(),
-				Version:      apiGroupInfo.PrioritizedVersions[0].Version,
-			},
-		}
-
-		// Store the API group for discovery
-		s.Lock()
-		s.apiGroups = append(s.apiGroups, apiGroup)
-		s.Unlock()
-
-		err := s.newAPIGroupFactory(apiGroupInfo)(s.httpServer.mux)
-		if err != nil {
-			return fmt.Errorf("failed to install API group %s: %w", groupName, err)
-		}
-
-		s.logger.Info("Installed API group", zap.String("group", groupName))
-
-		return nil
-	}
-
-	s.httpServer.factories = append(s.httpServer.factories, factory)
-
-	return nil
-}
-
 // SetVersion sets the version information for the server.
 // This only accepts GitVersion and GitCommit from the version.Info struct.
 // All other fields are automatically computed based on the runtime information.
@@ -296,41 +249,6 @@ func (s *GenericServer) SetVersion(info *version.Info) {
 	}
 }
 
-// newAPIGroupFactory creates a new factory function that initializes the API group.
-func (s *GenericServer) newAPIGroupFactory(apiGroupInfo *genericapiserver.APIGroupInfo) HTTPMuxFactory {
-	return func(mux *http.ServeMux) error {
-		// Use the first prioritized version's group name for logging
-		groupName := apiGroupInfo.PrioritizedVersions[0].Group
-
-		// Register the API group and versions in the HTTP mux.
-		prefix := "GET /apis/" + groupName
-
-		// Register API resources for each version.
-		for _, groupVersion := range apiGroupInfo.PrioritizedVersions {
-			versionHandler := &APIVersionHandler{
-				groupVersion:                 groupVersion,
-				storage:                      apiGroupInfo.VersionedResourcesStorageMap[groupVersion.Version],
-				serializer:                   apiGroupInfo.NegotiatedSerializer,
-				minRequestTimeout:            1 * time.Minute,
-				enableAPIResponseCompression: true,
-			}
-
-			versionPath := prefix + "/" + groupVersion.Version
-
-			// Install handlers for the version.
-			mux.Handle(versionPath+"/", versionHandler)
-
-			// Register discovery information for this version.
-			mux.HandleFunc(versionPath, newGroupVersionDiscoveryHandler(s.logger, apiGroupInfo, groupVersion))
-		}
-
-		// Register API group discovery information.
-		mux.HandleFunc(prefix, newGroupDiscoveryHandler(s.logger, apiGroupInfo, groupName))
-
-		return nil
-	}
-}
-
 // setReady sets the server's readiness state.
 func (s *GenericServer) setReady(ready bool) {
 	s.Lock()
@@ -347,10 +265,6 @@ func (s *GenericServer) serveHTTP() {
 
 	// Register the Kubernetes-compatible version endpoint
 	s.httpServer.mux.HandleFunc("GET /version", s.versionHandler)
-
-	// Register the API discovery endpoint
-	s.httpServer.mux.HandleFunc("GET /apis", s.listAPIGroups)
-	s.httpServer.mux.HandleFunc("GET /apis/", s.listAPIGroups)
 
 	s.httpServer.server = &http.Server{
 		// Wrap the HTTP handler to provide h2c support.
@@ -399,6 +313,8 @@ func (s *GenericServer) readyz(res http.ResponseWriter, _ *http.Request) {
 	defer s.RUnlock()
 
 	// This would be a great place to check downstream dependencies.
+
+	// TODO: Add ping to database
 
 	code := http.StatusOK
 	status := &metav1.Status{
@@ -454,25 +370,6 @@ func (s *GenericServer) livez(res http.ResponseWriter, _ *http.Request) {
 		http.Error(res, encoding.ErrEncodingFailed.Error(), http.StatusInternalServerError)
 
 		return
-	}
-}
-
-// listAPIGroups handles requests to list all available API groups.
-func (s *GenericServer) listAPIGroups(res http.ResponseWriter, _ *http.Request) {
-	s.RLock()
-	defer s.RUnlock()
-
-	// Create the APIGroupList response
-	apiGroupList := &metav1.APIGroupList{
-		Groups: s.apiGroups,
-	}
-
-	res.Header().Set("Content-Type", "application/json")
-
-	err := encoding.NewKubeJSONEncoder(res).Encode(apiGroupList)
-	if err != nil {
-		s.logger.Error("Failed to encode API group list", zap.Error(err))
-		http.Error(res, encoding.ErrEncodingFailed.Error(), http.StatusInternalServerError)
 	}
 }
 

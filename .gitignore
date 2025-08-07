@@ -3,3 +3,7 @@ bin/
 
 # Ignore the environment configuration files.
 .env
+
+# Ignore vs code debug files.
+.vscode/
+__debug*
