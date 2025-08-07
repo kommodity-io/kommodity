@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"io"
 
 	"github.com/kommodity-io/kommodity/pkg/apis/core/v1alpha1"
 	"github.com/kommodity-io/kommodity/pkg/encoding"
@@ -123,34 +124,36 @@ func handleRequest(
 ) (runtime.Object, int, error) {
 	switch req.Method {
 	case http.MethodGet:
-		if params.maybeResourceName != "" {
-			// Handle GET for a specific resource.
-			getter, ok := storage.(rest.Getter)
-			if !ok {
-				return nil, http.StatusMethodNotAllowed, ErrMethodNotAllowed
-			}
+		return handleGetRequest(ctx, params, storage)
 
-			obj, apiErr := getter.Get(ctx, params.maybeResourceName, nil)
-			if apiErr != nil {
-				return nil, http.StatusInternalServerError, fmt.Errorf("failed to get resource: %w", apiErr)
-			}
+	case http.MethodPost:
+		return handlePostRequest(ctx, storage, req.Body)
 
-			if obj == nil {
-				return nil, http.StatusNotFound, ErrResourceNotFound
-			}
+	case http.MethodPut, http.MethodPatch:
+		return handlePutPatchRequest(ctx, params, storage, req.Body)
 
-			return obj, http.StatusOK, nil
-		}
+	case http.MethodDelete:
+		return handleDeleteRequest(ctx, params, storage)
+	}
 
-		// Handle GET for a list of resources.
-		lister, ok := storage.(rest.Lister)
+	return nil, http.StatusMethodNotAllowed, ErrMethodNotAllowed
+}
+
+func handleGetRequest(
+	ctx context.Context,
+	params *RoutingParameters,
+	storage rest.Storage,
+) (runtime.Object, int, error) {
+	if params.maybeResourceName != "" {
+		// Handle GET for a specific resource.
+		getter, ok := storage.(rest.Getter)
 		if !ok {
 			return nil, http.StatusMethodNotAllowed, ErrMethodNotAllowed
 		}
 
-		obj, apiErr := lister.List(ctx, nil)
+		obj, apiErr := getter.Get(ctx, params.maybeResourceName, nil)
 		if apiErr != nil {
-			return nil, http.StatusInternalServerError, fmt.Errorf("failed to list resources: %w", apiErr)
+			return nil, http.StatusInternalServerError, fmt.Errorf("failed to get resource: %w", apiErr)
 		}
 
 		if obj == nil {
@@ -158,119 +161,150 @@ func handleRequest(
 		}
 
 		return obj, http.StatusOK, nil
+	}
 
-	case http.MethodPost:
-		//nolint:misspell, varnamelen
-		creater, ok := storage.(rest.Creater)
+	// Handle GET for a list of resources.
+	lister, ok := storage.(rest.Lister)
+	if !ok {
+		return nil, http.StatusMethodNotAllowed, ErrMethodNotAllowed
+	}
+
+	obj, apiErr := lister.List(ctx, nil)
+	if apiErr != nil {
+		return nil, http.StatusInternalServerError, fmt.Errorf("failed to list resources: %w", apiErr)
+	}
+
+	if obj == nil {
+		return nil, http.StatusNotFound, ErrResourceNotFound
+	}
+
+	return obj, http.StatusOK, nil
+}
+
+func handlePostRequest(
+	ctx context.Context,
+	storage rest.Storage,
+	reqBody io.ReadCloser,
+) (runtime.Object, int, error) {
+	//nolint:misspell, varnamelen
+	creater, ok := storage.(rest.Creater)
+	if !ok {
+		return nil, http.StatusMethodNotAllowed, ErrMethodNotAllowed
+	}
+
+	obj := storage.New()
+
+	err := encoding.NewKubeJSONDecoder(reqBody).Decode(obj)
+	if err != nil {
+		return nil, http.StatusBadRequest, fmt.Errorf("failed to decode request body: %w", err)
+	}
+
+	validationObj, ok := obj.(validation.Validatable)
+	if !ok {
+		return nil, http.StatusBadRequest, ErrNotValidatable
+	}
+
+	//nolint:misspell
+	obj, apiErr := creater.Create(ctx, obj, validationObj.CreateValidation, nil)
+	if apiErr != nil {
+		return nil, http.StatusInternalServerError, fmt.Errorf("failed to create resource: %w", apiErr)
+	}
+
+	if obj == nil {
+		return nil, http.StatusInternalServerError, ErrFailedToCreateResource
+	}
+
+	return obj, http.StatusCreated, nil
+}
+
+func handlePutPatchRequest(
+	ctx context.Context,
+	params *RoutingParameters,
+	storage rest.Storage,
+	reqBody io.ReadCloser,
+) (runtime.Object, int, error) {
+	//nolint:varnamelen
+	updater, ok := storage.(rest.Updater)
+	if !ok {
+		return nil, http.StatusMethodNotAllowed, ErrMethodNotAllowed
+	}
+
+	obj := storage.New()
+
+	err := encoding.NewKubeJSONDecoder(reqBody).Decode(obj)
+	if err != nil {
+		return nil, http.StatusBadRequest, fmt.Errorf("failed to decode request body: %w", err)
+	}
+
+	validationObj, ok := obj.(validation.Validatable)
+	if !ok {
+		return nil, http.StatusBadRequest, ErrNotValidatable
+	}
+
+	updatedObject, ok := obj.(rest.UpdatedObjectInfo)
+	if !ok {
+		return nil, http.StatusBadRequest, ErrNotUpdatedObjectInfo
+	}
+
+	obj, _, apiErr := updater.Update(ctx, params.maybeResourceName, updatedObject,
+		validationObj.CreateValidation, validationObj.UpdateValidation, false, nil)
+	if apiErr != nil {
+		return nil, http.StatusInternalServerError, fmt.Errorf("failed to update resource: %w", apiErr)
+	}
+
+	if obj == nil {
+		return nil, http.StatusInternalServerError, ErrResourceNotFound
+	}
+
+	return obj, http.StatusOK, nil
+}
+
+func handleDeleteRequest(
+	ctx context.Context,
+	params *RoutingParameters,
+	storage rest.Storage,
+) (runtime.Object, int, error) {
+	obj := storage.New()
+
+	//nolint:varnamelen
+	validationObj, ok := obj.(validation.Validatable)
+	if !ok {
+		return nil, http.StatusBadRequest, ErrNotValidatable
+	}
+
+	if params.maybeResourceName != "" {
+		// Handle DELETE for a specific resource.
+		deleter, ok := storage.(rest.GracefulDeleter)
 		if !ok {
 			return nil, http.StatusMethodNotAllowed, ErrMethodNotAllowed
 		}
 
-		obj := storage.New()
+		var instant bool
 
-		err := encoding.NewKubeJSONDecoder(req.Body).Decode(obj)
-		if err != nil {
-			return nil, http.StatusBadRequest, fmt.Errorf("failed to decode request body: %w", err)
-		}
-
-		validationObj, ok := obj.(validation.Validatable)
-		if !ok {
-			return nil, http.StatusBadRequest, ErrNotValidatable
-		}
-
-		//nolint:misspell
-		obj, apiErr := creater.Create(ctx, obj, validationObj.CreateValidation, nil)
-		if apiErr != nil {
-			return nil, http.StatusInternalServerError, fmt.Errorf("failed to create resource: %w", apiErr)
-		}
-
-		if obj == nil {
-			return nil, http.StatusInternalServerError, ErrFailedToCreateResource
-		}
-
-		return obj, http.StatusCreated, nil
-
-	case http.MethodPut, http.MethodPatch:
-		//nolint:varnamelen
-		updater, ok := storage.(rest.Updater)
-		if !ok {
-			return nil, http.StatusMethodNotAllowed, ErrMethodNotAllowed
-		}
-
-		obj := storage.New()
-
-		err := encoding.NewKubeJSONDecoder(req.Body).Decode(obj)
-		if err != nil {
-			return nil, http.StatusBadRequest, fmt.Errorf("failed to decode request body: %w", err)
-		}
-
-		validationObj, ok := obj.(validation.Validatable)
-		if !ok {
-			return nil, http.StatusBadRequest, ErrNotValidatable
-		}
-
-		updatedObject, ok := obj.(rest.UpdatedObjectInfo)
-		if !ok {
-			return nil, http.StatusBadRequest, ErrNotUpdatedObjectInfo
-		}
-
-		obj, _, apiErr := updater.Update(ctx, params.maybeResourceName, updatedObject,
-			validationObj.CreateValidation, validationObj.UpdateValidation, false, nil)
-		if apiErr != nil {
-			return nil, http.StatusInternalServerError, fmt.Errorf("failed to update resource: %w", apiErr)
-		}
-
-		if obj == nil {
-			return nil, http.StatusInternalServerError, ErrResourceNotFound
-		}
-
-		return obj, http.StatusOK, nil
-
-	case http.MethodDelete:
-		obj := storage.New()
-
-		//nolint:varnamelen
-		validationObj, ok := obj.(validation.Validatable)
-		if !ok {
-			return nil, http.StatusBadRequest, ErrNotValidatable
-		}
-
-		if params.maybeResourceName != "" {
-			// Handle DELETE for a specific resource.
-			deleter, ok := storage.(rest.GracefulDeleter)
-			if !ok {
-				return nil, http.StatusMethodNotAllowed, ErrMethodNotAllowed
-			}
-
-			var instant bool
-
-			obj, instant, apiErr := deleter.Delete(ctx, params.maybeResourceName, validationObj.DeleteValidation, nil)
-			if apiErr != nil {
-				return nil, http.StatusInternalServerError, fmt.Errorf("failed to delete resource: %w", apiErr)
-			}
-
-			if instant {
-				return obj, http.StatusAccepted, nil
-			}
-
-			return obj, http.StatusNoContent, nil
-		}
-
-		// Handle DELETE for a collection of resources.
-		deleter, ok := storage.(rest.CollectionDeleter)
-		if !ok {
-			return nil, http.StatusMethodNotAllowed, ErrMethodNotAllowed
-		}
-
-		obj, apiErr := deleter.DeleteCollection(ctx, validationObj.DeleteValidation, nil, nil)
+		obj, instant, apiErr := deleter.Delete(ctx, params.maybeResourceName, validationObj.DeleteValidation, nil)
 		if apiErr != nil {
 			return nil, http.StatusInternalServerError, fmt.Errorf("failed to delete resource: %w", apiErr)
+		}
+
+		if instant {
+			return obj, http.StatusAccepted, nil
 		}
 
 		return obj, http.StatusNoContent, nil
 	}
 
-	return nil, http.StatusMethodNotAllowed, ErrMethodNotAllowed
+	// Handle DELETE for a collection of resources.
+	deleter, ok := storage.(rest.CollectionDeleter)
+	if !ok {
+		return nil, http.StatusMethodNotAllowed, ErrMethodNotAllowed
+	}
+
+	obj, apiErr := deleter.DeleteCollection(ctx, validationObj.DeleteValidation, nil, nil)
+	if apiErr != nil {
+		return nil, http.StatusInternalServerError, fmt.Errorf("failed to delete resource: %w", apiErr)
+	}
+
+	return obj, http.StatusNoContent, nil
 }
 
 const minSegmentsForAllResources = 4
