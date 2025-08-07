@@ -4,10 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
-	"io"
 
 	"github.com/kommodity-io/kommodity/pkg/apis/core/v1alpha1"
 	"github.com/kommodity-io/kommodity/pkg/encoding"
@@ -186,9 +186,9 @@ func handlePostRequest(
 	storage rest.Storage,
 	reqBody io.ReadCloser,
 ) (runtime.Object, int, error) {
-	//nolint:misspell, varnamelen
-	creater, ok := storage.(rest.Creater)
-	if !ok {
+	//nolint:misspell
+	creater, success := storage.(rest.Creater)
+	if !success {
 		return nil, http.StatusMethodNotAllowed, ErrMethodNotAllowed
 	}
 
@@ -223,9 +223,8 @@ func handlePutPatchRequest(
 	storage rest.Storage,
 	reqBody io.ReadCloser,
 ) (runtime.Object, int, error) {
-	//nolint:varnamelen
-	updater, ok := storage.(rest.Updater)
-	if !ok {
+	updater, success := storage.(rest.Updater)
+	if !success {
 		return nil, http.StatusMethodNotAllowed, ErrMethodNotAllowed
 	}
 
@@ -236,13 +235,13 @@ func handlePutPatchRequest(
 		return nil, http.StatusBadRequest, fmt.Errorf("failed to decode request body: %w", err)
 	}
 
-	validationObj, ok := obj.(validation.Validatable)
-	if !ok {
+	validationObj, success := obj.(validation.Validatable)
+	if !success {
 		return nil, http.StatusBadRequest, ErrNotValidatable
 	}
 
-	updatedObject, ok := obj.(rest.UpdatedObjectInfo)
-	if !ok {
+	updatedObject, success := obj.(rest.UpdatedObjectInfo)
+	if !success {
 		return nil, http.StatusBadRequest, ErrNotUpdatedObjectInfo
 	}
 
@@ -266,16 +265,15 @@ func handleDeleteRequest(
 ) (runtime.Object, int, error) {
 	obj := storage.New()
 
-	//nolint:varnamelen
-	validationObj, ok := obj.(validation.Validatable)
-	if !ok {
+	validationObj, success := obj.(validation.Validatable)
+	if !success {
 		return nil, http.StatusBadRequest, ErrNotValidatable
 	}
 
 	if params.maybeResourceName != "" {
 		// Handle DELETE for a specific resource.
-		deleter, ok := storage.(rest.GracefulDeleter)
-		if !ok {
+		deleter, success := storage.(rest.GracefulDeleter)
+		if !success {
 			return nil, http.StatusMethodNotAllowed, ErrMethodNotAllowed
 		}
 
@@ -294,8 +292,8 @@ func handleDeleteRequest(
 	}
 
 	// Handle DELETE for a collection of resources.
-	deleter, ok := storage.(rest.CollectionDeleter)
-	if !ok {
+	deleter, success := storage.(rest.CollectionDeleter)
+	if !success {
 		return nil, http.StatusMethodNotAllowed, ErrMethodNotAllowed
 	}
 
