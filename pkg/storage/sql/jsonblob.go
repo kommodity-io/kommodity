@@ -57,6 +57,7 @@ func (j JSONDatabaseStore) Exists(ctx context.Context, ref types.NamespacedName)
 	query := fmt.Sprintf("SELECT EXISTS(SELECT 1 FROM %s WHERE name = $1 AND namespace = $2)", j.tableName)
 
 	var exists bool
+
 	err := j.db.GetContext(ctx, &exists, query, ref.Name, ref.Namespace)
 	return exists, err
 }
@@ -77,8 +78,10 @@ func (j JSONDatabaseStore) List(ctx context.Context) ([][]byte, error) {
 		if err := rows.Scan(&data); err != nil {
 			return nil, err
 		}
+
 		result = append(result, data)
 	}
+
 	return result, nil
 }
 
@@ -92,6 +95,7 @@ func (j JSONDatabaseStore) Read(ctx context.Context, ref types.NamespacedName) (
 	query := fmt.Sprintf("SELECT data FROM %s WHERE name = $1 AND namespace = $2", j.tableName)
 
 	var data []byte
+
 	err := j.db.GetContext(ctx, &data, query, ref.Name, ref.Namespace)
 	return data, err
 }

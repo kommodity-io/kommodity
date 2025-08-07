@@ -108,6 +108,7 @@ func (s *storageREST) Get(
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve object key: %w", err)
 	}
+
 	obj, err := s.read(ctx, key)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get JSON BLOB: %w", err)
@@ -200,10 +201,12 @@ func (s *storageREST) Update(
 	_ *metav1.UpdateOptions,
 ) (runtime.Object, bool, error) {
 	var isCreate bool
+
 	key, err := s.objectKey(ctx, name)
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to resolve object key: %w", err)
 	}
+
 	oldObj, err := s.read(ctx, key)
 	if err != nil {
 		if !forceAllowCreate {
@@ -224,6 +227,7 @@ func (s *storageREST) Update(
 				return nil, false, fmt.Errorf("failed to validate object before creation: %w", err)
 			}
 		}
+
 		buf := &bytes.Buffer{}
 		if err := s.codec.Encode(updatedObj, buf); err != nil {
 			return nil, false, fmt.Errorf("failed to encode object: %w", err)
@@ -244,6 +248,7 @@ func (s *storageREST) Update(
 			return nil, false, fmt.Errorf("failed to validate object before update: %w", err)
 		}
 	}
+
 	buf := &bytes.Buffer{}
 	if err := s.codec.Encode(updatedObj, buf); err != nil {
 		return nil, false, fmt.Errorf("failed to encode object: %w", err)
@@ -269,10 +274,12 @@ func (s *storageREST) Delete(
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to resolve object key: %w", err)
 	}
+
 	exists, err := s.store.Exists(ctx, key)
 	if err != nil {
 		return nil, false, err
 	}
+
 	if !exists {
 		return nil, false, ErrNotFound
 	}
@@ -358,6 +365,7 @@ func (s *storageREST) Watch(
 	if err != nil {
 		return nil, fmt.Errorf("failed to list objects for watch: %w", err)
 	}
+
 	danger := reflect.ValueOf(list).Elem()
 
 	items := danger.FieldByName("Items")
@@ -425,6 +433,7 @@ func getListPtr(listObj runtime.Object) (reflect.Value, error) {
 	if err != nil {
 		return reflect.Value{}, fmt.Errorf("failed to get items pointer: %w", err)
 	}
+
 	v, err := conversion.EnforcePtr(listPtr)
 	if err != nil || v.Kind() != reflect.Slice {
 		return reflect.Value{}, fmt.Errorf("expected a slice pointer but got %T: %w", listPtr, err)
