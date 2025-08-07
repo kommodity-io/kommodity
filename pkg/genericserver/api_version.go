@@ -173,7 +173,10 @@ func handleRequest(
 			return nil, http.StatusBadRequest, fmt.Errorf("failed to decode request body: %w", err)
 		}
 
-		validationObj := obj.(validation.Validatable)
+		validationObj, ok := obj.(validation.Validatable)
+		if !ok {
+			return nil, http.StatusBadRequest, fmt.Errorf("object does not implement Validatable interface")
+		}
 
 		//nolint:misspell
 		obj, apiErr := creater.Create(ctx, obj, validationObj.CreateValidation, nil)
@@ -200,8 +203,15 @@ func handleRequest(
 			return nil, http.StatusBadRequest, fmt.Errorf("failed to decode request body: %w", err)
 		}
 
-		validationObj := obj.(validation.Validatable)
-		updatedObject := obj.(rest.UpdatedObjectInfo)
+		validationObj, ok := obj.(validation.Validatable)
+		if !ok {
+			return nil, http.StatusBadRequest, fmt.Errorf("object does not implement Validatable interface")
+		}
+
+		updatedObject, ok := obj.(rest.UpdatedObjectInfo)
+		if !ok {
+			return nil, http.StatusBadRequest, fmt.Errorf("object does not implement UpdatedObjectInfo interface")
+		}
 
 		obj, _, apiErr := updater.Update(ctx, params.maybeResourceName, updatedObject,
 			validationObj.CreateValidation, validationObj.UpdateValidation, false, nil)
