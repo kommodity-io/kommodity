@@ -238,31 +238,7 @@ func (s *storageREST) Update(
 	}
 
 	if isCreate {
-		if createValidation != nil {
-			err := createValidation(ctx, updatedObj)
-			if err != nil {
-				return nil, false, fmt.Errorf("failed to validate object before creation: %w", err)
-			}
-		}
-
-		buf := &bytes.Buffer{}
-
-		err := s.codec.Encode(updatedObj, buf)
-		if err != nil {
-			return nil, false, fmt.Errorf("failed to encode object: %w", err)
-		}
-
-		err = s.store.Write(ctx, key, buf.Bytes())
-		if err != nil {
-			return nil, false, fmt.Errorf("failed to write JSON BLOB: %w", err)
-		}
-
-		s.notifyWatchers(watch.Event{
-			Type:   watch.Added,
-			Object: updatedObj,
-		})
-
-		return updatedObj, true, nil
+		return s.upsert(ctx, createValidation, updatedObj, key)
 	}
 
 	if updateValidation != nil {
@@ -426,6 +402,40 @@ func (s *storageREST) Watch(
 	s.muWatchers.Unlock()
 
 	return watcher, nil
+}
+
+//nolint:ireturn
+func (s *storageREST) upsert(
+	ctx context.Context,
+	createValidation rest.ValidateObjectFunc,
+	updatedObj runtime.Object,
+	key types.NamespacedName,
+) (runtime.Object, bool, error) {
+	if createValidation != nil {
+		err := createValidation(ctx, updatedObj)
+		if err != nil {
+			return nil, false, fmt.Errorf("failed to validate object before creation: %w", err)
+		}
+	}
+
+	buf := &bytes.Buffer{}
+
+	err := s.codec.Encode(updatedObj, buf)
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to encode object: %w", err)
+	}
+
+	err = s.store.Write(ctx, key, buf.Bytes())
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to write JSON BLOB: %w", err)
+	}
+
+	s.notifyWatchers(watch.Event{
+		Type:   watch.Added,
+		Object: updatedObj,
+	})
+
+	return updatedObj, true, nil
 }
 
 func (s *storageREST) notifyWatchers(event watch.Event) {
