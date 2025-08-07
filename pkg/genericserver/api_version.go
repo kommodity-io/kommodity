@@ -227,7 +227,11 @@ func handleRequest(
 		return obj, http.StatusOK, nil
 
 	case http.MethodDelete:
-		validationObj := storage.New().(validation.Validatable)
+		obj := storage.New()
+		validationObj, ok := obj.(validation.Validatable)
+		if !ok {
+			return nil, http.StatusBadRequest, ErrNotValidatable
+		}
 
 		if params.maybeResourceName != "" {
 			// Handle DELETE for a specific resource.
