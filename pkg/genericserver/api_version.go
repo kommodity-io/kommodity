@@ -228,6 +228,8 @@ func handleRequest(
 
 	case http.MethodDelete:
 		obj := storage.New()
+
+		//nolint:varnamelen
 		validationObj, ok := obj.(validation.Validatable)
 		if !ok {
 			return nil, http.StatusBadRequest, ErrNotValidatable

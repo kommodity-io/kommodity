@@ -31,11 +31,6 @@ type ResourceProvider struct {
 	Provider ResourceHandlerProvider
 }
 
-// APIServer builds an apiserver to server Kubernetes resources and sub resources.
-var APIServer = &Server{
-	storageProvider: map[schema.GroupVersionResource]*ResourceProvider{},
-}
-
 // Server builds a new apiserver.
 type Server struct {
 	storageProvider      map[schema.GroupVersionResource]*ResourceProvider
@@ -43,6 +38,13 @@ type Server struct {
 	orderedGroupVersions []schema.GroupVersion
 	schemes              []*runtime.Scheme
 	schemeBuilder        runtime.SchemeBuilder
+}
+
+// NewAPIServer creates a new API server instance.
+func NewAPIServer() *Server {
+	return &Server{
+		storageProvider: make(map[schema.GroupVersionResource]*ResourceProvider),
+	}
 }
 
 // Build creates a new api server and generic server with the configured resources and handlers.

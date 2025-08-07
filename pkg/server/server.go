@@ -21,7 +21,7 @@ func New(ctx context.Context) (*genericserver.GenericServer, error) {
 		return nil, fmt.Errorf("failed to setup database connection: %w", err)
 	}
 
-	srv, err := apiserver.APIServer.
+	srv, err := apiserver.NewAPIServer().
 		WithResourceAndHandler(&v1alpha1.Namespace{}, sql.NewJSONStorageProvider(&v1alpha1.Namespace{}, db)).
 		Build(ctx)
 	if err != nil {
