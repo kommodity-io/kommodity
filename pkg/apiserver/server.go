@@ -219,6 +219,7 @@ func (s *Server) newGroupVersionDiscoveryHandler(groupVersion schema.GroupVersio
 
 			if provider == nil {
 				http.Error(res, "Resource not supported", http.StatusNotFound)
+
 				return
 			}
 
@@ -226,12 +227,14 @@ func (s *Server) newGroupVersionDiscoveryHandler(groupVersion schema.GroupVersio
 
 			// Skip subresources.
 			if strings.Contains(resource, "/") {
+
 				continue
 			}
 
 			storage, err := provider.Provider(s.schemes[0], nil)
 			if err != nil {
 				http.Error(res, "Failed to get resource storage", http.StatusInternalServerError)
+
 				return
 			}
 

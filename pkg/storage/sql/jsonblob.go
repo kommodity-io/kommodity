@@ -42,6 +42,7 @@ func (j *JSONDatabaseStore) Migrate() error {
 	if err != nil {
 		return fmt.Errorf("failed to create table %s: %w", j.tableName, err)
 	}
+
 	return nil
 }
 
@@ -49,6 +50,7 @@ func (j *JSONDatabaseStore) Migrate() error {
 func (j JSONDatabaseStore) Delete(ctx context.Context, ref types.NamespacedName) error {
 	query := fmt.Sprintf("DELETE FROM %s WHERE name = $1 AND namespace = $2", j.tableName)
 	_, err := j.db.ExecContext(ctx, query, ref.Name, ref.Namespace)
+
 	return err
 }
 
@@ -59,6 +61,7 @@ func (j JSONDatabaseStore) Exists(ctx context.Context, ref types.NamespacedName)
 	var exists bool
 
 	err := j.db.GetContext(ctx, &exists, query, ref.Name, ref.Namespace)
+
 	return exists, err
 }
 
@@ -97,6 +100,7 @@ func (j JSONDatabaseStore) Read(ctx context.Context, ref types.NamespacedName) (
 	var data []byte
 
 	err := j.db.GetContext(ctx, &data, query, ref.Name, ref.Namespace)
+
 	return data, err
 }
 
@@ -106,6 +110,7 @@ func (j JSONDatabaseStore) Write(ctx context.Context, ref types.NamespacedName, 
 		`INSERT INTO %s (name, namespace, data) VALUES ($1, $2, $3)
          ON CONFLICT (name, namespace) DO UPDATE SET data = EXCLUDED.data`, j.tableName)
 	_, err := j.db.ExecContext(ctx, query, ref.Name, ref.Namespace, data)
+
 	return err
 }
 

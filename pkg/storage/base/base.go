@@ -69,6 +69,7 @@ func NewStorageREST(
 		store:          store,
 		watchers:       make(map[int]*storageWatch),
 	}
+
 	return rest
 }
 
@@ -115,6 +116,7 @@ func (s *storageREST) Get(
 	if err != nil {
 		return nil, fmt.Errorf("failed to get JSON BLOB: %w", err)
 	}
+
 	return obj, nil
 }
 
@@ -144,6 +146,7 @@ func (s *storageREST) List(
 
 		appendItem(value, obj)
 	}
+
 	return newListObj, nil
 }
 
@@ -190,6 +193,7 @@ func (s *storageREST) Create(
 		Type:   watch.Added,
 		Object: obj,
 	})
+
 	return obj, nil
 }
 
@@ -242,6 +246,7 @@ func (s *storageREST) Update(
 			Type:   watch.Added,
 			Object: updatedObj,
 		})
+
 		return updatedObj, true, nil
 	}
 
@@ -263,6 +268,7 @@ func (s *storageREST) Update(
 		Type:   watch.Modified,
 		Object: updatedObj,
 	})
+
 	return updatedObj, false, nil
 }
 
@@ -304,6 +310,7 @@ func (s *storageREST) Delete(
 		Type:   watch.Deleted,
 		Object: oldObj,
 	})
+
 	return oldObj, true, nil
 }
 
@@ -354,6 +361,7 @@ func (s *storageREST) DeleteCollection(
 		})
 		appendItem(value, obj)
 	}
+
 	return newListObj, nil
 }
 
@@ -388,6 +396,7 @@ func (s *storageREST) Watch(
 	s.muWatchers.Lock()
 	s.watchers[watcher.id] = watcher
 	s.muWatchers.Unlock()
+
 	return watcher, nil
 }
 
@@ -409,6 +418,7 @@ func (s *storageREST) objectKey(ctx context.Context, name string) (types.Namespa
 	if !exists {
 		return types.NamespacedName{}, ErrNamespaceNotFound
 	}
+
 	return types.NamespacedName{Name: name, Namespace: ns}, nil
 }
 
@@ -418,6 +428,7 @@ func (s *storageREST) read(ctx context.Context, key types.NamespacedName) (runti
 		if errors.Is(err, ErrNotFound) {
 			return nil, ErrNotFound
 		}
+
 		return nil, err
 	}
 
@@ -427,6 +438,7 @@ func (s *storageREST) read(ctx context.Context, key types.NamespacedName) (runti
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode JSON BLOB: %w", err)
 	}
+
 	return decodedObj, nil
 }
 
@@ -440,6 +452,7 @@ func getListPtr(listObj runtime.Object) (reflect.Value, error) {
 	if err != nil || v.Kind() != reflect.Slice {
 		return reflect.Value{}, fmt.Errorf("expected a slice pointer but got %T: %w", listPtr, err)
 	}
+
 	return v, nil
 }
 

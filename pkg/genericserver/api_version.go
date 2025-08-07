@@ -58,6 +58,7 @@ func (h *APIVersionHandler) ServeHTTP(res http.ResponseWriter, req *http.Request
 	params, err := extractRoutingParameters(req)
 	if err != nil {
 		http.Error(res, "Invalid request path", http.StatusBadRequest)
+
 		return
 	}
 
@@ -65,6 +66,7 @@ func (h *APIVersionHandler) ServeHTTP(res http.ResponseWriter, req *http.Request
 	storage, ok := h.storage[params.resource]
 	if !ok {
 		http.Error(res, "Resource not found", http.StatusNotFound)
+
 		return
 	}
 
@@ -87,6 +89,7 @@ func (h *APIVersionHandler) ServeHTTP(res http.ResponseWriter, req *http.Request
 	obj, statusCode, err := handleRequest(ctx, req, params, storage)
 	if err != nil {
 		handleError(res, err, statusCode)
+
 		return
 	}
 
@@ -94,12 +97,14 @@ func (h *APIVersionHandler) ServeHTTP(res http.ResponseWriter, req *http.Request
 		scheme := runtime.NewScheme()
 		if err := v1alpha1.SchemeBuilder().AddToScheme(scheme); err != nil {
 			http.Error(res, fmt.Sprintf("failed to add serializer to scheme: %v", err), http.StatusInternalServerError)
+
 			return
 		}
 
 		err := encoding.NewKubeJSONEncoder(res).EncodeWithScheme(obj, scheme)
 		if err != nil {
 			http.Error(res, fmt.Sprintf("failed to encode response: %v", err), http.StatusInternalServerError)
+
 			return
 		}
 	}
@@ -130,6 +135,7 @@ func handleRequest(
 			if obj == nil {
 				return nil, http.StatusNotFound, ErrResourceNotFound
 			}
+
 			return obj, http.StatusOK, nil
 		} else {
 			// Handle GET for a list of resources.
@@ -146,6 +152,7 @@ func handleRequest(
 			if obj == nil {
 				return nil, http.StatusNotFound, ErrResourceNotFound
 			}
+
 			return obj, http.StatusOK, nil
 		}
 
@@ -296,6 +303,7 @@ func handleError(res http.ResponseWriter, err error, statusCode int) {
 	encodeErr := json.NewEncoder(res).Encode(jsonErr)
 	if encodeErr != nil {
 		http.Error(res, "Failed to encode error response", http.StatusInternalServerError)
+
 		return
 	}
 }
