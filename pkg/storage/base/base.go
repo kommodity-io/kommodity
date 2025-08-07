@@ -41,13 +41,14 @@ var (
 	_ rest.Scoper            = &storageREST{}
 	_ rest.Storage           = &storageREST{}
 	_ rest.Getter            = &storageREST{}
-	_ rest.Creater           = &storageREST{}
 	_ rest.Updater           = &storageREST{}
 	_ rest.Lister            = &storageREST{}
 	_ rest.CollectionDeleter = &storageREST{}
 	_ rest.GracefulDeleter   = &storageREST{}
 	_ rest.Watcher           = &storageREST{}
 	_ rest.TableConvertor    = &storageREST{}
+	//nolint:misspell
+	_ rest.Creater = &storageREST{}
 )
 
 // NewStorageREST instantiates a new REST storage for generic resources using an abstracted store.

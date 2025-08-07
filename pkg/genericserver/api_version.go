@@ -150,6 +150,7 @@ func handleRequest(
 		}
 
 	case http.MethodPost:
+		//nolint:misspell
 		creater, ok := storage.(rest.Creater)
 		if !ok {
 			return nil, http.StatusMethodNotAllowed, ErrMethodNotAllowed
@@ -162,6 +163,7 @@ func handleRequest(
 
 		validationObj := obj.(validation.Validatable)
 
+		//nolint:misspell
 		obj, apiErr := creater.Create(ctx, obj, validationObj.CreateValidation, nil)
 		if apiErr != nil {
 			return nil, http.StatusInternalServerError, fmt.Errorf("failed to create resource: %w", apiErr)
