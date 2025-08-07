@@ -23,7 +23,6 @@ func New(ctx context.Context) (*genericserver.GenericServer, error) {
 
 	srv, err := apiserver.APIServer.
 		WithResourceAndHandler(&v1alpha1.Namespace{}, sql.NewJSONStorageProvider(&v1alpha1.Namespace{}, db)).
-		WithResourceAndHandler(&v1alpha1.TalosCluster{}, sql.NewJSONStorageProvider(&v1alpha1.TalosCluster{}, db)).
 		Build(ctx)
 	if err != nil {
 		return nil, err

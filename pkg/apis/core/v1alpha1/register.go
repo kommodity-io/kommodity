@@ -37,8 +37,6 @@ func SchemeBuilder() *runtime.SchemeBuilder {
 // Adds the list of known types to Scheme.
 func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(SchemeGroupVersion(),
-		&TalosCluster{},
-		&TalosClusterList{},
 		&Namespace{},
 		&NamespaceList{},
 	)
