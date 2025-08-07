@@ -95,6 +95,7 @@ func (h *APIVersionHandler) ServeHTTP(res http.ResponseWriter, req *http.Request
 
 	if obj != nil {
 		scheme := runtime.NewScheme()
+
 		err = v1alpha1.SchemeBuilder().AddToScheme(scheme)
 		if err != nil {
 			http.Error(res, fmt.Sprintf("failed to add serializer to scheme: %v", err), http.StatusInternalServerError)

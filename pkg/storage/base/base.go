@@ -183,6 +183,7 @@ func (s *storageREST) Create(
 	}
 
 	buf := &bytes.Buffer{}
+
 	err = s.codec.Encode(obj, buf)
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode object: %w", err)
@@ -267,6 +268,7 @@ func (s *storageREST) Update(
 	}
 
 	buf := &bytes.Buffer{}
+
 	err = s.codec.Encode(updatedObj, buf)
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to encode object: %w", err)

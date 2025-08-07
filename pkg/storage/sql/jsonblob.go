@@ -74,7 +74,12 @@ func (j JSONDatabaseStore) List(ctx context.Context) ([][]byte, error) {
 		return nil, fmt.Errorf("failed to query DB: %w", err)
 	}
 
-	defer rows.Close()
+	defer func() {
+		err = rows.Close()
+		if err != nil {
+			fmt.Printf("failed to close rows: %v\n", err)
+		}
+	}()
 
 	var result [][]byte
 	for rows.Next() {
@@ -140,7 +145,10 @@ func NewJSONStorageProvider(obj resource.Object, db *sqlx.DB) apiserver.Resource
 		}
 
 		jsonStore := NewJSONDatabaseStore(db, gvr)
-		jsonStore.Migrate()
+		err = jsonStore.Migrate()
+		if err != nil {
+			return nil, fmt.Errorf("failed to migrate JSON database store: %w", err)
+		}
 
 		return kstorage.NewStorageREST(
 			gr,
