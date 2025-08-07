@@ -21,6 +21,13 @@ gvm install go1.24.2 -B
 gvm use go1.24.2 --default
 ```
 
+Example of `.env` file for local development:
+
+```dotenv
+# .env
+KOMMODITY_DB_URI=postgres://kommodity:kommodity@localhost:5432/kommodity?sslmode=disable
+```
+
 As a build system, we use `make`.
 
 ```bash

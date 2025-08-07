@@ -13,6 +13,8 @@ import (
 	"github.com/soheilhy/cmux"
 	"go.uber.org/zap"
 	kubeversion "k8s.io/apimachinery/pkg/version"
+
+	_ "github.com/joho/godotenv/autoload"
 )
 
 var (
