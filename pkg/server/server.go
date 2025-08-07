@@ -15,6 +15,7 @@ import (
 
 // New create a new kommodity server instance.
 func New(ctx context.Context) (*genericserver.GenericServer, error) {
+	//nolint:varnamelen
 	db, err := database.SetupDB()
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup database connection: %w", err)

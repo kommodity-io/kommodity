@@ -115,15 +115,16 @@ func constructTableName(gvr schema.GroupVersionResource) string {
 }
 
 func NewJSONStorageProvider(obj resource.Object, db *sqlx.DB) apiserver.ResourceHandlerProvider {
-	return func(s *runtime.Scheme, _ genericregistry.RESTOptionsGetter) (restregistry.Storage, error) {
+	return func(scheme *runtime.Scheme, _ genericregistry.RESTOptionsGetter) (restregistry.Storage, error) {
 		gvr := obj.GetGroupVersionResource()
+		//nolint:varnamelen
 		gr := gvr.GroupResource()
 
 		codec, _, err := storage.NewStorageCodec(storage.StorageCodecConfig{
 			StorageMediaType:  runtime.ContentTypeJSON,
-			StorageSerializer: serializer.NewCodecFactory(s),
-			StorageVersion:    s.PrioritizedVersionsForGroup(gvr.Group)[0],
-			MemoryVersion:     s.PrioritizedVersionsForGroup(gvr.Group)[0],
+			StorageSerializer: serializer.NewCodecFactory(scheme),
+			StorageVersion:    scheme.PrioritizedVersionsForGroup(gvr.Group)[0],
+			MemoryVersion:     scheme.PrioritizedVersionsForGroup(gvr.Group)[0],
 			Config:            storagebackend.Config{}, // useless fields..
 		})
 		if err != nil {

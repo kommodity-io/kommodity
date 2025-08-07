@@ -101,6 +101,7 @@ func (s *Server) WithResourceAndHandler(obj resource.Object, sp ResourceHandlerP
 	s.schemeBuilder.Register(resource.AddToScheme(obj))
 
 	gvr := obj.GetGroupVersionResource()
+	//nolint:varnamelen
 	gv := gvr.GroupVersion()
 
 	if s.groupVersions == nil {
@@ -126,6 +127,7 @@ func (s *Server) newApiGroupFactoryHandler() genericserver.HTTPMuxFactory {
 		mux.HandleFunc("/apis/", s.newGroupDiscoveryHandler())
 
 		// All API groups and versions in prioritized order
+		//nolint:varnamelen
 		for _, gv := range s.schemes[0].PrioritizedVersionsAllGroups() {
 			storageProviders := map[string]restregistry.Storage{}
 
