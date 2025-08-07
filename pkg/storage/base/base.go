@@ -125,6 +125,7 @@ func (s *storageREST) List(
 	}
 
 	newListObj := s.NewList()
+
 	value, err := getListPtr(newListObj)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get list pointer: %w", err)
@@ -169,9 +170,11 @@ func (s *storageREST) Create(
 	if err != nil {
 		return nil, err
 	}
+
 	if exists {
 		return nil, ErrResourceExists
 	}
+
 	buf := &bytes.Buffer{}
 	if err := s.codec.Encode(obj, buf); err != nil {
 		return nil, fmt.Errorf("failed to encode object: %w", err)
@@ -179,6 +182,7 @@ func (s *storageREST) Create(
 	if err := s.store.Write(ctx, key, buf.Bytes()); err != nil {
 		return nil, fmt.Errorf("failed to write JSON BLOB: %w", err)
 	}
+
 	s.notifyWatchers(watch.Event{
 		Type:   watch.Added,
 		Object: obj,
@@ -205,12 +209,15 @@ func (s *storageREST) Update(
 		if !forceAllowCreate {
 			return nil, false, fmt.Errorf("failed to get existing object: %w", err)
 		}
+
 		isCreate = true
 	}
+
 	updatedObj, err := objInfo.UpdatedObject(ctx, oldObj)
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to get updated object: %w", err)
 	}
+
 	if isCreate {
 		if createValidation != nil {
 			if err := createValidation(ctx, updatedObj); err != nil {
@@ -231,6 +238,7 @@ func (s *storageREST) Update(
 		})
 		return updatedObj, true, nil
 	}
+
 	if updateValidation != nil {
 		if err := updateValidation(ctx, updatedObj, oldObj); err != nil {
 			return nil, false, fmt.Errorf("failed to validate object before update: %w", err)
@@ -243,6 +251,7 @@ func (s *storageREST) Update(
 	if err := s.store.Write(ctx, key, buf.Bytes()); err != nil {
 		return nil, false, fmt.Errorf("failed to write JSON BLOB: %w", err)
 	}
+
 	s.notifyWatchers(watch.Event{
 		Type:   watch.Modified,
 		Object: updatedObj,
@@ -267,10 +276,12 @@ func (s *storageREST) Delete(
 	if !exists {
 		return nil, false, ErrNotFound
 	}
+
 	oldObj, err := s.read(ctx, key)
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to read existing object: %w", err)
 	}
+
 	if deleteValidation != nil {
 		if err := deleteValidation(ctx, oldObj); err != nil {
 			return nil, false, fmt.Errorf("failed to validate object before deletion: %w", err)
@@ -279,6 +290,7 @@ func (s *storageREST) Delete(
 	if err := s.store.Delete(ctx, key); err != nil {
 		return nil, false, fmt.Errorf("failed to delete JSON BLOB: %w", err)
 	}
+
 	s.notifyWatchers(watch.Event{
 		Type:   watch.Deleted,
 		Object: oldObj,
@@ -298,6 +310,7 @@ func (s *storageREST) DeleteCollection(
 	}
 
 	newListObj := s.NewList()
+
 	value, err := getListPtr(newListObj)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get list pointer: %w", err)
@@ -310,6 +323,7 @@ func (s *storageREST) DeleteCollection(
 		if err != nil {
 			return nil, err
 		}
+
 		if deleteValidation != nil {
 			if err := deleteValidation(ctx, obj); err != nil {
 				return nil, fmt.Errorf("failed to validate object before deletion: %w", err)
@@ -324,6 +338,7 @@ func (s *storageREST) DeleteCollection(
 		if err := s.store.Delete(ctx, key); err != nil {
 			return nil, fmt.Errorf("failed to delete JSON BLOB: %w", err)
 		}
+
 		s.notifyWatchers(watch.Event{
 			Type:   watch.Deleted,
 			Object: obj,
@@ -338,6 +353,7 @@ func (s *storageREST) Watch(
 	options *metainternalversion.ListOptions,
 ) (watch.Interface, error) {
 	watcher := newStorageWatch(s, len(s.watchers))
+
 	list, err := s.List(ctx, options)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list objects for watch: %w", err)
@@ -347,6 +363,7 @@ func (s *storageREST) Watch(
 	items := danger.FieldByName("Items")
 	for i := range items.Len() {
 		value := items.Index(i).Addr().Interface()
+
 		obj, ok := value.(runtime.Object)
 		if !ok {
 			return nil, fmt.Errorf("%w: %T", ErrRuntimeObjectConversion, value)
@@ -357,6 +374,7 @@ func (s *storageREST) Watch(
 			Object: obj,
 		}
 	}
+
 	s.muWatchers.Lock()
 	s.watchers[watcher.id] = watcher
 	s.muWatchers.Unlock()
@@ -376,6 +394,7 @@ func (s *storageREST) objectKey(ctx context.Context, name string) (types.Namespa
 	if !s.isNamespaced {
 		return types.NamespacedName{Name: name}, nil
 	}
+
 	ns, exists := genericapirequest.NamespaceFrom(ctx)
 	if !exists {
 		return types.NamespacedName{}, ErrNamespaceNotFound
@@ -391,7 +410,9 @@ func (s *storageREST) read(ctx context.Context, key types.NamespacedName) (runti
 		}
 		return nil, err
 	}
+
 	newObj := s.newFunc()
+
 	decodedObj, _, err := s.codec.Decode(data, nil, newObj)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode JSON BLOB: %w", err)

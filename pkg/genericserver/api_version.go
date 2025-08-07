@@ -166,6 +166,7 @@ func handleRequest(
 		if apiErr != nil {
 			return nil, apiErr, http.StatusInternalServerError
 		}
+
 		if obj == nil {
 			return nil, fmt.Errorf("failed to create resource"), http.StatusInternalServerError
 		}

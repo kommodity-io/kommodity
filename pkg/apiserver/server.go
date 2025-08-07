@@ -254,7 +254,6 @@ func (s *Server) newGroupVersionDiscoveryHandler(groupVersion schema.GroupVersio
 				ShortNames: shortNames,
 				Verbs:      getVerbs(storage),
 			})
-
 		}
 
 		resourceList := &metav1.APIResourceList{

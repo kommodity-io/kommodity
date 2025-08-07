@@ -37,6 +37,7 @@ func (j *JSONDatabaseStore) Migrate() error {
             data JSONB NOT NULL,
             PRIMARY KEY (name, namespace)
         );`, j.tableName)
+
 	_, err := j.db.Exec(query)
 	if err != nil {
 		return fmt.Errorf("failed to create table %s: %w", j.tableName, err)
