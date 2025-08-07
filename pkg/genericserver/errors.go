@@ -3,7 +3,7 @@ package genericserver
 import "fmt"
 
 var (
-	ErrMethodNotAllowed       = fmt.Errorf("method not allowed")
-	ErrResourceNotFound       = fmt.Errorf("resource not found")
-	ErrFailedToCreateResource = fmt.Errorf("failed to create resource")
+	ErrMethodNotAllowed       = errors.New("method not allowed")
+	ErrResourceNotFound       = errors.New("resource not found")
+	ErrFailedToCreateResource = errors.New("failed to create resource")
 )

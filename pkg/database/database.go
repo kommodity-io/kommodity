@@ -13,7 +13,7 @@ import (
 func SetupDB() (*sqlx.DB, error) {
 	dbURI := os.Getenv("KOMMODITY_DB_URI")
 	if dbURI == "" {
-		return nil, fmt.Errorf("KOMMODITY_DB_URI environment variable is not set")
+		return nil, errors.New("KOMMODITY_DB_URI environment variable is not set")
 	}
 
 	u, err := url.Parse(dbURI)

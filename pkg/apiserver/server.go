@@ -2,6 +2,7 @@ package apiserver
 
 import (
 	"context"
+	"fmt"
 	"maps"
 	"net/http"
 	"reflect"
@@ -23,7 +24,7 @@ import (
 
 type ResourceHandlerProvider func(s *runtime.Scheme, g genericregistry.RESTOptionsGetter) (rest.Storage, error)
 
-// ResourceProvider ensures different versions of the same resource share storage
+// ResourceProvider ensures different versions of the same resource share storage.
 type ResourceProvider struct {
 	Provider ResourceHandlerProvider
 }
@@ -33,7 +34,7 @@ var APIServer = &Server{
 	storageProvider: map[schema.GroupVersionResource]*ResourceProvider{},
 }
 
-// Server builds a new apiserver
+// Server builds a new apiserver.
 type Server struct {
 	storageProvider      map[schema.GroupVersionResource]*ResourceProvider
 	groupVersions        map[schema.GroupVersion]bool
@@ -65,8 +66,9 @@ func (s *Server) Build(ctx context.Context) (*genericserver.GenericServer, error
 				gvs = append(gvs, gv)
 			}
 
-			if err := scheme.SetVersionPriority(gvs...); err != nil {
-				return err
+			err := scheme.SetVersionPriority(gvs...)
+			if err != nil {
+				return fmt.Errorf("failed to set version priority: %w", err)
 			}
 
 			for _, gvr := range s.orderedGroupVersions {
@@ -78,8 +80,9 @@ func (s *Server) Build(ctx context.Context) (*genericserver.GenericServer, error
 	)
 
 	for i := range s.schemes {
-		if err := s.schemeBuilder.AddToScheme(s.schemes[i]); err != nil {
-			return nil, err
+		err := s.schemeBuilder.AddToScheme(s.schemes[i])
+		if err != nil {
+			return nil, fmt.Errorf("failed to add to scheme: %w", err)
 		}
 	}
 
@@ -170,7 +173,7 @@ func (s *Server) newApiGroupFactoryHandler() genericserver.HTTPMuxFactory {
 func (s *Server) newGroupDiscoveryHandler() http.HandlerFunc {
 	return func(res http.ResponseWriter, _ *http.Request) {
 		groups := map[string]metav1.APIGroup{}
-		for group, _ := range s.storageProvider {
+		for group := range s.storageProvider {
 			if _, found := groups[group.Group]; found {
 				continue
 			}
@@ -201,7 +204,8 @@ func (s *Server) newGroupDiscoveryHandler() http.HandlerFunc {
 
 		res.Header().Set("Content-Type", "application/json")
 
-		if err := encoding.NewKubeJSONEncoder(res).Encode(apiGroupList); err != nil {
+		err := encoding.NewKubeJSONEncoder(res).Encode(apiGroupList)
+		if err != nil {
 			// logger.Error("Failed to encode API group", zap.Error(err))
 			http.Error(res, encoding.ErrEncodingFailed.Error(), http.StatusInternalServerError)
 		}
@@ -227,7 +231,6 @@ func (s *Server) newGroupVersionDiscoveryHandler(groupVersion schema.GroupVersio
 
 			// Skip subresources.
 			if strings.Contains(resource, "/") {
-
 				continue
 			}
 
@@ -266,7 +269,8 @@ func (s *Server) newGroupVersionDiscoveryHandler(groupVersion schema.GroupVersio
 
 		res.Header().Set("Content-Type", "application/json")
 
-		if err := encoding.NewKubeJSONEncoder(res).Encode(resourceList); err != nil {
+		err := encoding.NewKubeJSONEncoder(res).Encode(resourceList)
+		if err != nil {
 			// logger.Error("Failed to encode API resource list", zap.Error(err))
 			http.Error(res, encoding.ErrEncodingFailed.Error(), http.StatusInternalServerError)
 		}

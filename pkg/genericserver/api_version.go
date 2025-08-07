@@ -164,7 +164,8 @@ func handleRequest(
 		}
 
 		obj := storage.New()
-		if err := encoding.NewKubeJSONDecoder(req.Body).Decode(obj); err != nil {
+		err := encoding.NewKubeJSONDecoder(req.Body).Decode(obj)
+		if err != nil {
 			return nil, http.StatusBadRequest, fmt.Errorf("failed to decode request body: %w", err)
 		}
 
@@ -189,7 +190,8 @@ func handleRequest(
 		}
 
 		obj := storage.New()
-		if err := encoding.NewKubeJSONDecoder(req.Body).Decode(obj); err != nil {
+		err := encoding.NewKubeJSONDecoder(req.Body).Decode(obj)
+		if err != nil {
 			return nil, http.StatusBadRequest, fmt.Errorf("failed to decode request body: %w", err)
 		}
 

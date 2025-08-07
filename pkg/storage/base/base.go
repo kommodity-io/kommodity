@@ -126,7 +126,7 @@ func (s *storageREST) List(
 ) (runtime.Object, error) {
 	dataList, err := s.store.List(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to list JSON BLOBs: %w", err)
 	}
 
 	newListObj := s.NewList()
@@ -141,7 +141,7 @@ func (s *storageREST) List(
 
 		obj, _, err := s.codec.Decode(data, nil, newObj)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to decode JSON BLOB: %w", err)
 		}
 
 		appendItem(value, obj)
@@ -157,7 +157,8 @@ func (s *storageREST) Create(
 	_ *metav1.CreateOptions,
 ) (runtime.Object, error) {
 	if createValidation != nil {
-		if err := createValidation(ctx, obj); err != nil {
+		err := createValidation(ctx, obj)
+		if err != nil {
 			return nil, fmt.Errorf("failed to validate object: %w", err)
 		}
 	}
@@ -174,7 +175,7 @@ func (s *storageREST) Create(
 
 	exists, err := s.store.Exists(ctx, key)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to check if object exists: %w", err)
 	}
 
 	if exists {
@@ -185,6 +186,7 @@ func (s *storageREST) Create(
 	if err := s.codec.Encode(obj, buf); err != nil {
 		return nil, fmt.Errorf("failed to encode object: %w", err)
 	}
+
 	if err := s.store.Write(ctx, key, buf.Bytes()); err != nil {
 		return nil, fmt.Errorf("failed to write JSON BLOB: %w", err)
 	}
@@ -229,16 +231,20 @@ func (s *storageREST) Update(
 
 	if isCreate {
 		if createValidation != nil {
-			if err := createValidation(ctx, updatedObj); err != nil {
+			err := createValidation(ctx, updatedObj)
+			if err != nil {
 				return nil, false, fmt.Errorf("failed to validate object before creation: %w", err)
 			}
 		}
 
 		buf := &bytes.Buffer{}
-		if err := s.codec.Encode(updatedObj, buf); err != nil {
+		err := s.codec.Encode(updatedObj, buf)
+		if err != nil {
 			return nil, false, fmt.Errorf("failed to encode object: %w", err)
 		}
-		if err := s.store.Write(ctx, key, buf.Bytes()); err != nil {
+
+		err := s.store.Write(ctx, key, buf.Bytes())
+		if err != nil {
 			return nil, false, fmt.Errorf("failed to write JSON BLOB: %w", err)
 		}
 
@@ -251,7 +257,8 @@ func (s *storageREST) Update(
 	}
 
 	if updateValidation != nil {
-		if err := updateValidation(ctx, updatedObj, oldObj); err != nil {
+		err := updateValidation(ctx, updatedObj, oldObj)
+		if err != nil {
 			return nil, false, fmt.Errorf("failed to validate object before update: %w", err)
 		}
 	}
@@ -260,6 +267,7 @@ func (s *storageREST) Update(
 	if err := s.codec.Encode(updatedObj, buf); err != nil {
 		return nil, false, fmt.Errorf("failed to encode object: %w", err)
 	}
+
 	if err := s.store.Write(ctx, key, buf.Bytes()); err != nil {
 		return nil, false, fmt.Errorf("failed to write JSON BLOB: %w", err)
 	}
@@ -285,7 +293,7 @@ func (s *storageREST) Delete(
 
 	exists, err := s.store.Exists(ctx, key)
 	if err != nil {
-		return nil, false, err
+		return nil, false, fmt.Errorf("failed to check if object exists: %w", err)
 	}
 
 	if !exists {
@@ -298,10 +306,12 @@ func (s *storageREST) Delete(
 	}
 
 	if deleteValidation != nil {
-		if err := deleteValidation(ctx, oldObj); err != nil {
+		err := deleteValidation(ctx, oldObj)
+		if err != nil {
 			return nil, false, fmt.Errorf("failed to validate object before deletion: %w", err)
 		}
 	}
+
 	if err := s.store.Delete(ctx, key); err != nil {
 		return nil, false, fmt.Errorf("failed to delete JSON BLOB: %w", err)
 	}
@@ -322,7 +332,7 @@ func (s *storageREST) DeleteCollection(
 ) (runtime.Object, error) {
 	dataMap, err := s.store.ListWithKeys(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to list JSON BLOBs with keys: %w", err)
 	}
 
 	newListObj := s.NewList()
@@ -337,11 +347,12 @@ func (s *storageREST) DeleteCollection(
 
 		obj, _, err := s.codec.Decode(data, nil, newObj)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to decode JSON BLOB: %w", err)
 		}
 
 		if deleteValidation != nil {
-			if err := deleteValidation(ctx, obj); err != nil {
+			err := deleteValidation(ctx, obj)
+			if err != nil {
 				return nil, fmt.Errorf("failed to validate object before deletion: %w", err)
 			}
 		}

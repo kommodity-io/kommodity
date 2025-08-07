@@ -25,7 +25,7 @@ func New(ctx context.Context) (*genericserver.GenericServer, error) {
 		WithResourceAndHandler(&v1alpha1.Namespace{}, sql.NewJSONStorageProvider(&v1alpha1.Namespace{}, db)).
 		Build(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to build API server: %w", err)
 	}
 
 	return srv, nil

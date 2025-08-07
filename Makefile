@@ -73,5 +73,8 @@ test: ## Run the tests.
 lint: $(LINTER) ## Run the linter.
 	$(LINTER) run
 
+lint-fix: $(LINTER) ## Run the linter and fix issues.
+	$(LINTER) run --fix
+
 generate: deepcopy-gen ## Run code generation.
 	go generate ./...

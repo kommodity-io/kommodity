@@ -67,10 +67,11 @@ func (j JSONDatabaseStore) Exists(ctx context.Context, ref types.NamespacedName)
 
 // List implements storage.StorageStore.
 func (j JSONDatabaseStore) List(ctx context.Context) ([][]byte, error) {
-	query := fmt.Sprintf("SELECT data FROM %s", j.tableName)
+	query := "SELECT data FROM " + j.tableName
+
 	rows, err := j.db.QueryxContext(ctx, query)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to query DB: %w", err)
 	}
 
 	defer rows.Close()
@@ -78,8 +79,9 @@ func (j JSONDatabaseStore) List(ctx context.Context) ([][]byte, error) {
 	var result [][]byte
 	for rows.Next() {
 		var data []byte
-		if err := rows.Scan(&data); err != nil {
-			return nil, err
+		err := rows.Scan(&data)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan row data: %w", err)
 		}
 
 		result = append(result, data)
