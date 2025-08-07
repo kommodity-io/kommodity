@@ -43,6 +43,7 @@ func NewAPIVersionHandler(
 	}
 }
 
+// RoutingParameters holds the routing parameters for API requests.
 type RoutingParameters struct {
 	groupVersion      schema.GroupVersion
 	namespace         string
@@ -139,24 +140,24 @@ func handleRequest(
 			}
 
 			return obj, http.StatusOK, nil
-		} else {
-			// Handle GET for a list of resources.
-			lister, ok := storage.(rest.Lister)
-			if !ok {
-				return nil, http.StatusMethodNotAllowed, ErrMethodNotAllowed
-			}
-
-			obj, apiErr := lister.List(ctx, nil)
-			if apiErr != nil {
-				return nil, http.StatusInternalServerError, fmt.Errorf("failed to list resources: %w", apiErr)
-			}
-
-			if obj == nil {
-				return nil, http.StatusNotFound, ErrResourceNotFound
-			}
-
-			return obj, http.StatusOK, nil
 		}
+
+		// Handle GET for a list of resources.
+		lister, ok := storage.(rest.Lister)
+		if !ok {
+			return nil, http.StatusMethodNotAllowed, ErrMethodNotAllowed
+		}
+
+		obj, apiErr := lister.List(ctx, nil)
+		if apiErr != nil {
+			return nil, http.StatusInternalServerError, fmt.Errorf("failed to list resources: %w", apiErr)
+		}
+
+		if obj == nil {
+			return nil, http.StatusNotFound, ErrResourceNotFound
+		}
+
+		return obj, http.StatusOK, nil
 
 	case http.MethodPost:
 		//nolint:misspell
@@ -233,23 +234,23 @@ func handleRequest(
 
 			if instant {
 				return obj, http.StatusAccepted, nil
-			} else {
-				return obj, http.StatusNoContent, nil
-			}
-		} else {
-			// Handle DELETE for a collection of resources.
-			deleter, ok := storage.(rest.CollectionDeleter)
-			if !ok {
-				return nil, http.StatusMethodNotAllowed, ErrMethodNotAllowed
-			}
-
-			obj, apiErr := deleter.DeleteCollection(ctx, validationObj.DeleteValidation, nil, nil)
-			if apiErr != nil {
-				return nil, http.StatusInternalServerError, fmt.Errorf("failed to delete resource: %w", apiErr)
 			}
 
 			return obj, http.StatusNoContent, nil
 		}
+
+		// Handle DELETE for a collection of resources.
+		deleter, ok := storage.(rest.CollectionDeleter)
+		if !ok {
+			return nil, http.StatusMethodNotAllowed, ErrMethodNotAllowed
+		}
+
+		obj, apiErr := deleter.DeleteCollection(ctx, validationObj.DeleteValidation, nil, nil)
+		if apiErr != nil {
+			return nil, http.StatusInternalServerError, fmt.Errorf("failed to delete resource: %w", apiErr)
+		}
+
+		return obj, http.StatusNoContent, nil
 	}
 
 	return nil, http.StatusMethodNotAllowed, ErrMethodNotAllowed

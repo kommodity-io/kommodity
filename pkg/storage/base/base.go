@@ -1,3 +1,4 @@
+// Package storage provides a generic storage interface and implementations for Kubernetes resources.
 package storage
 
 import (
@@ -7,6 +8,8 @@ import (
 	"fmt"
 	"reflect"
 	"sync"
+
+	"github.com/kommodity-io/kommodity/pkg/storage"
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	metainternalversion "k8s.io/apimachinery/pkg/apis/meta/internalversion"
@@ -20,14 +23,8 @@ import (
 	"k8s.io/apiserver/pkg/registry/rest"
 )
 
-var (
-	ErrNotFound                = errors.New("resource not found")
-	ErrNamespaceNotFound       = errors.New("namespace not found in request context")
-	ErrResourceExists          = errors.New("resource already exists")
-	ErrRuntimeObjectConversion = errors.New("value cannot be converted to runtime.Object")
-)
-
-type StorageStore interface {
+// Store defines a generic interface for storage operations.
+type Store interface {
 	Exists(ctx context.Context, ref types.NamespacedName) (bool, error)
 	Read(ctx context.Context, ref types.NamespacedName) ([]byte, error)
 	Write(ctx context.Context, ref types.NamespacedName, data []byte) error
@@ -58,7 +55,7 @@ func NewStorageREST(
 	isNamespaced bool,
 	newFunc func() runtime.Object,
 	newListFunc func() runtime.Object,
-	store StorageStore,
+	store Store,
 ) rest.Storage {
 	rest := &storageREST{
 		TableConvertor: rest.NewDefaultTableConvertor(groupResource),
@@ -79,7 +76,7 @@ type storageREST struct {
 	codec        runtime.Codec
 	isNamespaced bool
 
-	store StorageStore
+	store Store
 
 	muWatchers sync.RWMutex
 	watchers   map[int]*storageWatch
@@ -179,7 +176,7 @@ func (s *storageREST) Create(
 	}
 
 	if exists {
-		return nil, ErrResourceExists
+		return nil, storage.ErrResourceExists
 	}
 
 	buf := &bytes.Buffer{}
@@ -304,7 +301,7 @@ func (s *storageREST) Delete(
 	}
 
 	if !exists {
-		return nil, false, ErrNotFound
+		return nil, false, storage.ErrNotFound
 	}
 
 	oldObj, err := s.read(ctx, key)
@@ -404,7 +401,7 @@ func (s *storageREST) Watch(
 
 		obj, ok := value.(runtime.Object)
 		if !ok {
-			return nil, fmt.Errorf("%w: %T", ErrRuntimeObjectConversion, value)
+			return nil, fmt.Errorf("%w: %T", storage.ErrRuntimeObjectConversion, value)
 		}
 
 		watcher.ch <- watch.Event{
@@ -436,7 +433,7 @@ func (s *storageREST) objectKey(ctx context.Context, name string) (types.Namespa
 
 	ns, exists := genericapirequest.NamespaceFrom(ctx)
 	if !exists {
-		return types.NamespacedName{}, ErrNamespaceNotFound
+		return types.NamespacedName{}, storage.ErrNamespaceNotFound
 	}
 
 	return types.NamespacedName{Name: name, Namespace: ns}, nil
@@ -445,8 +442,8 @@ func (s *storageREST) objectKey(ctx context.Context, name string) (types.Namespa
 func (s *storageREST) read(ctx context.Context, key types.NamespacedName) (runtime.Object, error) {
 	data, err := s.store.Read(ctx, key)
 	if err != nil {
-		if errors.Is(err, ErrNotFound) {
-			return nil, ErrNotFound
+		if errors.Is(err, storage.ErrNotFound) {
+			return nil, storage.ErrNotFound
 		}
 
 		return nil, fmt.Errorf("failed to read JSON BLOB: %w", err)

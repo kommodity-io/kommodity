@@ -1,3 +1,4 @@
+// Package apiserver provides the implementation of a Kubernetes API server.
 package apiserver
 
 import (
@@ -22,6 +23,7 @@ import (
 	"sigs.k8s.io/apiserver-runtime/pkg/builder/resource"
 )
 
+// ResourceHandlerProvider defines a function type that provides storage for a resource.
 type ResourceHandlerProvider func(s *runtime.Scheme, g genericregistry.RESTOptionsGetter) (rest.Storage, error)
 
 // ResourceProvider ensures different versions of the same resource share storage.
@@ -43,6 +45,7 @@ type Server struct {
 	schemeBuilder        runtime.SchemeBuilder
 }
 
+// Build creates a new api server and generic server with the configured resources and handlers.
 func (s *Server) Build(ctx context.Context) (*genericserver.GenericServer, error) {
 	scheme := runtime.NewScheme()
 
@@ -88,13 +91,14 @@ func (s *Server) Build(ctx context.Context) (*genericserver.GenericServer, error
 
 	srv := genericserver.New(ctx,
 		genericserver.WithGRPCServerFactory(kms.NewGRPCServerFactory()),
-		genericserver.WithHTTPMuxFactory(s.newApiGroupFactoryHandler()),
+		genericserver.WithHTTPMuxFactory(s.newAPIGroupFactoryHandler()),
 	)
 
 	return srv, nil
 }
 
-func (s *Server) WithResourceAndHandler(obj resource.Object, sp ResourceHandlerProvider) *Server {
+// WithResourceAndHandler registers a resource and its handler with the server.
+func (s *Server) WithResourceAndHandler(obj resource.Object, provider ResourceHandlerProvider) *Server {
 	if s.storageProvider == nil {
 		s.storageProvider = make(map[schema.GroupVersionResource]*ResourceProvider)
 	}
@@ -115,13 +119,13 @@ func (s *Server) WithResourceAndHandler(obj resource.Object, sp ResourceHandlerP
 	}
 
 	if _, found := s.storageProvider[gvr]; !found {
-		s.storageProvider[gvr] = &ResourceProvider{Provider: sp}
+		s.storageProvider[gvr] = &ResourceProvider{Provider: provider}
 	}
 
 	return s
 }
 
-func (s *Server) newApiGroupFactoryHandler() genericserver.HTTPMuxFactory {
+func (s *Server) newAPIGroupFactoryHandler() genericserver.HTTPMuxFactory {
 	return func(mux *http.ServeMux) error {
 		// Discovery endpoint for API groups
 		mux.HandleFunc("/apis", s.newGroupDiscoveryHandler())

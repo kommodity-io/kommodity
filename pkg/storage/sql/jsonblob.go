@@ -1,3 +1,4 @@
+// Package sql provides a storage implementation for JSON blobs in a SQL database.
 package sql
 
 import (
@@ -20,15 +21,18 @@ import (
 	kstorage "github.com/kommodity-io/kommodity/pkg/storage/base"
 )
 
+// JSONDatabaseStore is a storage implementation for JSON blobs in a SQL database.
 type JSONDatabaseStore struct {
 	db        *sqlx.DB
 	tableName string
 }
 
+// NewJSONDatabaseStore creates a new JSONDatabaseStore for the given GroupVersionResource.
 func NewJSONDatabaseStore(db *sqlx.DB, gvr schema.GroupVersionResource) *JSONDatabaseStore {
 	return &JSONDatabaseStore{db: db, tableName: constructTableName(gvr)}
 }
 
+// Migrate creates the necessary table for storing JSON blobs if it does not exist.
 func (j *JSONDatabaseStore) Migrate() error {
 	query := fmt.Sprintf(
 		`CREATE TABLE IF NOT EXISTS %s (
@@ -127,6 +131,8 @@ func constructTableName(gvr schema.GroupVersionResource) string {
 	return strings.ReplaceAll(fmt.Sprintf("%s__%s__%s", gvr.Group, gvr.Version, gvr.Resource), ".", "_")
 }
 
+// NewJSONStorageProvider creates a new storage provider for JSON objects in the database.
+// nolint:varnamelen
 func NewJSONStorageProvider(obj resource.Object, db *sqlx.DB) apiserver.ResourceHandlerProvider {
 	return func(scheme *runtime.Scheme, _ genericregistry.RESTOptionsGetter) (restregistry.Storage, error) {
 		gvr := obj.GetGroupVersionResource()
