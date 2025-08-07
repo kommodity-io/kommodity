@@ -4,8 +4,8 @@ package sql
 import (
 	"context"
 	"fmt"
-	"strings"
 	"log"
+	"strings"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -78,6 +78,7 @@ func (j JSONDatabaseStore) List(ctx context.Context) ([][]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to query DB: %w", err)
 	}
+
 	defer func() {
 		err = rows.Close()
 		if err != nil {
