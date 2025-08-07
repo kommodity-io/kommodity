@@ -43,3 +43,10 @@ func WithVersionInfo(versionInfo *version.Info) Option {
 		s.versionInfo = versionInfo
 	}
 }
+
+// WithAdditionalHealthChecks adds additional health checks to the server.
+func WithAdditionalHealthChecks(healthCheck HealthCheck) Option {
+	return func(s *GenericServer) {
+		s.healthCheck = healthCheck
+	}
+}

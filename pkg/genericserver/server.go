@@ -69,6 +69,13 @@ type GenericServer struct {
 	port        int
 	ready       bool
 	versionInfo *version.Info
+	healthCheck HealthCheck
+}
+
+// HealthCheck defines the interface for additional optional health checks.
+type HealthCheck interface {
+	Readyz(ctx context.Context) error
+	Livez(ctx context.Context) error
 }
 
 // New creates a new server instance.
@@ -309,13 +316,19 @@ func (s *GenericServer) serveGRPC() {
 }
 
 // readyz checks if the server is ready to serve requests.
-func (s *GenericServer) readyz(res http.ResponseWriter, _ *http.Request) {
+func (s *GenericServer) readyz(res http.ResponseWriter, reg *http.Request) {
 	s.RLock()
 	defer s.RUnlock()
 
-	// This would be a great place to check downstream dependencies.
+	if s.healthCheck != nil {
+		err := s.healthCheck.Readyz(reg.Context())
+		if err != nil {
+			s.logger.Error("Health check failed", zap.Error(err))
+			http.Error(res, "Health check failed", http.StatusInternalServerError)
 
-	// TODO: Add ping to database
+			return
+		}
+	}
 
 	code := http.StatusOK
 	status := &metav1.Status{
@@ -350,9 +363,19 @@ func (s *GenericServer) readyz(res http.ResponseWriter, _ *http.Request) {
 // livez checks if the server is alive and running. We do not check downstream
 // dependencies here to avoid "CrashLoopBackOff" issues in Kubernetes during
 // transient failures of dependent services.
-func (s *GenericServer) livez(res http.ResponseWriter, _ *http.Request) {
+func (s *GenericServer) livez(res http.ResponseWriter, reg *http.Request) {
 	s.RLock()
 	defer s.RUnlock()
+
+	if s.healthCheck != nil {
+		err := s.healthCheck.Livez(reg.Context())
+		if err != nil {
+			s.logger.Error("Health check failed", zap.Error(err))
+			http.Error(res, "Health check failed", http.StatusInternalServerError)
+
+			return
+		}
+	}
 
 	code := http.StatusOK
 	status := &metav1.Status{

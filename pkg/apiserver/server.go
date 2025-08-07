@@ -38,6 +38,7 @@ type Server struct {
 	orderedGroupVersions []schema.GroupVersion
 	schemes              []*runtime.Scheme
 	schemeBuilder        runtime.SchemeBuilder
+	healthCheck          genericserver.HealthCheck
 }
 
 // NewAPIServer creates a new API server instance.
@@ -94,6 +95,7 @@ func (s *Server) Build(ctx context.Context) (*genericserver.GenericServer, error
 	srv := genericserver.New(ctx,
 		genericserver.WithGRPCServerFactory(kms.NewGRPCServerFactory()),
 		genericserver.WithHTTPMuxFactory(s.newAPIGroupFactoryHandler()),
+		genericserver.WithAdditionalHealthChecks(s.healthCheck),
 	)
 
 	return srv, nil
@@ -123,6 +125,13 @@ func (s *Server) WithResourceAndHandler(obj resource.Object, provider ResourceHa
 	if _, found := s.storageProvider[gvr]; !found {
 		s.storageProvider[gvr] = &ResourceProvider{Provider: provider}
 	}
+
+	return s
+}
+
+// WithHealthCheck registers additional health check provider with the server.
+func (s *Server) WithHealthCheck(healthCheck genericserver.HealthCheck) *Server {
+	s.healthCheck = healthCheck
 
 	return s
 }
