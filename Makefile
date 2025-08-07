@@ -29,12 +29,12 @@ $(GRPCURL):
 	go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest
 
 # Set up the linter.
-LINTER := $(GOBIN)/golangci-lint
+LINTER := bin/golangci-lint
 
 .PHONY: golangci-lint
 golangci-lint: $(LINTER) ## Download golangci-lint locally if necessary.
 $(LINTER):
-	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
+	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b bin/ v2.3.1
 
 # Set up the deepcopy generator.
 DEEPGEN := $(GOBIN)/deepcopy-gen
