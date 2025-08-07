@@ -49,8 +49,6 @@ var (
 )
 
 // NewStorageREST instantiates a new REST storage for generic resources using an abstracted store.
-//
-//nolint:ireturn
 func NewStorageREST(
 	groupResource schema.GroupResource,
 	codec runtime.Codec,
@@ -87,14 +85,12 @@ type storageREST struct {
 	newListFunc func() runtime.Object
 }
 
-//nolint:ireturn
 func (s *storageREST) New() runtime.Object {
 	return s.newFunc()
 }
 
 func (s *storageREST) Destroy() {}
 
-//nolint:ireturn
 func (s *storageREST) NewList() runtime.Object {
 	return s.newListFunc()
 }
