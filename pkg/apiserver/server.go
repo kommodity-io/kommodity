@@ -18,11 +18,10 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	genericregistry "k8s.io/apiserver/pkg/registry/generic"
 	"k8s.io/apiserver/pkg/registry/rest"
-	restregistry "k8s.io/apiserver/pkg/registry/rest"
 	"sigs.k8s.io/apiserver-runtime/pkg/builder/resource"
 )
 
-type ResourceHandlerProvider func(s *runtime.Scheme, g genericregistry.RESTOptionsGetter) (restregistry.Storage, error)
+type ResourceHandlerProvider func(s *runtime.Scheme, g genericregistry.RESTOptionsGetter) (rest.Storage, error)
 
 // ResourceProvider ensures different versions of the same resource share storage
 type ResourceProvider struct {
@@ -36,7 +35,6 @@ var APIServer = &Server{
 
 // Server builds a new apiserver
 type Server struct {
-	errs                 []error
 	storageProvider      map[schema.GroupVersionResource]*ResourceProvider
 	groupVersions        map[schema.GroupVersion]bool
 	orderedGroupVersions []schema.GroupVersion
@@ -129,7 +127,7 @@ func (s *Server) newApiGroupFactoryHandler() genericserver.HTTPMuxFactory {
 		// All API groups and versions in prioritized order
 		//nolint:varnamelen
 		for _, gv := range s.schemes[0].PrioritizedVersionsAllGroups() {
-			storageProviders := map[string]restregistry.Storage{}
+			storageProviders := map[string]rest.Storage{}
 
 			// Find all storage providers for this group version
 			for storageGVR, provider := range s.storageProvider {
@@ -245,7 +243,7 @@ func (s *Server) newGroupVersionDiscoveryHandler(groupVersion schema.GroupVersio
 			shortNames := []string{}
 			obj := storage.New()
 
-			if shortNamesProvider, ok := obj.(restregistry.ShortNamesProvider); ok {
+			if shortNamesProvider, ok := obj.(rest.ShortNamesProvider); ok {
 				shortNames = shortNamesProvider.ShortNames()
 			}
 

@@ -80,9 +80,7 @@ func (in *NamespaceList) DeepCopyObject() runtime.Object {
 	*out = *in
 	out.Items = make([]Namespace, len(in.Items))
 
-	for i := range in.Items {
-		out.Items[i] = in.Items[i]
-	}
+	copy(out.Items, in.Items)
 
 	return out
 }

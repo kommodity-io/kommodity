@@ -84,9 +84,9 @@ func (h *APIVersionHandler) ServeHTTP(res http.ResponseWriter, req *http.Request
 	}
 
 	// Handle the request
-	obj, apiErr, statusCode := handleRequest(ctx, req, params, storage)
-	if apiErr != nil {
-		handleError(res, apiErr, statusCode)
+	obj, statusCode, err := handleRequest(ctx, req, params, storage)
+	if err != nil {
+		handleError(res, err, statusCode)
 		return
 	}
 
@@ -112,76 +112,76 @@ func handleRequest(
 	req *http.Request,
 	params *RoutingParameters,
 	storage rest.Storage,
-) (runtime.Object, error, int) {
+) (runtime.Object, int, error) {
 	switch req.Method {
 	case http.MethodGet:
 		if params.maybeResourceName != "" {
 			// Handle GET for a specific resource.
 			getter, ok := storage.(rest.Getter)
 			if !ok {
-				return nil, fmt.Errorf("method not allowed"), http.StatusMethodNotAllowed
+				return nil, http.StatusMethodNotAllowed, ErrMethodNotAllowed
 			}
 
 			obj, apiErr := getter.Get(ctx, params.maybeResourceName, nil)
 			if apiErr != nil {
-				return nil, apiErr, http.StatusInternalServerError
+				return nil, http.StatusInternalServerError, fmt.Errorf("failed to get resource: %w", apiErr)
 			}
 
 			if obj == nil {
-				return nil, fmt.Errorf("resource not found"), http.StatusNotFound
+				return nil, http.StatusNotFound, ErrResourceNotFound
 			}
-			return obj, nil, http.StatusOK
+			return obj, http.StatusOK, nil
 		} else {
 			// Handle GET for a list of resources.
 			lister, ok := storage.(rest.Lister)
 			if !ok {
-				return nil, fmt.Errorf("method not allowed"), http.StatusMethodNotAllowed
+				return nil, http.StatusMethodNotAllowed, ErrMethodNotAllowed
 			}
 
 			obj, apiErr := lister.List(ctx, nil)
 			if apiErr != nil {
-				return nil, apiErr, http.StatusInternalServerError
+				return nil, http.StatusInternalServerError, fmt.Errorf("failed to list resources: %w", apiErr)
 			}
 
 			if obj == nil {
-				return nil, fmt.Errorf("no resources found"), http.StatusNotFound
+				return nil, http.StatusNotFound, ErrResourceNotFound
 			}
-			return obj, nil, http.StatusOK
+			return obj, http.StatusOK, nil
 		}
 
 	case http.MethodPost:
 		creater, ok := storage.(rest.Creater)
 		if !ok {
-			return nil, fmt.Errorf("method not allowed"), http.StatusMethodNotAllowed
+			return nil, http.StatusMethodNotAllowed, ErrMethodNotAllowed
 		}
 
 		obj := storage.New()
 		if err := encoding.NewKubeJSONDecoder(req.Body).Decode(obj); err != nil {
-			return nil, fmt.Errorf("failed to decode request body: %w", err), http.StatusBadRequest
+			return nil, http.StatusBadRequest, fmt.Errorf("failed to decode request body: %w", err)
 		}
 
 		validationObj := obj.(validation.Validatable)
 
 		obj, apiErr := creater.Create(ctx, obj, validationObj.CreateValidation, nil)
 		if apiErr != nil {
-			return nil, apiErr, http.StatusInternalServerError
+			return nil, http.StatusInternalServerError, fmt.Errorf("failed to create resource: %w", apiErr)
 		}
 
 		if obj == nil {
-			return nil, fmt.Errorf("failed to create resource"), http.StatusInternalServerError
+			return nil, http.StatusInternalServerError, ErrFailedToCreateResource
 		}
 
-		return obj, nil, http.StatusCreated
+		return obj, http.StatusCreated, nil
 
 	case http.MethodPut, http.MethodPatch:
 		updater, ok := storage.(rest.Updater)
 		if !ok {
-			return nil, fmt.Errorf("method not allowed"), http.StatusMethodNotAllowed
+			return nil, http.StatusMethodNotAllowed, ErrMethodNotAllowed
 		}
 
 		obj := storage.New()
 		if err := encoding.NewKubeJSONDecoder(req.Body).Decode(obj); err != nil {
-			return nil, fmt.Errorf("failed to decode request body: %w", err), http.StatusBadRequest
+			return nil, http.StatusBadRequest, fmt.Errorf("failed to decode request body: %w", err)
 		}
 
 		validationObj := obj.(validation.Validatable)
@@ -190,14 +190,14 @@ func handleRequest(
 		obj, _, apiErr := updater.Update(ctx, params.maybeResourceName, updatedObject,
 			validationObj.CreateValidation, validationObj.UpdateValidation, false, nil)
 		if apiErr != nil {
-			return nil, apiErr, http.StatusInternalServerError
+			return nil, http.StatusInternalServerError, fmt.Errorf("failed to update resource: %w", apiErr)
 		}
 
 		if obj == nil {
-			return nil, fmt.Errorf("failed to update resource"), http.StatusInternalServerError
+			return nil, http.StatusInternalServerError, ErrResourceNotFound
 		}
 
-		return obj, nil, http.StatusOK
+		return obj, http.StatusOK, nil
 
 	case http.MethodDelete:
 		validationObj := storage.New().(validation.Validatable)
@@ -206,38 +206,38 @@ func handleRequest(
 			// Handle DELETE for a specific resource.
 			deleter, ok := storage.(rest.GracefulDeleter)
 			if !ok {
-				return nil, fmt.Errorf("method not allowed"), http.StatusMethodNotAllowed
+				return nil, http.StatusMethodNotAllowed, ErrMethodNotAllowed
 			}
 
 			var instant bool
 
 			obj, instant, apiErr := deleter.Delete(ctx, params.maybeResourceName, validationObj.DeleteValidation, nil)
 			if apiErr != nil {
-				return nil, apiErr, http.StatusInternalServerError
+				return nil, http.StatusInternalServerError, fmt.Errorf("failed to delete resource: %w", apiErr)
 			}
 
 			if instant {
-				return obj, nil, http.StatusAccepted
+				return obj, http.StatusAccepted, nil
 			} else {
-				return obj, nil, http.StatusNoContent
+				return obj, http.StatusNoContent, nil
 			}
 		} else {
 			// Handle DELETE for a collection of resources.
 			deleter, ok := storage.(rest.CollectionDeleter)
 			if !ok {
-				return nil, fmt.Errorf("method not allowed"), http.StatusMethodNotAllowed
+				return nil, http.StatusMethodNotAllowed, ErrMethodNotAllowed
 			}
 
 			obj, apiErr := deleter.DeleteCollection(ctx, validationObj.DeleteValidation, nil, nil)
 			if apiErr != nil {
-				return nil, apiErr, http.StatusInternalServerError
+				return nil, http.StatusInternalServerError, fmt.Errorf("failed to delete resource: %w", apiErr)
 			}
 
-			return obj, nil, http.StatusNoContent
+			return obj, http.StatusNoContent, nil
 		}
 	}
 
-	return nil, fmt.Errorf("method not allowed"), http.StatusMethodNotAllowed
+	return nil, http.StatusMethodNotAllowed, ErrMethodNotAllowed
 }
 
 func extractRoutingParameters(r *http.Request) (*RoutingParameters, error) {
