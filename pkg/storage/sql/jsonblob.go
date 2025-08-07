@@ -79,6 +79,7 @@ func (j JSONDatabaseStore) List(ctx context.Context) ([][]byte, error) {
 	var result [][]byte
 	for rows.Next() {
 		var data []byte
+
 		err := rows.Scan(&data)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan row data: %w", err)
@@ -114,7 +115,6 @@ func (j JSONDatabaseStore) Write(ctx context.Context, ref types.NamespacedName, 
 	_, err := j.db.ExecContext(ctx, query, ref.Name, ref.Namespace, data)
 
 	return fmt.Errorf("failed to write JSON BLOB: %w", err)
-
 }
 
 func constructTableName(gvr schema.GroupVersionResource) string {

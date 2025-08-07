@@ -183,11 +183,13 @@ func (s *storageREST) Create(
 	}
 
 	buf := &bytes.Buffer{}
-	if err := s.codec.Encode(obj, buf); err != nil {
+	err = s.codec.Encode(obj, buf)
+	if err != nil {
 		return nil, fmt.Errorf("failed to encode object: %w", err)
 	}
 
-	if err := s.store.Write(ctx, key, buf.Bytes()); err != nil {
+	err = s.store.Write(ctx, key, buf.Bytes())
+	if err != nil {
 		return nil, fmt.Errorf("failed to write JSON BLOB: %w", err)
 	}
 
@@ -238,6 +240,7 @@ func (s *storageREST) Update(
 		}
 
 		buf := &bytes.Buffer{}
+
 		err := s.codec.Encode(updatedObj, buf)
 		if err != nil {
 			return nil, false, fmt.Errorf("failed to encode object: %w", err)
@@ -264,11 +267,13 @@ func (s *storageREST) Update(
 	}
 
 	buf := &bytes.Buffer{}
-	if err := s.codec.Encode(updatedObj, buf); err != nil {
+	err = s.codec.Encode(updatedObj, buf)
+	if err != nil {
 		return nil, false, fmt.Errorf("failed to encode object: %w", err)
 	}
 
-	if err := s.store.Write(ctx, key, buf.Bytes()); err != nil {
+	err = s.store.Write(ctx, key, buf.Bytes())
+	if err != nil {
 		return nil, false, fmt.Errorf("failed to write JSON BLOB: %w", err)
 	}
 
@@ -312,7 +317,8 @@ func (s *storageREST) Delete(
 		}
 	}
 
-	if err := s.store.Delete(ctx, key); err != nil {
+	err = s.store.Delete(ctx, key)
+	if err != nil {
 		return nil, false, fmt.Errorf("failed to delete JSON BLOB: %w", err)
 	}
 
@@ -362,7 +368,8 @@ func (s *storageREST) DeleteCollection(
 			return nil, fmt.Errorf("failed to resolve object key: %w", err)
 		}
 
-		if err := s.store.Delete(ctx, key); err != nil {
+		err = s.store.Delete(ctx, key)
+		if err != nil {
 			return nil, fmt.Errorf("failed to delete JSON BLOB: %w", err)
 		}
 

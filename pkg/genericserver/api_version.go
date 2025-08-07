@@ -95,7 +95,8 @@ func (h *APIVersionHandler) ServeHTTP(res http.ResponseWriter, req *http.Request
 
 	if obj != nil {
 		scheme := runtime.NewScheme()
-		if err := v1alpha1.SchemeBuilder().AddToScheme(scheme); err != nil {
+		err = v1alpha1.SchemeBuilder().AddToScheme(scheme)
+		if err != nil {
 			http.Error(res, fmt.Sprintf("failed to add serializer to scheme: %v", err), http.StatusInternalServerError)
 
 			return
@@ -164,6 +165,7 @@ func handleRequest(
 		}
 
 		obj := storage.New()
+
 		err := encoding.NewKubeJSONDecoder(req.Body).Decode(obj)
 		if err != nil {
 			return nil, http.StatusBadRequest, fmt.Errorf("failed to decode request body: %w", err)
@@ -190,6 +192,7 @@ func handleRequest(
 		}
 
 		obj := storage.New()
+
 		err := encoding.NewKubeJSONDecoder(req.Body).Decode(obj)
 		if err != nil {
 			return nil, http.StatusBadRequest, fmt.Errorf("failed to decode request body: %w", err)

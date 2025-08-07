@@ -80,7 +80,8 @@ func (e *KubeJSONDecoder) Decode(obj runtime.Object) error {
 		return fmt.Errorf("no data read from reader: %w", ErrNoDataRead)
 	}
 
-	if err := runtime.DecodeInto(scheme.Codecs.UniversalDecoder(), data, obj); err != nil {
+	err = runtime.DecodeInto(scheme.Codecs.UniversalDecoder(), data, obj)
+	if err != nil {
 		return fmt.Errorf("failed to decode object: %w", ErrDecodingFailed)
 	}
 
