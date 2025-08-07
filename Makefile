@@ -51,6 +51,7 @@ $(DEEPGEN):
 run: ## Run the application locally.
 	LOG_FORMAT=console \
 	LOG_LEVEL=info \
+	docker compose up -d --build --force-recreate
 	go run $(GO_FLAGS) cmd/kommodity/main.go
 
 build: bin/kommodity ## Build the application.
