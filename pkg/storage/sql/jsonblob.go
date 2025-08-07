@@ -103,7 +103,35 @@ func (j JSONDatabaseStore) List(ctx context.Context) ([][]byte, error) {
 
 // ListWithKeys implements storage.StorageStore.
 func (j JSONDatabaseStore) ListWithKeys(ctx context.Context) (map[string][]byte, error) {
-	panic("unimplemented")
+	query := "SELECT name, data FROM " + j.tableName
+
+	rows, err := j.db.QueryxContext(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query DB: %w", err)
+	}
+
+	defer func() {
+		cerr := rows.Close()
+		if cerr != nil {
+			log.Printf("failed to close rows: %v", cerr)
+		}
+	}()
+
+	result := make(map[string][]byte)
+	for rows.Next() {
+		var name string
+
+		var data []byte
+
+		err := rows.Scan(&name, &data)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan row data: %w", err)
+		}
+
+		result[name] = data
+	}
+
+	return result, nil
 }
 
 // Read implements storage.StorageStore.
