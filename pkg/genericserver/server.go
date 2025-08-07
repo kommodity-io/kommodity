@@ -26,7 +26,6 @@ import (
 	"google.golang.org/grpc/reflection"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/version"
-	genericapiserver "k8s.io/apiserver/pkg/server"
 )
 
 // Factory is a function that initializes the server.
