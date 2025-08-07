@@ -1,6 +1,8 @@
 package genericserver
 
-import "fmt"
+import (
+	"errors"
+)
 
 var (
 	ErrMethodNotAllowed       = errors.New("method not allowed")

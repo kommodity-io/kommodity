@@ -243,7 +243,7 @@ func (s *storageREST) Update(
 			return nil, false, fmt.Errorf("failed to encode object: %w", err)
 		}
 
-		err := s.store.Write(ctx, key, buf.Bytes())
+		err = s.store.Write(ctx, key, buf.Bytes())
 		if err != nil {
 			return nil, false, fmt.Errorf("failed to write JSON BLOB: %w", err)
 		}
@@ -440,7 +440,7 @@ func (s *storageREST) read(ctx context.Context, key types.NamespacedName) (runti
 			return nil, ErrNotFound
 		}
 
-		return nil, err
+		return nil, fmt.Errorf("failed to read JSON BLOB: %w", err)
 	}
 
 	newObj := s.newFunc()

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"errors"
 
 	"github.com/jmoiron/sqlx"
 

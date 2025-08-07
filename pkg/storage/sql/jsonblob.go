@@ -51,7 +51,7 @@ func (j JSONDatabaseStore) Delete(ctx context.Context, ref types.NamespacedName)
 	query := fmt.Sprintf("DELETE FROM %s WHERE name = $1 AND namespace = $2", j.tableName)
 	_, err := j.db.ExecContext(ctx, query, ref.Name, ref.Namespace)
 
-	return err
+	return fmt.Errorf("failed to delete JSON BLOB: %w", err)
 }
 
 // Exists implements storage.StorageStore.
@@ -62,7 +62,7 @@ func (j JSONDatabaseStore) Exists(ctx context.Context, ref types.NamespacedName)
 
 	err := j.db.GetContext(ctx, &exists, query, ref.Name, ref.Namespace)
 
-	return exists, err
+	return exists, fmt.Errorf("failed to check existence of JSON BLOB: %w", err)
 }
 
 // List implements storage.StorageStore.
@@ -103,7 +103,7 @@ func (j JSONDatabaseStore) Read(ctx context.Context, ref types.NamespacedName) (
 
 	err := j.db.GetContext(ctx, &data, query, ref.Name, ref.Namespace)
 
-	return data, err
+	return data, fmt.Errorf("failed to read JSON BLOB: %w", err)
 }
 
 // Write implements storage.StorageStore.
@@ -113,7 +113,8 @@ func (j JSONDatabaseStore) Write(ctx context.Context, ref types.NamespacedName, 
          ON CONFLICT (name, namespace) DO UPDATE SET data = EXCLUDED.data`, j.tableName)
 	_, err := j.db.ExecContext(ctx, query, ref.Name, ref.Namespace, data)
 
-	return err
+	return fmt.Errorf("failed to write JSON BLOB: %w", err)
+
 }
 
 func constructTableName(gvr schema.GroupVersionResource) string {
