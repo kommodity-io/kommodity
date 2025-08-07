@@ -160,7 +160,7 @@ func handleRequest(
 		return obj, http.StatusOK, nil
 
 	case http.MethodPost:
-		//nolint:misspell
+		//nolint:misspell, varnamelen
 		creater, ok := storage.(rest.Creater)
 		if !ok {
 			return nil, http.StatusMethodNotAllowed, ErrMethodNotAllowed
@@ -191,6 +191,7 @@ func handleRequest(
 		return obj, http.StatusCreated, nil
 
 	case http.MethodPut, http.MethodPatch:
+		//nolint:varnamelen
 		updater, ok := storage.(rest.Updater)
 		if !ok {
 			return nil, http.StatusMethodNotAllowed, ErrMethodNotAllowed

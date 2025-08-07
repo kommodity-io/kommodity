@@ -28,17 +28,17 @@ func (t Namespace) GetGroupVersionResource() schema.GroupVersionResource {
 }
 
 // GetObjectMeta returns the ObjectKind for Namespace and is fulfilling runtime.Object interface.
-func (t *Namespace) GetObjectMeta() *metav1.ObjectMeta {
+func (t Namespace) GetObjectMeta() *metav1.ObjectMeta {
 	return &t.ObjectMeta
 }
 
 // NamespaceScoped returns true indicating that Namespace is a namespaced resource.
-func (t *Namespace) NamespaceScoped() bool {
+func (t Namespace) NamespaceScoped() bool {
 	return false
 }
 
 // IsStorageVersion returns true indicating that Namespace is a storage version resource.
-func (t *Namespace) IsStorageVersion() bool {
+func (t Namespace) IsStorageVersion() bool {
 	return true
 }
 
