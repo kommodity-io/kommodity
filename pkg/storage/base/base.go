@@ -49,6 +49,8 @@ var (
 )
 
 // NewStorageREST instantiates a new REST storage for generic resources using an abstracted store.
+//
+//nolint:ireturn
 func NewStorageREST(
 	groupResource schema.GroupResource,
 	codec runtime.Codec,
@@ -85,12 +87,14 @@ type storageREST struct {
 	newListFunc func() runtime.Object
 }
 
+//nolint:ireturn
 func (s *storageREST) New() runtime.Object {
 	return s.newFunc()
 }
 
 func (s *storageREST) Destroy() {}
 
+//nolint:ireturn
 func (s *storageREST) NewList() runtime.Object {
 	return s.newListFunc()
 }
@@ -446,6 +450,7 @@ func (s *storageREST) objectKey(ctx context.Context, name string) (types.Namespa
 	return types.NamespacedName{Name: name, Namespace: ns}, nil
 }
 
+//nolint:ireturn
 func (s *storageREST) read(ctx context.Context, key types.NamespacedName) (runtime.Object, error) {
 	data, err := s.store.Read(ctx, key)
 	if err != nil {
