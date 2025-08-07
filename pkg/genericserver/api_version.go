@@ -116,6 +116,7 @@ func (h *APIVersionHandler) ServeHTTP(res http.ResponseWriter, req *http.Request
 	res.WriteHeader(statusCode)
 }
 
+//nolint:ireturn
 func handleRequest(
 	ctx context.Context,
 	req *http.Request,
@@ -139,6 +140,7 @@ func handleRequest(
 	return nil, http.StatusMethodNotAllowed, ErrMethodNotAllowed
 }
 
+//nolint:ireturn
 func handleGetRequest(
 	ctx context.Context,
 	params *RoutingParameters,
@@ -181,6 +183,7 @@ func handleGetRequest(
 	return obj, http.StatusOK, nil
 }
 
+//nolint:ireturn
 func handlePostRequest(
 	ctx context.Context,
 	storage rest.Storage,
@@ -217,6 +220,7 @@ func handlePostRequest(
 	return obj, http.StatusCreated, nil
 }
 
+//nolint:ireturn
 func handlePutPatchRequest(
 	ctx context.Context,
 	params *RoutingParameters,
@@ -258,6 +262,7 @@ func handlePutPatchRequest(
 	return obj, http.StatusOK, nil
 }
 
+//nolint:ireturn
 func handleDeleteRequest(
 	ctx context.Context,
 	params *RoutingParameters,
