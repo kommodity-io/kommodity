@@ -117,7 +117,7 @@ func New(ctx context.Context, opts ...Option) *GenericServer {
 // It initializes the HTTP and gRPC servers and starts the cmux server.
 // The HTTP server is wrapped with h2c support to allow HTTP/2 connections.
 // The gRPC server is registered with reflection to allow for introspection.
-func (s *GenericServer) ListenAndServe(_ context.Context) error {
+func (s *GenericServer) ListenAndServe(ctx context.Context) error {
 	for _, factory := range s.httpServer.factories {
 		err := factory()
 		if err != nil {
@@ -136,7 +136,9 @@ func (s *GenericServer) ListenAndServe(_ context.Context) error {
 		}
 	}
 
-	muxListener, err := net.Listen("tcp", ":"+strconv.Itoa(s.port))
+	listenConfig := net.ListenConfig{}
+
+	muxListener, err := listenConfig.Listen(ctx, "tcp", ":"+strconv.Itoa(s.port))
 	if err != nil {
 		return fmt.Errorf("failed to start cmux listener: %w", err)
 	}
