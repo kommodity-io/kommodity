@@ -1,0 +1,38 @@
+name: Conventional Commit Check
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - edited
+
+jobs:
+  conventional-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate conventional commit format
+        env:
+          COMMIT_FORMAT: '^(feat|fix|security|chore)\([a-z0-9\-]+\)!?\:\ [a-z].*$'
+          PR_MESSAGE: ${{ github.event.pull_request.title }}
+        run: |
+          echo "Checking PR title: '${PR_MESSAGE}'"
+          if [[ ! "${PR_MESSAGE}" =~ $COMMIT_FORMAT ]]; then
+            echo "❌ Invalid commit format ❌"
+            echo
+            echo "Reference: https://www.conventionalcommits.org/en/v1.0.0/"
+            echo "The expected format is as follows:"
+            echo
+            echo "  type(scope-slug): lowercase-starting message"
+            echo
+            echo "The full regular expression is:"
+            echo
+            echo "  $COMMIT_FORMAT"
+            exit 1
+          fi
+          echo "✅ Valid commit format ✅"
+        shell: bash
