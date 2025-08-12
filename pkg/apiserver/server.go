@@ -111,12 +111,12 @@ func setupLegacyAPI(database *sqlx.DB) (*genericapiserver.APIGroupInfo, error) {
 
 	kineStorageConfig := kine.NewKineLegacyStorageConfig(database, Codecs)
 
-	namespacesStorage, err := namespaces.NewNamespaceREST(kineStorageConfig)
+	namespacesStorage, err := namespaces.NewNamespacesREST(kineStorageConfig)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create REST storage service for core v1 namespaces: %v", err)
 	}
 
-	secretssStorage, err := secrets.NewNamespaceREST(kineStorageConfig)
+	secretssStorage, err := secrets.NewSecretsREST(kineStorageConfig)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create REST storage service for core v1 secrets: %v", err)
 	}

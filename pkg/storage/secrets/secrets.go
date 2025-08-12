@@ -11,7 +11,7 @@ import (
 
 const SecretsResource = "secrets"
 
-func NewNamespaceREST(storageConfig storagebackend.Config) (rest.Storage, error) {
+func NewSecretsREST(storageConfig storagebackend.Config) (rest.Storage, error) {
 	store, delete, err := factory.Create(
 		*storageConfig.ForResource(corev1.Resource(SecretsResource)),
 		func() runtime.Object { return &corev1.Secret{} },

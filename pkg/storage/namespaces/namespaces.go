@@ -11,7 +11,7 @@ import (
 
 const NamespaceResource = "namespaces"
 
-func NewNamespaceREST(storageConfig storagebackend.Config) (rest.Storage, error) {
+func NewNamespacesREST(storageConfig storagebackend.Config) (rest.Storage, error) {
 	store, delete, err := factory.Create(
 		*storageConfig.ForResource(corev1.Resource(NamespaceResource)),
 		func() runtime.Object { return &corev1.Namespace{} },
