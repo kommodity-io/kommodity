@@ -86,7 +86,7 @@ lint: $(LINTER) ## Run the linter.
 lint-fix: $(LINTER) ## Run the linter and fix issues.
 	$(LINTER) run --fix
 
-generate: ## Run code generation.
+generate: .env ## Run code generation.
 	go generate ./...
 
 teardown: ## Tear down the local development environment.
