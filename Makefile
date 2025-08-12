@@ -55,6 +55,7 @@ $(DEEPGEN):
 
 .PHONY: setup
 setup: .env
+	cat .env
 	docker compose up -d --build --force-recreate
 
 .PHONY: run
@@ -85,7 +86,7 @@ lint: $(LINTER) ## Run the linter.
 lint-fix: $(LINTER) ## Run the linter and fix issues.
 	$(LINTER) run --fix
 
-generate: deepcopy-gen ## Run code generation.
+generate: ## Run code generation.
 	go generate ./...
 
 teardown: ## Tear down the local development environment.
