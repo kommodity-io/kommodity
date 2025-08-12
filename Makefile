@@ -47,16 +47,25 @@ $(DEEPGEN):
 
 ##@ Development
 
+.PHONY: .env
+.env: ## Create a .env file from the template. Use sed to only add if it does not already exist.
+	touch .env
+	grep -q '^KOMMODITY_DB_URI=' .env || echo 'KOMMODITY_DB_URI=postgres://kommodity:kommodity@localhost:5432/kommodity?sslmode=disable' >> .env
+	grep -q '^PORT=' .env || echo 'PORT=8080' >> .env
+
+.PHONY: setup
+setup: .env
+	docker compose up -d --build --force-recreate
+
 .PHONY: run
 run: ## Run the application locally.
 	LOG_FORMAT=console \
 	LOG_LEVEL=info \
-	docker compose up -d --build --force-recreate
 	go run $(GO_FLAGS) cmd/kommodity/main.go
 
 build: bin/kommodity ## Build the application.
 
-bin/kommodity: $(SOURCES) ## Build the application.
+bin/kommodity: generate $(SOURCES) ## Build the application.
 	go build $(GO_FLAGS) -o bin/kommodity cmd/kommodity/main.go
 ifneq ($(UPX_FLAGS),)
 	upx $(UPX_FLAGS) bin/kommodity
@@ -78,3 +87,7 @@ lint-fix: $(LINTER) ## Run the linter and fix issues.
 
 generate: deepcopy-gen ## Run code generation.
 	go generate ./...
+
+teardown: ## Tear down the local development environment.
+	docker compose down --remove-orphans
+	rm -f .env

@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	_ "github.com/joho/godotenv/autoload"
+
 	"github.com/kommodity-io/kommodity/pkg/server"
 	taloskms "github.com/siderolabs/kms-client/api/kms"
 	"github.com/stretchr/testify/assert"
@@ -18,6 +20,8 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/reflection/grpc_reflection_v1"
 )
+
+//go:generate cp ../../.env ./.env
 
 func randomPort(t *testing.T) string {
 	t.Helper()
