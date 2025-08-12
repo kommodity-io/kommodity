@@ -54,8 +54,7 @@ $(DEEPGEN):
 	grep -q '^PORT=' .env || echo 'PORT=8080' >> .env
 
 .PHONY: setup
-setup: .env
-	cat .env
+setup: generate
 	docker compose up -d --build --force-recreate
 
 .PHONY: run
