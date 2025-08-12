@@ -53,6 +53,17 @@ jobs:
           go-version: stable
           check-latest: true
 
+      # Optional setup hook
+      - name: Run setup hook
+        if: ${{ hashFiles('Makefile') != '' }}
+        shell: bash
+        id: setup-hook
+        run: |
+          if grep -q '^setup:' Makefile; then
+            echo "Running setup hook from Makefile"
+            make setup
+          fi
+
       - name: Install dependencies
         run: go mod download
 
@@ -64,6 +75,17 @@ jobs:
           coverage-threshold: 0
           # Include side-effect coverage.
           cover-pkg: ./...
+
+      # Optional teardown hook
+      - name: Run teardown hook
+        if: ${{ hashFiles('Makefile') != '' }}
+        shell: bash
+        id: teardown-hook
+        run: |
+          if grep -q '^teardown:' Makefile; then
+            echo "Running teardown hook from Makefile"
+            make teardown
+          fi
 
   build:
     name: Build
