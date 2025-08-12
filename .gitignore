@@ -6,6 +6,7 @@ bin/
 
 # Ignore self-signed certs by API Server
 cmd/kommodity/apiserver.local.config/
+apiserver.local.config/
 
 # Ignore vs code debug files.
 .vscode/
