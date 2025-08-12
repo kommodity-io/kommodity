@@ -1,0 +1,46 @@
+services:
+  postgres:
+    image: postgres:16
+    restart: always
+    environment:
+      POSTGRES_USER: kommodity
+      POSTGRES_PASSWORD: kommodity
+      POSTGRES_DB: kommodity
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - kommodity-net
+
+  pgadmin:
+    image: dpage/pgadmin4:8
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: kommodity@corti.ai
+      PGADMIN_DEFAULT_PASSWORD: kommodity
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+    networks:
+      - kommodity-net
+
+  kine:
+    image: rancher/kine:v0.13.18
+    restart: always
+    environment:
+      KINE_POSTGRES_ENDPOINT: "host=postgres user=kommodity password=kommodity dbname=kommodity sslmode=disable"
+    ports:
+      - "2379:2379"
+    depends_on:
+      - postgres
+    networks:
+      - kommodity-net
+
+volumes:
+  pgdata:
+
+networks:
+  kommodity-net:
+    driver: bridge

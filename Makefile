@@ -1,7 +1,8 @@
-VERSION			?= $(shell git describe --tags --always --dirty)
+VERSION			?= $(shell git describe --tags --always)
+TREE_STATE      ?= $(shell git describe --always --dirty --exclude='*' | grep -q dirty && echo dirty || echo clean)
 COMMIT			?= $(shell git rev-parse HEAD)
-BUILD_DATE	?= $(shell date -u +'%Y-%m-%dT%H:%M:%SZ')
-GO_FLAGS		:= -ldflags "-X 'main.version=$(VERSION)' -X 'main.commit=$(COMMIT)' -X 'main.buildDate=$(BUILD_DATE)'"
+BUILD_DATE		?= $(shell date -u +'%Y-%m-%dT%H:%M:%SZ')
+GO_FLAGS		:= -ldflags "-X 'k8s.io/component-base/version.gitVersion=$(VERSION)' -X 'k8s.io/component-base/version.gitTreeState=$(TREE_STATE)' -X 'k8s.io/component-base/version.buildDate=$(BUILD_DATE)' -X 'k8s.io/component-base/version.gitCommit=$(COMMIT)'"
 SOURCES			:= $(shell find . -name '*.go')
 UPX_FLAGS		?= -qq
 
@@ -36,16 +37,18 @@ golangci-lint: $(LINTER) ## Download golangci-lint locally if necessary.
 $(LINTER):
 	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
 
-# Set up the deepcopy generator.
-DEEPGEN := $(GOBIN)/deepcopy-gen
-
-.PHONY: deepcopy-gen
-deepcopy-gen: $(DEEPGEN) ## Generate deepcopy methods for API types.
-
-$(DEEPGEN):
-	go install k8s.io/code-generator/cmd/deepcopy-gen@v0.33.1
-
 ##@ Development
+
+.PHONY: .env
+.env: ## Create a .env file from the template. Use sed to only add if it does not already exist.
+	touch .env
+	grep -q '^KOMMODITY_DB_URI=' .env || echo 'KOMMODITY_DB_URI=postgres://kommodity:kommodity@localhost:5432/kommodity?sslmode=disable' >> .env
+	grep -q '^KOMMODITY_KINE_URI=' .env || echo 'KOMMODITY_KUNE_URI=http://kine:2379' >> .env
+	grep -q '^PORT=' .env || echo 'PORT=8080' >> .env
+
+.PHONY: setup
+setup: generate
+	docker compose up -d --build --force-recreate
 
 .PHONY: run
 run: ## Run the application locally.
@@ -72,5 +75,9 @@ test: ## Run the tests.
 lint: $(LINTER) ## Run the linter.
 	$(LINTER) run
 
-generate: deepcopy-gen ## Run code generation.
+generate: ## Run code generation.
 	go generate ./...
+
+teardown: ## Tear down the local development environment.
+	docker compose down --remove-orphans
+	rm -f .env

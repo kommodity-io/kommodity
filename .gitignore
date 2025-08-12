@@ -3,3 +3,6 @@ bin/
 
 # Ignore the environment configuration files.
 .env
+
+# Ignore self-signed certs by API Server
+apiserver.local.config/*

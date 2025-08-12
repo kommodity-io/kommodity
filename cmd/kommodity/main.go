@@ -3,16 +3,14 @@ package main
 
 import (
 	"context"
-	"errors"
 	"os"
 	"os/signal"
 	"syscall"
 
+	"github.com/kommodity-io/kommodity/pkg/apiserver"
 	"github.com/kommodity-io/kommodity/pkg/logging"
-	"github.com/kommodity-io/kommodity/pkg/server"
-	"github.com/soheilhy/cmux"
 	"go.uber.org/zap"
-	kubeversion "k8s.io/apimachinery/pkg/version"
+	genericapiserver "k8s.io/apiserver/pkg/server"
 )
 
 var (
@@ -25,7 +23,7 @@ var (
 
 func main() {
 	logger := logging.NewLogger()
-	ctx := logging.WithLogger(context.Background(), logger)
+	ctx := logging.WithLogger(genericapiserver.SetupSignalContext(), logger)
 
 	triggers := []os.Signal{
 		os.Interrupt,
@@ -49,7 +47,7 @@ func main() {
 	)
 
 	go func() {
-		srv, err := server.New(ctx)
+		srv, err := apiserver.New(ctx)
 		if err != nil {
 			logger.Error("Failed to create server", zap.Error(err))
 
@@ -59,25 +57,28 @@ func main() {
 			return
 		}
 
-		// Set the server version.
-		srv.SetVersion(&kubeversion.Info{
-			GitVersion: version,
-			GitCommit:  commit,
-			BuildDate:  buildDate,
-		})
+		preparedGenericServer := srv.PrepareRun()
+		preparedGenericServer.RunWithContext(ctx)
 
-		finalizers = append(finalizers, srv.Shutdown)
+		// // Set the server version.
+		// srv.SetVersion(&kubeversion.Info{
+		// 	GitVersion: version,
+		// 	GitCommit:  commit,
+		// 	BuildDate:  buildDate,
+		// })
 
-		err = srv.ListenAndServe(ctx)
-		if err != nil {
-			// This is expected as part of the shutdown process.
-			// Reference: https://github.com/soheilhy/cmux/issues/39
-			if errors.Is(err, cmux.ErrListenerClosed) {
-				return
-			}
+		// finalizers = append(finalizers, srv.Shutdown)
 
-			logger.Error("Failed to run cmux server", zap.Error(err))
-		}
+		// err = srv.ListenAndServe(ctx)
+		// if err != nil {
+		// 	// This is expected as part of the shutdown process.
+		// 	// Reference: https://github.com/soheilhy/cmux/issues/39
+		// 	if errors.Is(err, cmux.ErrListenerClosed) {
+		// 		return
+		// 	}
+
+		// 	logger.Error("Failed to run cmux server", zap.Error(err))
+		// }
 	}()
 
 	sig := <-signals
