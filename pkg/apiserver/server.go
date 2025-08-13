@@ -53,7 +53,7 @@ func New(ctx context.Context) (*genericapiserver.GenericAPIServer, error) {
 		return nil, fmt.Errorf("failed to legacy api group info for the generic api server: %v", err)
 	}
 
-	if err := genericServer.InstallAPIGroup(legacyAPI); err != nil {
+	if err := genericServer.InstallLegacyAPIGroup("/api", legacyAPI); err != nil {
 		return nil, fmt.Errorf("failed to install legacy API group into the generic api server: %v", err)
 	}
 
