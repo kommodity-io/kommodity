@@ -109,21 +109,24 @@ func setupLegacyAPI(database *sqlx.DB) (*genericapiserver.APIGroupInfo, error) {
 	coreAPIGroupInfo := genericapiserver.NewDefaultAPIGroupInfo(corev1.GroupName, Scheme,
 		runtime.NewParameterCodec(Scheme), Codecs)
 
-	kineStorageConfig := kine.NewKineLegacyStorageConfig(database, Codecs)
+	kineStorageConfig, err := kine.NewKineLegacyStorageConfig(database, Codecs)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create Kine legacy storage config: %v", err)
+	}
 
-	namespacesStorage, err := namespaces.NewNamespacesREST(kineStorageConfig)
+	namespacesStorage, err := namespaces.NewNamespacesREST(*kineStorageConfig)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create REST storage service for core v1 namespaces: %v", err)
 	}
 
-	secretssStorage, err := secrets.NewSecretsREST(kineStorageConfig)
+	secretsStorage, err := secrets.NewSecretsREST(*kineStorageConfig)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create REST storage service for core v1 secrets: %v", err)
 	}
 
 	coreAPIGroupInfo.VersionedResourcesStorageMap["v1"] = map[string]rest.Storage{
 		"namespaces": namespacesStorage,
-		"secrets":    secretssStorage,
+		"secrets":    secretsStorage,
 	}
 
 	return &coreAPIGroupInfo, nil
