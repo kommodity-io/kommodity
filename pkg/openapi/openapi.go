@@ -34,7 +34,7 @@ func NewOpenAPISpec() (*OpenAPISpec, error) {
 
 	err := yaml.Unmarshal([]byte(openAPITypes), &types)
 	if err != nil {
-		return nil, fmt.Errorf("failed unmarshalling types.yaml: %v", err)
+		return nil, fmt.Errorf("failed unmarshalling types.yaml: %w", err)
 	}
 
 	return &types, nil

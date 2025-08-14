@@ -31,12 +31,12 @@ var (
 func New(ctx context.Context) (*genericapiserver.GenericAPIServer, error) {
 	_, err := database.SetupDB()
 	if err != nil {
-		return nil, fmt.Errorf("failed to setup database connection: %v", err)
+		return nil, fmt.Errorf("failed to setup database connection: %w", err)
 	}
 
 	openAPISpec, err := generatedopenapi.NewOpenAPISpec()
 	if err != nil {
-		return nil, fmt.Errorf("failed to extract desired OpenAPI spec for server: %v", err)
+		return nil, fmt.Errorf("failed to extract desired OpenAPI spec for server: %w", err)
 	}
 
 	corev1.AddToScheme(Scheme)
@@ -44,22 +44,22 @@ func New(ctx context.Context) (*genericapiserver.GenericAPIServer, error) {
 
 	genericServerConfig, err := setupConfig(openAPISpec, codecs)
 	if err != nil {
-		return nil, fmt.Errorf("failed to setup config for the generic api server: %v", err)
+		return nil, fmt.Errorf("failed to setup config for the generic api server: %w", err)
 	}
 
 	// Creates a new API Server with self-signed certs settings
 	genericServer, err := genericServerConfig.Complete().New("kommodity-api-server", genericapiserver.NewEmptyDelegate())
 	if err != nil {
-		return nil, fmt.Errorf("failed to build the generic api server: %v", err)
+		return nil, fmt.Errorf("failed to build the generic api server: %w", err)
 	}
 
 	legacyAPI, err := setupLegacyAPI(codecs)
 	if err != nil {
-		return nil, fmt.Errorf("failed to legacy api group info for the generic api server: %v", err)
+		return nil, fmt.Errorf("failed to legacy api group info for the generic api server: %w", err)
 	}
 
 	if err := genericServer.InstallLegacyAPIGroup("/api", legacyAPI); err != nil {
-		return nil, fmt.Errorf("failed to install legacy API group into the generic api server: %v", err)
+		return nil, fmt.Errorf("failed to install legacy API group into the generic api server: %w", err)
 	}
 
 	return genericServer, nil
@@ -81,31 +81,33 @@ func setupConfig(openAPISpec *generatedopenapi.OpenAPISpec, codecs serializer.Co
 
 	// Generate self-signed certs for "localhost"
 	if err := secureServing.MaybeDefaultWithSelfSignedCerts("localhost", nil, []net.IP{net.ParseIP("127.0.0.1")}); err != nil {
-		return nil, fmt.Errorf("failed to generate self-signed certs: %v", err)
+		return nil, fmt.Errorf("failed to generate self-signed certs: %w", err)
 	}
 
 	if err := secureServing.ApplyTo(&genericServerConfig.SecureServing); err != nil {
-		return nil, fmt.Errorf("failed to apply secure serving config: %v", err)
+		return nil, fmt.Errorf("failed to apply secure serving config: %w", err)
 	}
 
 	// Generate a random loopback token
 	tokenBytes := make([]byte, 16)
 	if _, err := rand.Read(tokenBytes); err != nil {
-		return nil, fmt.Errorf("failed to generate loopback token: %v", err)
+		return nil, fmt.Errorf("failed to generate loopback token: %w", err)
 	}
+
 	loopbackToken := base64.StdEncoding.EncodeToString(tokenBytes)
 
 	// Read cert PEM bytes from generated file
 	certPEM, err := os.ReadFile(secureServing.ServerCert.CertKey.CertFile)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read cert file: %v", err)
+		return nil, fmt.Errorf("failed to read cert file: %w", err)
 	}
 
 	// Create loopback client config
 	loopbackConfig, err := genericServerConfig.SecureServing.NewLoopbackClientConfig(loopbackToken, certPEM)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create loopback client config: %v", err)
+		return nil, fmt.Errorf("failed to create loopback client config: %w", err)
 	}
+
 	genericServerConfig.LoopbackClientConfig = loopbackConfig
 
 	genericServerConfig.EquivalentResourceRegistry = runtime.NewEquivalentResourceRegistry()
@@ -119,12 +121,12 @@ func setupLegacyAPI(codecs serializer.CodecFactory) (*genericapiserver.APIGroupI
 
 	kineStorageConfig, err := kine.NewKineLegacyStorageConfig(codecs)
 	if err != nil {
-		return nil, fmt.Errorf("unable to create Kine legacy storage config: %v", err)
+		return nil, fmt.Errorf("unable to create Kine legacy storage config: %w", err)
 	}
 
 	namespacesStorage, err := namespaces.NewNamespacesREST(*kineStorageConfig, *Scheme)
 	if err != nil {
-		return nil, fmt.Errorf("unable to create REST storage service for core v1 namespaces: %v", err)
+		return nil, fmt.Errorf("unable to create REST storage service for core v1 namespaces: %w", err)
 	}
 
 	coreAPIGroupInfo.VersionedResourcesStorageMap["v1"] = map[string]rest.Storage{

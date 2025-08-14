@@ -13,7 +13,6 @@ import (
 
 // SetupDB initializes the database connection using the KOMMODITY_DB_URI environment variable.
 func SetupDB() (*sqlx.DB, error) {
-
 	dbURI := os.Getenv("KOMMODITY_DB_URI")
 	if dbURI == "" {
 		return nil, ErrKommodityDBEnvVarNotSet

@@ -71,7 +71,7 @@ func NewNamespacesREST(storageConfig storagebackend.Config, scheme runtime.Schem
 	return &REST{restStore}, nil
 }
 
-// NamespacePredicateFunc returns a selection predicate for filtering Namespace objects
+// NamespacePredicateFunc returns a selection predicate for filtering Namespace objects.
 func NamespacePredicateFunc(label labels.Selector, field fields.Selector) storage.SelectionPredicate {
 	return storage.SelectionPredicate{
 		Label:    label,
@@ -80,24 +80,26 @@ func NamespacePredicateFunc(label labels.Selector, field fields.Selector) storag
 	}
 }
 
-// GetAttrs returns labels and fields for a Namespace object
+// GetAttrs returns labels and fields for a Namespace object.
 func GetAttrs(obj runtime.Object) (labels.Set, fields.Set, error) {
 	ns, ok := obj.(*corev1.Namespace)
 	if !ok {
-		return nil, nil, fmt.Errorf("given object is not a Namespace")
+		return nil, nil, errors.New("given object is not a Namespace")
 	}
+
 	return labels.Set(ns.Labels), fields.Set{
 		"metadata.name": ns.Name,
 		"status.phase":  string(ns.Status.Phase),
 	}, nil
 }
 
-// ObjectNameFunc returns the name of the object
+// ObjectNameFunc returns the name of the object.
 func ObjectNameFunc(obj runtime.Object) (string, error) {
 	ns, ok := obj.(*corev1.Namespace)
 	if !ok {
-		return "", fmt.Errorf("ObjectNameFunc: not a Namespace object")
+		return "", errors.New("ObjectNameFunc: not a Namespace object")
 	}
+
 	return ns.Name, nil
 }
 
@@ -123,15 +125,15 @@ func (namespaceStrategy) NamespaceScoped() bool {
 	return false
 }
 
-// PrepareForCreate sets defaults for new objects
+// PrepareForCreate sets defaults for new objects.
 func (namespaceStrategy) PrepareForCreate(ctx context.Context, obj runtime.Object) {}
 
-// WarningsOnCreate returns warnings for create operations
+// WarningsOnCreate returns warnings for create operations.
 func (namespaceStrategy) WarningsOnCreate(ctx context.Context, obj runtime.Object) []string {
 	return nil
 }
 
-// PrepareForUpdate sets defaults for updated objects
+// PrepareForUpdate sets defaults for updated objects.
 func (namespaceStrategy) PrepareForUpdate(ctx context.Context, obj, old runtime.Object) {
 	newNamespace := obj.(*corev1.Namespace)
 	oldNamespace := old.(*corev1.Namespace)
@@ -139,48 +141,48 @@ func (namespaceStrategy) PrepareForUpdate(ctx context.Context, obj, old runtime.
 	newNamespace.Status = oldNamespace.Status
 }
 
-// WarningsOnUpdate returns warnings for update operations
+// WarningsOnUpdate returns warnings for update operations.
 func (namespaceStrategy) WarningsOnUpdate(ctx context.Context, obj, old runtime.Object) []string {
 	return nil
 }
 
-// PrepareForDelete clears fields before deletion
+// PrepareForDelete clears fields before deletion.
 func (namespaceStrategy) PrepareForDelete(ctx context.Context, obj runtime.Object) {}
 
-// Validate validates new objects
+// Validate validates new objects.
 func (namespaceStrategy) Validate(ctx context.Context, obj runtime.Object) field.ErrorList {
 	return validation.ValidateObjectMeta(&obj.(*corev1.Namespace).ObjectMeta, false, validation.ValidateNamespaceName, field.NewPath("metadata"))
 }
 
-// ValidateUpdate validates updated objects
+// ValidateUpdate validates updated objects.
 func (namespaceStrategy) ValidateUpdate(ctx context.Context, obj, old runtime.Object) field.ErrorList {
 	return validation.ValidateObjectMetaUpdate(&obj.(*corev1.Namespace).ObjectMeta, &old.(*corev1.Namespace).ObjectMeta, field.NewPath("metadata"))
 }
 
-// Canonicalize normalizes objects
+// Canonicalize normalizes objects.
 func (namespaceStrategy) Canonicalize(obj runtime.Object) {}
 
-// AllowCreateOnUpdate determines if create is allowed on update
+// AllowCreateOnUpdate determines if create is allowed on update.
 func (namespaceStrategy) AllowCreateOnUpdate() bool {
 	return false
 }
 
-// AllowUnconditionalUpdate determines if update can ignore resource version
+// AllowUnconditionalUpdate determines if update can ignore resource version.
 func (namespaceStrategy) AllowUnconditionalUpdate() bool {
 	return false
 }
 
-// GenerateName generates a name using the given base string
+// GenerateName generates a name using the given base string.
 func (namespaceStrategy) GenerateName(base string) string {
 	return names.SimpleNameGenerator.GenerateName(base)
 }
 
-// ObjectKinds returns the GroupVersionKind for the object
+// ObjectKinds returns the GroupVersionKind for the object.
 func (ns namespaceStrategy) ObjectKinds(obj runtime.Object) ([]schema.GroupVersionKind, bool, error) {
 	return ns.scheme.ObjectKinds(obj)
 }
 
-// Recognizes returns true if this strategy handles the given GroupVersionKind
+// Recognizes returns true if this strategy handles the given GroupVersionKind.
 func (ns namespaceStrategy) Recognizes(gvk schema.GroupVersionKind) bool {
 	return ns.scheme.Recognizes(gvk)
 }
