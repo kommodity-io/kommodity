@@ -67,7 +67,8 @@ func New() (*genericapiserver.GenericAPIServer, error) {
 	return genericServer, nil
 }
 
-func setupConfig(openAPISpec *generatedopenapi.Spec, scheme *runtime.Scheme, codecs serializer.CodecFactory) (*genericapiserver.RecommendedConfig, error) {
+func setupConfig(openAPISpec *generatedopenapi.Spec, scheme *runtime.Scheme,
+	codecs serializer.CodecFactory) (*genericapiserver.RecommendedConfig, error) {
 	secureServing := options.NewSecureServingOptions()
 	secureServing.BindAddress = net.ParseIP("0.0.0.0")
 	secureServing.BindPort = 8443
@@ -82,11 +83,14 @@ func setupConfig(openAPISpec *generatedopenapi.Spec, scheme *runtime.Scheme, cod
 	)
 
 	// Generate self-signed certs for "localhost"
-	if err := secureServing.MaybeDefaultWithSelfSignedCerts("localhost", nil, []net.IP{net.ParseIP("127.0.0.1")}); err != nil {
+	alternateIPs := []net.IP{net.ParseIP("127.0.0.1")}
+
+	err := secureServing.MaybeDefaultWithSelfSignedCerts("localhost", nil, alternateIPs)
+	if err != nil {
 		return nil, fmt.Errorf("failed to generate self-signed certs: %w", err)
 	}
 
-	err := secureServing.ApplyTo(&genericServerConfig.SecureServing)
+	err = secureServing.ApplyTo(&genericServerConfig.SecureServing)
 	if err != nil {
 		return nil, fmt.Errorf("failed to apply secure serving config: %w", err)
 	}
