@@ -2,6 +2,7 @@ package namespaces
 
 import (
 	"context"
+	"log"
 	"path"
 
 	corev1 "k8s.io/api/core/v1"
@@ -135,8 +136,14 @@ func (namespaceStrategy) WarningsOnCreate(_ context.Context, _ runtime.Object) [
 
 // PrepareForUpdate sets defaults for updated objects.
 func (namespaceStrategy) PrepareForUpdate(_ context.Context, obj, old runtime.Object) {
-	newNamespace := obj.(*corev1.Namespace)
-	oldNamespace := old.(*corev1.Namespace)
+	newNamespace, ok := obj.(*corev1.Namespace)
+	if !ok {
+		log.Fatalf("expected *corev1.Namespace, got %T", obj)
+	}
+	oldNamespace, ok := old.(*corev1.Namespace)
+	if !ok {
+		log.Fatalf("expected *corev1.Namespace, got %T", obj)
+	}
 	newNamespace.Spec.Finalizers = oldNamespace.Spec.Finalizers
 	newNamespace.Status = oldNamespace.Status
 }
@@ -151,12 +158,24 @@ func (namespaceStrategy) PrepareForDelete(_ context.Context, _ runtime.Object) {
 
 // Validate validates new objects.
 func (namespaceStrategy) Validate(_ context.Context, obj runtime.Object) field.ErrorList {
-	return validation.ValidateObjectMeta(&obj.(*corev1.Namespace).ObjectMeta, false, validation.ValidateNamespaceName, field.NewPath("metadata"))
+	namespaceObject, ok := obj.(*corev1.Namespace)
+	if !ok {
+		log.Fatalf("expected *corev1.Namespace, got %T", obj)
+	}
+	return validation.ValidateObjectMeta(&namespaceObject.ObjectMeta, false, validation.ValidateNamespaceName, field.NewPath("metadata"))
 }
 
 // ValidateUpdate validates updated objects.
 func (namespaceStrategy) ValidateUpdate(_ context.Context, obj, old runtime.Object) field.ErrorList {
-	return validation.ValidateObjectMetaUpdate(&obj.(*corev1.Namespace).ObjectMeta, &old.(*corev1.Namespace).ObjectMeta, field.NewPath("metadata"))
+	namespaceObject, ok := obj.(*corev1.Namespace)
+	if !ok {
+		log.Fatalf("expected *corev1.Namespace, got %T", obj)
+	}
+	oldNamespaceObject, ok := obj.(*corev1.Namespace)
+	if !ok {
+		log.Fatalf("expected *corev1.Namespace, got %T", obj)
+	}
+	return validation.ValidateObjectMetaUpdate(&namespaceObject.ObjectMeta, &oldNamespaceObject.ObjectMeta, field.NewPath("metadata"))
 }
 
 // Canonicalize normalizes objects.
