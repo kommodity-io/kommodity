@@ -13,14 +13,22 @@ import (
 
 const NamespaceResource = "namespaces"
 
+var _ rest.ShortNamesProvider = &REST{}
+var _ rest.NamespaceScopedStrategy = &REST{}
+
 // REST wraps a Store and implements rest.Scoper.
 type REST struct {
 	*genericregistry.Store
 }
 
 // NamespaceScoped tells the apiserver if the resource lives in a namespace.
-func (r *REST) NamespaceScoped() bool {
+func (*REST) NamespaceScoped() bool {
 	return false // Namespaces are cluster-scoped
+}
+
+// ShortNames implement ShortNamesProvider to return short names for the resource.
+func (*REST) ShortNames() []string {
+	return []string{"ns"}
 }
 
 func NewNamespacesREST(storageConfig storagebackend.Config) (rest.Storage, error) {
