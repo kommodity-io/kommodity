@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"path"
+	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
 
@@ -48,7 +49,7 @@ func NewNamespacesREST(storageConfig storagebackend.Config, scheme runtime.Schem
 		"/"+namespaceResource,
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create storage backend: %w", err)
 	}
 
 	dryRunnableStorage := genericregistry.DryRunnableStorage{
@@ -203,7 +204,11 @@ func (namespaceStrategy) GenerateName(base string) string {
 
 // ObjectKinds returns the GroupVersionKind for the object.
 func (ns namespaceStrategy) ObjectKinds(obj runtime.Object) ([]schema.GroupVersionKind, bool, error) {
-	return ns.scheme.ObjectKinds(obj)
+	gvks, unversioned, err := ns.scheme.ObjectKinds(obj)
+	if err != nil {
+		return nil, unversioned, fmt.Errorf("failed to get object kinds for %T: %w", obj, err)
+	}
+	return gvks, unversioned, nil
 }
 
 // Recognizes returns true if this strategy handles the given GroupVersionKind.
