@@ -136,13 +136,13 @@ func (namespaceStrategy) WarningsOnCreate(_ context.Context, _ runtime.Object) [
 
 // PrepareForUpdate sets defaults for updated objects.
 func (namespaceStrategy) PrepareForUpdate(_ context.Context, obj, old runtime.Object) {
-	newNamespace, ok := obj.(*corev1.Namespace)
-	if !ok {
+	newNamespace, success := obj.(*corev1.Namespace)
+	if !success {
 		log.Fatalf("expected *corev1.Namespace, got %T", obj)
 	}
 
-	oldNamespace, ok := old.(*corev1.Namespace)
-	if !ok {
+	oldNamespace, success := old.(*corev1.Namespace)
+	if !success {
 		log.Fatalf("expected *corev1.Namespace, got %T", obj)
 	}
 
@@ -170,13 +170,13 @@ func (namespaceStrategy) Validate(_ context.Context, obj runtime.Object) field.E
 
 // ValidateUpdate validates updated objects.
 func (namespaceStrategy) ValidateUpdate(_ context.Context, obj, old runtime.Object) field.ErrorList {
-	namespaceObject, ok := obj.(*corev1.Namespace)
-	if !ok {
+	namespaceObject, success := obj.(*corev1.Namespace)
+	if !success {
 		log.Fatalf("expected *corev1.Namespace, got %T", obj)
 	}
 
-	oldNamespaceObject, ok := obj.(*corev1.Namespace)
-	if !ok {
+	oldNamespaceObject, success := obj.(*corev1.Namespace)
+	if !success {
 		log.Fatalf("expected *corev1.Namespace, got %T", obj)
 	}
 
