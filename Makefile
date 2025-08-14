@@ -43,7 +43,7 @@ $(LINTER):
 .env: ## Create a .env file from the template. Use sed to only add if it does not already exist.
 	touch .env
 	grep -q '^KOMMODITY_DB_URI=' .env || echo 'KOMMODITY_DB_URI=postgres://kommodity:kommodity@localhost:5432/kommodity?sslmode=disable' >> .env
-	grep -q '^KOMMODITY_KINE_URI=' .env || echo 'KOMMODITY_KUNE_URI=http://kine:2379' >> .env
+	grep -q '^KOMMODITY_KINE_URI=' .env || echo 'KOMMODITY_KINE_URI=http://localhost:2379' >> .env
 	grep -q '^PORT=' .env || echo 'PORT=8080' >> .env
 
 .PHONY: setup

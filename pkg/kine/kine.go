@@ -5,9 +5,6 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
-	databasePkg "github.com/kommodity-io/kommodity/pkg/database"
-
-
 	"github.com/jmoiron/sqlx"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
@@ -24,15 +21,10 @@ func NewKineLegacyStorageConfig(database *sqlx.DB, codecs serializer.CodecFactor
 }
 
 func NewKineStorageConfig(database *sqlx.DB, codec runtime.Codec) (*storagebackend.Config, error) {
-	// err := godotenv.Load()
-	// if err != nil {
-	// 	return nil, databasePkg.ErrCantLoadDotEnv
-	// }
-	
 	// Can't load dbURI from database object
-	dbURI := os.Getenv("KOMMODITY_DB_URI")
-	if dbURI == "" {
-		return nil, databasePkg.ErrKommodityDBEnvVarNotSet
+	kineURI := os.Getenv("KOMMODITY_KINE_URI")
+	if kineURI == "" {
+		return nil, ErrKommodityKineEnvVarNotSet
 	}
 
 	return &storagebackend.Config{
@@ -42,7 +34,7 @@ func NewKineStorageConfig(database *sqlx.DB, codec runtime.Codec) (*storagebacke
 		Transport: storagebackend.TransportConfig{
 			// Kine endpoint for Postgres
 			// Example: "postgres://user:password@host:5432/dbname?sslmode=disable"
-			ServerList: []string{"localhost:2379"},
+			ServerList: []string{kineURI},
 		},
 	}, nil
 }

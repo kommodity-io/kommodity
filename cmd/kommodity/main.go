@@ -11,6 +11,8 @@ import (
 	"github.com/kommodity-io/kommodity/pkg/logging"
 	"go.uber.org/zap"
 	genericapiserver "k8s.io/apiserver/pkg/server"
+
+	_ "github.com/joho/godotenv/autoload"
 )
 
 var (
