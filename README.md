@@ -35,6 +35,9 @@ make run
 ```bash
 # Test the application via `kubectl`.
 kubectl --kubeconfig kommodity.yaml api-versions
+kubectl --kubeconfig kommodity.yaml api-resources
+kubectl --kubeconfig kommodity.yaml create -f examples/namespace.yaml
+kubectl --kubeconfig kommodity.yaml create -f examples/secret.yaml
 # Test gRPC reflection.
 grpcurl -plaintext localhost:8080 list
 ```
