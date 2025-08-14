@@ -1,3 +1,4 @@
+// Package namespaces implements the storage strategy towards kine for the core v1 Namespace resource.
 package namespaces
 
 import (
@@ -176,7 +177,7 @@ func (namespaceStrategy) ValidateUpdate(_ context.Context, obj, old runtime.Obje
 		log.Fatalf("expected *corev1.Namespace, got %T", obj)
 	}
 
-	oldNamespaceObject, success := obj.(*corev1.Namespace)
+	oldNamespaceObject, success := old.(*corev1.Namespace)
 	if !success {
 		log.Fatalf("expected *corev1.Namespace, got %T", obj)
 	}

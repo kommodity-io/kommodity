@@ -1,3 +1,4 @@
+// Package apiserver provides error definitions for apiserver operations.
 package apiserver
 
 import "errors"

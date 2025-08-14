@@ -1,3 +1,9 @@
+// Package openapi is a wrapper around
+// - core/v1,
+// - meta/v1,
+// - apimachinery/pkg/runtime
+// - apimachinery/pkg/version
+// to generate OpenAPI specs for those.
 package openapi
 
 //go:generate go run k8s.io/kube-openapi/cmd/openapi-gen --output-dir=./core --output-pkg=github.com/kommodity-io/kommodity/pkg/openapi/core --output-file=zz_generated.openapi.go --logtostderr k8s.io/api/core/v1
