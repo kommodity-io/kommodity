@@ -10,10 +10,6 @@ import (
 	"k8s.io/apiserver/pkg/storage/storagebackend"
 )
 
-type KindStorage struct {
-	config storagebackend.Config
-}
-
 func NewKineLegacyStorageConfig(codecs serializer.CodecFactory) (*storagebackend.Config, error) {
 	return NewKineStorageConfig(codecs.LegacyCodec(corev1.SchemeGroupVersion))
 }
