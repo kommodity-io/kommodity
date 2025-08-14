@@ -140,10 +140,12 @@ func (namespaceStrategy) PrepareForUpdate(_ context.Context, obj, old runtime.Ob
 	if !ok {
 		log.Fatalf("expected *corev1.Namespace, got %T", obj)
 	}
+
 	oldNamespace, ok := old.(*corev1.Namespace)
 	if !ok {
 		log.Fatalf("expected *corev1.Namespace, got %T", obj)
 	}
+
 	newNamespace.Spec.Finalizers = oldNamespace.Spec.Finalizers
 	newNamespace.Status = oldNamespace.Status
 }
@@ -162,6 +164,7 @@ func (namespaceStrategy) Validate(_ context.Context, obj runtime.Object) field.E
 	if !ok {
 		log.Fatalf("expected *corev1.Namespace, got %T", obj)
 	}
+
 	return validation.ValidateObjectMeta(&namespaceObject.ObjectMeta, false, validation.ValidateNamespaceName, field.NewPath("metadata"))
 }
 
@@ -171,10 +174,12 @@ func (namespaceStrategy) ValidateUpdate(_ context.Context, obj, old runtime.Obje
 	if !ok {
 		log.Fatalf("expected *corev1.Namespace, got %T", obj)
 	}
+
 	oldNamespaceObject, ok := obj.(*corev1.Namespace)
 	if !ok {
 		log.Fatalf("expected *corev1.Namespace, got %T", obj)
 	}
+
 	return validation.ValidateObjectMetaUpdate(&namespaceObject.ObjectMeta, &oldNamespaceObject.ObjectMeta, field.NewPath("metadata"))
 }
 
