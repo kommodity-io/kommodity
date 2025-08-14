@@ -12,7 +12,6 @@ import (
 	"github.com/kommodity-io/kommodity/pkg/kine"
 	generatedopenapi "github.com/kommodity-io/kommodity/pkg/openapi"
 	"github.com/kommodity-io/kommodity/pkg/storage/namespaces"
-	"github.com/kommodity-io/kommodity/pkg/storage/secrets"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	apiruntime "k8s.io/apimachinery/pkg/runtime"
@@ -128,14 +127,8 @@ func setupLegacyAPI(codecs serializer.CodecFactory) (*genericapiserver.APIGroupI
 		return nil, fmt.Errorf("unable to create REST storage service for core v1 namespaces: %v", err)
 	}
 
-	secretsStorage, err := secrets.NewSecretsREST(*kineStorageConfig)
-	if err != nil {
-		return nil, fmt.Errorf("unable to create REST storage service for core v1 secrets: %v", err)
-	}
-
 	coreAPIGroupInfo.VersionedResourcesStorageMap["v1"] = map[string]rest.Storage{
 		"namespaces": namespacesStorage,
-		"secrets":    secretsStorage,
 	}
 
 	return &coreAPIGroupInfo, nil
