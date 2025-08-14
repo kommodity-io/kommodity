@@ -22,11 +22,6 @@ import (
 	apiservercompatibility "k8s.io/apiserver/pkg/util/compatibility"
 )
 
-var (
-	// Scheme defines methods for serializing and deserializing API objects.
-	Scheme = runtime.NewScheme()
-)
-
 // New creates a new Kubernetes API Server.
 func New(ctx context.Context) (*genericapiserver.GenericAPIServer, error) {
 	_, err := database.SetupDB()
@@ -39,14 +34,16 @@ func New(ctx context.Context) (*genericapiserver.GenericAPIServer, error) {
 		return nil, fmt.Errorf("failed to extract desired OpenAPI spec for server: %w", err)
 	}
 
-	err = corev1.AddToScheme(Scheme)
+	scheme := runtime.NewScheme()
+
+	err = corev1.AddToScheme(scheme)
 	if err != nil {
 		return nil, fmt.Errorf("failed to add core v1 API to scheme: %w", err)
 	}
 
-	codecs := serializer.NewCodecFactory(Scheme)
+	codecs := serializer.NewCodecFactory(scheme)
 
-	genericServerConfig, err := setupConfig(openAPISpec, codecs)
+	genericServerConfig, err := setupConfig(openAPISpec, scheme, codecs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup config for the generic api server: %w", err)
 	}
@@ -57,7 +54,7 @@ func New(ctx context.Context) (*genericapiserver.GenericAPIServer, error) {
 		return nil, fmt.Errorf("failed to build the generic api server: %w", err)
 	}
 
-	legacyAPI, err := setupLegacyAPI(codecs)
+	legacyAPI, err := setupLegacyAPI(scheme, codecs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to legacy api group info for the generic api server: %w", err)
 	}
@@ -69,7 +66,7 @@ func New(ctx context.Context) (*genericapiserver.GenericAPIServer, error) {
 	return genericServer, nil
 }
 
-func setupConfig(openAPISpec *generatedopenapi.Spec, codecs serializer.CodecFactory) (*genericapiserver.RecommendedConfig, error) {
+func setupConfig(openAPISpec *generatedopenapi.Spec, scheme *runtime.Scheme, codecs serializer.CodecFactory) (*genericapiserver.RecommendedConfig, error) {
 	secureServing := options.NewSecureServingOptions()
 	secureServing.BindAddress = net.ParseIP("0.0.0.0")
 	secureServing.BindPort = 8443
@@ -80,7 +77,7 @@ func setupConfig(openAPISpec *generatedopenapi.Spec, codecs serializer.CodecFact
 
 	genericServerConfig.OpenAPIV3Config = genericapiserver.DefaultOpenAPIV3Config(
 		openAPISpec.GetOpenAPIDefinitions,
-		openapi.NewDefinitionNamer(Scheme),
+		openapi.NewDefinitionNamer(scheme),
 	)
 
 	// Generate self-signed certs for "localhost"
@@ -119,16 +116,16 @@ func setupConfig(openAPISpec *generatedopenapi.Spec, codecs serializer.CodecFact
 	return genericServerConfig, nil
 }
 
-func setupLegacyAPI(codecs serializer.CodecFactory) (*genericapiserver.APIGroupInfo, error) {
-	coreAPIGroupInfo := genericapiserver.NewDefaultAPIGroupInfo(corev1.GroupName, Scheme,
-		runtime.NewParameterCodec(Scheme), codecs)
+func setupLegacyAPI(scheme *runtime.Scheme, codecs serializer.CodecFactory) (*genericapiserver.APIGroupInfo, error) {
+	coreAPIGroupInfo := genericapiserver.NewDefaultAPIGroupInfo(corev1.GroupName, scheme,
+		runtime.NewParameterCodec(scheme), codecs)
 
 	kineStorageConfig, err := kine.NewKineLegacyStorageConfig(codecs)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create Kine legacy storage config: %w", err)
 	}
 
-	namespacesStorage, err := namespaces.NewNamespacesREST(*kineStorageConfig, *Scheme)
+	namespacesStorage, err := namespaces.NewNamespacesREST(*kineStorageConfig, *scheme)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create REST storage service for core v1 namespaces: %w", err)
 	}
