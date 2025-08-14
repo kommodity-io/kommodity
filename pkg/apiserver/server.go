@@ -60,7 +60,8 @@ func New(ctx context.Context) (*genericapiserver.GenericAPIServer, error) {
 		return nil, fmt.Errorf("failed to legacy api group info for the generic api server: %w", err)
 	}
 
-	if err := genericServer.InstallLegacyAPIGroup("/api", legacyAPI); err != nil {
+	err = genericServer.InstallLegacyAPIGroup("/api", legacyAPI)
+	if err != nil {
 		return nil, fmt.Errorf("failed to install legacy API group into the generic api server: %w", err)
 	}
 
@@ -86,13 +87,15 @@ func setupConfig(openAPISpec *generatedopenapi.Spec, scheme *runtime.Scheme, cod
 		return nil, fmt.Errorf("failed to generate self-signed certs: %w", err)
 	}
 
-	if err := secureServing.ApplyTo(&genericServerConfig.SecureServing); err != nil {
+	err := secureServing.ApplyTo(&genericServerConfig.SecureServing)
+	if err != nil {
 		return nil, fmt.Errorf("failed to apply secure serving config: %w", err)
 	}
 
 	// Generate a random loopback token
 	tokenBytes := make([]byte, 16)
-	if _, err := rand.Read(tokenBytes); err != nil {
+	_, err = rand.Read(tokenBytes)
+	if err != nil {
 		return nil, fmt.Errorf("failed to generate loopback token: %w", err)
 	}
 

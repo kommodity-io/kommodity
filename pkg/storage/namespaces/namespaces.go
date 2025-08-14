@@ -3,9 +3,9 @@ package namespaces
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"path"
-	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
 
@@ -209,6 +209,7 @@ func (ns namespaceStrategy) ObjectKinds(obj runtime.Object) ([]schema.GroupVersi
 	if err != nil {
 		return nil, unversioned, fmt.Errorf("failed to get object kinds for %T: %w", obj, err)
 	}
+
 	return gvks, unversioned, nil
 }
 
