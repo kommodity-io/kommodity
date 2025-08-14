@@ -2,10 +2,11 @@ package namespaces
 
 import (
 	"context"
-	"fmt"
 	"path"
 
 	corev1 "k8s.io/api/core/v1"
+
+	storageerr "github.com/kommodity-io/kommodity/pkg/storage"
 
 	"k8s.io/apimachinery/pkg/api/validation"
 	"k8s.io/apimachinery/pkg/fields"
@@ -84,7 +85,7 @@ func NamespacePredicateFunc(label labels.Selector, field fields.Selector) storag
 func GetAttrs(obj runtime.Object) (labels.Set, fields.Set, error) {
 	ns, ok := obj.(*corev1.Namespace)
 	if !ok {
-		return nil, nil, errors.New("given object is not a Namespace")
+		return nil, nil, storageerr.ErrObjectIsNotANamespace
 	}
 
 	return labels.Set(ns.Labels), fields.Set{
@@ -97,7 +98,7 @@ func GetAttrs(obj runtime.Object) (labels.Set, fields.Set, error) {
 func ObjectNameFunc(obj runtime.Object) (string, error) {
 	ns, ok := obj.(*corev1.Namespace)
 	if !ok {
-		return "", errors.New("ObjectNameFunc: not a Namespace object")
+		return "", storageerr.ErrObjectIsNotANamespace
 	}
 
 	return ns.Name, nil
