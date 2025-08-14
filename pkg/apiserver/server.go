@@ -14,7 +14,6 @@ import (
 	"github.com/kommodity-io/kommodity/pkg/storage/namespaces"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	apiruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apiserver/pkg/endpoints/openapi"
 	"k8s.io/apiserver/pkg/registry/rest"
@@ -25,7 +24,7 @@ import (
 
 var (
 	// Scheme defines methods for serializing and deserializing API objects.
-	Scheme = apiruntime.NewScheme()
+	Scheme = runtime.NewScheme()
 )
 
 func New(ctx context.Context) (*genericapiserver.GenericAPIServer, error) {
