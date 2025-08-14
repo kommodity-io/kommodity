@@ -11,3 +11,6 @@ apiserver.local.config/
 # Ignore vs code debug files.
 .vscode/
 __debug*
+
+# Generated files
+pkg/openapi/zz_generated.openapi.go

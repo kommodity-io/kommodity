@@ -75,7 +75,7 @@ test: ## Run the tests.
 lint: $(LINTER) ## Run the linter.
 	$(LINTER) run
 
-generate: ## Run code generation.
+generate: .env ## Run code generation.
 	go generate ./...
 
 teardown: ## Tear down the local development environment.

@@ -11,12 +11,14 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/kommodity-io/kommodity/pkg/database"
 	"github.com/kommodity-io/kommodity/pkg/kine"
+	generatedopenapi "github.com/kommodity-io/kommodity/pkg/openapi"
 	"github.com/kommodity-io/kommodity/pkg/storage/namespaces"
 	"github.com/kommodity-io/kommodity/pkg/storage/secrets"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	apiruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
+	"k8s.io/apiserver/pkg/endpoints/openapi"
 	"k8s.io/apiserver/pkg/registry/rest"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	"k8s.io/apiserver/pkg/server/options"
@@ -34,10 +36,15 @@ var (
 func New(ctx context.Context) (*genericapiserver.GenericAPIServer, error) {
 	database, err := database.SetupDB()
 	if err != nil {
-		return nil, fmt.Errorf("failed to setup database connection: %w", err)
+		return nil, fmt.Errorf("failed to setup database connection: %v", err)
 	}
 
-	genericServerConfig, err := setupConfig()
+	openAPISpec, err := generatedopenapi.NewOpenAPISpec()
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract desired OpenAPI spec for server: %v", err)
+	}
+
+	genericServerConfig, err := setupConfig(openAPISpec)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup config for the generic api server: %v", err)
 	}
@@ -60,7 +67,7 @@ func New(ctx context.Context) (*genericapiserver.GenericAPIServer, error) {
 	return genericServer, nil
 }
 
-func setupConfig() (*genericapiserver.RecommendedConfig, error) {
+func setupConfig(openAPISpec *generatedopenapi.OpenAPISpec) (*genericapiserver.RecommendedConfig, error) {
 	secureServing := options.NewSecureServingOptions()
 	secureServing.BindAddress = net.ParseIP("0.0.0.0")
 	secureServing.BindPort = 8443
@@ -68,6 +75,11 @@ func setupConfig() (*genericapiserver.RecommendedConfig, error) {
 	genericServerConfig := genericapiserver.NewRecommendedConfig(Codecs)
 
 	genericServerConfig.EffectiveVersion = apiservercompatibility.DefaultBuildEffectiveVersion()
+
+	genericServerConfig.OpenAPIV3Config = genericapiserver.DefaultOpenAPIV3Config(
+		openAPISpec.GetOpenAPIDefinitions,
+		openapi.NewDefinitionNamer(Scheme),
+	)
 
 	// Generate self-signed certs for "localhost"
 	if err := secureServing.MaybeDefaultWithSelfSignedCerts("localhost", nil, []net.IP{net.ParseIP("127.0.0.1")}); err != nil {
