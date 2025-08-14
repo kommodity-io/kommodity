@@ -49,7 +49,7 @@ func main() {
 	)
 
 	go func() {
-		srv, err := apiserver.New(ctx)
+		srv, err := apiserver.New()
 		if err != nil {
 			logger.Error("Failed to create server", zap.Error(err))
 

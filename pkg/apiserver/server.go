@@ -2,7 +2,6 @@
 package apiserver
 
 import (
-	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
@@ -24,7 +23,7 @@ import (
 )
 
 // New creates a new Kubernetes API Server.
-func New(ctx context.Context) (*genericapiserver.GenericAPIServer, error) {
+func New() (*genericapiserver.GenericAPIServer, error) {
 	_, err := database.SetupDB()
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup database connection: %w", err)
