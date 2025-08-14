@@ -38,7 +38,10 @@ func New(ctx context.Context) (*genericapiserver.GenericAPIServer, error) {
 		return nil, fmt.Errorf("failed to extract desired OpenAPI spec for server: %w", err)
 	}
 
-	corev1.AddToScheme(Scheme)
+	err = corev1.AddToScheme(Scheme)
+	if err != nil {
+		return nil, fmt.Errorf("failed to add core v1 API to scheme: %w", err)
+	}
 	codecs := serializer.NewCodecFactory(Scheme)
 
 	genericServerConfig, err := setupConfig(openAPISpec, codecs)

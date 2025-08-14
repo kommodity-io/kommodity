@@ -60,7 +60,10 @@ func main() {
 		}
 
 		preparedGenericServer := srv.PrepareRun()
-		preparedGenericServer.RunWithContext(ctx)
+		err = preparedGenericServer.RunWithContext(ctx)
+		if err != nil {
+			logger.Error("Failed to run generic server", zap.Error(err))
+		}
 
 		// // Set the server version.
 		// srv.SetVersion(&kubeversion.Info{
