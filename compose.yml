@@ -12,6 +12,11 @@ services:
       - pgdata:/var/lib/postgresql/data
     networks:
       - kommodity-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kommodity -d kommodity"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
   pgadmin:
     image: dpage/pgadmin4:8
@@ -29,12 +34,12 @@ services:
   kine:
     image: rancher/kine:v0.13.18
     restart: always
-    environment:
-      KINE_POSTGRES_ENDPOINT: "host=postgres user=kommodity password=kommodity dbname=kommodity sslmode=disable"
     ports:
       - "2379:2379"
+    command: "--endpoint postgres://kommodity:kommodity@postgres:5432/kommodity?sslmode=disable"
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     networks:
       - kommodity-net
 

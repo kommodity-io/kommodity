@@ -1,0 +1,5 @@
+# Example Namespace resource
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: example-namespace

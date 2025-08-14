@@ -8,7 +8,6 @@ import (
 	"net"
 	"os"
 
-	"github.com/jmoiron/sqlx"
 	"github.com/kommodity-io/kommodity/pkg/database"
 	"github.com/kommodity-io/kommodity/pkg/kine"
 	generatedopenapi "github.com/kommodity-io/kommodity/pkg/openapi"
@@ -28,13 +27,10 @@ import (
 var (
 	// Scheme defines methods for serializing and deserializing API objects.
 	Scheme = apiruntime.NewScheme()
-	// Codecs provides methods for retrieving codecs and serializers for specific
-	// versions and content types.
-	Codecs = serializer.NewCodecFactory(Scheme)
 )
 
 func New(ctx context.Context) (*genericapiserver.GenericAPIServer, error) {
-	database, err := database.SetupDB()
+	_, err := database.SetupDB()
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup database connection: %v", err)
 	}
@@ -44,7 +40,10 @@ func New(ctx context.Context) (*genericapiserver.GenericAPIServer, error) {
 		return nil, fmt.Errorf("failed to extract desired OpenAPI spec for server: %v", err)
 	}
 
-	genericServerConfig, err := setupConfig(openAPISpec)
+	corev1.AddToScheme(Scheme)
+	codecs := serializer.NewCodecFactory(Scheme)
+
+	genericServerConfig, err := setupConfig(openAPISpec, codecs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup config for the generic api server: %v", err)
 	}
@@ -55,7 +54,7 @@ func New(ctx context.Context) (*genericapiserver.GenericAPIServer, error) {
 		return nil, fmt.Errorf("failed to build the generic api server: %v", err)
 	}
 
-	legacyAPI, err := setupLegacyAPI(database)
+	legacyAPI, err := setupLegacyAPI(codecs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to legacy api group info for the generic api server: %v", err)
 	}
@@ -67,12 +66,12 @@ func New(ctx context.Context) (*genericapiserver.GenericAPIServer, error) {
 	return genericServer, nil
 }
 
-func setupConfig(openAPISpec *generatedopenapi.OpenAPISpec) (*genericapiserver.RecommendedConfig, error) {
+func setupConfig(openAPISpec *generatedopenapi.OpenAPISpec, codecs serializer.CodecFactory) (*genericapiserver.RecommendedConfig, error) {
 	secureServing := options.NewSecureServingOptions()
 	secureServing.BindAddress = net.ParseIP("0.0.0.0")
 	secureServing.BindPort = 8443
 
-	genericServerConfig := genericapiserver.NewRecommendedConfig(Codecs)
+	genericServerConfig := genericapiserver.NewRecommendedConfig(codecs)
 
 	genericServerConfig.EffectiveVersion = apiservercompatibility.DefaultBuildEffectiveVersion()
 
@@ -115,18 +114,16 @@ func setupConfig(openAPISpec *generatedopenapi.OpenAPISpec) (*genericapiserver.R
 	return genericServerConfig, nil
 }
 
-func setupLegacyAPI(database *sqlx.DB) (*genericapiserver.APIGroupInfo, error) {
-	corev1.AddToScheme(Scheme)
-
+func setupLegacyAPI(codecs serializer.CodecFactory) (*genericapiserver.APIGroupInfo, error) {
 	coreAPIGroupInfo := genericapiserver.NewDefaultAPIGroupInfo(corev1.GroupName, Scheme,
-		runtime.NewParameterCodec(Scheme), Codecs)
+		runtime.NewParameterCodec(Scheme), codecs)
 
-	kineStorageConfig, err := kine.NewKineLegacyStorageConfig(database, Codecs)
+	kineStorageConfig, err := kine.NewKineLegacyStorageConfig(codecs)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create Kine legacy storage config: %v", err)
 	}
 
-	namespacesStorage, err := namespaces.NewNamespacesREST(*kineStorageConfig)
+	namespacesStorage, err := namespaces.NewNamespacesREST(*kineStorageConfig, *Scheme)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create REST storage service for core v1 namespaces: %v", err)
 	}
