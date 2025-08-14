@@ -27,6 +27,7 @@ var (
 	Scheme = runtime.NewScheme()
 )
 
+// New creates a new Kubernetes API Server.
 func New(ctx context.Context) (*genericapiserver.GenericAPIServer, error) {
 	_, err := database.SetupDB()
 	if err != nil {
@@ -42,6 +43,7 @@ func New(ctx context.Context) (*genericapiserver.GenericAPIServer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to add core v1 API to scheme: %w", err)
 	}
+
 	codecs := serializer.NewCodecFactory(Scheme)
 
 	genericServerConfig, err := setupConfig(openAPISpec, codecs)
@@ -67,7 +69,7 @@ func New(ctx context.Context) (*genericapiserver.GenericAPIServer, error) {
 	return genericServer, nil
 }
 
-func setupConfig(openAPISpec *generatedopenapi.OpenAPISpec, codecs serializer.CodecFactory) (*genericapiserver.RecommendedConfig, error) {
+func setupConfig(openAPISpec *generatedopenapi.Spec, codecs serializer.CodecFactory) (*genericapiserver.RecommendedConfig, error) {
 	secureServing := options.NewSecureServingOptions()
 	secureServing.BindAddress = net.ParseIP("0.0.0.0")
 	secureServing.BindPort = 8443

@@ -60,6 +60,7 @@ func main() {
 		}
 
 		preparedGenericServer := srv.PrepareRun()
+
 		err = preparedGenericServer.RunWithContext(ctx)
 		if err != nil {
 			logger.Error("Failed to run generic server", zap.Error(err))

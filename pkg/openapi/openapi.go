@@ -17,6 +17,7 @@ import (
 
 	_ "embed"
 
+	// Used for OpenAPI generation using openapi-gen.
 	_ "k8s.io/api/core/v1"
 	_ "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/kube-openapi/pkg/common"
@@ -25,12 +26,14 @@ import (
 //go:embed types.yaml
 var openAPITypes string
 
-type OpenAPISpec struct {
+// Spec contains the desired OpenAPI spec types defined in types.yaml.
+type Spec struct {
 	Types map[string][]string `yaml:"types"`
 }
 
-func NewOpenAPISpec() (*OpenAPISpec, error) {
-	types := OpenAPISpec{}
+// NewOpenAPISpec returns the OpenAPI specifications defined in types.yaml.
+func NewOpenAPISpec() (*Spec, error) {
+	types := Spec{}
 
 	err := yaml.Unmarshal([]byte(openAPITypes), &types)
 	if err != nil {
@@ -40,7 +43,8 @@ func NewOpenAPISpec() (*OpenAPISpec, error) {
 	return &types, nil
 }
 
-func (o *OpenAPISpec) GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenAPIDefinition {
+// GetOpenAPIDefinitions retrieves the OpenAPI definitions defined in types.yaml.
+func (o *Spec) GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenAPIDefinition {
 	kubernetesOpenAPIDefinitions := map[string]map[string]common.OpenAPIDefinition{
 		"core":    core.GetOpenAPIDefinitions(ref),
 		"meta":    meta.GetOpenAPIDefinitions(ref),

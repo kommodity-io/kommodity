@@ -22,7 +22,7 @@ import (
 	"k8s.io/apiserver/pkg/storage/storagebackend/factory"
 )
 
-const NamespaceResource = "namespaces"
+const namespaceResource = "namespaces"
 
 // REST wraps a Store and implements rest.Scoper.
 type REST struct {
@@ -36,12 +36,13 @@ func (*REST) ShortNames() []string {
 	return []string{"ns"}
 }
 
+// NewNamespacesREST creates a REST interface for corev1 Namespace resource.
 func NewNamespacesREST(storageConfig storagebackend.Config, scheme runtime.Scheme) (rest.Storage, error) {
 	store, _, err := factory.Create(
-		*storageConfig.ForResource(corev1.Resource(NamespaceResource)),
+		*storageConfig.ForResource(corev1.Resource(namespaceResource)),
 		func() runtime.Object { return &corev1.Namespace{} },
 		func() runtime.Object { return &corev1.NamespaceList{} },
-		"/"+NamespaceResource,
+		"/"+namespaceResource,
 	)
 	if err != nil {
 		return nil, err
@@ -52,15 +53,17 @@ func NewNamespacesREST(storageConfig storagebackend.Config, scheme runtime.Schem
 		Codec:   storageConfig.Codec,
 	}
 
-	namespaceStrategy := NewNamespaceStrategy(scheme)
+	namespaceStrategy := namespaceStrategy{
+		scheme: scheme,
+	}
 
 	restStore := &genericregistry.Store{
 		NewFunc:       func() runtime.Object { return &corev1.Namespace{} },
 		NewListFunc:   func() runtime.Object { return &corev1.NamespaceList{} },
 		PredicateFunc: NamespacePredicateFunc,
-		KeyRootFunc:   func(ctx context.Context) string { return "/" + NamespaceResource },
-		KeyFunc: func(ctx context.Context, name string) (string, error) {
-			return path.Join("/"+NamespaceResource, name), nil
+		KeyRootFunc:   func(_ context.Context) string { return "/" + namespaceResource },
+		KeyFunc: func(_ context.Context, name string) (string, error) {
+			return path.Join("/"+namespaceResource, name), nil
 		},
 		ObjectNameFunc: ObjectNameFunc,
 		CreateStrategy: namespaceStrategy,
@@ -83,14 +86,14 @@ func NamespacePredicateFunc(label labels.Selector, field fields.Selector) storag
 
 // GetAttrs returns labels and fields for a Namespace object.
 func GetAttrs(obj runtime.Object) (labels.Set, fields.Set, error) {
-	ns, ok := obj.(*corev1.Namespace)
+	namespace, ok := obj.(*corev1.Namespace)
 	if !ok {
 		return nil, nil, storageerr.ErrObjectIsNotANamespace
 	}
 
-	return labels.Set(ns.Labels), fields.Set{
-		"metadata.name": ns.Name,
-		"status.phase":  string(ns.Status.Phase),
+	return labels.Set(namespace.Labels), fields.Set{
+		"metadata.name": namespace.Name,
+		"status.phase":  string(namespace.Status.Phase),
 	}, nil
 }
 
@@ -115,27 +118,21 @@ var _ rest.RESTUpdateStrategy = namespaceStrategy{}
 var _ rest.RESTDeleteStrategy = namespaceStrategy{}
 var _ rest.NamespaceScopedStrategy = namespaceStrategy{}
 
-func NewNamespaceStrategy(scheme runtime.Scheme) namespaceStrategy {
-	return namespaceStrategy{
-		scheme: scheme,
-	}
-}
-
 // NamespaceScoped tells the apiserver if the resource lives in a namespace.
 func (namespaceStrategy) NamespaceScoped() bool {
 	return false
 }
 
 // PrepareForCreate sets defaults for new objects.
-func (namespaceStrategy) PrepareForCreate(ctx context.Context, obj runtime.Object) {}
+func (namespaceStrategy) PrepareForCreate(_ context.Context, _ runtime.Object) {}
 
 // WarningsOnCreate returns warnings for create operations.
-func (namespaceStrategy) WarningsOnCreate(ctx context.Context, obj runtime.Object) []string {
+func (namespaceStrategy) WarningsOnCreate(_ context.Context, _ runtime.Object) []string {
 	return nil
 }
 
 // PrepareForUpdate sets defaults for updated objects.
-func (namespaceStrategy) PrepareForUpdate(ctx context.Context, obj, old runtime.Object) {
+func (namespaceStrategy) PrepareForUpdate(_ context.Context, obj, old runtime.Object) {
 	newNamespace := obj.(*corev1.Namespace)
 	oldNamespace := old.(*corev1.Namespace)
 	newNamespace.Spec.Finalizers = oldNamespace.Spec.Finalizers
@@ -143,25 +140,25 @@ func (namespaceStrategy) PrepareForUpdate(ctx context.Context, obj, old runtime.
 }
 
 // WarningsOnUpdate returns warnings for update operations.
-func (namespaceStrategy) WarningsOnUpdate(ctx context.Context, obj, old runtime.Object) []string {
+func (namespaceStrategy) WarningsOnUpdate(_ context.Context, _, _ runtime.Object) []string {
 	return nil
 }
 
 // PrepareForDelete clears fields before deletion.
-func (namespaceStrategy) PrepareForDelete(ctx context.Context, obj runtime.Object) {}
+func (namespaceStrategy) PrepareForDelete(_ context.Context, _ runtime.Object) {}
 
 // Validate validates new objects.
-func (namespaceStrategy) Validate(ctx context.Context, obj runtime.Object) field.ErrorList {
+func (namespaceStrategy) Validate(_ context.Context, obj runtime.Object) field.ErrorList {
 	return validation.ValidateObjectMeta(&obj.(*corev1.Namespace).ObjectMeta, false, validation.ValidateNamespaceName, field.NewPath("metadata"))
 }
 
 // ValidateUpdate validates updated objects.
-func (namespaceStrategy) ValidateUpdate(ctx context.Context, obj, old runtime.Object) field.ErrorList {
+func (namespaceStrategy) ValidateUpdate(_ context.Context, obj, old runtime.Object) field.ErrorList {
 	return validation.ValidateObjectMetaUpdate(&obj.(*corev1.Namespace).ObjectMeta, &old.(*corev1.Namespace).ObjectMeta, field.NewPath("metadata"))
 }
 
 // Canonicalize normalizes objects.
-func (namespaceStrategy) Canonicalize(obj runtime.Object) {}
+func (namespaceStrategy) Canonicalize(_ runtime.Object) {}
 
 // AllowCreateOnUpdate determines if create is allowed on update.
 func (namespaceStrategy) AllowCreateOnUpdate() bool {
