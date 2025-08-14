@@ -140,14 +140,14 @@ func setupLegacyAPI(scheme *runtime.Scheme, codecs serializer.CodecFactory) (*ge
 		return nil, fmt.Errorf("unable to create REST storage service for core v1 namespaces: %w", err)
 	}
 
-	secretStorage, err := secrets.NewSecretsREST(*kineStorageConfig, *scheme)
+	secretsStorage, err := secrets.NewSecretsREST(*kineStorageConfig, *scheme)
 	if err != nil {
-		return nil, fmt.Errorf("unable to create REST storage service for core v1 namespaces: %w", err)
+		return nil, fmt.Errorf("unable to create REST storage service for core v1 secrets: %w", err)
 	}
 
 	coreAPIGroupInfo.VersionedResourcesStorageMap["v1"] = map[string]rest.Storage{
 		"namespaces": namespacesStorage,
-		"secrets":    secretStorage,
+		"secrets":    secretsStorage,
 	}
 
 	return &coreAPIGroupInfo, nil
