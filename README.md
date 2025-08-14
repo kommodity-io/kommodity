@@ -26,6 +26,8 @@ As a build system, we use `make`.
 ```bash
 # Create a binary in the `bin/` directory.
 make build
+# Run code generation and start docker compose
+make setup
 # Run the application locally.
 make run
 ```
