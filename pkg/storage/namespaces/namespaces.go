@@ -167,7 +167,11 @@ func (namespaceStrategy) Validate(_ context.Context, obj runtime.Object) field.E
 		log.Fatalf("expected *corev1.Namespace, got %T", obj)
 	}
 
-	return validation.ValidateObjectMeta(&namespaceObject.ObjectMeta, false, validation.ValidateNamespaceName, field.NewPath("metadata"))
+	return validation.ValidateObjectMeta(
+		&namespaceObject.ObjectMeta, false,
+		validation.ValidateNamespaceName,
+		field.NewPath("metadata"),
+	)
 }
 
 // ValidateUpdate validates updated objects.
@@ -182,7 +186,11 @@ func (namespaceStrategy) ValidateUpdate(_ context.Context, obj, old runtime.Obje
 		log.Fatalf("expected *corev1.Namespace, got %T", obj)
 	}
 
-	return validation.ValidateObjectMetaUpdate(&namespaceObject.ObjectMeta, &oldNamespaceObject.ObjectMeta, field.NewPath("metadata"))
+	return validation.ValidateObjectMetaUpdate(
+		&namespaceObject.ObjectMeta,
+		&oldNamespaceObject.ObjectMeta,
+		field.NewPath("metadata"),
+	)
 }
 
 // Canonicalize normalizes objects.

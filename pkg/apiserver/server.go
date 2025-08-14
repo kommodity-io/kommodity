@@ -93,6 +93,7 @@ func setupConfig(openAPISpec *generatedopenapi.Spec, scheme *runtime.Scheme, cod
 	}
 
 	// Generate a random loopback token
+	//nolint:mnd
 	tokenBytes := make([]byte, 16)
 	_, err = rand.Read(tokenBytes)
 	if err != nil {
