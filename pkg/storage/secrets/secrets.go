@@ -144,7 +144,8 @@ func (secretStrategy) PrepareForCreate(_ context.Context, _ runtime.Object) {}
 func (secretStrategy) WarningsOnCreate(_ context.Context, obj runtime.Object) []string {
 	secret, ok := obj.(*corev1.Secret)
 	if !ok {
-		log.Fatalf("expected *corev1.Secret, got %T", obj)
+		log.Printf("expected *corev1.Secret, got %T", obj)
+		return []string{fmt.Sprintf("unexpected object type: %T", obj)}
 	}
 
 	return warningsForSecret(secret)
