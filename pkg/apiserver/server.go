@@ -227,7 +227,7 @@ func setupLegacyAPI(scheme *runtime.Scheme, kineStorageConfig storagebackend.Con
 		return nil, fmt.Errorf("unable to create REST storage service for core v1 namespaces: %w", err)
 	}
 
-	secretsStorage, err := secrets.NewSecretsREST(*kineStorageConfig, *scheme)
+	secretsStorage, err := secrets.NewSecretsREST(kineStorageConfig, *scheme)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create REST storage service for core v1 secrets: %w", err)
 	}
@@ -250,7 +250,7 @@ func getAPIServerPort() int {
 
 	apiServerPortInt, err := strconv.Atoi(apiServerPort)
 	if err != nil {
-		log.Printf("failed to convert KOMMODITY_API_SERVER_PORT to integer: %v, defaulting to %d", 
+		log.Printf("failed to convert KOMMODITY_API_SERVER_PORT to integer: %v, defaulting to %d",
 			apiServerPort, defaultAPIServerPort)
 
 		return defaultAPIServerPort
