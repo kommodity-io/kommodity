@@ -45,7 +45,6 @@ $(LINTER):
 	grep -q '^KOMMODITY_DB_URI=' .env || echo 'KOMMODITY_DB_URI=postgres://kommodity:kommodity@localhost:5432/kommodity?sslmode=disable' >> .env
 	grep -q '^KOMMODITY_KINE_URI=' .env || echo 'KOMMODITY_KINE_URI=http://localhost:2379' >> .env
 	grep -q '^KOMMODITY_API_SERVER_PORT=' .env || echo 'KOMMODITY_API_SERVER_PORT=8443' >> .env
-	grep -q '^PORT=' .env || echo 'PORT=8080' >> .env
 
 .PHONY: setup
 setup: generate
