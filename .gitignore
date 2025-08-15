@@ -3,3 +3,14 @@ bin/
 
 # Ignore the environment configuration files.
 .env
+
+# Ignore self-signed certs by API Server
+cmd/kommodity/apiserver.local.config/
+apiserver.local.config/
+
+# Ignore vs code debug files.
+.vscode/
+__debug*
+
+# Generated files
+pkg/openapi/zz_generated.openapi.go

@@ -1,0 +1,34 @@
+types:
+  core:
+    - k8s.io/api/core/v1.NamespaceList
+    - k8s.io/api/core/v1.Namespace
+    - k8s.io/api/core/v1.NamespaceSpec
+    - k8s.io/api/core/v1.NamespaceStatus
+    - k8s.io/api/core/v1.NamespaceCondition
+    - k8s.io/api/core/v1.Secret
+    - k8s.io/api/core/v1.SecretList
+  meta:
+    - k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta
+    - k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta
+    - k8s.io/apimachinery/pkg/apis/meta/v1.ManagedFieldsEntry
+    - k8s.io/apimachinery/pkg/apis/meta/v1.FieldsV1
+    - k8s.io/apimachinery/pkg/apis/meta/v1.OwnerReference
+    - k8s.io/apimachinery/pkg/apis/meta/v1.Time
+    - k8s.io/apimachinery/pkg/apis/meta/v1.APIGroupList
+    - k8s.io/apimachinery/pkg/apis/meta/v1.APIGroup
+    - k8s.io/apimachinery/pkg/apis/meta/v1.APIVersions
+    - k8s.io/apimachinery/pkg/apis/meta/v1.GroupVersionForDiscovery
+    - k8s.io/apimachinery/pkg/apis/meta/v1.WatchEvent
+    - k8s.io/apimachinery/pkg/apis/meta/v1.Patch
+    - k8s.io/apimachinery/pkg/apis/meta/v1.Status
+    - k8s.io/apimachinery/pkg/apis/meta/v1.StatusDetails
+    - k8s.io/apimachinery/pkg/apis/meta/v1.StatusCause
+    - k8s.io/apimachinery/pkg/apis/meta/v1.DeleteOptions
+    - k8s.io/apimachinery/pkg/apis/meta/v1.Preconditions
+    - k8s.io/apimachinery/pkg/apis/meta/v1.APIResourceList
+    - k8s.io/apimachinery/pkg/apis/meta/v1.APIResource
+    - k8s.io/apimachinery/pkg/apis/meta/v1.ServerAddressByClientCIDR
+  version:
+    - k8s.io/apimachinery/pkg/version.Info
+  runtime:
+    - k8s.io/apimachinery/pkg/runtime.RawExtension
