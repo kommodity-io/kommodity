@@ -5,13 +5,16 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
+	"log"
 	"net"
 	"os"
+	"strconv"
 
 	"github.com/kommodity-io/kommodity/pkg/database"
 	"github.com/kommodity-io/kommodity/pkg/kine"
 	generatedopenapi "github.com/kommodity-io/kommodity/pkg/openapi"
 	"github.com/kommodity-io/kommodity/pkg/storage/namespaces"
+	"github.com/kommodity-io/kommodity/pkg/storage/secrets"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsinternal "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -26,6 +29,8 @@ import (
 	apiservercompatibility "k8s.io/apiserver/pkg/util/compatibility"
 	restclient "k8s.io/client-go/rest"
 )
+
+const defaultAPIServerPort = 8443
 
 // New creates a new Kubernetes API Server.
 func New() (*genericapiserver.GenericAPIServer, error) {
@@ -167,7 +172,7 @@ func setupConfig(openAPISpec *generatedopenapi.Spec, scheme *runtime.Scheme,
 func setupSecureServingWithSelfSigned() (*options.SecureServingOptions, error) {
 	secureServing := options.NewSecureServingOptions()
 	secureServing.BindAddress = net.ParseIP("0.0.0.0")
-	secureServing.BindPort = 8443
+	secureServing.BindPort = getAPIServerPort()
 
 	// Generate self-signed certs for "localhost"
 	alternateIPs := []net.IP{
@@ -222,9 +227,34 @@ func setupLegacyAPI(scheme *runtime.Scheme, kineStorageConfig storagebackend.Con
 		return nil, fmt.Errorf("unable to create REST storage service for core v1 namespaces: %w", err)
 	}
 
+	secretsStorage, err := secrets.NewSecretsREST(*kineStorageConfig, *scheme)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create REST storage service for core v1 secrets: %w", err)
+	}
+
 	coreAPIGroupInfo.VersionedResourcesStorageMap["v1"] = map[string]rest.Storage{
 		"namespaces": namespacesStorage,
+		"secrets":    secretsStorage,
 	}
 
 	return &coreAPIGroupInfo, nil
+}
+
+func getAPIServerPort() int {
+	apiServerPort := os.Getenv("KOMMODITY_API_SERVER_PORT")
+	if apiServerPort == "" {
+		log.Printf("KOMMODITY_API_SERVER_PORT is not set, defaulting to %d", defaultAPIServerPort)
+
+		return defaultAPIServerPort
+	}
+
+	apiServerPortInt, err := strconv.Atoi(apiServerPort)
+	if err != nil {
+		log.Printf("failed to convert KOMMODITY_API_SERVER_PORT to integer: %v, defaulting to %d", 
+			apiServerPort, defaultAPIServerPort)
+
+		return defaultAPIServerPort
+	}
+
+	return apiServerPortInt
 }
