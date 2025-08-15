@@ -145,6 +145,7 @@ func (secretStrategy) WarningsOnCreate(_ context.Context, obj runtime.Object) []
 	secret, ok := obj.(*corev1.Secret)
 	if !ok {
 		log.Printf("expected *corev1.Secret, got %T", obj)
+
 		return []string{fmt.Sprintf("unexpected object type: %T", obj)}
 	}
 
@@ -169,12 +170,12 @@ func warningsForSecret(secret *corev1.Secret) []string {
 func (secretStrategy) PrepareForUpdate(_ context.Context, obj, old runtime.Object) {
 	newSecret, success := obj.(*corev1.Secret)
 	if !success {
-		log.Fatalf("expected *corev1.Secret, got %T", obj)
+		log.Printf("expected *corev1.Secret, got %T", obj)
 	}
 
 	oldSecret, success := old.(*corev1.Secret)
 	if !success {
-		log.Fatalf("expected *corev1.Secret, got %T", obj)
+		log.Printf("expected *corev1.Secret, got %T", obj)
 	}
 
 	// this is weird, but consistent with what the validatedUpdate function used to do.
@@ -187,7 +188,7 @@ func (secretStrategy) PrepareForUpdate(_ context.Context, obj, old runtime.Objec
 func (secretStrategy) WarningsOnUpdate(_ context.Context, _, obj runtime.Object) []string {
 	secret, ok := obj.(*corev1.Secret)
 	if !ok {
-		log.Fatalf("expected *corev1.Secret, got %T", obj)
+		log.Printf("expected *corev1.Secret, got %T", obj)
 	}
 
 	return warningsForSecret(secret)
@@ -200,7 +201,7 @@ func (secretStrategy) PrepareForDelete(_ context.Context, _ runtime.Object) {}
 func (secretStrategy) Validate(_ context.Context, obj runtime.Object) field.ErrorList {
 	secretObject, ok := obj.(*corev1.Secret)
 	if !ok {
-		log.Fatalf("expected *corev1.Secret, got %T", obj)
+		log.Printf("expected *corev1.Secret, got %T", obj)
 	}
 
 	return validation.ValidateObjectMeta(
@@ -214,12 +215,12 @@ func (secretStrategy) Validate(_ context.Context, obj runtime.Object) field.Erro
 func (secretStrategy) ValidateUpdate(_ context.Context, obj, old runtime.Object) field.ErrorList {
 	secretObject, success := obj.(*corev1.Secret)
 	if !success {
-		log.Fatalf("expected *corev1.Secret, got %T", obj)
+		log.Printf("expected *corev1.Secret, got %T", obj)
 	}
 
 	oldSecretObject, success := old.(*corev1.Secret)
 	if !success {
-		log.Fatalf("expected *corev1.Secret, got %T", obj)
+		log.Printf("expected *corev1.Secret, got %T", obj)
 	}
 
 	return validation.ValidateObjectMetaUpdate(
@@ -239,7 +240,7 @@ func (secretStrategy) AllowCreateOnUpdate() bool {
 
 // AllowUnconditionalUpdate determines if update can ignore resource version.
 func (secretStrategy) AllowUnconditionalUpdate() bool {
-	return false // Should be true ??
+	return false
 }
 
 // GenerateName generates a name using the given base string.
