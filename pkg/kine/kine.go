@@ -11,7 +11,7 @@ import (
 )
 
 // NewKineLegacyStorageConfig creates the storage configurations to connect to Kine using the codecs for legacy API.
-func NewKineLegacyStorageConfig(codecs serializer.CodecFactory) (*storagebackend.Config, error) {
+func NewKineLegacyStorageConfig(codecs *serializer.CodecFactory) (*storagebackend.Config, error) {
 	return NewKineStorageConfig(codecs.LegacyCodec(corev1.SchemeGroupVersion))
 }
 

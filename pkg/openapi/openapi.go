@@ -3,6 +3,7 @@
 // - meta/v1,
 // - apimachinery/pkg/runtime
 // - apimachinery/pkg/version
+// - apiextensions-apiserver/apiextensions/v1
 // to generate OpenAPI specs for those.
 package openapi
 
@@ -10,10 +11,12 @@ package openapi
 //go:generate go run k8s.io/kube-openapi/cmd/openapi-gen --output-dir=./meta --output-pkg=github.com/kommodity-io/kommodity/pkg/openapi/meta --output-file=zz_generated.openapi.go --logtostderr k8s.io/apimachinery/pkg/apis/meta/v1
 //go:generate go run k8s.io/kube-openapi/cmd/openapi-gen --output-dir=./runtime --output-pkg=github.com/kommodity-io/kommodity/pkg/openapi/runtime --output-file=zz_generated.openapi.go --logtostderr k8s.io/apimachinery/pkg/runtime
 //go:generate go run k8s.io/kube-openapi/cmd/openapi-gen --output-dir=./version --output-pkg=github.com/kommodity-io/kommodity/pkg/openapi/version --output-file=zz_generated.openapi.go --logtostderr k8s.io/apimachinery/pkg/version
+//go:generate go run k8s.io/kube-openapi/cmd/openapi-gen --output-dir=./apiextensions --output-pkg=github.com/kommodity-io/kommodity/pkg/openapi/apiextensions --output-file=zz_generated.openapi.go --logtostderr k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1
 
 import (
 	"fmt"
 
+	"github.com/kommodity-io/kommodity/pkg/openapi/apiextensions"
 	"github.com/kommodity-io/kommodity/pkg/openapi/core"
 	"github.com/kommodity-io/kommodity/pkg/openapi/meta"
 	"github.com/kommodity-io/kommodity/pkg/openapi/runtime"
@@ -52,10 +55,11 @@ func NewOpenAPISpec() (*Spec, error) {
 // GetOpenAPIDefinitions retrieves the OpenAPI definitions defined in types.yaml.
 func (o *Spec) GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenAPIDefinition {
 	kubernetesOpenAPIDefinitions := map[string]map[string]common.OpenAPIDefinition{
-		"core":    core.GetOpenAPIDefinitions(ref),
-		"meta":    meta.GetOpenAPIDefinitions(ref),
-		"version": version.GetOpenAPIDefinitions(ref),
-		"runtime": runtime.GetOpenAPIDefinitions(ref),
+		"core":          core.GetOpenAPIDefinitions(ref),
+		"meta":          meta.GetOpenAPIDefinitions(ref),
+		"version":       version.GetOpenAPIDefinitions(ref),
+		"runtime":       runtime.GetOpenAPIDefinitions(ref),
+		"apiextensions": apiextensions.GetOpenAPIDefinitions(ref),
 	}
 
 	openAPIDefinition := make(map[string]common.OpenAPIDefinition)
