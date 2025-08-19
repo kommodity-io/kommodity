@@ -8,3 +8,4 @@ linters:
     - wsl
     # We may enable this in the future.
     - exhaustruct
+    - gomoddirectives
