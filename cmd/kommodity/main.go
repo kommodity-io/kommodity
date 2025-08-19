@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	"github.com/kommodity-io/kommodity/pkg/apiserver"
+	"github.com/kommodity-io/kommodity/pkg/controller"
 	"github.com/kommodity-io/kommodity/pkg/logging"
 	"go.uber.org/zap"
 	genericapiserver "k8s.io/apiserver/pkg/server"
@@ -15,14 +16,7 @@ import (
 	_ "github.com/joho/godotenv/autoload"
 )
 
-var (
-	version = "dev"
-	//nolint:gochecknoglobals // commit is set by the build system to the git commit hash.
-	commit = "unknown"
-	//nolint:gochecknoglobals // buildDate is set by the build system to the build date.
-	buildDate = "unknown"
-)
-
+//nolint:funlen
 func main() {
 	logger := logging.NewLogger()
 	ctx := logging.WithLogger(genericapiserver.SetupSignalContext(), logger)
@@ -42,12 +36,6 @@ func main() {
 	// Configure the zap OTEL logger.
 	zap.ReplaceGlobals(logger)
 
-	logger.Info("Starting kommodity server",
-		zap.String("version", version),
-		zap.String("commit", commit),
-		zap.String("buildDate", buildDate),
-	)
-
 	go func() {
 		srv, err := apiserver.New()
 		if err != nil {
@@ -66,25 +54,31 @@ func main() {
 			logger.Error("Failed to run generic server", zap.Error(err))
 		}
 
-		// // Set the server version.
-		// srv.SetVersion(&kubeversion.Info{
-		// 	GitVersion: version,
-		// 	GitCommit:  commit,
-		// 	BuildDate:  buildDate,
-		// })
+		logger.Info("API Server started successfully")
+	}()
 
-		// finalizers = append(finalizers, srv.Shutdown)
+	go func() {
+		ctlMgr, err := controller.NewAggregatedControllerManager(ctx)
+		if err != nil {
+			logger.Error("Failed to create controller manager", zap.Error(err))
 
-		// err = srv.ListenAndServe(ctx)
-		// if err != nil {
-		// 	// This is expected as part of the shutdown process.
-		// 	// Reference: https://github.com/soheilhy/cmux/issues/39
-		// 	if errors.Is(err, cmux.ErrListenerClosed) {
-		// 		return
-		// 	}
+			// Ensure that the server is shut down gracefully when an error occurs.
+			signals <- syscall.SIGTERM
 
-		// 	logger.Error("Failed to run cmux server", zap.Error(err))
-		// }
+			return
+		}
+
+		err = ctlMgr.Start(ctx)
+		if err != nil {
+			logger.Error("Failed to start controller manager", zap.Error(err))
+
+			// Ensure that the server is shut down gracefully when an error occurs.
+			signals <- syscall.SIGTERM
+
+			return
+		}
+
+		logger.Info("Controller manager started successfully")
 	}()
 
 	sig := <-signals

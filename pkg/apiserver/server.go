@@ -26,8 +26,8 @@ import (
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	"k8s.io/apiserver/pkg/server/options"
 	"k8s.io/apiserver/pkg/storage/storagebackend"
-	apiservercompatibility "k8s.io/apiserver/pkg/util/compatibility"
 	restclient "k8s.io/client-go/rest"
+	componentbaseversion "k8s.io/component-base/version"
 )
 
 const defaultAPIServerPort = 8443
@@ -139,7 +139,7 @@ func setupConfig(openAPISpec *generatedopenapi.Spec, scheme *runtime.Scheme,
 	codecs *serializer.CodecFactory) (*genericapiserver.RecommendedConfig, error) {
 	genericServerConfig := genericapiserver.NewRecommendedConfig(*codecs)
 
-	genericServerConfig.EffectiveVersion = apiservercompatibility.DefaultBuildEffectiveVersion()
+	genericServerConfig.EffectiveVersion = componentbaseversion.DefaultBuildEffectiveVersion()
 
 	genericServerConfig.OpenAPIV3Config = genericapiserver.DefaultOpenAPIV3Config(
 		openAPISpec.GetOpenAPIDefinitions,
