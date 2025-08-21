@@ -12,12 +12,15 @@ package openapi
 //go:generate go run k8s.io/kube-openapi/cmd/openapi-gen --output-dir=./runtime --output-pkg=github.com/kommodity-io/kommodity/pkg/openapi/runtime --output-file=zz_generated.openapi.go --logtostderr k8s.io/apimachinery/pkg/runtime
 //go:generate go run k8s.io/kube-openapi/cmd/openapi-gen --output-dir=./version --output-pkg=github.com/kommodity-io/kommodity/pkg/openapi/version --output-file=zz_generated.openapi.go --logtostderr k8s.io/apimachinery/pkg/version
 //go:generate go run k8s.io/kube-openapi/cmd/openapi-gen --output-dir=./apiextensions --output-pkg=github.com/kommodity-io/kommodity/pkg/openapi/apiextensions --output-file=zz_generated.openapi.go --logtostderr k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1
+//go:generate go run k8s.io/kube-openapi/cmd/openapi-gen --output-dir=./apiregistration --output-pkg=github.com/kommodity-io/kommodity/pkg/openapi/apiregistration --output-file=zz_generated.openapi.go --logtostderr k8s.io/kube-aggregator/pkg/apis/apiregistration/v1
+//go:generate go run k8s.io/kube-openapi/cmd/openapi-gen --output-dir=./intstr --output-pkg=github.com/kommodity-io/kommodity/pkg/openapi/intstr --output-file=zz_generated.openapi.go --logtostderr k8s.io/apimachinery/pkg/util/intstr
 
 import (
 	"fmt"
 
 	"github.com/kommodity-io/kommodity/pkg/openapi/apiextensions"
 	"github.com/kommodity-io/kommodity/pkg/openapi/core"
+	"github.com/kommodity-io/kommodity/pkg/openapi/intstr"
 	"github.com/kommodity-io/kommodity/pkg/openapi/meta"
 	"github.com/kommodity-io/kommodity/pkg/openapi/runtime"
 	"github.com/kommodity-io/kommodity/pkg/openapi/version"
@@ -60,6 +63,7 @@ func (o *Spec) GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]co
 		"version":       version.GetOpenAPIDefinitions(ref),
 		"runtime":       runtime.GetOpenAPIDefinitions(ref),
 		"apiextensions": apiextensions.GetOpenAPIDefinitions(ref),
+		"intstr":        intstr.GetOpenAPIDefinitions(ref),
 	}
 
 	openAPIDefinition := make(map[string]common.OpenAPIDefinition)

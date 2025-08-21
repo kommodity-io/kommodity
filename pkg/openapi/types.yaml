@@ -7,6 +7,25 @@ types:
     - k8s.io/api/core/v1.NamespaceCondition
     - k8s.io/api/core/v1.Secret
     - k8s.io/api/core/v1.SecretList
+    - k8s.io/api/core/v1.Service
+    - k8s.io/api/core/v1.ServiceList
+    - k8s.io/api/core/v1.ServiceSpec
+    - k8s.io/api/core/v1.ServiceStatus
+    - k8s.io/api/core/v1.ServicePort
+    - k8s.io/api/core/v1.SessionAffinityConfig
+    - k8s.io/api/core/v1.ClientIPConfig
+    - k8s.io/api/core/v1.LoadBalancerStatus
+    - k8s.io/api/core/v1.LoadBalancerIngress
+    - k8s.io/api/core/v1.PortStatus
+    - k8s.io/api/core/v1.Endpoints
+    - k8s.io/api/core/v1.EndpointsList
+    - k8s.io/api/core/v1.EndpointSubset
+    - k8s.io/api/core/v1.EndpointAddress
+    - k8s.io/api/core/v1.EndpointPort
+    - k8s.io/api/core/v1.EndpointHints
+    - k8s.io/api/core/v1.EndpointHintsForAddress
+    - k8s.io/api/core/v1.EndpointHintsForPort
+    - k8s.io/api/core/v1.ObjectReference
   meta:
     - k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta
     - k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta
@@ -28,6 +47,7 @@ types:
     - k8s.io/apimachinery/pkg/apis/meta/v1.APIResourceList
     - k8s.io/apimachinery/pkg/apis/meta/v1.APIResource
     - k8s.io/apimachinery/pkg/apis/meta/v1.ServerAddressByClientCIDR
+    - k8s.io/apimachinery/pkg/apis/meta/v1.Condition
   version:
     - k8s.io/apimachinery/pkg/version.Info
   runtime:
@@ -58,3 +78,8 @@ types:
     - k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1.WebhookConversion
     - k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1.WebhookClientConfig
     - k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1.ServiceReference
+  apiregistration:
+    - k8s.io/kube-aggregator/pkg/apis/apiregistration/v1.APIService
+    - k8s.io/kube-aggregator/pkg/apis/apiregistration/v1.APIServiceList
+  intstr:
+    - k8s.io/apimachinery/pkg/util/intstr.IntOrString
