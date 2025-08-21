@@ -138,6 +138,7 @@ func (serviceStrategy) PrepareForCreate(_ context.Context, obj runtime.Object) {
 	if !success {
 		log.Printf("expected *corev1.Service, got %T", obj)
 	}
+
 	service.Status = corev1.ServiceStatus{}
 }
 
