@@ -63,6 +63,9 @@ bin/kommodity: $(SOURCES) ## Build the application.
 ifneq ($(UPX_FLAGS),)
 	upx $(UPX_FLAGS) bin/kommodity
 endif
+# upx broken on mac: https://github.com/upx/upx/issues/777
+# UPX x86_64 and arm64 should work on macOS 12 and earlier, but the packed binaries won't run on macOS 13+.
+# That's why we added --force-macos so that you can override if you know what you are doing.
 
 .PHONY: clean
 clean: ## Clean the build artifacts.
@@ -84,3 +87,34 @@ generate: .env ## Run code generation.
 teardown: ## Tear down the local development environment.
 	docker compose down --remove-orphans
 	rm -f .env
+
+## kind
+create-kind-cluster:
+	kind create cluster --config=kind/config.yaml
+
+delete-kind-cluster:
+	kind delete cluster --name kommodity-cluster
+
+clusterctl-init: ## Initialize clusterctl with Talos and Azure.
+	clusterctl init --bootstrap talos --control-plane talos --infrastructure
+
+## Cluster API
+setup-capi-providers: install-cert-manager install-core-capi install-talos-bootstrap-provider install-talos-control-plane-provider install-azure-infrastructure-provider
+
+install-core-capi:
+	kubectl apply -f https://github.com/kubernetes-sigs/cluster-api/releases/latest/download/cluster-api-components.yaml
+
+install-talos-bootstrap-provider:
+	kubectl apply -f https://github.com/siderolabs/cluster-api-bootstrap-provider-talos/releases/latest/download/bootstrap-components.yaml
+
+install-talos-control-plane-provider:
+	kubectl apply -f https://github.com/siderolabs/cluster-api-control-plane-provider-talos/releases/latest/download/control-plane-components.yaml
+
+install-azure-infrastructure-provider:
+	kubectl apply -f https://github.com/kubernetes-sigs/cluster-api-provider-azure/releases/latest/download/infrastructure-components.yaml
+
+# Cert-manager
+install-cert-manager:
+	helm repo add jetstack https://charts.jetstack.io --force-update
+	helm repo update
+	helm install cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace --set installCRDs=true
