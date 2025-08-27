@@ -1,5 +1,5 @@
-// Package apiserver provides error definitions for apiserver operations.
-package apiserver
+// Package server provides error definitions for server operations.
+package server
 
 import "errors"
 
