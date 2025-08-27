@@ -1,4 +1,4 @@
-package apiserver
+package server
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -54,8 +54,9 @@ func defaultGenericAPIServicePriorities() map[schema.GroupVersion]apiServicePrio
 	}
 }
 
-func makeAPIService(gv schema.GroupVersion, priorities map[schema.GroupVersion]apiServicePriority) *v1.APIService {
-	apiServicePriority, ok := priorities[gv]
+func makeAPIService(groupVersion schema.GroupVersion,
+	priorities map[schema.GroupVersion]apiServicePriority) *v1.APIService {
+	apiServicePriority, ok := priorities[groupVersion]
 	if !ok {
 		// if we aren't found, then we shouldn't register ourselves because it could result in a CRD group version
 		// being permanently stuck in the APIServices list.
@@ -63,10 +64,10 @@ func makeAPIService(gv schema.GroupVersion, priorities map[schema.GroupVersion]a
 	}
 
 	return &v1.APIService{
-		ObjectMeta: metav1.ObjectMeta{Name: gv.Version + "." + gv.Group},
+		ObjectMeta: metav1.ObjectMeta{Name: groupVersion.Version + "." + groupVersion.Group},
 		Spec: v1.APIServiceSpec{
-			Group:                gv.Group,
-			Version:              gv.Version,
+			Group:                groupVersion.Group,
+			Version:              groupVersion.Version,
 			GroupPriorityMinimum: apiServicePriority.Group,
 			VersionPriority:      apiServicePriority.Version,
 		},

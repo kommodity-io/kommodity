@@ -7,8 +7,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/kommodity-io/kommodity/pkg/apiserver"
 	"github.com/kommodity-io/kommodity/pkg/logging"
+	"github.com/kommodity-io/kommodity/pkg/server"
 	"go.uber.org/zap"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 
@@ -49,7 +49,7 @@ func main() {
 	)
 
 	go func() {
-		srv, err := apiserver.New()
+		srv, err := server.New(ctx)
 		if err != nil {
 			logger.Error("Failed to create server", zap.Error(err))
 
