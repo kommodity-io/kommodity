@@ -13,11 +13,8 @@ type apiServicePriority struct {
 	Version int32
 }
 
+//nolint:mnd // Copied from k8s.io/kube-aggregator/pkg/apiserver/priority.go
 func defaultGenericAPIServicePriorities() map[schema.GroupVersion]apiServicePriority {
-	// The proper way to resolve this letting the aggregator know the desired group and version-within-group order of the underlying servers
-	// is to refactor the genericapiserver.DelegationTarget to include a list of priorities based on which APIs were installed.
-	// This requires the APIGroupInfo struct to evolve and include the concept of priorities and to avoid mistakes, the core storage map there needs to be updated.
-	// That ripples out every bit as far as you'd expect, so for 1.7 we'll include the list here instead of being built up during storage.
 	return map[schema.GroupVersion]apiServicePriority{
 		{Group: "", Version: "v1"}: {Group: 18000, Version: 1},
 		// to my knowledge, nothing below here collides

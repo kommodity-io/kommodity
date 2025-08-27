@@ -10,6 +10,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
+	discoveryendpoint "k8s.io/apiserver/pkg/endpoints/discovery/aggregated"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	clientgoinformers "k8s.io/client-go/informers"
 	clientgoclientset "k8s.io/client-go/kubernetes"
@@ -51,46 +52,16 @@ func newAPIAggregatorServer(genericServerConfig *genericapiserver.RecommendedCon
 	apiServiceInformer := aggregatorServer.APIRegistrationInformers.Apiregistration().V1().APIServices()
 	autoRegistrationController := autoregister.NewAutoRegisterController(apiServiceInformer, apiRegistrationClient)
 
-	apiVersionPriorities := defaultGenericAPIServicePriorities()
-
-	for _, curr := range delegationTarget.ListedPaths() {
-		if curr == "/api/v1" {
-			apiService := makeAPIService(schema.GroupVersion{Group: "", Version: "v1"}, apiVersionPriorities)
-			if apiService == nil {
-				continue
-			}
-
-			autoRegistrationController.AddAPIServiceToSyncOnStart(apiService)
-
-			continue
-		}
-
-		if !strings.HasPrefix(curr, "/apis/") {
-			continue
-		}
-		// this comes back in a list that looks like /apis/rbac.authorization.k8s.io/v1alpha1
-		tokens := strings.Split(curr, "/")
-		if len(tokens) != 4 {
-			continue
-		}
-
-		apiService := makeAPIService(schema.GroupVersion{Group: tokens[2], Version: tokens[3]}, apiVersionPriorities)
-		if apiService == nil {
-			continue
-		}
-
+	apiServices := registerAPIServicesAndVersions(delegationTarget, config.GenericConfig.AggregatedDiscoveryGroupManager)
+	for _, apiService := range apiServices {
 		autoRegistrationController.AddAPIServiceToSyncOnStart(apiService)
-	}
-
-	for gv, entry := range apiVersionPriorities {
-		config.GenericConfig.AggregatedDiscoveryGroupManager.SetGroupVersionPriority(metav1.GroupVersion(gv),
-			int(entry.Group), int(entry.Version))
 	}
 
 	crdRegistrationController := crdregistration.NewCRDRegistrationController(
 		crds,
 		autoRegistrationController)
 
+	//nolint:mnd // Copied from upstream k8s.io/kubernetes/pkg/controlplane/apiserver/aggregator.go
 	err = aggregatorServer.GenericAPIServer.AddPostStartHook("kube-apiserver-autoregistration",
 		func(context genericapiserver.PostStartHookContext) error {
 			go crdRegistrationController.Run(5, context.Done())
@@ -104,6 +75,50 @@ func newAPIAggregatorServer(genericServerConfig *genericapiserver.RecommendedCon
 	}
 
 	return aggregatorServer, nil
+}
+
+func registerAPIServicesAndVersions(delegationTarget genericapiserver.DelegationTarget,
+	discoveryManager discoveryendpoint.ResourceManager) []*apiregistrationv1.APIService {
+	apiVersionPriorities := defaultGenericAPIServicePriorities()
+
+	apiServices := make([]*apiregistrationv1.APIService, 0)
+
+	for _, curr := range delegationTarget.ListedPaths() {
+		if curr == "/api/v1" {
+			apiService := makeAPIService(schema.GroupVersion{Group: "", Version: "v1"}, apiVersionPriorities)
+			if apiService == nil {
+				continue
+			}
+
+			apiServices = append(apiServices, apiService)
+
+			continue
+		}
+
+		if !strings.HasPrefix(curr, "/apis/") {
+			continue
+		}
+		// this comes back in a list that looks like /apis/rbac.authorization.k8s.io/v1alpha1
+		tokens := strings.Split(curr, "/")
+		//nolint:mnd // Copied from upstream k8s.io/kubernetes/pkg/controlplane/apiserver/aggregator.go
+		if len(tokens) != 4 {
+			continue
+		}
+
+		apiService := makeAPIService(schema.GroupVersion{Group: tokens[2], Version: tokens[3]}, apiVersionPriorities)
+		if apiService == nil {
+			continue
+		}
+
+		apiServices = append(apiServices, apiService)
+	}
+
+	for gv, entry := range apiVersionPriorities {
+		discoveryManager.SetGroupVersionPriority(metav1.GroupVersion(gv),
+			int(entry.Group), int(entry.Version))
+	}
+
+	return apiServices
 }
 
 func setupAPIAggregatorConfig(genericServerConfig *genericapiserver.RecommendedConfig,
@@ -122,7 +137,7 @@ func setupAPIAggregatorConfig(genericServerConfig *genericapiserver.RecommendedC
 	aggregatorConfig.GenericConfig.BuildHandlerChainFunc = genericapiserver.BuildHandlerChainWithStorageVersionPrecondition
 	aggregatorConfig.GenericConfig.RESTOptionsGetter = kine.NewKineRESTOptionsGetter(*kineStorageConfig)
 	aggregatorConfig.GenericConfig.SharedInformerFactory = clientgoinformers.NewSharedInformerFactory(
-		clientgoclientset.NewForConfigOrDie(genericServerConfig.LoopbackClientConfig), 10*time.Minute)
+		clientgoclientset.NewForConfigOrDie(genericServerConfig.LoopbackClientConfig), defaultResyncPeriod*time.Minute)
 
 	return &aggregatorConfig, nil
 }

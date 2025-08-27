@@ -29,11 +29,14 @@ import (
 	apiextensionsapiserver "k8s.io/apiextensions-apiserver/pkg/apiserver"
 )
 
-const defaultAPIServerPort = 8443
+const (
+	defaultAPIServerPort = 8443
+	defaultResyncPeriod  = 10 // in minutes
+)
 
 // New creates a new Kubernetes API Server.
 //
-//nolint:cyclop, funlen // Too long due to many error checks and setup steps, no real complexity here
+//nolint:cyclop // Too long or too complex due to many error checks and setup steps, no real complexity here
 func New(ctx context.Context) (*aggregatorapiserver.APIAggregator, error) {
 	_, err := database.SetupDB()
 	if err != nil {

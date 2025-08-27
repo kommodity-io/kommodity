@@ -23,6 +23,7 @@ var (
 	buildDate = "unknown"
 )
 
+//nolint:funlen
 func main() {
 	logger := logging.NewLogger()
 	ctx := logging.WithLogger(genericapiserver.SetupSignalContext(), logger)

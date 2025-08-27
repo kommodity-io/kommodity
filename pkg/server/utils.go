@@ -74,6 +74,7 @@ func setupSecureServingWithSelfSigned(ctx context.Context) (*options.SecureServi
 
 func getAPIServerPort(ctx context.Context) int {
 	logger := logging.FromContext(ctx)
+
 	apiServerPort := os.Getenv("KOMMODITY_API_SERVER_PORT")
 	if apiServerPort == "" {
 		logger.Info(fmt.Sprintf("KOMMODITY_API_SERVER_PORT is not set, defaulting to %d", defaultAPIServerPort))

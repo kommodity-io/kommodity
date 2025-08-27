@@ -53,7 +53,7 @@ func setupAPIExtensionConfig(genericServerConfig *genericapiserver.RecommendedCo
 	crdRecommended.MergedResourceConfig = genericServerConfig.MergedResourceConfig
 	crdRecommended.BuildHandlerChainFunc = genericapiserver.BuildHandlerChainWithStorageVersionPrecondition
 	crdRecommended.SharedInformerFactory = clientgoinformers.NewSharedInformerFactory(
-		clientgoclientset.NewForConfigOrDie(genericServerConfig.LoopbackClientConfig), 10*time.Minute)
+		clientgoclientset.NewForConfigOrDie(genericServerConfig.LoopbackClientConfig), defaultResyncPeriod*time.Minute)
 
 	return &apiextensionsapiserver.Config{
 		GenericConfig: crdRecommended,
