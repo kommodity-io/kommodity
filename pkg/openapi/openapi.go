@@ -25,7 +25,7 @@ import (
 	"github.com/kommodity-io/kommodity/pkg/openapi/runtime"
 	"github.com/kommodity-io/kommodity/pkg/openapi/version"
 
-	yaml "gopkg.in/yaml.v3"
+	yaml "go.yaml.in/yaml/v3"
 
 	_ "embed"
 

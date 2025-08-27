@@ -35,7 +35,7 @@ LINTER := bin/golangci-lint
 .PHONY: golangci-lint
 golangci-lint: $(LINTER) ## Download golangci-lint locally if necessary.
 $(LINTER):
-	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b bin/ v2.3.1
+	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b bin/ v2.4.0
 
 ##@ Development
 
