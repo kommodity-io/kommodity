@@ -8,4 +8,5 @@ linters:
     - wsl
     # We may enable this in the future.
     - exhaustruct
+    # Acting up with replace directives in go.mod
     - gomoddirectives
