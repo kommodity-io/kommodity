@@ -7,6 +7,8 @@ import (
 	"github.com/kommodity-io/kommodity/pkg/kine"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextensionsapiserver "k8s.io/apiextensions-apiserver/pkg/apiserver"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	"k8s.io/apiserver/pkg/util/webhook"
@@ -32,7 +34,12 @@ func newAPIExtensionServer(genericServerConfig *genericapiserver.RecommendedConf
 func setupAPIExtensionConfig(genericServerConfig *genericapiserver.RecommendedConfig,
 	codecs serializer.CodecFactory) (*apiextensionsapiserver.Config, error) {
 	kineStorageConfig, err := kine.NewKineStorageConfig(
-		codecs.LegacyCodec(apiextensionsv1.SchemeGroupVersion))
+		codecs.CodecForVersions(
+			codecs.LegacyCodec(apiextensionsv1.SchemeGroupVersion),
+			codecs.UniversalDeserializer(),
+			schema.GroupVersions{apiextensionsv1.SchemeGroupVersion},
+			runtime.InternalGroupVersioner,
+		))
 	if err != nil {
 		return nil, fmt.Errorf("unable to create Kine legacy storage config: %w", err)
 	}
