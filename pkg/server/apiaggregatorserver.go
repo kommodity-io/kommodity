@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/kommodity-io/kommodity/pkg/kine"
+	"github.com/kommodity-io/kommodity/pkg/provider"
 	apiextensionsinformers "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -13,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	discoveryendpoint "k8s.io/apiserver/pkg/endpoints/discovery/aggregated"
 	genericapiserver "k8s.io/apiserver/pkg/server"
+	restclientdynamic "k8s.io/client-go/dynamic"
 	clientgoinformers "k8s.io/client-go/informers"
 	clientgoclientset "k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
@@ -72,6 +74,24 @@ func newAPIAggregatorServer(genericServerConfig *genericapiserver.RecommendedCon
 		})
 	if err != nil {
 		return nil, fmt.Errorf("failed to add post start hook for auto-registration: %w", err)
+	}
+
+	err = aggregatorServer.GenericAPIServer.AddPostStartHook("apply-crds",
+		func(_ genericapiserver.PostStartHookContext) error {
+			dynamicClient, err := restclientdynamic.NewForConfig(genericServerConfig.LoopbackClientConfig)
+			if err != nil {
+				return fmt.Errorf("failed to create dynamic rest client: %w", err)
+			}
+
+			err = provider.ApplyAllProviders(dynamicClient)
+			if err != nil {
+				return fmt.Errorf("failed to apply all provider CRDs: %w", err)
+			}
+
+			return nil
+		})
+	if err != nil {
+		return nil, fmt.Errorf("failed to add post start hook for applying CRDs: %w", err)
 	}
 
 	return aggregatorServer, nil

@@ -56,6 +56,10 @@ run: ## Run the application locally.
 	LOG_LEVEL=info \
 	go run $(GO_FLAGS) cmd/kommodity/main.go
 
+.PHONY: fetch-providers
+fetch-providers: 
+	./scripts/fetch-providers.sh
+
 build: bin/kommodity ## Build the application.
 
 bin/kommodity: $(SOURCES) ## Build the application.
@@ -78,7 +82,7 @@ lint: $(LINTER) ## Run the linter.
 lint-fix: $(LINTER) ## Run the linter and fix issues.
 	$(LINTER) run --fix
 
-generate: .env ## Run code generation.
+generate: .env fetch-providers ## Run code generation.
 	go generate ./...
 
 teardown: ## Tear down the local development environment.
