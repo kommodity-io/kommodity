@@ -8,6 +8,7 @@ import (
 	"github.com/kommodity-io/kommodity/pkg/kine"
 	apiextensionsinformers "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	discoveryendpoint "k8s.io/apiserver/pkg/endpoints/discovery/aggregated"
@@ -15,7 +16,6 @@ import (
 	clientgoinformers "k8s.io/client-go/informers"
 	clientgoclientset "k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
-	apiregistration "k8s.io/kube-aggregator/pkg/apis/apiregistration"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	aggregatorapiserver "k8s.io/kube-aggregator/pkg/apiserver"
 	apiregistrationclient "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/typed/apiregistration/v1"
@@ -124,7 +124,12 @@ func registerAPIServicesAndVersions(delegationTarget genericapiserver.Delegation
 func setupAPIAggregatorConfig(genericServerConfig *genericapiserver.RecommendedConfig,
 	codecs serializer.CodecFactory) (*aggregatorapiserver.Config, error) {
 	kineStorageConfig, err := kine.NewKineStorageConfig(
-		codecs.LegacyCodec(apiregistrationv1.SchemeGroupVersion, apiregistration.SchemeGroupVersion))
+		codecs.CodecForVersions(
+			codecs.LegacyCodec(apiregistrationv1.SchemeGroupVersion),
+			codecs.UniversalDeserializer(),
+			schema.GroupVersions{apiregistrationv1.SchemeGroupVersion},
+			runtime.InternalGroupVersioner,
+		))
 	if err != nil {
 		return nil, fmt.Errorf("unable to create Kine legacy storage config: %w", err)
 	}
