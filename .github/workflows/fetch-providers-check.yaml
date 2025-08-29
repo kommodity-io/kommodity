@@ -6,13 +6,14 @@ on:
       - "scripts/fetch-providers.sh"
       - "Makefile"
       - "pkg/provider/providers.yaml"
+      - "pkg/provider/crds.yaml"
       - ".github/workflows/fetch-providers-check.yaml"
-      - "**/fetch-providers*"
       - "go.mod"
       - "go.sum"
 
 jobs:
-  fetch-providers-diff:
+  check-capi-provider-consistency:
+    name: Check CAPI Provider Consistency
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -31,14 +32,14 @@ jobs:
       - name: Check for changes in providers.yaml
         id: diff
         run: |
-          if ! git diff --exit-code origin/${{ github.base_ref }} -- pkg/provider/providers.yaml; then
-            echo "diff_found=true" >> $GITHUB_OUTPUT
-          else
+          if git diff --exit-code origin/${{ github.base_ref }} -- pkg/provider/crds.yaml; then
             echo "diff_found=false" >> $GITHUB_OUTPUT
+          else
+            echo "diff_found=true" >> $GITHUB_OUTPUT
           fi
 
       - name: Fail if providers.yaml changed
         if: ${{ steps.diff.outputs.diff_found == 'true' }}
         run: |
-          echo "Error: pkg/provider/providers.yaml has changed after running 'make fetch-providers'. Please commit the updated file."
+          echo "Error: pkg/provider/crds.yaml has changed after running 'make fetch-providers'. Please commit the updated file."
           exit 1
