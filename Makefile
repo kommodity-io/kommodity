@@ -86,5 +86,5 @@ generate: .env fetch-providers ## Run code generation.
 	go generate ./...
 
 teardown: ## Tear down the local development environment.
-	docker compose down --remove-orphans
+	docker compose down --remove-orphans -v
 	rm -f .env
