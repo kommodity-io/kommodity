@@ -7,11 +7,13 @@ import (
 	"strings"
 
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	apiextensionsapiserver "k8s.io/apiextensions-apiserver/pkg/apiserver"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/serializer/yaml"
 	"k8s.io/client-go/dynamic"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 
 	_ "embed"
 )
@@ -63,6 +65,16 @@ func ApplyAllProviders(client *dynamic.DynamicClient) error {
 		}
 
 		return fmt.Errorf("failed to create CRD: %w", err)
+	}
+
+	err := addAllProvidersToScheme(clientgoscheme.Scheme)
+	if err != nil {
+		return fmt.Errorf("failed to add providers to scheme: %w", err)
+	}
+
+	err = addAllProvidersToScheme(apiextensionsapiserver.Scheme)
+	if err != nil {
+		return fmt.Errorf("failed to add apiextensions to scheme: %w", err)
 	}
 
 	return nil

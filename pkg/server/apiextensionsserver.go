@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/kommodity-io/kommodity/pkg/kine"
+	"github.com/kommodity-io/kommodity/pkg/provider"
 	apiextensionsapiserver "k8s.io/apiextensions-apiserver/pkg/apiserver"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -32,13 +33,15 @@ func newAPIExtensionServer(genericServerConfig *genericapiserver.RecommendedConf
 
 func setupAPIExtensionConfig(genericServerConfig *genericapiserver.RecommendedConfig,
 	codecs serializer.CodecFactory) (*apiextensionsapiserver.Config, error) {
-	var encodeVersioner runtime.GroupVersioner = schema.GroupVersions(getSupportedGroupKindVersions())
+	var schemeGroupVersions = append(
+		provider.GetProviderGroupKindVersions(),
+		getSupportedGroupKindVersions()...)
 
 	kineStorageConfig, err := kine.NewKineStorageConfig(
 		codecs.CodecForVersions(
-			codecs.LegacyCodec(getSupportedGroupKindVersions()...),
+			codecs.LegacyCodec(schemeGroupVersions...),
 			codecs.UniversalDeserializer(),
-			encodeVersioner,
+			schema.GroupVersions(schemeGroupVersions),
 			runtime.InternalGroupVersioner,
 		))
 	if err != nil {
