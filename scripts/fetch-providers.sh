@@ -36,4 +36,8 @@ for i in $(seq 0 $((count - 1))); do
 done
 
 # Remove trailing --- if present
-sed -i '' -e '${/^---$/d;}' pkg/provider/crds.yaml
+if [[ "$OSTYPE" == "darwin"* ]]; then
+  sed -i '' -e '${/^---$/d;}' pkg/provider/crds.yaml
+else
+  sed -i -e '${/^---$/d;}' pkg/provider/crds.yaml
+fi
