@@ -39,21 +39,30 @@ func ApplyAllProviders(client *dynamic.DynamicClient) error {
 			return fmt.Errorf("failed to decode YAML: %w", err)
 		}
 
-		name := obj.GetName()
-		if name == "" {
-			return ErrMissingCRDName
+		_, err = client.Resource(crdGVR).Create(context.Background(), obj, metav1.CreateOptions{})
+		if err == nil {
+			continue
 		}
 
-		_, err = client.Resource(crdGVR).Apply(context.Background(), name, obj, metav1.ApplyOptions{
-			FieldManager: "kommodity-provider",
-		})
-		if err != nil {
-			if errors.IsAlreadyExists(err) {
-				continue // Ignore already exists error
+		if errors.IsAlreadyExists(err) {
+			// Fetch the existing CRD to get its resourceVersion
+			existing, getErr := client.Resource(crdGVR).Get(context.Background(), obj.GetName(), metav1.GetOptions{})
+			if getErr != nil {
+				return fmt.Errorf("failed to get existing CRD: %w", getErr)
 			}
 
-			return fmt.Errorf("failed to create CRD: %w", err)
+			// Set the resourceVersion to ensure we update the correct version
+			obj.SetResourceVersion(existing.GetResourceVersion())
+
+			_, err = client.Resource(crdGVR).Update(context.Background(), obj, metav1.UpdateOptions{})
+			if err != nil {
+				return fmt.Errorf("failed to update CRD: %w", err)
+			}
+
+			continue
 		}
+
+		return fmt.Errorf("failed to create CRD: %w", err)
 	}
 
 	return nil
