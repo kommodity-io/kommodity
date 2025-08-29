@@ -73,6 +73,30 @@ func main() {
 		logger.Info("API Server started successfully")
 	}()
 
+	// go func() {
+	// 	ctlMgr, err := controller.NewAggregatedControllerManager(ctx)
+	// 	if err != nil {
+	// 		logger.Error("Failed to create controller manager", zap.Error(err))
+
+	// 		// Ensure that the server is shut down gracefully when an error occurs.
+	// 		signals <- syscall.SIGTERM
+
+	// 		return
+	// 	}
+
+	// 	err = ctlMgr.Start(ctx)
+	// 	if err != nil {
+	// 		logger.Error("Failed to start controller manager", zap.Error(err))
+
+	// 		// Ensure that the server is shut down gracefully when an error occurs.
+	// 		signals <- syscall.SIGTERM
+
+	// 		return
+	// 	}
+
+	// 	logger.Info("Controller manager started successfully")
+	// }()
+
 	sig := <-signals
 	logger.Info("Received signal", zap.String("signal", sig.String()))
 

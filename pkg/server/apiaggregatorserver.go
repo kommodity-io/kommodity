@@ -1,12 +1,10 @@
 package server
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"time"
 
-	"github.com/kommodity-io/kommodity/pkg/controller"
 	"github.com/kommodity-io/kommodity/pkg/kine"
 	"github.com/kommodity-io/kommodity/pkg/provider"
 	apiextensionsinformers "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions/apiextensions/v1"
@@ -83,11 +81,6 @@ func newAPIAggregatorServer(genericServerConfig *genericapiserver.RecommendedCon
 		return nil, fmt.Errorf("failed to add post start hook for applying CRDs: %w", err)
 	}
 
-	err = aggregatorServer.GenericAPIServer.AddPostStartHook("start-controller-manager", startControllerManagerHook())
-	if err != nil {
-		return nil, fmt.Errorf("failed to add post start hook for starting controller manager: %w", err)
-	}
-
 	return aggregatorServer, nil
 }
 
@@ -102,27 +95,6 @@ func applyCRDsHook(genericServerConfig *genericapiserver.RecommendedConfig) gene
 		if err != nil {
 			return fmt.Errorf("failed to apply all provider CRDs: %w", err)
 		}
-
-		return nil
-	}
-}
-
-func startControllerManagerHook() genericapiserver.PostStartHookFunc {
-	return func(ctx genericapiserver.PostStartHookContext) error {
-		ctlMgr, err := controller.NewAggregatedControllerManager(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to create controller manager: %w", err)
-		}
-
-		go func() {
-			runCtx, cancel := context.WithCancelCause(ctx)
-			defer cancel(nil)
-
-			err = ctlMgr.Start(runCtx)
-			if err != nil {
-				cancel(fmt.Errorf("failed to start controller manager: %w", err))
-			}
-		}()
 
 		return nil
 	}
