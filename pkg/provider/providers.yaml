@@ -4,11 +4,18 @@ providers:
     go_module: sigs.k8s.io/cluster-api
     file_name: core-components.yaml
     filter: select(.kind == "CustomResourceDefinition")
+    scheme_locations:
+      - api/v1beta1
   - name: talos-bootstrap-provider
     repository: github.com/siderolabs/cluster-api-bootstrap-provider-talos
     file_name: bootstrap-components.yaml
     filter: select(.kind == "CustomResourceDefinition")
+    scheme_locations:
+      - api/v1alpha2
+      - api/v1alpha3
   - name: talos-control-plane-provider
     repository: github.com/siderolabs/cluster-api-control-plane-provider-talos
     file_name: control-plane-components.yaml
     filter: select(.kind == "CustomResourceDefinition")
+    scheme_locations:
+      - api/v1alpha3
