@@ -8,9 +8,15 @@ count=$(yq '.providers | length' "$yq_path")
 for i in $(seq 0 $((count - 1))); do
   name=$(yq -r ".providers[$i].name" "$yq_path")
   repo=$(yq ".providers[$i].repository" "$yq_path")
+  go_module=$(yq -r ".providers[$i].go_module" "$yq_path")
   file=$(yq ".providers[$i].file_name" "$yq_path")
   filter=$(yq -r ".providers[$i].filter" "$yq_path")
-  version=$(go mod graph | grep "$repo" | head -n1 | awk -F'@' '{print $2}')
+  
+  if [ -n "$go_module" ] && [ "$go_module" != "null" ]; then
+    version=$(go mod graph | grep "$go_module" | head -n1 | awk -F'@' '{print $2}')
+  else
+    version=$(go mod graph | grep "$repo" | head -n1 | awk -F'@' '{print $2}')
+  fi
   
   url="https://${repo}/releases/download/${version}/$file"
   
