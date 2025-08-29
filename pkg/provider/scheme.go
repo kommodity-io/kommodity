@@ -5,6 +5,8 @@ package provider
 
 import (
     "k8s.io/apimachinery/pkg/runtime"
+    "k8s.io/apimachinery/pkg/runtime/schema"
+
 	scheme_1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	scheme_2 "github.com/siderolabs/cluster-api-bootstrap-provider-talos/api/v1alpha2"
 	scheme_3 "github.com/siderolabs/cluster-api-bootstrap-provider-talos/api/v1alpha3"
@@ -18,4 +20,13 @@ func addAllProvidersToScheme(scheme *runtime.Scheme) error {
 	if err = scheme_3.AddToScheme(scheme); err != nil { return err }
 	if err = scheme_4.AddToScheme(scheme); err != nil { return err }
     return nil
+}
+
+func GetProviderGroupKindVersions() []schema.GroupVersion {
+  return []schema.GroupVersion{
+		scheme_1.GroupVersion,
+		scheme_2.GroupVersion,
+		scheme_3.GroupVersion,
+		scheme_4.GroupVersion,
+  }
 }

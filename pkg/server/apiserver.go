@@ -8,6 +8,7 @@ import (
 	"os"
 
 	generatedopenapi "github.com/kommodity-io/kommodity/pkg/openapi"
+	"github.com/kommodity-io/kommodity/pkg/provider"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apiserver/pkg/endpoints/discovery/aggregated"
@@ -52,8 +53,12 @@ func setupAPIServerConfig(ctx context.Context, openAPISpec *generatedopenapi.Spe
 
 	genericServerConfig.AggregatedDiscoveryGroupManager = aggregated.NewResourceManager("apis")
 
+	var schemeGroupVersions = append(
+		provider.GetProviderGroupKindVersions(),
+		getSupportedGroupKindVersions()...)
+
 	resourceConfig := apiserverstorage.NewResourceConfig()
-	resourceConfig.EnableVersions(getSupportedGroupKindVersions()...)
+	resourceConfig.EnableVersions(schemeGroupVersions...)
 	genericServerConfig.MergedResourceConfig = resourceConfig
 
 	return genericServerConfig, nil

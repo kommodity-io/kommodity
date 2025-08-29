@@ -11,6 +11,8 @@ package provider
 
 import (
     "k8s.io/apimachinery/pkg/runtime"
+    "k8s.io/apimachinery/pkg/runtime/schema"
+
 EOF
 
 # Extract all scheme_locations with their go_module or repository and generate import aliases
@@ -31,5 +33,20 @@ yq -r '.providers[].scheme_locations[]' "$providers_yaml" | \
 
 cat >> "$output_file" <<EOF
     return nil
+}
+EOF
+
+cat >> "$output_file" <<EOF
+
+func GetProviderGroupKindVersions() []schema.GroupVersion {
+  return []schema.GroupVersion{
+EOF
+
+
+yq -r '.providers[] | (.go_module // .repository) as $base | .scheme_locations[] | $base + "/" + .' "$providers_yaml" | \
+  awk '{ alias="scheme_" NR; printf "\t\t%s.GroupVersion,\n", alias }' >> "$output_file"
+
+cat >> "$output_file" <<EOF
+  }
 }
 EOF
