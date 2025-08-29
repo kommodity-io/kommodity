@@ -39,7 +39,14 @@ func ApplyAllProviders(client *dynamic.DynamicClient) error {
 			return fmt.Errorf("failed to decode YAML: %w", err)
 		}
 
-		_, err = client.Resource(crdGVR).Create(context.Background(), obj, metav1.CreateOptions{})
+		name := obj.GetName()
+		if name == "" {
+			return ErrMissingCRDName
+		}
+
+		_, err = client.Resource(crdGVR).Apply(context.Background(), name, obj, metav1.ApplyOptions{
+			FieldManager: "kommodity-provider",
+		})
 		if err != nil {
 			if errors.IsAlreadyExists(err) {
 				continue // Ignore already exists error
