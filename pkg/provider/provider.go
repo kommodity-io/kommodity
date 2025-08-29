@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/serializer/yaml"
@@ -40,6 +41,10 @@ func ApplyAllProviders(client *dynamic.DynamicClient) error {
 
 		_, err = client.Resource(crdGVR).Create(context.Background(), obj, metav1.CreateOptions{})
 		if err != nil {
+			if errors.IsAlreadyExists(err) {
+				continue // Ignore already exists error
+			}
+
 			return fmt.Errorf("failed to create CRD: %w", err)
 		}
 	}
