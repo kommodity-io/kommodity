@@ -86,6 +86,7 @@ func New(ctx context.Context) (*aggregatorapiserver.APIAggregator, error) {
 		return nil, fmt.Errorf("failed to install legacy API group into the generic api server: %w", err)
 	}
 
+	//nolint:contextcheck // No need to pass context here as its not used in the function call
 	aggregatorServer, err := newAPIAggregatorServer(
 		genericServerConfig,
 		codecs,

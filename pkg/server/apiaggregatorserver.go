@@ -76,25 +76,28 @@ func newAPIAggregatorServer(genericServerConfig *genericapiserver.RecommendedCon
 		return nil, fmt.Errorf("failed to add post start hook for auto-registration: %w", err)
 	}
 
-	err = aggregatorServer.GenericAPIServer.AddPostStartHook("apply-crds",
-		func(_ genericapiserver.PostStartHookContext) error {
-			dynamicClient, err := restclientdynamic.NewForConfig(genericServerConfig.LoopbackClientConfig)
-			if err != nil {
-				return fmt.Errorf("failed to create dynamic rest client: %w", err)
-			}
-
-			err = provider.ApplyAllProviders(dynamicClient)
-			if err != nil {
-				return fmt.Errorf("failed to apply all provider CRDs: %w", err)
-			}
-
-			return nil
-		})
+	err = aggregatorServer.GenericAPIServer.AddPostStartHook("apply-crds", applyCRDsHook(genericServerConfig))
 	if err != nil {
 		return nil, fmt.Errorf("failed to add post start hook for applying CRDs: %w", err)
 	}
 
 	return aggregatorServer, nil
+}
+
+func applyCRDsHook(genericServerConfig *genericapiserver.RecommendedConfig) genericapiserver.PostStartHookFunc {
+	return func(_ genericapiserver.PostStartHookContext) error {
+		dynamicClient, err := restclientdynamic.NewForConfig(genericServerConfig.LoopbackClientConfig)
+		if err != nil {
+			return fmt.Errorf("failed to create dynamic rest client: %w", err)
+		}
+
+		err = provider.ApplyAllProviders(dynamicClient)
+		if err != nil {
+			return fmt.Errorf("failed to apply all provider CRDs: %w", err)
+		}
+
+		return nil
+	}
 }
 
 func registerAPIServicesAndVersions(delegationTarget genericapiserver.DelegationTarget,
