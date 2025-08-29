@@ -1,0 +1,9 @@
+providers:
+  - name: talos-bootstrap-provider
+    repository: github.com/siderolabs/cluster-api-bootstrap-provider-talos
+    file_name: bootstrap-components.yaml
+    filter: select(.kind == "CustomResourceDefinition")
+  - name: talos-control-plane-provider
+    repository: github.com/siderolabs/cluster-api-control-plane-provider-talos
+    file_name: control-plane-components.yaml
+    filter: select(.kind == "CustomResourceDefinition")
