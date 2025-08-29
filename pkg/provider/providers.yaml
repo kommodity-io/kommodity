@@ -1,4 +1,9 @@
 providers:
+  - name: cluster-api
+    repository: github.com/kubernetes-sigs/cluster-api
+    go_module: sigs.k8s.io/cluster-api
+    file_name: core-components.yaml
+    filter: select(.kind == "CustomResourceDefinition")
   - name: talos-bootstrap-provider
     repository: github.com/siderolabs/cluster-api-bootstrap-provider-talos
     file_name: bootstrap-components.yaml
