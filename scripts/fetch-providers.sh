@@ -2,7 +2,7 @@
 
 yq_path="pkg/provider/providers.yaml"
 
-rm -f pkg/provider/crds.yaml
+rm -f pkg/provider/crds/*.yaml
 
 count=$(yq '.providers | length' "$yq_path")
 for i in $(seq 0 $((count - 1))); do
@@ -25,19 +25,8 @@ for i in $(seq 0 $((count - 1))); do
   curl -sL "$url" -o "pkg/provider/${name}.yaml"
   
   if [ -n "$filter" ]; then
-    yq eval "$filter" "pkg/provider/${name}.yaml" >> "pkg/provider/crds.yaml"
-  fi
-  
-  if [ "$(tail -n 1 pkg/provider/crds.yaml)" != "---" ]; then
-    echo "---" >> "pkg/provider/crds.yaml"
+    yq eval "$filter" "pkg/provider/${name}.yaml" | yq -s '"pkg/provider/crds/\(.metadata.name).yaml"'
   fi
 
   rm -f "pkg/provider/${name}.yaml"
 done
-
-# Remove trailing --- if present
-if [[ "$OSTYPE" == "darwin"* ]]; then
-  sed -i '' -e '${/^---$/d;}' pkg/provider/crds.yaml
-else
-  sed -i -e '${/^---$/d;}' pkg/provider/crds.yaml
-fi

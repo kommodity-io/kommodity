@@ -19,3 +19,12 @@ providers:
     filter: select(.kind == "CustomResourceDefinition")
     scheme_locations:
       - api/v1alpha3
+  - name: azure-machine-pool-provider
+    repository: github.com/kubernetes-sigs/cluster-api-provider-azure
+    go_module: sigs.k8s.io/cluster-api-provider-azure
+    file_name: infrastructure-components.yaml
+    # We only want to include Kinds of type CustomResourceDefinition with at least one .spec.version which is not deprecated.
+    filter: select(.kind == "CustomResourceDefinition") | select([.spec.versions[] | select(.deprecated != true)] | length > 0) | .spec.versions |= map(select(.deprecated != true))
+    scheme_locations:
+      - api/v1alpha1
+      - api/v1beta1
