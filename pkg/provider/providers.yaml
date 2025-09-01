@@ -24,7 +24,8 @@ providers:
     go_module: sigs.k8s.io/cluster-api-provider-azure
     file_name: infrastructure-components.yaml
     # We only want to include Kinds of type CustomResourceDefinition with at least one .spec.version which is not deprecated.
-    filter: select(.kind == "CustomResourceDefinition") | select([.spec.versions[] | select(.deprecated != true)] | length > 0) | .spec.versions |= map(select(.deprecated != true))
+    # ManagedCluster and ManagedClustersAgentPool are not needed
+    filter: select(.kind == "CustomResourceDefinition") | select([.spec.versions[] | select(.deprecated != true)] | length > 0) | select(.spec.names.kind != "ManagedCluster") | select(.spec.names.kind != "ManagedClustersAgentPool") | .spec.versions |= map(select(.deprecated != true))
     scheme_locations:
       - api/v1alpha1
       - api/v1beta1
