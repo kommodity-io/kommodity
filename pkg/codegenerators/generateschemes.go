@@ -1,12 +1,12 @@
-// This file is responsible for generating the Kubernetes API scheme 
+// This file is responsible for generating the Kubernetes API scheme
 // for the providers defined in pkg/provider/providers.yaml
 // The generated file is located at pkg/provider/scheme.go
 package main
 
 //go:generate go run .
 
-
 import (
+	_ "embed"
 	"log"
 	"os"
 	"text/template"
@@ -26,18 +26,15 @@ type ProvidersList struct {
 	Providers []Provider `yaml:"providers"`
 }
 
+//go:embed schemes.tmpl
+var templateFile string
+
 func main() {
 	providersFile := providerFolder + "providers.yaml"
 	generatedGoFile := providerFolder + "scheme.go"
-	templatefile := "schemes.tmpl"
 
 	// Load providers.yaml
 	providersyaml, err := os.ReadFile(providersFile)
-	if err != nil {
-		log.Fatal(err)
-	}
-	// Load schemes.tmpl
-	tpl, err := os.ReadFile(templatefile)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -51,7 +48,7 @@ func main() {
 
 	tmpl, err := template.New("gen").Funcs(template.FuncMap{
 		"increment": func(a int) int { return a + 1 },
-	}).Parse(string(tpl))
+	}).Parse(templateFile)
 	if err != nil {
 		log.Fatal(err)
 	}
