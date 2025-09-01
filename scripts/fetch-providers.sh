@@ -11,7 +11,7 @@ for i in $(seq 0 $((count - 1))); do
   go_module=$(yq -r ".providers[$i].go_module" "$yq_path")
   file=$(yq ".providers[$i].file_name" "$yq_path")
   filter=$(yq -r ".providers[$i].filter" "$yq_path")
-  
+
   if [ -n "$go_module" ] && [ "$go_module" != "null" ]; then
     version=$(go mod graph | grep "$go_module" | head -n1 | awk -F'@' '{print $2}')
   else
@@ -25,8 +25,12 @@ for i in $(seq 0 $((count - 1))); do
   curl -sL "$url" -o "pkg/provider/${name}.yaml"
   
   if [ -n "$filter" ]; then
-    yq eval "$filter" "pkg/provider/${name}.yaml" | yq -s '"pkg/provider/crds/\(.metadata.name).yaml"'
+    yq eval "$filter" "pkg/provider/${name}.yaml" | yq -s '"pkg/provider/crds/\(.spec.names.kind).yaml"'
   fi
+
+  for kind in $(yq -r ".providers[$i].black_list[]" "$yq_path"); do
+    rm -f "pkg/provider/crds/${kind}.yaml"
+  done
 
   rm -f "pkg/provider/${name}.yaml"
 done
