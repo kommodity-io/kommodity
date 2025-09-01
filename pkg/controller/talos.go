@@ -26,7 +26,6 @@ func setupBootstrapProviderWithManager(ctx context.Context, manager ctrl.Manager
 	return nil
 }
 
-//nolint:unused //To be used later
 func setupControlPlaneProviderWithManager(ctx context.Context, manager ctrl.Manager,
 	maxConcurrentReconciles int) error {
 	err := (&control_plane_controller.TalosControlPlaneReconciler{

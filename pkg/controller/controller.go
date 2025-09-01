@@ -17,8 +17,6 @@ const (
 )
 
 // NewAggregatedControllerManager creates a new controller manager with all relevant providers.
-//
-//nolint:ireturn
 func NewAggregatedControllerManager(ctx context.Context, config *restclient.Config) (ctrl.Manager, error) {
 	ctrl.SetLogger(zapr.NewLogger(logging.FromContext(ctx)))
 

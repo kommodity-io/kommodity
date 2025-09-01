@@ -44,8 +44,6 @@ func (*REST) ShortNames() []string {
 }
 
 // NewEndpointsREST creates a REST interface for corev1 Endpoint resource.
-//
-//nolint:ireturn
 func NewEndpointsREST(storageConfig storagebackend.Config, _ runtime.Scheme) (rest.Storage, error) {
 	store, _, err := factory.Create(
 		*storageConfig.ForResource(corev1.Resource(endpointResource)),
