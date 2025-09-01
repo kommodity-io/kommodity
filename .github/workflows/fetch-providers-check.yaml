@@ -32,7 +32,7 @@ jobs:
       - name: Check for changes in providers.yaml
         id: diff
         run: |
-          if git diff --exit-code origin/${{ github.base_ref }} -- pkg/provider/crds.yaml; then
+          if git diff --exit-code origin/${{ github.base_ref }} -- pkg/provider/crds/*.yaml; then
             echo "diff_found=false" >> $GITHUB_OUTPUT
           else
             echo "diff_found=true" >> $GITHUB_OUTPUT
@@ -41,5 +41,5 @@ jobs:
       - name: Fail if providers.yaml changed
         if: ${{ steps.diff.outputs.diff_found == 'true' }}
         run: |
-          echo "Error: pkg/provider/crds.yaml has changed after running 'make fetch-providers'. Please commit the updated file."
+          echo "Error: One or more files in pkg/provider/crds/*.yaml have changed after running 'make fetch-providers'. Please commit the updated files."
           exit 1
