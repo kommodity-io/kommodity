@@ -8,7 +8,7 @@ count=$(yq '.providers | length' "$yq_path")
 for i in $(seq 0 $((count - 1))); do
   name=$(yq -r ".providers[$i].name" "$yq_path")
   repo=$(yq ".providers[$i].repository" "$yq_path")
-  go_module=$(yq -r ".providers[$i].go_module" "$yq_path")
+  go_module=$(yq -r ".providers[$i].goModule" "$yq_path")
   file=$(yq ".providers[$i].file_name" "$yq_path")
   filter=$(yq -r ".providers[$i].filter" "$yq_path")
 

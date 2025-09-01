@@ -1,9 +1,10 @@
+// This file is responsible for generating the Kubernetes API scheme 
+// for the providers defined in pkg/provider/providers.yaml
+// The generated file is located at pkg/provider/scheme.go
 package main
 
 //go:generate go run .
 
-// This file is responsible for generating the Kubernetes API scheme for the providers defined in pkg/provider/providers.yaml
-// The generated file is located at pkg/provider/scheme.go
 
 import (
 	"log"
@@ -15,14 +16,10 @@ import (
 
 const providerFolder = "../provider/"
 
-var providersFile = providerFolder + "providers.yaml"
-var generatedGoFile = providerFolder + "scheme.go"
-var templatefile = "schemes.tmpl"
-
 type Provider struct {
 	Repository      string   `yaml:"repository"`
-	GoModule        string   `yaml:"go_module"`
-	SchemeLocations []string `yaml:"scheme_locations"`
+	GoModule        string   `yaml:"goModule"`
+	SchemeLocations []string `yaml:"schemeLocations"`
 }
 
 type ProvidersList struct {
@@ -30,12 +27,15 @@ type ProvidersList struct {
 }
 
 func main() {
+	providersFile := providerFolder + "providers.yaml"
+	generatedGoFile := providerFolder + "scheme.go"
+	templatefile := "schemes.tmpl"
+
 	// Load providers.yaml
 	providersyaml, err := os.ReadFile(providersFile)
 	if err != nil {
 		log.Fatal(err)
 	}
-
 	// Load schemes.tmpl
 	tpl, err := os.ReadFile(templatefile)
 	if err != nil {
@@ -44,7 +44,8 @@ func main() {
 
 	var cfg ProvidersList
 
-	if err := yaml.Unmarshal(providersyaml, &cfg); err != nil {
+	err = yaml.Unmarshal(providersyaml, &cfg)
+	if err != nil {
 		log.Fatal(err)
 	}
 
@@ -55,13 +56,22 @@ func main() {
 		log.Fatal(err)
 	}
 
-	f, err := os.Create(generatedGoFile)
+	file, err := os.Create(generatedGoFile)
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer f.Close()
 
-	if err := tmpl.Execute(f, cfg); err != nil {
-		log.Fatal(err)
+	defer func() {
+		err := file.Close()
+		if err != nil {
+			log.Printf("error closing file: %v", err)
+		}
+	}()
+
+	err = tmpl.Execute(file, cfg)
+	if err != nil {
+		log.Printf("error executing template: %v", err)
+		
+		return
 	}
 }
