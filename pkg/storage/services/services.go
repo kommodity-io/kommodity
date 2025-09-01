@@ -41,8 +41,6 @@ func (*REST) ShortNames() []string {
 }
 
 // NewServicesREST creates a REST interface for corev1 Namespace resource.
-//
-//nolint:ireturn
 func NewServicesREST(storageConfig storagebackend.Config, scheme runtime.Scheme) (rest.Storage, error) {
 	store, _, err := factory.Create(
 		*storageConfig.ForResource(corev1.Resource(serviceResource)),

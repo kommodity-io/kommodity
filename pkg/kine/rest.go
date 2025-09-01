@@ -40,8 +40,6 @@ func (g *RESTOptionsGetter) GetRESTOptions(resource schema.GroupResource,
 
 // NewKineRESTOptionsGetter creates a new Kine-backed RESTOptionsGetter.
 // Pass in the storagebackend.Config you already use for Namespaces.
-//
-//nolint:ireturn
 func NewKineRESTOptionsGetter(cfg storagebackend.Config) genericregistry.RESTOptionsGetter {
 	return &RESTOptionsGetter{StorageConfig: cfg}
 }

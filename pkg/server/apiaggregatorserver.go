@@ -1,10 +1,12 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
 
+	"github.com/kommodity-io/kommodity/pkg/controller"
 	"github.com/kommodity-io/kommodity/pkg/kine"
 	"github.com/kommodity-io/kommodity/pkg/provider"
 	apiextensionsinformers "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions/apiextensions/v1"
@@ -85,7 +87,7 @@ func newAPIAggregatorServer(genericServerConfig *genericapiserver.RecommendedCon
 }
 
 func applyCRDsHook(genericServerConfig *genericapiserver.RecommendedConfig) genericapiserver.PostStartHookFunc {
-	return func(_ genericapiserver.PostStartHookContext) error {
+	return func(ctx genericapiserver.PostStartHookContext) error {
 		dynamicClient, err := restclientdynamic.NewForConfig(genericServerConfig.LoopbackClientConfig)
 		if err != nil {
 			return fmt.Errorf("failed to create dynamic rest client: %w", err)
@@ -95,6 +97,21 @@ func applyCRDsHook(genericServerConfig *genericapiserver.RecommendedConfig) gene
 		if err != nil {
 			return fmt.Errorf("failed to apply all provider CRDs: %w", err)
 		}
+
+		ctlMgr, err := controller.NewAggregatedControllerManager(ctx, genericServerConfig.LoopbackClientConfig)
+		if err != nil {
+			return fmt.Errorf("failed to create controller manager: %w", err)
+		}
+
+		go func() {
+			runCtx, cancel := context.WithCancelCause(ctx)
+			defer cancel(nil)
+
+			err = ctlMgr.Start(runCtx)
+			if err != nil {
+				cancel(fmt.Errorf("failed to start controller manager: %w", err))
+			}
+		}()
 
 		return nil
 	}

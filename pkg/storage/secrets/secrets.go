@@ -42,8 +42,6 @@ func (*REST) ShortNames() []string {
 }
 
 // NewSecretsREST creates a REST interface for corev1 Secret resource.
-//
-//nolint:ireturn
 func NewSecretsREST(storageConfig storagebackend.Config, scheme runtime.Scheme) (rest.Storage, error) {
 	store, _, err := factory.Create(
 		*storageConfig.ForResource(corev1.Resource(secretResource)),

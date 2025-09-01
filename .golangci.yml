@@ -10,3 +10,5 @@ linters:
     - exhaustruct
     # Acting up with replace directives in go.mod
     - gomoddirectives
+    # Kubernetes objects are all interface based
+    - ireturn
