@@ -9,7 +9,7 @@ for i in $(seq 0 $((count - 1))); do
   name=$(yq -r ".providers[$i].name" "$yq_path")
   repo=$(yq ".providers[$i].repository" "$yq_path")
   go_module=$(yq -r ".providers[$i].goModule" "$yq_path")
-  file=$(yq ".providers[$i].file_name" "$yq_path")
+  file=$(yq ".providers[$i].fileName" "$yq_path")
   filter=$(yq -r ".providers[$i].filter" "$yq_path")
 
   if [ -n "$go_module" ] && [ "$go_module" != "null" ]; then
