@@ -31,8 +31,10 @@ jobs:
 
       - name: Check for changes in providers.yaml
         id: diff
+        env:
+          BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
         run: |
-          if git diff --exit-code origin/${{ github.base_ref }} -- pkg/provider/crds/*.yaml; then
+          if git diff --exit-code origin/$BRANCH_NAME -- pkg/provider/crds/*.yaml; then
             echo "diff_found=false" >> $GITHUB_OUTPUT
           else
             echo "diff_found=true" >> $GITHUB_OUTPUT
