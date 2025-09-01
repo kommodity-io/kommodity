@@ -10,6 +10,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 )
 
+//nolint:unused //To be used later
 func setupAzureMachinePoolWithManager(ctx context.Context, manager ctrl.Manager, maxConcurrentReconciles int) error {
 	err := (&capz_capi_controller.AzureMachinePoolReconciler{
 		Client: manager.GetClient(),
