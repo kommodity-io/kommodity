@@ -204,7 +204,7 @@ func (secretStrategy) Validate(_ context.Context, obj runtime.Object) field.Erro
 
 	return validation.ValidateObjectMeta(
 		&secretObject.ObjectMeta, true,
-		storage.ValidateNonNullField,
+		storage.FieldIsNonNull,
 		field.NewPath("metadata"),
 	)
 }
