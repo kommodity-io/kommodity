@@ -10,7 +10,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
-	storageerr "github.com/kommodity-io/kommodity/pkg/storage"
+	"github.com/kommodity-io/kommodity/pkg/storage"
 
 	"k8s.io/apimachinery/pkg/api/validation"
 	"k8s.io/apimachinery/pkg/fields"
@@ -21,7 +21,7 @@ import (
 	"k8s.io/apiserver/pkg/registry/generic"
 	genericregistry "k8s.io/apiserver/pkg/registry/generic/registry"
 	"k8s.io/apiserver/pkg/registry/rest"
-	"k8s.io/apiserver/pkg/storage"
+	apistorage "k8s.io/apiserver/pkg/storage"
 	"k8s.io/apiserver/pkg/storage/names"
 	"k8s.io/apiserver/pkg/storage/storagebackend"
 	"k8s.io/apiserver/pkg/storage/storagebackend/factory"
@@ -81,8 +81,8 @@ func NewSecretsREST(storageConfig storagebackend.Config, scheme runtime.Scheme) 
 }
 
 // SecretPredicateFunc returns a selection predicate for filtering Secret objects.
-func SecretPredicateFunc(label labels.Selector, field fields.Selector) storage.SelectionPredicate {
-	return storage.SelectionPredicate{
+func SecretPredicateFunc(label labels.Selector, field fields.Selector) apistorage.SelectionPredicate {
+	return apistorage.SelectionPredicate{
 		Label:    label,
 		Field:    field,
 		GetAttrs: GetAttrs,
@@ -93,7 +93,7 @@ func SecretPredicateFunc(label labels.Selector, field fields.Selector) storage.S
 func GetAttrs(obj runtime.Object) (labels.Set, fields.Set, error) {
 	secret, ok := obj.(*corev1.Secret)
 	if !ok {
-		return nil, nil, storageerr.ErrObjectIsNotASecret
+		return nil, nil, storage.ErrObjectIsNotASecret
 	}
 
 	return labels.Set(secret.Labels), SelectableFields(secret), nil
@@ -113,7 +113,7 @@ func SelectableFields(obj *corev1.Secret) fields.Set {
 func ObjectNameFunc(obj runtime.Object) (string, error) {
 	secret, ok := obj.(*corev1.Secret)
 	if !ok {
-		return "", storageerr.ErrObjectIsNotASecret
+		return "", storage.ErrObjectIsNotASecret
 	}
 
 	return secret.Name, nil
@@ -204,7 +204,7 @@ func (secretStrategy) Validate(_ context.Context, obj runtime.Object) field.Erro
 
 	return validation.ValidateObjectMeta(
 		&secretObject.ObjectMeta, true,
-		validation.ValidateNamespaceName,
+		storage.ValidateNonNullField,
 		field.NewPath("metadata"),
 	)
 }
