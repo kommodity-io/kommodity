@@ -2,7 +2,7 @@
 
 yq_path="pkg/provider/providers.yaml"
 
-rm -f pkg/provider/crds.yaml
+rm -f pkg/provider/crds/*.yaml
 
 count=$(yq '.providers | length' "$yq_path")
 for i in $(seq 0 $((count - 1))); do
@@ -11,7 +11,7 @@ for i in $(seq 0 $((count - 1))); do
   go_module=$(yq -r ".providers[$i].go_module" "$yq_path")
   file=$(yq ".providers[$i].file_name" "$yq_path")
   filter=$(yq -r ".providers[$i].filter" "$yq_path")
-  
+
   if [ -n "$go_module" ] && [ "$go_module" != "null" ]; then
     version=$(go mod graph | grep "$go_module" | head -n1 | awk -F'@' '{print $2}')
   else
@@ -25,19 +25,12 @@ for i in $(seq 0 $((count - 1))); do
   curl -sL "$url" -o "pkg/provider/${name}.yaml"
   
   if [ -n "$filter" ]; then
-    yq eval "$filter" "pkg/provider/${name}.yaml" >> "pkg/provider/crds.yaml"
+    yq eval "$filter" "pkg/provider/${name}.yaml" | yq -s '"pkg/provider/crds/\(.spec.names.kind).yaml"'
   fi
-  
-  if [ "$(tail -n 1 pkg/provider/crds.yaml)" != "---" ]; then
-    echo "---" >> "pkg/provider/crds.yaml"
-  fi
+
+  for kind in $(yq -r ".providers[$i].deny_list[]" "$yq_path"); do
+    rm -f "pkg/provider/crds/${kind}.yaml"
+  done
 
   rm -f "pkg/provider/${name}.yaml"
 done
-
-# Remove trailing --- if present
-if [[ "$OSTYPE" == "darwin"* ]]; then
-  sed -i '' -e '${/^---$/d;}' pkg/provider/crds.yaml
-else
-  sed -i -e '${/^---$/d;}' pkg/provider/crds.yaml
-fi

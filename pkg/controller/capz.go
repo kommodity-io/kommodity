@@ -10,7 +10,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 )
 
-//nolint:unused //To be used later
 func setupAzureMachinePoolWithManager(ctx context.Context, manager ctrl.Manager, maxConcurrentReconciles int) error {
 	err := (&capz_capi_controller.AzureMachinePoolReconciler{
 		Client: manager.GetClient(),
@@ -19,6 +18,18 @@ func setupAzureMachinePoolWithManager(ctx context.Context, manager ctrl.Manager,
 		controllers.Options{Options: controller.Options{MaxConcurrentReconciles: maxConcurrentReconciles}})
 	if err != nil {
 		return fmt.Errorf("failed to setup azure machine pool: %w", err)
+	}
+
+	return nil
+}
+
+func setupAzureMachineWithManager(ctx context.Context, manager ctrl.Manager, maxConcurrentReconciles int) error {
+	err := (&controllers.AzureMachineReconciler{
+		Client: manager.GetClient(),
+	}).SetupWithManager(ctx, manager,
+		controllers.Options{Options: controller.Options{MaxConcurrentReconciles: maxConcurrentReconciles}})
+	if err != nil {
+		return fmt.Errorf("failed to setup azure machine: %w", err)
 	}
 
 	return nil

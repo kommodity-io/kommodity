@@ -93,9 +93,18 @@ func applyCRDsHook(genericServerConfig *genericapiserver.RecommendedConfig) gene
 			return fmt.Errorf("failed to create dynamic rest client: %w", err)
 		}
 
-		err = provider.ApplyAllProviders(dynamicClient)
+		errCh := make(chan error)
+
+		go func() {
+			err = provider.ApplyAllProviders(dynamicClient)
+			if err != nil {
+				errCh <- fmt.Errorf("failed to apply all provider CRDs: %w", err)
+			}
+		}()
+
+		err = <-errCh
 		if err != nil {
-			return fmt.Errorf("failed to apply all provider CRDs: %w", err)
+			return fmt.Errorf("error applying provider CRDs: %w", err)
 		}
 
 		ctlMgr, err := controller.NewAggregatedControllerManager(ctx, genericServerConfig.LoopbackClientConfig)
