@@ -28,7 +28,7 @@ for i in $(seq 0 $((count - 1))); do
     yq eval "$filter" "pkg/provider/${name}.yaml" | yq -s '"pkg/provider/crds/\(.spec.names.kind).yaml"'
   fi
 
-  for kind in $(yq -r ".providers[$i].deny_list[]" "$yq_path"); do
+  for kind in $(yq -r ".providers[$i].denyList[]" "$yq_path"); do
     rm -f "pkg/provider/crds/${kind}.yaml"
   done
 
