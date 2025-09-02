@@ -7,6 +7,9 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/kommodity-io/kommodity/pkg/combinedserver"
+	"github.com/kommodity-io/kommodity/pkg/config"
+	"github.com/kommodity-io/kommodity/pkg/kms"
 	"github.com/kommodity-io/kommodity/pkg/logging"
 	"github.com/kommodity-io/kommodity/pkg/server"
 	"go.uber.org/zap"
@@ -49,9 +52,13 @@ func main() {
 	)
 
 	go func() {
-		srv, err := server.New(ctx)
+		srv, err := combinedserver.New(combinedserver.ServerConfig{
+			Port:        config.GetServerPort(ctx),
+			HTTPFactory: server.NewHTTPMuxFactory(ctx),
+			GRPCFactory: kms.NewGRPCServerFactory(),
+		})
 		if err != nil {
-			logger.Error("Failed to create server", zap.Error(err))
+			logger.Error("Failed to create combined server", zap.Error(err))
 
 			// Ensure that the server is shut down gracefully when an error occurs.
 			signals <- syscall.SIGTERM
@@ -59,14 +66,9 @@ func main() {
 			return
 		}
 
-		preparedGenericServer, err := srv.PrepareRun()
+		err = srv.ListenAndServe(ctx)
 		if err != nil {
-			logger.Error("Failed to prepare generic server", zap.Error(err))
-		}
-
-		err = preparedGenericServer.Run(ctx)
-		if err != nil {
-			logger.Error("Failed to run generic server", zap.Error(err))
+			logger.Error("Failed to run combined server", zap.Error(err))
 		}
 
 		logger.Info("API Server started successfully")

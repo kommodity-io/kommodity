@@ -4,10 +4,8 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"os"
-	"strconv"
 
-	"github.com/kommodity-io/kommodity/pkg/logging"
+	"github.com/kommodity-io/kommodity/pkg/config"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	authenticationv1 "k8s.io/api/authentication/v1"
@@ -78,7 +76,7 @@ func enhanceScheme(scheme *runtime.Scheme) error {
 func setupSecureServingWithSelfSigned(ctx context.Context) (*options.SecureServingOptions, error) {
 	secureServing := options.NewSecureServingOptions()
 	secureServing.BindAddress = net.ParseIP("0.0.0.0")
-	secureServing.BindPort = getAPIServerPort(ctx)
+	secureServing.BindPort = config.GetAPIServerPort(ctx)
 
 	// Generate self-signed certs for "localhost"
 	alternateIPs := []net.IP{
@@ -93,27 +91,6 @@ func setupSecureServingWithSelfSigned(ctx context.Context) (*options.SecureServi
 	}
 
 	return secureServing, nil
-}
-
-func getAPIServerPort(ctx context.Context) int {
-	logger := logging.FromContext(ctx)
-
-	apiServerPort := os.Getenv("KOMMODITY_API_SERVER_PORT")
-	if apiServerPort == "" {
-		logger.Info(fmt.Sprintf("KOMMODITY_API_SERVER_PORT is not set, defaulting to %d", defaultAPIServerPort))
-
-		return defaultAPIServerPort
-	}
-
-	apiServerPortInt, err := strconv.Atoi(apiServerPort)
-	if err != nil {
-		logger.Info(fmt.Sprintf("failed to convert KOMMODITY_API_SERVER_PORT to integer: %v, defaulting to %d",
-			apiServerPort, defaultAPIServerPort))
-
-		return defaultAPIServerPort
-	}
-
-	return apiServerPortInt
 }
 
 func getSupportedGroupKindVersions() []schema.GroupVersion {
