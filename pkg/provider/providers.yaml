@@ -26,9 +26,7 @@ providers:
     # We only want to include Kinds of type CustomResourceDefinition with at least one .spec.version which is not deprecated.
     # Managed resources and AzureCluster kinds are not needed
     filter: select(.kind == "CustomResourceDefinition") | select([.spec.versions[] | select(.deprecated != true)] | length > 0) | .spec.versions |= map(select(.deprecated != true))
-    black_list:
-      - ManagedCluster
-      - ManagedClustersAgentPool
+    deny_list:
       - AzureASOManagedCluster
       - AzureASOManagedClusterTemplate
       - AzureASOManagedControlPlane
@@ -38,6 +36,10 @@ providers:
       - AzureCluster
       - AzureClusterIdentity
       - AzureClusterTemplate
+      - BastionHost
+      - FleetsMember
+      - ManagedCluster
+      - ManagedClustersAgentPool
     scheme_locations:
       - api/v1alpha1
       - api/v1beta1
