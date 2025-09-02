@@ -8,7 +8,7 @@ import (
 	"net/netip"
 	"path"
 
-	storageerr "github.com/kommodity-io/kommodity/pkg/storage"
+	"github.com/kommodity-io/kommodity/pkg/storage"
 	corev1 "k8s.io/api/core/v1"
 	apimachineryvalidation "k8s.io/apimachinery/pkg/api/validation"
 	"k8s.io/apimachinery/pkg/fields"
@@ -18,7 +18,7 @@ import (
 	"k8s.io/apiserver/pkg/registry/generic"
 	genericregistry "k8s.io/apiserver/pkg/registry/generic/registry"
 	"k8s.io/apiserver/pkg/registry/rest"
-	"k8s.io/apiserver/pkg/storage"
+	apistorage "k8s.io/apiserver/pkg/storage"
 	"k8s.io/apiserver/pkg/storage/names"
 	"k8s.io/apiserver/pkg/storage/storagebackend"
 	"k8s.io/apiserver/pkg/storage/storagebackend/factory"
@@ -84,8 +84,8 @@ func NewEndpointsREST(storageConfig storagebackend.Config, _ runtime.Scheme) (re
 }
 
 // EndpointPredicateFunc returns a selection predicate for filtering Endpoint objects.
-func EndpointPredicateFunc(label labels.Selector, field fields.Selector) storage.SelectionPredicate {
-	return storage.SelectionPredicate{
+func EndpointPredicateFunc(label labels.Selector, field fields.Selector) apistorage.SelectionPredicate {
+	return apistorage.SelectionPredicate{
 		Label:    label,
 		Field:    field,
 		GetAttrs: GetAttrs,
@@ -96,7 +96,7 @@ func EndpointPredicateFunc(label labels.Selector, field fields.Selector) storage
 func GetAttrs(obj runtime.Object) (labels.Set, fields.Set, error) {
 	endpoint, ok := obj.(*corev1.Endpoints)
 	if !ok {
-		return nil, nil, storageerr.ErrObjectIsNotAnEndpoint
+		return nil, nil, storage.ErrObjectIsNotAnEndpoint
 	}
 
 	return labels.Set(endpoint.Labels), SelectableFields(endpoint), nil
@@ -111,7 +111,7 @@ func SelectableFields(obj *corev1.Endpoints) fields.Set {
 func ObjectNameFunc(obj runtime.Object) (string, error) {
 	endpoint, ok := obj.(*corev1.Endpoints)
 	if !ok {
-		return "", storageerr.ErrObjectIsNotAnEndpoint
+		return "", storage.ErrObjectIsNotAnEndpoint
 	}
 
 	return endpoint.Name, nil
@@ -180,7 +180,7 @@ func (endpointsStrategy) Validate(_ context.Context, obj runtime.Object) field.E
 
 	return apimachineryvalidation.ValidateObjectMeta(
 		&endpointObject.ObjectMeta, false,
-		apimachineryvalidation.ValidateNamespaceName,
+		storage.FieldIsNonNull,
 		field.NewPath("metadata"),
 	)
 }
