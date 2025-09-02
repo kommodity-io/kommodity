@@ -32,3 +32,4 @@ providers:
     scheme_locations:
       - api/v1alpha1
       - api/v1beta1
+      - exp/api/v1beta1
