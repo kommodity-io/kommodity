@@ -30,8 +30,7 @@ import (
 )
 
 const (
-	defaultAPIServerPort = 8443
-	defaultResyncPeriod  = 10 // in minutes
+	defaultResyncPeriod = 10 // in minutes
 )
 
 // New creates a new Kubernetes API Server.

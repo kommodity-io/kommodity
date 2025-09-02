@@ -3,8 +3,7 @@ kind: Config
 clusters:
   - name: kommodity
     cluster:
-      server: https://localhost:8443
-      insecure-skip-tls-verify: true
+      server: http://localhost:8080
 users:
   - name: admin
     user:
