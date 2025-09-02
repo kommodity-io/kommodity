@@ -22,3 +22,15 @@ func setupAzureMachinePoolWithManager(ctx context.Context, manager ctrl.Manager,
 
 	return nil
 }
+
+// func setupAzureMachineWithManager(ctx context.Context, manager ctrl.Manager, maxConcurrentReconciles int) error {
+// 	err := (&controllers.AzureMachineReconciler{
+// 		Client: manager.GetClient(),
+// 	}).SetupWithManager(ctx, manager,
+// 		controllers.Options{Options: controller.Options{MaxConcurrentReconciles: maxConcurrentReconciles}})
+// 	if err != nil {
+// 		return fmt.Errorf("failed to setup azure machine: %w", err)
+// 	}
+
+// 	return nil
+// }
