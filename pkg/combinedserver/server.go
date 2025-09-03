@@ -36,7 +36,10 @@ type server struct {
 	*ServerConfig
 
 	cmuxServer   cmux.CMux
+	grpcServer   *grpc.Server
 	grpcListener net.Listener
+	httpServer   *http.Server
+	httpListener net.Listener
 }
 
 // New creates a new combined server with gRPC listener and HTTP proxy.
@@ -98,11 +101,50 @@ func (s *server) ListenAndServe(ctx context.Context) error {
 	return nil
 }
 
+func (s *server) Shutdown(ctx context.Context) error {
+	logger := logging.FromContext(ctx)
+
+	if s.cmuxServer != nil {
+		logger.Info("Shutting down cmux server", zap.Int("port", s.Port))
+
+		s.cmuxServer.Close()
+	}
+
+	if s.grpcServer != nil {
+		logger.Info("Shutting down gRPC server", zap.Int("port", s.Port))
+
+		s.grpcServer.GracefulStop()
+
+		logger.Info("Shut down gRPC server", zap.Int("port", s.Port))
+	}
+
+	if s.httpServer != nil {
+		s.httpServer.SetKeepAlivesEnabled(false)
+
+		logger.Info("Shutting down HTTP server", zap.Int("port", s.Port))
+
+		err := s.httpServer.Shutdown(ctx)
+		if err != nil {
+			// This is expected when the server is shut down via cmux.
+			// Reference: https://github.com/soheilhy/cmux/pull/92
+			if errors.Is(err, net.ErrClosed) {
+				logger.Info("Shut down HTTP server", zap.Int("port", s.Port))
+
+				return nil
+			}
+		}
+
+		logger.Info("Shut down HTTP server", zap.Int("port", s.Port))
+	}
+
+	return nil
+}
+
 func (s *server) serveHTTP(_ context.Context) error {
-	listener := s.cmuxServer.Match(cmux.Any())
+	s.httpListener = s.cmuxServer.Match(cmux.Any())
 	httpMux := http.NewServeMux()
 
-	httpServer := &http.Server{
+	s.httpServer = &http.Server{
 		Handler:           h2c.NewHandler(httpMux, &http2.Server{}),
 		ReadHeaderTimeout: 1 * time.Second,
 	}
@@ -112,7 +154,7 @@ func (s *server) serveHTTP(_ context.Context) error {
 		return fmt.Errorf("failed to create HTTP mux: %w", err)
 	}
 
-	err = httpServer.Serve(listener)
+	err = s.httpServer.Serve(s.httpListener)
 	if err != nil {
 		if errors.Is(err, http.ErrServerClosed) {
 			// This is expected when the server is shut down gracefully.
@@ -131,17 +173,17 @@ func (s *server) serveHTTP(_ context.Context) error {
 }
 
 func (s *server) serveGRPC(_ context.Context) error {
-	grpcServer := grpc.NewServer()
+	s.grpcServer = grpc.NewServer()
 
 	// Allow reflection to enable tools like grpcurl.
-	reflection.Register(grpcServer)
+	reflection.Register(s.grpcServer)
 
-	err := s.GRPCFactory(grpcServer)
+	err := s.GRPCFactory(s.grpcServer)
 	if err != nil {
 		return fmt.Errorf("failed to create gRPC factory: %w", err)
 	}
 
-	err = grpcServer.Serve(s.grpcListener)
+	err = s.grpcServer.Serve(s.grpcListener)
 	if err != nil {
 		// This is expected when the server is shut down gracefully.
 		if !errors.Is(err, grpc.ErrServerStopped) {

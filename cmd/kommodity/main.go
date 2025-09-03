@@ -18,14 +18,6 @@ import (
 	_ "github.com/joho/godotenv/autoload"
 )
 
-var (
-	version = "dev"
-	//nolint:gochecknoglobals // commit is set by the build system to the git commit hash.
-	commit = "unknown"
-	//nolint:gochecknoglobals // buildDate is set by the build system to the build date.
-	buildDate = "unknown"
-)
-
 func main() {
 	logger := logging.NewLogger()
 	ctx := logging.WithLogger(genericapiserver.SetupSignalContext(), logger)
@@ -45,28 +37,24 @@ func main() {
 	// Configure the zap OTEL logger.
 	zap.ReplaceGlobals(logger)
 
-	logger.Info("Starting kommodity server",
-		zap.String("version", version),
-		zap.String("commit", commit),
-		zap.String("buildDate", buildDate),
-	)
+	server, err := combinedserver.New(combinedserver.ServerConfig{
+		Port:        config.GetServerPort(ctx),
+		HTTPFactory: server.NewHTTPMuxFactory(ctx),
+		GRPCFactory: kms.NewGRPCServerFactory(),
+	})
+	if err != nil {
+		logger.Error("Failed to create combined server", zap.Error(err))
+
+		// Ensure that the server is shut down gracefully when an error occurs.
+		signals <- syscall.SIGTERM
+
+		return
+	}
+
+	finalizers = append(finalizers, server.Shutdown)
 
 	go func() {
-		srv, err := combinedserver.New(combinedserver.ServerConfig{
-			Port:        config.GetServerPort(ctx),
-			HTTPFactory: server.NewHTTPMuxFactory(ctx),
-			GRPCFactory: kms.NewGRPCServerFactory(),
-		})
-		if err != nil {
-			logger.Error("Failed to create combined server", zap.Error(err))
-
-			// Ensure that the server is shut down gracefully when an error occurs.
-			signals <- syscall.SIGTERM
-
-			return
-		}
-
-		err = srv.ListenAndServe(ctx)
+		err = server.ListenAndServe(ctx)
 		if err != nil {
 			logger.Error("Failed to run combined server", zap.Error(err))
 		}
@@ -75,6 +63,7 @@ func main() {
 	}()
 
 	sig := <-signals
+
 	logger.Info("Received signal", zap.String("signal", sig.String()))
 
 	// Call the finalizers in reverse order.
