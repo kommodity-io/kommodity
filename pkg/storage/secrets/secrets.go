@@ -219,13 +219,22 @@ func (secretStrategy) ValidateUpdate(_ context.Context, obj, old runtime.Object)
 		log.Printf("expected *corev1.Secret, got %T", obj)
 	}
 
-	allErrs := validation.ValidateObjectMetaUpdate(&newSecretObject.ObjectMeta, &oldSecretObject.ObjectMeta, field.NewPath("metadata"))
+	allErrs := validation.ValidateObjectMetaUpdate(
+		&newSecretObject.ObjectMeta, 
+		&oldSecretObject.ObjectMeta, 
+		field.NewPath("metadata"),
+	)
 
-	allErrs = append(allErrs, validation.ValidateImmutableField(newSecretObject.Type, oldSecretObject.Type, field.NewPath("type"))...)
+	allErrs = append(
+		allErrs, 
+		validation.ValidateImmutableField(newSecretObject.Type, oldSecretObject.Type, field.NewPath("type"))...
+	)
+
 	if oldSecretObject.Immutable != nil && *oldSecretObject.Immutable {
 		if newSecretObject.Immutable == nil || !*newSecretObject.Immutable {
 			allErrs = append(allErrs, field.Forbidden(field.NewPath("immutable"), "field is immutable when `immutable` is set"))
 		}
+
 		if !reflect.DeepEqual(newSecretObject.Data, oldSecretObject.Data) {
 			allErrs = append(allErrs, field.Forbidden(field.NewPath("data"), "field is immutable when `immutable` is set"))
 		}
@@ -240,20 +249,28 @@ func (secretStrategy) ValidateUpdate(_ context.Context, obj, old runtime.Object)
 
 // ValidateSecret tests if required fields in the Secret are set.
 func validateSecret(secret *corev1.Secret) field.ErrorList {
-	allErrs := validation.ValidateObjectMeta(&secret.ObjectMeta, true, validation.NameIsDNSSubdomain, field.NewPath("metadata"))
+	allErrs := validation.ValidateObjectMeta(
+		&secret.ObjectMeta, 
+		true, 
+		validation.NameIsDNSSubdomain, 
+		field.NewPath("metadata"),
+	)
 
 	dataPath := field.NewPath("data")
 	totalSize := 0
+
 	for key, value := range secret.Data {
 		for _, msg := range utilvalidation.IsConfigMapKey(key) {
 			allErrs = append(allErrs, field.Invalid(dataPath.Key(key), key, msg))
 		}
+
 		totalSize += len(value)
 	}
+
 	if totalSize > corev1.MaxSecretSize {
 		allErrs = append(allErrs, field.TooLong(dataPath, "" /*unused*/, corev1.MaxSecretSize))
 	}
-	
+
 	return allErrs
 }
 

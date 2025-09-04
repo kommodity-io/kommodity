@@ -3,21 +3,21 @@ package configmaps
 
 import (
 	"context"
-	"reflect"
 	"fmt"
 	"log"
 	"path"
+	"reflect"
 
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/kommodity-io/kommodity/pkg/storage"
 
 	"k8s.io/apimachinery/pkg/api/validation"
-	utilvalidation "k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	utilvalidation "k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/apiserver/pkg/registry/generic"
 	genericregistry "k8s.io/apiserver/pkg/registry/generic/registry"
@@ -100,7 +100,7 @@ func GetAttrs(obj runtime.Object) (labels.Set, fields.Set, error) {
 	return labels.Set(configMap.Labels), SelectableFields(configMap), nil
 }
 
-// SelectableFields returns a field set that can be used for filter selection
+// SelectableFields returns a field set that can be used for filter selection.
 func SelectableFields(obj *corev1.ConfigMap) fields.Set {
 	return generic.ObjectMetaFieldsSet(&obj.ObjectMeta, true)
 }
@@ -135,13 +135,17 @@ func (configMapStrategy) NamespaceScoped() bool {
 func (configMapStrategy) PrepareForCreate(_ context.Context, _ runtime.Object) {}
 
 // WarningsOnCreate returns warnings for the creation of the given object.
-func (configMapStrategy) WarningsOnCreate(ctx context.Context, obj runtime.Object) []string { return nil }
+func (configMapStrategy) WarningsOnCreate(_ context.Context, _ runtime.Object) []string {
+	return nil
+}
 
 // PrepareForUpdate sets defaults for updated objects.
-func (configMapStrategy) PrepareForUpdate(ctx context.Context, newObj, oldObj runtime.Object) {}
+func (configMapStrategy) PrepareForUpdate(_ context.Context, _ runtime.Object, _ runtime.Object) {}
 
 // WarningsOnUpdate returns warnings for the given update.
-func (configMapStrategy) WarningsOnUpdate(ctx context.Context, obj, old runtime.Object) []string { return nil }
+func (configMapStrategy) WarningsOnUpdate(_ context.Context, _ runtime.Object, _ runtime.Object) []string {
+	return nil
+}
 
 // PrepareForDelete clears fields before deletion.
 func (configMapStrategy) PrepareForDelete(_ context.Context, _ runtime.Object) {}
@@ -169,29 +173,37 @@ func (configMapStrategy) ValidateUpdate(_ context.Context, obj, old runtime.Obje
 	}
 
 	allErrs := field.ErrorList{}
-	allErrs = append(allErrs, validation.ValidateObjectMetaUpdate(&newConfigMap.ObjectMeta, &oldConfigMap.ObjectMeta, field.NewPath("metadata"))...)
-
+	allErrs = append(
+		allErrs, 
+		validation.ValidateObjectMetaUpdate(&newConfigMap.ObjectMeta, &oldConfigMap.ObjectMeta, field.NewPath("metadata"))...
+	)
 
 	if oldConfigMap.Immutable != nil && *oldConfigMap.Immutable {
 		if newConfigMap.Immutable == nil || !*newConfigMap.Immutable {
 			allErrs = append(allErrs, field.Forbidden(field.NewPath("immutable"), "field is immutable when `immutable` is set"))
 		}
+
 		if !reflect.DeepEqual(newConfigMap.Data, oldConfigMap.Data) {
 			allErrs = append(allErrs, field.Forbidden(field.NewPath("data"), "field is immutable when `immutable` is set"))
 		}
+
 		if !reflect.DeepEqual(newConfigMap.BinaryData, oldConfigMap.BinaryData) {
 			allErrs = append(allErrs, field.Forbidden(field.NewPath("binaryData"), "field is immutable when `immutable` is set"))
 		}
 	}
 
 	allErrs = append(allErrs, validateConfigMap(newConfigMap)...)
+
 	return allErrs
 }
 
 // validateConfigMap tests whether required fields in the ConfigMap are set.
 func validateConfigMap(cfg *corev1.ConfigMap) field.ErrorList {
 	allErrs := field.ErrorList{}
-	allErrs = append(allErrs, validation.ValidateObjectMeta(&cfg.ObjectMeta, true, validation.NameIsDNSSubdomain, field.NewPath("metadata"))...)
+	allErrs = append(
+		allErrs, 
+		validation.ValidateObjectMeta(&cfg.ObjectMeta, true, validation.NameIsDNSSubdomain, field.NewPath("metadata"))...
+	)
 
 	totalSize := 0
 
@@ -204,14 +216,18 @@ func validateConfigMap(cfg *corev1.ConfigMap) field.ErrorList {
 			msg := "duplicate of key present in binaryData"
 			allErrs = append(allErrs, field.Invalid(field.NewPath("data").Key(key), key, msg))
 		}
+
 		totalSize += len(value)
 	}
+
 	for key, value := range cfg.BinaryData {
 		for _, msg := range utilvalidation.IsConfigMapKey(key) {
 			allErrs = append(allErrs, field.Invalid(field.NewPath("binaryData").Key(key), key, msg))
 		}
+
 		totalSize += len(value)
 	}
+
 	if totalSize > corev1.MaxSecretSize {
 		// pass back "" to indicate that the error refers to the whole object.
 		allErrs = append(allErrs, field.TooLong(field.NewPath(""), "" /*unused*/, corev1.MaxSecretSize))
@@ -239,8 +255,8 @@ func (configMapStrategy) GenerateName(base string) string {
 }
 
 // ObjectKinds returns the GroupVersionKind for the object.
-func (ss configMapStrategy) ObjectKinds(obj runtime.Object) ([]schema.GroupVersionKind, bool, error) {
-	gvks, unversioned, err := ss.scheme.ObjectKinds(obj)
+func (cms configMapStrategy) ObjectKinds(obj runtime.Object) ([]schema.GroupVersionKind, bool, error) {
+	gvks, unversioned, err := cms.scheme.ObjectKinds(obj)
 	if err != nil {
 		return nil, unversioned, fmt.Errorf("failed to get object kinds for %T: %w", obj, err)
 	}
