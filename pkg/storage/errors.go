@@ -8,6 +8,8 @@ var (
 	ErrObjectIsNotANamespace = errors.New("object is not a Namespace")
 	// ErrObjectIsNotASecret indicates that the object is not a secret.
 	ErrObjectIsNotASecret = errors.New("object is not a Secret")
+	// ErrObjectIsNotAConfigMap indicates that the object is not a ConfigMap.
+	ErrObjectIsNotAConfigMap = errors.New("object is not a ConfigMap")
 	// ErrObjectIsNotAService indicates that the object is not a service.
 	ErrObjectIsNotAService = errors.New("object is not a Service")
 	// ErrObjectIsNotAnEndpoint indicates that the object is not an endpoint.

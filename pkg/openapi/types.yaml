@@ -7,6 +7,8 @@ types:
     - k8s.io/api/core/v1.NamespaceCondition
     - k8s.io/api/core/v1.Secret
     - k8s.io/api/core/v1.SecretList
+    - k8s.io/api/core/v1.ConfigMap
+    - k8s.io/api/core/v1.ConfigMapList
     - k8s.io/api/core/v1.Service
     - k8s.io/api/core/v1.ServiceList
     - k8s.io/api/core/v1.ServiceSpec
