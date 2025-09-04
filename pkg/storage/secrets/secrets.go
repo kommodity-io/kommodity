@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"path"
+	"reflect"
 
 	corev1 "k8s.io/api/core/v1"
 
@@ -17,6 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	utilvalidation "k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/apiserver/pkg/registry/generic"
 	genericregistry "k8s.io/apiserver/pkg/registry/generic/registry"
@@ -202,16 +204,12 @@ func (secretStrategy) Validate(_ context.Context, obj runtime.Object) field.Erro
 		log.Printf("expected *corev1.Secret, got %T", obj)
 	}
 
-	return validation.ValidateObjectMeta(
-		&secretObject.ObjectMeta, true,
-		storage.FieldIsNonNull,
-		field.NewPath("metadata"),
-	)
+	return validateSecret(secretObject)
 }
 
 // ValidateUpdate validates updated objects.
 func (secretStrategy) ValidateUpdate(_ context.Context, obj, old runtime.Object) field.ErrorList {
-	secretObject, success := obj.(*corev1.Secret)
+	newSecretObject, success := obj.(*corev1.Secret)
 	if !success {
 		log.Printf("expected *corev1.Secret, got %T", obj)
 	}
@@ -221,11 +219,59 @@ func (secretStrategy) ValidateUpdate(_ context.Context, obj, old runtime.Object)
 		log.Printf("expected *corev1.Secret, got %T", obj)
 	}
 
-	return validation.ValidateObjectMetaUpdate(
-		&secretObject.ObjectMeta,
-		&oldSecretObject.ObjectMeta,
+	allErrs := validation.ValidateObjectMetaUpdate(
+		&newSecretObject.ObjectMeta, 
+		&oldSecretObject.ObjectMeta, 
 		field.NewPath("metadata"),
 	)
+
+	allErrs = append(
+		allErrs, 
+		validation.ValidateImmutableField(newSecretObject.Type, oldSecretObject.Type, field.NewPath("type"))...
+	)
+
+	if oldSecretObject.Immutable != nil && *oldSecretObject.Immutable {
+		if newSecretObject.Immutable == nil || !*newSecretObject.Immutable {
+			allErrs = append(allErrs, field.Forbidden(field.NewPath("immutable"), "field is immutable when `immutable` is set"))
+		}
+
+		if !reflect.DeepEqual(newSecretObject.Data, oldSecretObject.Data) {
+			allErrs = append(allErrs, field.Forbidden(field.NewPath("data"), "field is immutable when `immutable` is set"))
+		}
+		// We don't validate StringData, as it was already converted back to Data
+		// before validation is happening.
+	}
+
+	allErrs = append(allErrs, validateSecret(newSecretObject)...)
+
+	return allErrs
+}
+
+// ValidateSecret tests if required fields in the Secret are set.
+func validateSecret(secret *corev1.Secret) field.ErrorList {
+	allErrs := validation.ValidateObjectMeta(
+		&secret.ObjectMeta, 
+		true, 
+		validation.NameIsDNSSubdomain, 
+		field.NewPath("metadata"),
+	)
+
+	dataPath := field.NewPath("data")
+	totalSize := 0
+
+	for key, value := range secret.Data {
+		for _, msg := range utilvalidation.IsConfigMapKey(key) {
+			allErrs = append(allErrs, field.Invalid(dataPath.Key(key), key, msg))
+		}
+
+		totalSize += len(value)
+	}
+
+	if totalSize > corev1.MaxSecretSize {
+		allErrs = append(allErrs, field.TooLong(dataPath, "" /*unused*/, corev1.MaxSecretSize))
+	}
+
+	return allErrs
 }
 
 // Canonicalize normalizes objects.
