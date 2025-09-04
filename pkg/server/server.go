@@ -37,6 +37,8 @@ const (
 )
 
 // New creates a new Kubernetes API Server.
+//
+//nolint:cyclop, funlen // Too long or too complex due to many error checks and setup steps, no real complexity here
 func New(ctx context.Context) (*aggregatorapiserver.APIAggregator, error) {
 	logger := logging.FromContext(ctx)
 
@@ -80,9 +82,18 @@ func New(ctx context.Context) (*aggregatorapiserver.APIAggregator, error) {
 		return nil, fmt.Errorf("failed to build the generic api server: %w", err)
 	}
 
-	err = setupLegacyAPI(genericServer, codecs, logger)
+	logger.Info("Setting up legacy API")
+
+	legacyAPI, err := setupLegacyAPI(clientgoscheme.Scheme, codecs, logger)
 	if err != nil {
-		return nil, fmt.Errorf("failed to setup legacy API: %w", err)
+		return nil, fmt.Errorf("failed to setup legacy API group info for the generic API server: %w", err)
+	}
+
+	logger.Info("Installing legacy API group")
+
+	err = genericServer.InstallLegacyAPIGroup("/api", legacyAPI)
+	if err != nil {
+		return nil, fmt.Errorf("failed to install legacy API group into the generic API server: %w", err)
 	}
 
 	logger.Info("Creating new API aggregator server")
@@ -101,32 +112,10 @@ func New(ctx context.Context) (*aggregatorapiserver.APIAggregator, error) {
 }
 
 func setupLegacyAPI(
-	genericServer *genericapiserver.GenericAPIServer, 
+	scheme *runtime.Scheme, 
 	codecs serializer.CodecFactory, 
 	logger *zap.Logger,
-	) error {
-	logger.Info("Setting up legacy API")
-
-	legacyAPI, err := setupStorageForLegacyAPI(clientgoscheme.Scheme, codecs, logger)
-	if err != nil {
-		return fmt.Errorf("failed to setup legacy API group info for the generic API server: %w", err)
-	}
-
-	logger.Info("Installing legacy API group")
-
-	err = genericServer.InstallLegacyAPIGroup("/api", legacyAPI)
-	if err != nil {
-		return fmt.Errorf("failed to install legacy API group into the generic API server: %w", err)
-	}
-
-	return nil
-}
-
-func setupStorageForLegacyAPI(
-	scheme *runtime.Scheme,
-	codecs serializer.CodecFactory,
-	logger *zap.Logger,
-) (*genericapiserver.APIGroupInfo, error) {
+	) (*genericapiserver.APIGroupInfo, error) {
 	logger.Info("Creating Kine legacy storage config")
 
 	kineStorageConfig, err := kine.NewKineStorageConfig(codecs.LegacyCodec(corev1.SchemeGroupVersion))
