@@ -8,8 +8,8 @@ count=$(yq '.providers | length' "$yq_path")
 for i in $(seq 0 $((count - 1))); do
   name=$(yq -r ".providers[$i].name" "$yq_path")
   repo=$(yq ".providers[$i].repository" "$yq_path")
-  go_module=$(yq -r ".providers[$i].go_module" "$yq_path")
-  file=$(yq ".providers[$i].file_name" "$yq_path")
+  go_module=$(yq -r ".providers[$i].goModule" "$yq_path")
+  file=$(yq ".providers[$i].fileName" "$yq_path")
   filter=$(yq -r ".providers[$i].filter" "$yq_path")
 
   if [ -n "$go_module" ] && [ "$go_module" != "null" ]; then
@@ -28,7 +28,7 @@ for i in $(seq 0 $((count - 1))); do
     yq eval "$filter" "pkg/provider/${name}.yaml" | yq -s '"pkg/provider/crds/\(.spec.names.kind).yaml"'
   fi
 
-  for kind in $(yq -r ".providers[$i].deny_list[]" "$yq_path"); do
+  for kind in $(yq -r ".providers[$i].denyList[]" "$yq_path"); do
     rm -f "pkg/provider/crds/${kind}.yaml"
   done
 
