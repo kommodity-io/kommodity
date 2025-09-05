@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kommodity-io/kommodity/pkg/logging"
+	"go.uber.org/zap"
 	"github.com/kommodity-io/kommodity/pkg/controller"
 	"github.com/kommodity-io/kommodity/pkg/kine"
 	"github.com/kommodity-io/kommodity/pkg/provider"
@@ -88,6 +90,8 @@ func newAPIAggregatorServer(genericServerConfig *genericapiserver.RecommendedCon
 
 func applyCRDsHook(genericServerConfig *genericapiserver.RecommendedConfig) genericapiserver.PostStartHookFunc {
 	return func(ctx genericapiserver.PostStartHookContext) error {
+		logger := logging.FromContext(ctx)
+
 		dynamicClient, err := restclientdynamic.NewForConfig(genericServerConfig.LoopbackClientConfig)
 		if err != nil {
 			return fmt.Errorf("failed to create dynamic rest client: %w", err)
@@ -118,7 +122,9 @@ func applyCRDsHook(genericServerConfig *genericapiserver.RecommendedConfig) gene
 
 			err = ctlMgr.Start(runCtx)
 			if err != nil {
-				cancel(fmt.Errorf("failed to start controller manager: %w", err))
+				errorMsg := "failed to start controller manager:"
+				logger.Error(errorMsg, zap.Error(err))
+				cancel(fmt.Errorf("%s %w", errorMsg, err))
 			}
 		}()
 

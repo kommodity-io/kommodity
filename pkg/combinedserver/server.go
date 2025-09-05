@@ -73,7 +73,9 @@ func (s *server) ListenAndServe(ctx context.Context) error {
 
 		err := s.serveHTTP(runCtx)
 		if err != nil {
-			cancel(fmt.Errorf("failed to start HTTP server: %w", err))
+			errorMsg := "failed to start HTTP server:"
+			logger.Error(errorMsg, zap.Error(err))
+			cancel(fmt.Errorf("%s %w", errorMsg, err))
 		}
 	}()
 
@@ -83,7 +85,9 @@ func (s *server) ListenAndServe(ctx context.Context) error {
 
 		err := s.serveGRPC(runCtx)
 		if err != nil {
-			cancel(fmt.Errorf("failed to start gRPC server: %w", err))
+			errorMsg := "failed to start gRPC server:"
+			logger.Error(errorMsg, zap.Error(err))
+			cancel(fmt.Errorf("%s %w", errorMsg, err))
 		}
 	}()
 

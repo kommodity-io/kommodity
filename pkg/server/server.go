@@ -11,6 +11,7 @@ import (
 	generatedopenapi "github.com/kommodity-io/kommodity/pkg/openapi"
 	"github.com/kommodity-io/kommodity/pkg/storage/configmaps"
 	"github.com/kommodity-io/kommodity/pkg/storage/endpoints"
+	"github.com/kommodity-io/kommodity/pkg/storage/events"
 	"github.com/kommodity-io/kommodity/pkg/storage/namespaces"
 	"github.com/kommodity-io/kommodity/pkg/storage/secrets"
 	"github.com/kommodity-io/kommodity/pkg/storage/services"
@@ -111,11 +112,12 @@ func New(ctx context.Context) (*aggregatorapiserver.APIAggregator, error) {
 	return aggregatorServer, nil
 }
 
+//nolint:funlen // Too long or too complex due to many error checks and setup steps, no real complexity here
 func setupLegacyAPI(
-	scheme *runtime.Scheme, 
-	codecs serializer.CodecFactory, 
+	scheme *runtime.Scheme,
+	codecs serializer.CodecFactory,
 	logger *zap.Logger,
-	) (*genericapiserver.APIGroupInfo, error) {
+) (*genericapiserver.APIGroupInfo, error) {
 	logger.Info("Creating Kine legacy storage config")
 
 	kineStorageConfig, err := kine.NewKineStorageConfig(codecs.LegacyCodec(corev1.SchemeGroupVersion))
@@ -161,12 +163,20 @@ func setupLegacyAPI(
 		return nil, fmt.Errorf("unable to create REST storage service for core v1 configmaps: %w", err)
 	}
 
+	logger.Info("Creating REST storage service for core v1 events")
+
+	eventsStorage, err := events.NewEventsREST(*kineStorageConfig, *scheme)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create REST storage service for core v1 events: %w", err)
+	}
+
 	coreAPIGroupInfo.VersionedResourcesStorageMap["v1"] = map[string]rest.Storage{
 		"endpoints":  endpointsStorage,
 		"namespaces": namespacesStorage,
 		"services":   servicesStorage,
 		"secrets":    secretsStorage,
 		"configmaps": configmapsStorage,
+		"events":     eventsStorage,
 	}
 
 	return &coreAPIGroupInfo, nil
