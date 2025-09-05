@@ -40,7 +40,6 @@ const (
 	reasonLengthLimit            = 128
 	noteLengthLimit              = 1024
 	minEventSeriesCount          = 2
-
 )
 
 // REST wraps a Store and implements rest.Scoper.
@@ -252,6 +251,7 @@ func requestGroupVersion(ctx context.Context) schema.GroupVersion {
 }
 
 // legacyValidateEvent makes sure that the event makes sense.
+//nolint:cyclop, funlen // Too long or too complex due to many error checks, no real complexity here
 func legacyValidateEvent(event *corev1.Event, requestVersion schema.GroupVersion) field.ErrorList {
 	allErrs := field.ErrorList{}
 	// Because go
@@ -263,14 +263,15 @@ func legacyValidateEvent(event *corev1.Event, requestVersion schema.GroupVersion
 	}
 
 	// "New" Events need to have EventTime set, so it's validating old object.
+	//nolint:nestif // Nested ifs are used here for clarity
 	if event.EventTime.Time.Equal(zeroTime) {
 		// Make sure event.Namespace and the involvedInvolvedObject.Namespace agree
 		if len(event.InvolvedObject.Namespace) == 0 {
 			// event.Namespace must also be empty (or "default", for compatibility with old clients)
 			if event.Namespace != metav1.NamespaceNone && event.Namespace != metav1.NamespaceDefault {
-				allErrs = append( allErrs, field.Invalid(field.NewPath("involvedObject", "namespace"),
-						event.InvolvedObject.Namespace,
-						"does not match event.namespace"),
+				allErrs = append(allErrs, field.Invalid(field.NewPath("involvedObject", "namespace"),
+					event.InvolvedObject.Namespace,
+					"does not match event.namespace"),
 				)
 			}
 		} else {
@@ -283,15 +284,15 @@ func legacyValidateEvent(event *corev1.Event, requestVersion schema.GroupVersion
 				))
 			}
 		}
-		} else {
-			if len(event.InvolvedObject.Namespace) == 0 &&
+	} else {
+		if len(event.InvolvedObject.Namespace) == 0 &&
 			event.Namespace != metav1.NamespaceDefault &&
 			event.Namespace != metav1.NamespaceSystem {
-				allErrs = append(allErrs, field.Invalid(
-					field.NewPath("involvedObject", "namespace"),
-					event.InvolvedObject.Namespace,
-					"does not match event.namespace",
-				),
+			allErrs = append(allErrs, field.Invalid(
+				field.NewPath("involvedObject", "namespace"),
+				event.InvolvedObject.Namespace,
+				"does not match event.namespace",
+			),
 			)
 		}
 
@@ -322,11 +323,11 @@ func legacyValidateEvent(event *corev1.Event, requestVersion schema.GroupVersion
 		}
 
 		if len(event.Action) > actionLengthLimit {
-			allErrs = append( allErrs, field.Invalid(
-					field.NewPath("action"),
-					"", 
-					fmt.Sprintf("can have at most %v characters", actionLengthLimit),
-				),
+			allErrs = append(allErrs, field.Invalid(
+				field.NewPath("action"),
+				"",
+				fmt.Sprintf("can have at most %v characters", actionLengthLimit),
+			),
 			)
 		}
 
@@ -335,11 +336,11 @@ func legacyValidateEvent(event *corev1.Event, requestVersion schema.GroupVersion
 		}
 
 		if len(event.Reason) > reasonLengthLimit {
-			allErrs = append(allErrs,field.Invalid(
-					field.NewPath("reason"),
-					"",
-					fmt.Sprintf("can have at most %v characters", reasonLengthLimit),
-				),
+			allErrs = append(allErrs, field.Invalid(
+				field.NewPath("reason"),
+				"",
+				fmt.Sprintf("can have at most %v characters", reasonLengthLimit),
+			),
 			)
 		}
 
@@ -369,6 +370,7 @@ func validateQualifiedName(value string, fldPath *field.Path) field.ErrorList {
 	return allErrs
 }
 
+//nolint:cyclop // Too long or too complex due to many error checks, no real complexity here
 func validateEventCreate(event *corev1.Event, requestVersion schema.GroupVersion) field.ErrorList {
 	// Make sure events always pass legacy validation.
 	allErrs := legacyValidateEvent(event, requestVersion)
@@ -414,6 +416,7 @@ func validateEventCreate(event *corev1.Event, requestVersion schema.GroupVersion
 	return allErrs
 }
 
+//nolint:funlen // Too long or too complex due to many error checks, no real complexity here
 func validateEventUpdate(newEvent, oldEvent *corev1.Event, requestVersion schema.GroupVersion) field.ErrorList {
 	// Make sure the new event always passes legacy validation.
 	allErrs := legacyValidateEvent(newEvent, requestVersion)
@@ -434,8 +437,8 @@ func validateEventUpdate(newEvent, oldEvent *corev1.Event, requestVersion schema
 	}
 
 	allErrs = append(allErrs, validation.ValidateImmutableField(
-		newEvent.InvolvedObject, 
-		oldEvent.InvolvedObject, 
+		newEvent.InvolvedObject,
+		oldEvent.InvolvedObject,
 		field.NewPath("involvedObject"))...,
 	)
 	allErrs = append(allErrs, validation.ValidateImmutableField(
@@ -518,8 +521,8 @@ func validateV1EventSeries(event *corev1.Event) field.ErrorList {
 	if event.Series != nil {
 		if event.Series.Count < minEventSeriesCount {
 			allErrs = append(allErrs, field.Invalid(
-				field.NewPath("series.count"), 
-				"", 
+				field.NewPath("series.count"),
+				"",
 				fmt.Sprintf("should be at least %d", minEventSeriesCount)),
 			)
 		}
