@@ -112,6 +112,7 @@ func New(ctx context.Context) (*aggregatorapiserver.APIAggregator, error) {
 	return aggregatorServer, nil
 }
 
+//nolint:funlen // Too long or too complex due to many error checks and setup steps, no real complexity here
 func setupLegacyAPI(
 	scheme *runtime.Scheme,
 	codecs serializer.CodecFactory,
@@ -161,6 +162,8 @@ func setupLegacyAPI(
 	if err != nil {
 		return nil, fmt.Errorf("unable to create REST storage service for core v1 configmaps: %w", err)
 	}
+
+	logger.Info("Creating REST storage service for core v1 events")
 
 	eventsStorage, err := events.NewEventsREST(*kineStorageConfig, *scheme)
 	if err != nil {

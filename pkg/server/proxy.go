@@ -26,17 +26,23 @@ func NewHTTPMuxFactory(ctx context.Context) combinedserver.HTTPMuxFactory {
 		}
 
 		go func() {
+			logger := logging.FromContext(ctx)
+
 			runCtx, cancel := context.WithCancelCause(ctx)
 			defer cancel(nil)
 
 			preparedGenericServer, err := server.PrepareRun()
 			if err != nil {
-				cancel(fmt.Errorf("failed to prepare generic server: %w", err))
+				errorMsg := "failed to prepare generic server:"
+				logger.Error(errorMsg, zap.Error(err))
+				cancel(fmt.Errorf("%s %w", errorMsg, err))
 			}
 
 			err = preparedGenericServer.Run(runCtx)
 			if err != nil {
-				cancel(fmt.Errorf("failed to run generic server: %w", err))
+				errorMsg := "failed to run generic server:"
+				logger.Error(errorMsg, zap.Error(err))
+				cancel(fmt.Errorf("%s %w", errorMsg, err))
 			}
 		}()
 

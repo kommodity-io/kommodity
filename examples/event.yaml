@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: Event
+metadata:
+  name: example-pod-event
+  namespace: default
+involvedObject:
+  kind: Pod
+  namespace: default
+  name: example-pod
+  uid: 12345678-1234-1234-1234-1234567890ab
+  apiVersion: v1
+reason: Scheduled
+message: "Pod example-pod was successfully scheduled on node worker-node-1."
+type: Normal
+source:
+  component: kube-scheduler
+firstTimestamp: "2025-09-05T10:00:00Z"
+lastTimestamp: "2025-09-05T10:00:00Z"
+count: 1
+reportingComponent: ""
+reportingInstance: ""
