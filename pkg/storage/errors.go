@@ -14,6 +14,8 @@ var (
 	ErrObjectIsNotAService = errors.New("object is not a Service")
 	// ErrObjectIsNotAnEndpoint indicates that the object is not an endpoint.
 	ErrObjectIsNotAnEndpoint = errors.New("object is not an Endpoint")
+	// ErrObjectIsNotAnEvent indicates that the object is not an event.
+	ErrObjectIsNotAnEvent = errors.New("object is not an Event")
 	// ErrFieldIsNull indicates that the field is null.
 	ErrFieldIsNull = errors.New("field must not be null")
 )
