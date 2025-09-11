@@ -192,6 +192,7 @@ func (endpointsStrategy) Validate(ctx context.Context, obj runtime.Object) field
 // ValidateUpdate validates updated objects.
 func (endpointsStrategy) ValidateUpdate(ctx context.Context, obj, old runtime.Object) field.ErrorList {
 	logger := logging.FromContext(ctx)
+
 	endpointObject, success := obj.(*corev1.Endpoints)
 	if !success {
 		logger.Warn("Expected *corev1.Endpoints for new object", zap.String("actual_type", fmt.Sprintf("%T", obj)))

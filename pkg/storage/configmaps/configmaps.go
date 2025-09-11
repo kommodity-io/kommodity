@@ -165,6 +165,7 @@ func (configMapStrategy) Validate(ctx context.Context, obj runtime.Object) field
 // ValidateUpdate validates updated objects.
 func (configMapStrategy) ValidateUpdate(ctx context.Context, obj, old runtime.Object) field.ErrorList {
 	logger := logging.FromContext(ctx)
+
 	newConfigMap, success := obj.(*corev1.ConfigMap)
 	if !success {
 		logger.Warn("Expected *corev1.ConfigMap for new object", zap.String("actual_type", fmt.Sprintf("%T", obj)))
