@@ -150,6 +150,7 @@ func (serviceStrategy) WarningsOnCreate(_ context.Context, _ runtime.Object) []s
 // PrepareForUpdate sets defaults for updated objects.
 func (serviceStrategy) PrepareForUpdate(ctx context.Context, obj, old runtime.Object) {
 	logger := logging.FromContext(ctx)
+
 	newService, success := obj.(*corev1.Service)
 	if !success {
 		logger.Warn("Expected *corev1.Service for new object", zap.String("actual_type", fmt.Sprintf("%T", obj)))
@@ -189,6 +190,7 @@ func (serviceStrategy) Validate(ctx context.Context, obj runtime.Object) field.E
 // ValidateUpdate validates updated objects.
 func (serviceStrategy) ValidateUpdate(ctx context.Context, obj, old runtime.Object) field.ErrorList {
 	logger := logging.FromContext(ctx)
+
 	newService, success := obj.(*corev1.Service)
 	if !success {
 		logger.Warn("Expected *corev1.Service for new object", zap.String("actual_type", fmt.Sprintf("%T", obj)))

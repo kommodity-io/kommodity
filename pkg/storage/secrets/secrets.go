@@ -171,6 +171,7 @@ func warningsForSecret(secret *corev1.Secret) []string {
 // PrepareForUpdate sets defaults for updated objects.
 func (secretStrategy) PrepareForUpdate(ctx context.Context, obj, old runtime.Object) {
 	logger := logging.FromContext(ctx)
+
 	newSecret, success := obj.(*corev1.Secret)
 	if !success {
 		logger.Warn("Expected *corev1.Secret for new object", zap.String("actual_type", fmt.Sprintf("%T", obj)))
@@ -215,6 +216,7 @@ func (secretStrategy) Validate(ctx context.Context, obj runtime.Object) field.Er
 // ValidateUpdate validates updated objects.
 func (secretStrategy) ValidateUpdate(ctx context.Context, obj, old runtime.Object) field.ErrorList {
 	logger := logging.FromContext(ctx)
+
 	newSecretObject, success := obj.(*corev1.Secret)
 	if !success {
 		logger.Warn("Expected *corev1.Secret for new object", zap.String("actual_type", fmt.Sprintf("%T", obj)))

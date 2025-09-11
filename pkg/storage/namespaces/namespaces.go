@@ -138,6 +138,7 @@ func (namespaceStrategy) WarningsOnCreate(_ context.Context, _ runtime.Object) [
 // PrepareForUpdate sets defaults for updated objects.
 func (namespaceStrategy) PrepareForUpdate(ctx context.Context, obj, old runtime.Object) {
 	logger := logging.FromContext(ctx)
+
 	newNamespace, success := obj.(*corev1.Namespace)
 	if !success {
 		logger.Warn("Expected *corev1.Namespace for new object", zap.String("actual_type", fmt.Sprintf("%T", obj)))
@@ -178,6 +179,7 @@ func (namespaceStrategy) Validate(ctx context.Context, obj runtime.Object) field
 // ValidateUpdate validates updated objects.
 func (namespaceStrategy) ValidateUpdate(ctx context.Context, obj, old runtime.Object) field.ErrorList {
 	logger := logging.FromContext(ctx)
+
 	namespaceObject, success := obj.(*corev1.Namespace)
 	if !success {
 		logger.Warn("Expected *corev1.Namespace for new object", zap.String("actual_type", fmt.Sprintf("%T", obj)))
