@@ -5,13 +5,14 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"log"
 	"path"
 	"reflect"
 
 	corev1 "k8s.io/api/core/v1"
 
+	"github.com/kommodity-io/kommodity/pkg/logging"
 	"github.com/kommodity-io/kommodity/pkg/storage"
+	"go.uber.org/zap"
 
 	"k8s.io/apimachinery/pkg/api/validation"
 	"k8s.io/apimachinery/pkg/fields"
@@ -141,10 +142,11 @@ func (secretStrategy) NamespaceScoped() bool {
 func (secretStrategy) PrepareForCreate(_ context.Context, _ runtime.Object) {}
 
 // WarningsOnCreate returns warnings for create operations.
-func (secretStrategy) WarningsOnCreate(_ context.Context, obj runtime.Object) []string {
+func (secretStrategy) WarningsOnCreate(ctx context.Context, obj runtime.Object) []string {
 	secret, ok := obj.(*corev1.Secret)
 	if !ok {
-		log.Printf("expected *corev1.Secret, got %T", obj)
+		logger := logging.FromContext(ctx)
+		logger.Warn("Expected *corev1.Secret", zap.String("actual_type", fmt.Sprintf("%T", obj)))
 
 		return []string{fmt.Sprintf("unexpected object type: %T", obj)}
 	}
@@ -167,15 +169,16 @@ func warningsForSecret(secret *corev1.Secret) []string {
 }
 
 // PrepareForUpdate sets defaults for updated objects.
-func (secretStrategy) PrepareForUpdate(_ context.Context, obj, old runtime.Object) {
+func (secretStrategy) PrepareForUpdate(ctx context.Context, obj, old runtime.Object) {
+	logger := logging.FromContext(ctx)
 	newSecret, success := obj.(*corev1.Secret)
 	if !success {
-		log.Printf("expected *corev1.Secret, got %T", obj)
+		logger.Warn("Expected *corev1.Secret for new object", zap.String("actual_type", fmt.Sprintf("%T", obj)))
 	}
 
 	oldSecret, success := old.(*corev1.Secret)
 	if !success {
-		log.Printf("expected *corev1.Secret, got %T", obj)
+		logger.Warn("Expected *corev1.Secret for old object", zap.String("actual_type", fmt.Sprintf("%T", old)))
 	}
 
 	// this is weird, but consistent with what the validatedUpdate function used to do.
@@ -185,10 +188,11 @@ func (secretStrategy) PrepareForUpdate(_ context.Context, obj, old runtime.Objec
 }
 
 // WarningsOnUpdate returns warnings for update operations.
-func (secretStrategy) WarningsOnUpdate(_ context.Context, _, obj runtime.Object) []string {
+func (secretStrategy) WarningsOnUpdate(ctx context.Context, _, obj runtime.Object) []string {
 	secret, ok := obj.(*corev1.Secret)
 	if !ok {
-		log.Printf("expected *corev1.Secret, got %T", obj)
+		logger := logging.FromContext(ctx)
+		logger.Warn("Expected *corev1.Secret", zap.String("actual_type", fmt.Sprintf("%T", obj)))
 	}
 
 	return warningsForSecret(secret)
@@ -198,36 +202,38 @@ func (secretStrategy) WarningsOnUpdate(_ context.Context, _, obj runtime.Object)
 func (secretStrategy) PrepareForDelete(_ context.Context, _ runtime.Object) {}
 
 // Validate validates new objects.
-func (secretStrategy) Validate(_ context.Context, obj runtime.Object) field.ErrorList {
+func (secretStrategy) Validate(ctx context.Context, obj runtime.Object) field.ErrorList {
 	secretObject, ok := obj.(*corev1.Secret)
 	if !ok {
-		log.Printf("expected *corev1.Secret, got %T", obj)
+		logger := logging.FromContext(ctx)
+		logger.Warn("Expected *corev1.Secret", zap.String("actual_type", fmt.Sprintf("%T", obj)))
 	}
 
 	return validateSecret(secretObject)
 }
 
 // ValidateUpdate validates updated objects.
-func (secretStrategy) ValidateUpdate(_ context.Context, obj, old runtime.Object) field.ErrorList {
+func (secretStrategy) ValidateUpdate(ctx context.Context, obj, old runtime.Object) field.ErrorList {
+	logger := logging.FromContext(ctx)
 	newSecretObject, success := obj.(*corev1.Secret)
 	if !success {
-		log.Printf("expected *corev1.Secret, got %T", obj)
+		logger.Warn("Expected *corev1.Secret for new object", zap.String("actual_type", fmt.Sprintf("%T", obj)))
 	}
 
 	oldSecretObject, success := old.(*corev1.Secret)
 	if !success {
-		log.Printf("expected *corev1.Secret, got %T", obj)
+		logger.Warn("Expected *corev1.Secret for old object", zap.String("actual_type", fmt.Sprintf("%T", old)))
 	}
 
 	allErrs := validation.ValidateObjectMetaUpdate(
-		&newSecretObject.ObjectMeta, 
-		&oldSecretObject.ObjectMeta, 
+		&newSecretObject.ObjectMeta,
+		&oldSecretObject.ObjectMeta,
 		field.NewPath("metadata"),
 	)
 
 	allErrs = append(
-		allErrs, 
-		validation.ValidateImmutableField(newSecretObject.Type, oldSecretObject.Type, field.NewPath("type"))...
+		allErrs,
+		validation.ValidateImmutableField(newSecretObject.Type, oldSecretObject.Type, field.NewPath("type"))...,
 	)
 
 	if oldSecretObject.Immutable != nil && *oldSecretObject.Immutable {
@@ -250,9 +256,9 @@ func (secretStrategy) ValidateUpdate(_ context.Context, obj, old runtime.Object)
 // ValidateSecret tests if required fields in the Secret are set.
 func validateSecret(secret *corev1.Secret) field.ErrorList {
 	allErrs := validation.ValidateObjectMeta(
-		&secret.ObjectMeta, 
-		true, 
-		validation.NameIsDNSSubdomain, 
+		&secret.ObjectMeta,
+		true,
+		validation.NameIsDNSSubdomain,
 		field.NewPath("metadata"),
 	)
 

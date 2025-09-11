@@ -4,12 +4,13 @@ package services
 import (
 	"context"
 	"fmt"
-	"log"
 	"path"
 
 	corev1 "k8s.io/api/core/v1"
 
+	"github.com/kommodity-io/kommodity/pkg/logging"
 	storageerr "github.com/kommodity-io/kommodity/pkg/storage"
+	"go.uber.org/zap"
 
 	"k8s.io/apimachinery/pkg/api/validation"
 	"k8s.io/apimachinery/pkg/fields"
@@ -131,10 +132,11 @@ func (serviceStrategy) NamespaceScoped() bool {
 }
 
 // PrepareForCreate sets defaults for new objects.
-func (serviceStrategy) PrepareForCreate(_ context.Context, obj runtime.Object) {
+func (serviceStrategy) PrepareForCreate(ctx context.Context, obj runtime.Object) {
 	service, success := obj.(*corev1.Service)
 	if !success {
-		log.Printf("expected *corev1.Service, got %T", obj)
+		logger := logging.FromContext(ctx)
+		logger.Warn("Expected *corev1.Service", zap.String("actual_type", fmt.Sprintf("%T", obj)))
 	}
 
 	service.Status = corev1.ServiceStatus{}
@@ -146,15 +148,16 @@ func (serviceStrategy) WarningsOnCreate(_ context.Context, _ runtime.Object) []s
 }
 
 // PrepareForUpdate sets defaults for updated objects.
-func (serviceStrategy) PrepareForUpdate(_ context.Context, obj, old runtime.Object) {
+func (serviceStrategy) PrepareForUpdate(ctx context.Context, obj, old runtime.Object) {
+	logger := logging.FromContext(ctx)
 	newService, success := obj.(*corev1.Service)
 	if !success {
-		log.Printf("expected *corev1.Service, got %T", obj)
+		logger.Warn("Expected *corev1.Service for new object", zap.String("actual_type", fmt.Sprintf("%T", obj)))
 	}
 
 	oldService, success := old.(*corev1.Service)
 	if !success {
-		log.Printf("expected *corev1.Service, got %T", old)
+		logger.Warn("Expected *corev1.Service for old object", zap.String("actual_type", fmt.Sprintf("%T", old)))
 	}
 
 	newService.Status = oldService.Status
@@ -169,10 +172,11 @@ func (serviceStrategy) WarningsOnUpdate(_ context.Context, _, _ runtime.Object) 
 func (serviceStrategy) PrepareForDelete(_ context.Context, _ runtime.Object) {}
 
 // Validate validates new objects.
-func (serviceStrategy) Validate(_ context.Context, obj runtime.Object) field.ErrorList {
+func (serviceStrategy) Validate(ctx context.Context, obj runtime.Object) field.ErrorList {
 	service, ok := obj.(*corev1.Service)
 	if !ok {
-		log.Printf("expected *corev1.Service, got %T", obj)
+		logger := logging.FromContext(ctx)
+		logger.Warn("Expected *corev1.Service", zap.String("actual_type", fmt.Sprintf("%T", obj)))
 	}
 
 	return validation.ValidateObjectMeta(
@@ -183,15 +187,16 @@ func (serviceStrategy) Validate(_ context.Context, obj runtime.Object) field.Err
 }
 
 // ValidateUpdate validates updated objects.
-func (serviceStrategy) ValidateUpdate(_ context.Context, obj, old runtime.Object) field.ErrorList {
+func (serviceStrategy) ValidateUpdate(ctx context.Context, obj, old runtime.Object) field.ErrorList {
+	logger := logging.FromContext(ctx)
 	newService, success := obj.(*corev1.Service)
 	if !success {
-		log.Printf("expected *corev1.Service, got %T", obj)
+		logger.Warn("Expected *corev1.Service for new object", zap.String("actual_type", fmt.Sprintf("%T", obj)))
 	}
 
 	oldService, success := old.(*corev1.Service)
 	if !success {
-		log.Printf("expected *corev1.Service, got %T", obj)
+		logger.Warn("Expected *corev1.Service for old object", zap.String("actual_type", fmt.Sprintf("%T", old)))
 	}
 
 	allErrs := validation.ValidateObjectMetaUpdate(&newService.ObjectMeta,
