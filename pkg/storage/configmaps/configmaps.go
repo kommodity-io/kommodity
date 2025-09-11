@@ -4,13 +4,14 @@ package configmaps
 import (
 	"context"
 	"fmt"
-	"log"
 	"path"
 	"reflect"
 
 	corev1 "k8s.io/api/core/v1"
 
+	"github.com/kommodity-io/kommodity/pkg/logging"
 	"github.com/kommodity-io/kommodity/pkg/storage"
+	"go.uber.org/zap"
 
 	"k8s.io/apimachinery/pkg/api/validation"
 	"k8s.io/apimachinery/pkg/fields"
@@ -151,31 +152,33 @@ func (configMapStrategy) WarningsOnUpdate(_ context.Context, _ runtime.Object, _
 func (configMapStrategy) PrepareForDelete(_ context.Context, _ runtime.Object) {}
 
 // Validate validates new objects.
-func (configMapStrategy) Validate(_ context.Context, obj runtime.Object) field.ErrorList {
+func (configMapStrategy) Validate(ctx context.Context, obj runtime.Object) field.ErrorList {
 	configMap, ok := obj.(*corev1.ConfigMap)
 	if !ok {
-		log.Printf("expected *corev1.ConfigMap, got %T", obj)
+		logger := logging.FromContext(ctx)
+		logger.Warn("Expected *corev1.ConfigMap", zap.String("actual_type", fmt.Sprintf("%T", obj)))
 	}
 
 	return validateConfigMap(configMap)
 }
 
 // ValidateUpdate validates updated objects.
-func (configMapStrategy) ValidateUpdate(_ context.Context, obj, old runtime.Object) field.ErrorList {
+func (configMapStrategy) ValidateUpdate(ctx context.Context, obj, old runtime.Object) field.ErrorList {
+	logger := logging.FromContext(ctx)
 	newConfigMap, success := obj.(*corev1.ConfigMap)
 	if !success {
-		log.Printf("expected *corev1.ConfigMap, got %T", obj)
+		logger.Warn("Expected *corev1.ConfigMap for new object", zap.String("actual_type", fmt.Sprintf("%T", obj)))
 	}
 
 	oldConfigMap, success := old.(*corev1.ConfigMap)
 	if !success {
-		log.Printf("expected *corev1.ConfigMap, got %T", obj)
+		logger.Warn("Expected *corev1.ConfigMap for old object", zap.String("actual_type", fmt.Sprintf("%T", old)))
 	}
 
 	allErrs := field.ErrorList{}
 	allErrs = append(
-		allErrs, 
-		validation.ValidateObjectMetaUpdate(&newConfigMap.ObjectMeta, &oldConfigMap.ObjectMeta, field.NewPath("metadata"))...
+		allErrs,
+		validation.ValidateObjectMetaUpdate(&newConfigMap.ObjectMeta, &oldConfigMap.ObjectMeta, field.NewPath("metadata"))...,
 	)
 
 	if oldConfigMap.Immutable != nil && *oldConfigMap.Immutable {
@@ -201,8 +204,8 @@ func (configMapStrategy) ValidateUpdate(_ context.Context, obj, old runtime.Obje
 func validateConfigMap(cfg *corev1.ConfigMap) field.ErrorList {
 	allErrs := field.ErrorList{}
 	allErrs = append(
-		allErrs, 
-		validation.ValidateObjectMeta(&cfg.ObjectMeta, true, validation.NameIsDNSSubdomain, field.NewPath("metadata"))...
+		allErrs,
+		validation.ValidateObjectMeta(&cfg.ObjectMeta, true, validation.NameIsDNSSubdomain, field.NewPath("metadata"))...,
 	)
 
 	totalSize := 0

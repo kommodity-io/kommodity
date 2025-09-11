@@ -4,12 +4,13 @@ package namespaces
 import (
 	"context"
 	"fmt"
-	"log"
 	"path"
 
 	corev1 "k8s.io/api/core/v1"
 
+	"github.com/kommodity-io/kommodity/pkg/logging"
 	storageerr "github.com/kommodity-io/kommodity/pkg/storage"
+	"go.uber.org/zap"
 
 	"k8s.io/apimachinery/pkg/api/validation"
 	"k8s.io/apimachinery/pkg/fields"
@@ -135,15 +136,16 @@ func (namespaceStrategy) WarningsOnCreate(_ context.Context, _ runtime.Object) [
 }
 
 // PrepareForUpdate sets defaults for updated objects.
-func (namespaceStrategy) PrepareForUpdate(_ context.Context, obj, old runtime.Object) {
+func (namespaceStrategy) PrepareForUpdate(ctx context.Context, obj, old runtime.Object) {
+	logger := logging.FromContext(ctx)
 	newNamespace, success := obj.(*corev1.Namespace)
 	if !success {
-		log.Printf("expected *corev1.Namespace, got %T", obj)
+		logger.Warn("Expected *corev1.Namespace for new object", zap.String("actual_type", fmt.Sprintf("%T", obj)))
 	}
 
 	oldNamespace, success := old.(*corev1.Namespace)
 	if !success {
-		log.Printf("expected *corev1.Namespace, got %T", obj)
+		logger.Warn("Expected *corev1.Namespace for old object", zap.String("actual_type", fmt.Sprintf("%T", old)))
 	}
 
 	newNamespace.Spec.Finalizers = oldNamespace.Spec.Finalizers
@@ -159,10 +161,11 @@ func (namespaceStrategy) WarningsOnUpdate(_ context.Context, _, _ runtime.Object
 func (namespaceStrategy) PrepareForDelete(_ context.Context, _ runtime.Object) {}
 
 // Validate validates new objects.
-func (namespaceStrategy) Validate(_ context.Context, obj runtime.Object) field.ErrorList {
+func (namespaceStrategy) Validate(ctx context.Context, obj runtime.Object) field.ErrorList {
 	namespaceObject, ok := obj.(*corev1.Namespace)
 	if !ok {
-		log.Printf("expected *corev1.Namespace, got %T", obj)
+		logger := logging.FromContext(ctx)
+		logger.Warn("Expected *corev1.Namespace", zap.String("actual_type", fmt.Sprintf("%T", obj)))
 	}
 
 	return validation.ValidateObjectMeta(
@@ -173,15 +176,16 @@ func (namespaceStrategy) Validate(_ context.Context, obj runtime.Object) field.E
 }
 
 // ValidateUpdate validates updated objects.
-func (namespaceStrategy) ValidateUpdate(_ context.Context, obj, old runtime.Object) field.ErrorList {
+func (namespaceStrategy) ValidateUpdate(ctx context.Context, obj, old runtime.Object) field.ErrorList {
+	logger := logging.FromContext(ctx)
 	namespaceObject, success := obj.(*corev1.Namespace)
 	if !success {
-		log.Printf("expected *corev1.Namespace, got %T", obj)
+		logger.Warn("Expected *corev1.Namespace for new object", zap.String("actual_type", fmt.Sprintf("%T", obj)))
 	}
 
 	oldNamespaceObject, success := old.(*corev1.Namespace)
 	if !success {
-		log.Printf("expected *corev1.Namespace, got %T", obj)
+		logger.Warn("Expected *corev1.Namespace for old object", zap.String("actual_type", fmt.Sprintf("%T", old)))
 	}
 
 	return validation.ValidateObjectMetaUpdate(

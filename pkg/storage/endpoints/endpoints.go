@@ -4,11 +4,12 @@ package endpoints
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/netip"
 	"path"
 
+	"github.com/kommodity-io/kommodity/pkg/logging"
 	"github.com/kommodity-io/kommodity/pkg/storage"
+	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
 	apimachineryvalidation "k8s.io/apimachinery/pkg/api/validation"
 	"k8s.io/apimachinery/pkg/fields"
@@ -145,10 +146,11 @@ func (endpointsStrategy) NamespaceScoped() bool {
 func (endpointsStrategy) PrepareForCreate(_ context.Context, _ runtime.Object) {}
 
 // WarningsOnCreate returns warnings for create operations.
-func (endpointsStrategy) WarningsOnCreate(_ context.Context, obj runtime.Object) []string {
+func (endpointsStrategy) WarningsOnCreate(ctx context.Context, obj runtime.Object) []string {
 	endpoint, ok := obj.(*corev1.Endpoints)
 	if !ok {
-		log.Printf("expected *corev1.Endpoints, got %T", obj)
+		logger := logging.FromContext(ctx)
+		logger.Warn("Expected *corev1.Endpoints", zap.String("actual_type", fmt.Sprintf("%T", obj)))
 	}
 
 	return endpointsWarnings(endpoint)
@@ -159,10 +161,11 @@ func (endpointsStrategy) PrepareForUpdate(_ context.Context, _, _ runtime.Object
 }
 
 // WarningsOnUpdate returns warnings for update operations.
-func (endpointsStrategy) WarningsOnUpdate(_ context.Context, _, obj runtime.Object) []string {
+func (endpointsStrategy) WarningsOnUpdate(ctx context.Context, _, obj runtime.Object) []string {
 	endpoint, ok := obj.(*corev1.Endpoints)
 	if !ok {
-		log.Printf("expected *corev1.Endpoints, got %T", obj)
+		logger := logging.FromContext(ctx)
+		logger.Warn("Expected *corev1.Endpoints", zap.String("actual_type", fmt.Sprintf("%T", obj)))
 	}
 
 	return endpointsWarnings(endpoint)
@@ -172,10 +175,11 @@ func (endpointsStrategy) WarningsOnUpdate(_ context.Context, _, obj runtime.Obje
 func (endpointsStrategy) PrepareForDelete(_ context.Context, _ runtime.Object) {}
 
 // Validate validates new objects.
-func (endpointsStrategy) Validate(_ context.Context, obj runtime.Object) field.ErrorList {
+func (endpointsStrategy) Validate(ctx context.Context, obj runtime.Object) field.ErrorList {
 	endpointObject, ok := obj.(*corev1.Endpoints)
 	if !ok {
-		log.Printf("expected *corev1.Endpoints, got %T", obj)
+		logger := logging.FromContext(ctx)
+		logger.Warn("Expected *corev1.Endpoints", zap.String("actual_type", fmt.Sprintf("%T", obj)))
 	}
 
 	return apimachineryvalidation.ValidateObjectMeta(
@@ -186,15 +190,16 @@ func (endpointsStrategy) Validate(_ context.Context, obj runtime.Object) field.E
 }
 
 // ValidateUpdate validates updated objects.
-func (endpointsStrategy) ValidateUpdate(_ context.Context, obj, old runtime.Object) field.ErrorList {
+func (endpointsStrategy) ValidateUpdate(ctx context.Context, obj, old runtime.Object) field.ErrorList {
+	logger := logging.FromContext(ctx)
 	endpointObject, success := obj.(*corev1.Endpoints)
 	if !success {
-		log.Printf("expected *corev1.Endpoints, got %T", obj)
+		logger.Warn("Expected *corev1.Endpoints for new object", zap.String("actual_type", fmt.Sprintf("%T", obj)))
 	}
 
 	oldendpointObject, success := old.(*corev1.Endpoints)
 	if !success {
-		log.Printf("expected *corev1.Endpoints, got %T", obj)
+		logger.Warn("Expected *corev1.Endpoints for old object", zap.String("actual_type", fmt.Sprintf("%T", old)))
 	}
 
 	return apimachineryvalidation.ValidateObjectMetaUpdate(
