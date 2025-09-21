@@ -8,6 +8,7 @@ providers:
       - api/core/v1beta2
   - name: talos-bootstrap-provider
     repository: github.com/siderolabs/cluster-api-bootstrap-provider-talos
+    version_override: v0.6.10
     file_name: bootstrap-components.yaml
     filter: select(.kind == "CustomResourceDefinition")
     scheme_locations:
@@ -15,6 +16,7 @@ providers:
       - api/v1alpha3
   - name: talos-control-plane-provider
     repository: github.com/siderolabs/cluster-api-control-plane-provider-talos
+    version_override: v0.5.11
     file_name: control-plane-components.yaml
     filter: select(.kind == "CustomResourceDefinition")
     scheme_locations:

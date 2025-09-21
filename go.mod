@@ -18,6 +18,7 @@ require (
 	github.com/lib/pq v1.10.9
 	github.com/siderolabs/cluster-api-bootstrap-provider-talos v0.6.11-0.20250916073917-c40e6b4106f7
 	github.com/siderolabs/cluster-api-control-plane-provider-talos v0.5.12-0.20250919101334-fc8e752b256a
+	github.com/scaleway/cluster-api-provider-scaleway v0.1.3
 	github.com/siderolabs/kms-client v0.1.0
 	github.com/soheilhy/cmux v0.1.5
 	github.com/stretchr/testify v1.10.0

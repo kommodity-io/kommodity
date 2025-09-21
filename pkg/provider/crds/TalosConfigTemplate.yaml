@@ -1,0 +1,160 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    cert-manager.io/inject-ca-from: cabpt-system/cabpt-serving-cert
+    controller-gen.kubebuilder.io/version: v0.17.0
+  labels:
+    cluster.x-k8s.io/provider: bootstrap-talos
+    cluster.x-k8s.io/v1alpha3: v1alpha3
+    cluster.x-k8s.io/v1alpha4: v1alpha3
+    cluster.x-k8s.io/v1beta1: v1alpha3
+  name: talosconfigtemplates.bootstrap.cluster.x-k8s.io
+spec:
+  conversion:
+    strategy: Webhook
+    webhook:
+      clientConfig:
+        service:
+          name: cabpt-webhook-service
+          namespace: cabpt-system
+          path: /convert
+      conversionReviewVersions:
+        - v1
+        - v1beta1
+  group: bootstrap.cluster.x-k8s.io
+  names:
+    categories:
+      - cluster-api
+    kind: TalosConfigTemplate
+    listKind: TalosConfigTemplateList
+    plural: talosconfigtemplates
+    singular: talosconfigtemplate
+  scope: Namespaced
+  versions:
+    - name: v1alpha2
+      schema:
+        openAPIV3Schema:
+          description: TalosConfigTemplate is the Schema for the talosconfigtemplates API
+          properties:
+            apiVersion:
+              description: |-
+                APIVersion defines the versioned schema of this representation of an object.
+                Servers should convert recognized schemas to the latest internal value, and
+                may reject unrecognized values.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+              type: string
+            kind:
+              description: |-
+                Kind is a string value representing the REST resource this object represents.
+                Servers may infer this from the endpoint the client submits requests to.
+                Cannot be updated.
+                In CamelCase.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+              type: string
+            metadata:
+              type: object
+            spec:
+              description: TalosConfigTemplateSpec defines the desired state of TalosConfigTemplate
+              properties:
+                template:
+                  description: TalosConfigTemplateResource defines the Template structure
+                  properties:
+                    spec:
+                      description: TalosConfigSpec defines the desired state of TalosConfig
+                      properties:
+                        data:
+                          type: string
+                        generateType:
+                          type: string
+                      required:
+                        - generateType
+                      type: object
+                  type: object
+              required:
+                - template
+              type: object
+          type: object
+      served: true
+      storage: false
+    - name: v1alpha3
+      schema:
+        openAPIV3Schema:
+          description: TalosConfigTemplate is the Schema for the talosconfigtemplates API
+          properties:
+            apiVersion:
+              description: |-
+                APIVersion defines the versioned schema of this representation of an object.
+                Servers should convert recognized schemas to the latest internal value, and
+                may reject unrecognized values.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+              type: string
+            kind:
+              description: |-
+                Kind is a string value representing the REST resource this object represents.
+                Servers may infer this from the endpoint the client submits requests to.
+                Cannot be updated.
+                In CamelCase.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+              type: string
+            metadata:
+              type: object
+            spec:
+              description: TalosConfigTemplateSpec defines the desired state of TalosConfigTemplate
+              properties:
+                template:
+                  description: TalosConfigTemplateResource defines the Template structure
+                  properties:
+                    spec:
+                      description: TalosConfigSpec defines the desired state of TalosConfig
+                      properties:
+                        configPatches:
+                          items:
+                            properties:
+                              op:
+                                type: string
+                              path:
+                                type: string
+                              value:
+                                x-kubernetes-preserve-unknown-fields: true
+                            required:
+                              - op
+                              - path
+                            type: object
+                          type: array
+                        data:
+                          type: string
+                        generateType:
+                          type: string
+                        hostname:
+                          description: Set hostname in the machine configuration to some value.
+                          properties:
+                            source:
+                              description: |-
+                                Source of the hostname.
+
+                                Allowed values:
+                                "MachineName" (use linked Machine's Name).
+                                "InfrastructureName" (use linked Machine's infrastructure's name).
+                              type: string
+                          type: object
+                        strategicPatches:
+                          description: Talos Linux machine configuration strategic merge patch list.
+                          items:
+                            type: string
+                          type: array
+                        talosVersion:
+                          type: string
+                      required:
+                        - generateType
+                      type: object
+                  type: object
+              required:
+                - template
+              type: object
+          type: object
+      served: true
+      storage: true
+      subresources:
+        status: {}
