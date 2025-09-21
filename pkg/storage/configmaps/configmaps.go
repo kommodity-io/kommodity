@@ -174,8 +174,8 @@ func (configMapStrategy) ValidateUpdate(_ context.Context, obj, old runtime.Obje
 
 	allErrs := field.ErrorList{}
 	allErrs = append(
-		allErrs, 
-		validation.ValidateObjectMetaUpdate(&newConfigMap.ObjectMeta, &oldConfigMap.ObjectMeta, field.NewPath("metadata"))...
+		allErrs,
+		validation.ValidateObjectMetaUpdate(&newConfigMap.ObjectMeta, &oldConfigMap.ObjectMeta, field.NewPath("metadata"))...,
 	)
 
 	if oldConfigMap.Immutable != nil && *oldConfigMap.Immutable {
@@ -201,8 +201,8 @@ func (configMapStrategy) ValidateUpdate(_ context.Context, obj, old runtime.Obje
 func validateConfigMap(cfg *corev1.ConfigMap) field.ErrorList {
 	allErrs := field.ErrorList{}
 	allErrs = append(
-		allErrs, 
-		validation.ValidateObjectMeta(&cfg.ObjectMeta, true, validation.NameIsDNSSubdomain, field.NewPath("metadata"))...
+		allErrs,
+		validation.ValidateObjectMeta(&cfg.ObjectMeta, true, validation.NameIsDNSSubdomain, field.NewPath("metadata"))...,
 	)
 
 	totalSize := 0

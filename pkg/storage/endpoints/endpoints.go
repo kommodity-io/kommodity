@@ -1,4 +1,6 @@
 // Package endpoints implements the storage strategy towards kine for the core v1 Endpoint resource.
+//
+//nolint:staticcheck
 package endpoints
 
 import (

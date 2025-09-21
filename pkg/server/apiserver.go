@@ -16,15 +16,15 @@ import (
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	"k8s.io/apiserver/pkg/server/options"
 	apiserverstorage "k8s.io/apiserver/pkg/server/storage"
+	"k8s.io/apiserver/pkg/util/compatibility"
 	restclient "k8s.io/client-go/rest"
-	componentbaseversion "k8s.io/component-base/version"
 )
 
 func setupAPIServerConfig(ctx context.Context, openAPISpec *generatedopenapi.Spec, scheme *runtime.Scheme,
 	codecs serializer.CodecFactory) (*genericapiserver.RecommendedConfig, error) {
 	genericServerConfig := genericapiserver.NewRecommendedConfig(codecs)
 
-	genericServerConfig.EffectiveVersion = componentbaseversion.DefaultBuildEffectiveVersion()
+	genericServerConfig.EffectiveVersion = compatibility.DefaultBuildEffectiveVersion()
 
 	genericServerConfig.OpenAPIV3Config = genericapiserver.DefaultOpenAPIV3Config(
 		openAPISpec.GetOpenAPIDefinitions,

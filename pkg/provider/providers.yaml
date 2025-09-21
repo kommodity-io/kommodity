@@ -5,9 +5,10 @@ providers:
     file_name: core-components.yaml
     filter: select(.kind == "CustomResourceDefinition")
     scheme_locations:
-      - api/v1beta1
+      - api/core/v1beta2
   - name: talos-bootstrap-provider
     repository: github.com/siderolabs/cluster-api-bootstrap-provider-talos
+    version_override: v0.6.10
     file_name: bootstrap-components.yaml
     filter: select(.kind == "CustomResourceDefinition")
     scheme_locations:
@@ -15,29 +16,36 @@ providers:
       - api/v1alpha3
   - name: talos-control-plane-provider
     repository: github.com/siderolabs/cluster-api-control-plane-provider-talos
+    version_override: v0.5.11
     file_name: control-plane-components.yaml
     filter: select(.kind == "CustomResourceDefinition")
     scheme_locations:
       - api/v1alpha3
-  - name: azure-machine-pool-provider
-    repository: github.com/kubernetes-sigs/cluster-api-provider-azure
-    go_module: sigs.k8s.io/cluster-api-provider-azure
-    file_name: infrastructure-components.yaml
-    # We only want to include Kinds of type CustomResourceDefinition with at least one .spec.version which is not deprecated.
-    # Managed resources and AzureCluster kinds are not needed
-    filter: select(.kind == "CustomResourceDefinition") | select([.spec.versions[] | select(.deprecated != true)] | length > 0) | .spec.versions |= map(select(.deprecated != true))
-    deny_list:
-      - AzureASOManagedCluster
-      - AzureASOManagedClusterTemplate
-      - AzureASOManagedControlPlane
-      - AzureASOManagedControlPlaneTemplate
-      - AzureASOManagedMachinePool
-      - AzureASOManagedMachinePoolTemplate
-      - BastionHost
-      - FleetsMember
-      - ManagedCluster
-      - ManagedClustersAgentPool
-    scheme_locations:
-      - api/v1alpha1
-      - api/v1beta1
-      - exp/api/v1beta1
+  # - name: azure-machine-pool-provider
+  #   repository: github.com/kubernetes-sigs/cluster-api-provider-azure
+  #   go_module: sigs.k8s.io/cluster-api-provider-azure
+  #   file_name: infrastructure-components.yaml
+  #   # We only want to include Kinds of type CustomResourceDefinition with at least one .spec.version which is not deprecated.
+  #   # Managed resources and AzureCluster kinds are not needed
+  #   filter: select(.kind == "CustomResourceDefinition") | select([.spec.versions[] | select(.deprecated != true)] | length > 0) | .spec.versions |= map(select(.deprecated != true))
+  #   deny_list:
+  #     - AzureASOManagedCluster
+  #     - AzureASOManagedClusterTemplate
+  #     - AzureASOManagedControlPlane
+  #     - AzureASOManagedControlPlaneTemplate
+  #     - AzureASOManagedMachinePool
+  #     - AzureASOManagedMachinePoolTemplate
+  #     - BastionHost
+  #     - FleetsMember
+  #     - ManagedCluster
+  #     - ManagedClustersAgentPool
+  #   scheme_locations:
+  #     - api/v1alpha1
+  #     - api/v1beta1
+  #     - exp/api/v1beta1
+  # - name: scaleway-machine-pool-provider
+  #   repository: github.com/scaleway/cluster-api-provider-scaleway
+  #   file_name: infrastructure-components.yaml
+  #   filter: select(.kind == "CustomResourceDefinition")
+  #   scheme_locations:
+  #     - api/v1alpha1

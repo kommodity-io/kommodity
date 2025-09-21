@@ -35,15 +35,5 @@ func NewAggregatedControllerManager(ctx context.Context, config *restclient.Conf
 		return nil, fmt.Errorf("failed to setup talos control plane provider: %w", err)
 	}
 
-	err = setupAzureMachinePoolWithManager(ctx, manager, MaxConcurrentReconciles)
-	if err != nil {
-		return nil, fmt.Errorf("failed to setup azure machine pool: %w", err)
-	}
-
-	err = setupAzureMachineWithManager(ctx, manager, MaxConcurrentReconciles)
-	if err != nil {
-		return nil, fmt.Errorf("failed to setup azure machine: %w", err)
-	}
-
 	return manager, nil
 }
