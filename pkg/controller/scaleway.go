@@ -8,7 +8,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
-func setupScalewayMachineWithManager(ctx context.Context, manager ctrl.Manager) error {
+func setupScalewayMachineWithManager(_ context.Context, manager ctrl.Manager) error {
 	err := scaleway_capi_controller.NewScalewayMachineReconciler(manager.GetClient()).SetupWithManager(manager)
 	if err != nil {
 		return fmt.Errorf("failed to setup scaleway machine: %w", err)
