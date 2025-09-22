@@ -6,12 +6,15 @@ toolchain go1.24.2
 
 replace github.com/google/cel-go => github.com/google/cel-go v0.22.0
 
+replace github.com/scaleway/cluster-api-provider-scaleway => github.com/kommodity-io/cluster-api-provider-scaleway v0.1.4-0.20250922081347-27550bc0faf7
+
 require (
 	github.com/go-logr/zapr v1.3.0
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/joho/godotenv v1.5.1
 	github.com/lib/pq v1.10.9
-	github.com/siderolabs/cluster-api-bootstrap-provider-talos v0.6.9
+	github.com/scaleway/cluster-api-provider-scaleway v0.1.3
+	github.com/siderolabs/cluster-api-bootstrap-provider-talos v0.6.10
 	github.com/siderolabs/cluster-api-control-plane-provider-talos v0.5.10
 	github.com/siderolabs/kms-client v0.1.0
 	github.com/soheilhy/cmux v0.1.5
@@ -20,12 +23,12 @@ require (
 	go.yaml.in/yaml/v3 v3.0.4
 	golang.org/x/net v0.42.0
 	google.golang.org/grpc v1.73.0
-	k8s.io/api v0.32.3
-	k8s.io/apiextensions-apiserver v0.32.3
-	k8s.io/apimachinery v0.32.3
-	k8s.io/apiserver v0.32.3
-	k8s.io/client-go v0.32.3
-	k8s.io/component-base v0.32.3
+	k8s.io/api v0.32.6
+	k8s.io/apiextensions-apiserver v0.32.6
+	k8s.io/apimachinery v0.32.6
+	k8s.io/apiserver v0.32.6
+	k8s.io/client-go v0.32.6
+	k8s.io/component-base v0.32.6
 	k8s.io/kube-aggregator v0.32.3
 	k8s.io/kube-openapi v0.0.0-20250318190949-c8a335a9a2ff
 	k8s.io/kubernetes v1.33.4
@@ -36,7 +39,7 @@ require (
 )
 
 require (
-	cel.dev/expr v0.23.0 // indirect
+	cel.dev/expr v0.24.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.18.2 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.11.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.11.2 // indirect
@@ -67,8 +70,9 @@ require (
 	github.com/Azure/go-autorest/tracing v0.6.0 // indirect
 	github.com/Azure/msi-dataplane v0.4.3 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.4.2 // indirect
+	github.com/Masterminds/semver/v3 v3.3.0 // indirect
 	github.com/NYTimes/gziphandler v1.1.1 // indirect
-	github.com/ProtonMail/go-crypto v1.1.6 // indirect
+	github.com/ProtonMail/go-crypto v1.2.0 // indirect
 	github.com/ProtonMail/go-mime v0.0.0-20230322103455-7d82a3887f2f // indirect
 	github.com/ProtonMail/gopenpgp/v2 v2.8.3 // indirect
 	github.com/adrg/xdg v0.5.3 // indirect
@@ -87,7 +91,7 @@ require (
 	github.com/containernetworking/cni v1.2.3 // indirect
 	github.com/coreos/go-semver v0.3.1 // indirect
 	github.com/coreos/go-systemd/v22 v22.5.0 // indirect
-	github.com/cosi-project/runtime v0.10.2 // indirect
+	github.com/cosi-project/runtime v1.10.7 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/dimchansky/utfbom v1.1.1 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
@@ -110,7 +114,7 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.3.0 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/btree v1.1.3 // indirect
-	github.com/google/cel-go v0.24.1 // indirect
+	github.com/google/cel-go v0.26.0 // indirect
 	github.com/google/gnostic-models v0.6.9 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
@@ -125,7 +129,7 @@ require (
 	github.com/jellydator/ttlcache/v3 v3.3.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/josharian/native v1.1.0 // indirect
-	github.com/jsimonetti/rtnetlink/v2 v2.0.3 // indirect
+	github.com/jsimonetti/rtnetlink/v2 v2.0.5 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/mailru/easyjson v0.9.0 // indirect
@@ -154,13 +158,14 @@ require (
 	github.com/ryanuber/go-glob v1.0.0 // indirect
 	github.com/samber/lo v1.49.1 // indirect
 	github.com/sasha-s/go-deadlock v0.3.5 // indirect
-	github.com/siderolabs/crypto v0.5.1 // indirect
-	github.com/siderolabs/gen v0.8.0 // indirect
-	github.com/siderolabs/go-api-signature v0.3.6 // indirect
+	github.com/scaleway/scaleway-sdk-go v1.0.0-beta.34.0.20250808131040-125b97d90073 // indirect
+	github.com/siderolabs/crypto v0.6.3 // indirect
+	github.com/siderolabs/gen v0.8.5 // indirect
+	github.com/siderolabs/go-api-signature v0.3.7 // indirect
 	github.com/siderolabs/go-pointer v1.0.1 // indirect
 	github.com/siderolabs/net v0.4.0 // indirect
 	github.com/siderolabs/protoenc v0.2.2 // indirect
-	github.com/siderolabs/talos/pkg/machinery v1.10.0 // indirect
+	github.com/siderolabs/talos/pkg/machinery v1.11.0 // indirect
 	github.com/spf13/cobra v1.9.1 // indirect
 	github.com/spf13/pflag v1.0.7 // indirect
 	github.com/stoewer/go-strcase v1.3.0 // indirect
@@ -192,8 +197,8 @@ require (
 	golang.org/x/text v0.28.0 // indirect
 	golang.org/x/time v0.11.0 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.5.0 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20250603155806-513f23925822 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250603155806-513f23925822 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20250715232539-7130f93afb79 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250715232539-7130f93afb79 // indirect
 	google.golang.org/protobuf v1.36.6 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
@@ -204,7 +209,7 @@ require (
 	k8s.io/cluster-bootstrap v0.32.3 // indirect
 	k8s.io/component-helpers v0.32.3 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
-	k8s.io/kms v0.32.3 // indirect
+	k8s.io/kms v0.32.6 // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.32.0 // indirect
 	sigs.k8s.io/cloud-provider-azure v1.32.3 // indirect
 	sigs.k8s.io/cloud-provider-azure/pkg/azclient v0.5.9 // indirect

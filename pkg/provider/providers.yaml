@@ -19,6 +19,16 @@ providers:
     filter: select(.kind == "CustomResourceDefinition")
     scheme_locations:
       - api/v1alpha3
+  - name: scaleway-machine-pool-provider
+    repository: github.com/scaleway/cluster-api-provider-scaleway
+    file_name: infrastructure-components.yaml
+    filter: select(.kind == "CustomResourceDefinition")
+    deny_list:
+      - ScalewayManagedCluster
+      - ScalewayManagedControlPlane
+      - ScalewayManagedMachinePool
+    scheme_locations:
+      - api/v1alpha1
   - name: azure-machine-pool-provider
     repository: github.com/kubernetes-sigs/cluster-api-provider-azure
     go_module: sigs.k8s.io/cluster-api-provider-azure

@@ -45,5 +45,15 @@ func NewAggregatedControllerManager(ctx context.Context, config *restclient.Conf
 		return nil, fmt.Errorf("failed to setup azure machine: %w", err)
 	}
 
+	err = setupScalewayMachineWithManager(ctx, manager)
+	if err != nil {
+		return nil, fmt.Errorf("failed to setup scaleway machine: %w", err)
+	}
+
+	err = setupScalewayClusterWithManager(ctx, manager)
+	if err != nil {
+		return nil, fmt.Errorf("failed to setup scaleway cluster: %w", err)
+	}
+
 	return manager, nil
 }

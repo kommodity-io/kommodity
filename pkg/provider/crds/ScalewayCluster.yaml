@@ -1,0 +1,396 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.18.0
+  labels:
+    cluster.x-k8s.io/v1beta1: v1alpha1
+  name: scalewayclusters.infrastructure.cluster.x-k8s.io
+spec:
+  group: infrastructure.cluster.x-k8s.io
+  names:
+    categories:
+      - cluster-api
+    kind: ScalewayCluster
+    listKind: ScalewayClusterList
+    plural: scalewayclusters
+    shortNames:
+      - sc
+    singular: scalewaycluster
+  scope: Namespaced
+  versions:
+    - additionalPrinterColumns:
+        - description: Host of the control plane
+          jsonPath: .spec.controlPlaneEndpoint.host
+          name: Host
+          type: string
+        - description: Port of the control plane
+          jsonPath: .spec.controlPlaneEndpoint.port
+          name: Port
+          type: integer
+        - description: Region of the cluster
+          jsonPath: .spec.region
+          name: Region
+          type: string
+        - description: Ready is true when the cluster is fully provisioned
+          jsonPath: .status.ready
+          name: Ready
+          type: boolean
+      name: v1alpha1
+      schema:
+        openAPIV3Schema:
+          description: ScalewayCluster is the Schema for the scalewayclusters API.
+          properties:
+            apiVersion:
+              description: |-
+                APIVersion defines the versioned schema of this representation of an object.
+                Servers should convert recognized schemas to the latest internal value, and
+                may reject unrecognized values.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+              type: string
+            kind:
+              description: |-
+                Kind is a string value representing the REST resource this object represents.
+                Servers may infer this from the endpoint the client submits requests to.
+                Cannot be updated.
+                In CamelCase.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+              type: string
+            metadata:
+              type: object
+            spec:
+              description: ScalewayClusterSpec defines the desired state of ScalewayCluster.
+              properties:
+                controlPlaneEndpoint:
+                  description: ControlPlaneEndpoint represents the endpoint used to communicate with the control plane.
+                  properties:
+                    host:
+                      description: host is the hostname on which the API server is serving.
+                      maxLength: 512
+                      type: string
+                    port:
+                      description: port is the port on which the API server is serving.
+                      format: int32
+                      type: integer
+                  required:
+                    - host
+                    - port
+                  type: object
+                  x-kubernetes-validations:
+                    - message: Value is immutable
+                      rule: self == oldSelf
+                failureDomains:
+                  description: |-
+                    FailureDomains is a list of failure domains where the control-plane nodes will be created.
+                    Failure domains correspond to Scaleway zones inside the cluster region (e.g. fr-par-1).
+                  items:
+                    type: string
+                  type: array
+                  x-kubernetes-list-type: set
+                network:
+                  description: Network contains network related options for the cluster.
+                  properties:
+                    controlPlaneDNS:
+                      description: ControlPlaneDNS allows configuring a Scaleway Domain DNS Zone.
+                      properties:
+                        domain:
+                          description: |-
+                            Domain is the DNS Zone that this record should live in. It must be pre-existing in your Scaleway account.
+                            The format must be a string that conforms to the definition of a subdomain in DNS (RFC 1123).
+                          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
+                          type: string
+                        name:
+                          description: |-
+                            Name is the DNS short name of the record (non-FQDN). The format must consist of
+                            alphanumeric characters, '-' or '.', and must start and end with an alphanumeric character.
+                          pattern: ^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$
+                          type: string
+                      required:
+                        - domain
+                        - name
+                      type: object
+                      x-kubernetes-validations:
+                        - message: Value is immutable
+                          rule: self == oldSelf
+                    controlPlaneExtraLoadBalancers:
+                      description: |-
+                        ControlPlaneExtraLoadBalancers allows configuring additional LoadBalancers.
+                        Because Scaleway LoadBalancers are currently zonal resources, you may set
+                        up to 3 additional LoadBalancers for achieving regional redundancy. It is
+                        mandatory to set the controlPlaneDNS field when you do so.
+                        This may be removed in the future, when Scaleway supports regional LoadBalancers.
+                      items:
+                        description: LoadBalancerSpec defines loadbalancer parameters.
+                        properties:
+                          ip:
+                            description: IP to use when creating a loadbalancer.
+                            format: ipv4
+                            type: string
+                          privateIP:
+                            description: Private IP to use when attaching a loadbalancer to a Private Network.
+                            format: ipv4
+                            type: string
+                          type:
+                            default: LB-S
+                            description: Load Balancer commercial offer type.
+                            type: string
+                          zone:
+                            description: |-
+                              Zone where to create the loadbalancer. Must be in the same region as the
+                              cluster. Defaults to the first zone of the region.
+                            type: string
+                        type: object
+                      maxItems: 3
+                      type: array
+                    controlPlaneLoadBalancer:
+                      description: ControlPlaneLoadBalancer contains loadbalancer settings.
+                      properties:
+                        allowedRanges:
+                          description: |-
+                            AllowedRanges allows to set a list of allowed IP ranges that can access
+                            the cluster through the loadbalancer. When unset, all IP ranges are allowed.
+                            To allow the cluster to work properly, public IPs of nodes and Public
+                            Gateways will automatically be allowed. However, if this field is set,
+                            you MUST manually allow IPs of the nodes of your management cluster.
+                          items:
+                            description: CIDR is an IP address range in CIDR notation (for example, "10.0.0.0/8" or "fd00::/8").
+                            maxLength: 43
+                            minLength: 1
+                            type: string
+                            x-kubernetes-validations:
+                              - message: value must be a valid CIDR network address
+                                rule: isCIDR(self)
+                          maxItems: 30
+                          type: array
+                          x-kubernetes-list-type: set
+                        ip:
+                          description: IP to use when creating a loadbalancer.
+                          format: ipv4
+                          type: string
+                        private:
+                          description: Private disables the creation of a public IP on the LoadBalancers when it's set to true.
+                          type: boolean
+                          x-kubernetes-validations:
+                            - message: Value is immutable
+                              rule: self == oldSelf
+                        privateIP:
+                          description: Private IP to use when attaching a loadbalancer to a Private Network.
+                          format: ipv4
+                          type: string
+                        type:
+                          default: LB-S
+                          description: Load Balancer commercial offer type.
+                          type: string
+                        zone:
+                          description: |-
+                            Zone where to create the loadbalancer. Must be in the same region as the
+                            cluster. Defaults to the first zone of the region.
+                          type: string
+                      type: object
+                      x-kubernetes-validations:
+                        - message: ip is immutable
+                          rule: '!has(oldSelf.ip) || self.ip == oldSelf.ip'
+                        - message: zone is immutable
+                          rule: '!has(oldSelf.zone) || self.zone == oldSelf.zone'
+                        - message: privateIP is immutable
+                          rule: '!has(oldSelf.privateIP) || self.privateIP == oldSelf.privateIP'
+                    controlPlanePrivateDNS:
+                      description: |-
+                        ControlPlanePrivateDNS allows configuring the DNS Zone of the VPC with
+                        records that point to the control plane LoadBalancers. This field is only
+                        available when the control plane LoadBalancers are private. Only one of
+                        ControlPlaneDNS or ControlPlanePrivateDNS can be set.
+                      properties:
+                        name:
+                          description: |-
+                            Name is the DNS short name of the record (non-FQDN). The format must consist of
+                            alphanumeric characters, '-' or '.', and must start and end with an alphanumeric character.
+                          pattern: ^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$
+                          type: string
+                      required:
+                        - name
+                      type: object
+                      x-kubernetes-validations:
+                        - message: Value is immutable
+                          rule: self == oldSelf
+                    privateNetwork:
+                      description: PrivateNetwork allows attaching machines of the cluster to a Private Network.
+                      properties:
+                        enabled:
+                          description: |-
+                            Set to true to automatically attach machines to a Private Network.
+                            The Private Network is automatically created if no existing Private
+                            Network ID is provided.
+                          type: boolean
+                          x-kubernetes-validations:
+                            - message: Value is immutable
+                              rule: self == oldSelf
+                        id:
+                          description: Set a Private Network ID to reuse an existing Private Network.
+                          type: string
+                          x-kubernetes-validations:
+                            - message: Value is immutable
+                              rule: self == oldSelf
+                        subnet:
+                          description: Optional subnet for the Private Network. Only used on newly created Private Networks.
+                          type: string
+                          x-kubernetes-validations:
+                            - message: Value is immutable
+                              rule: self == oldSelf
+                        vpcID:
+                          description: Set the VPC ID where the new Private Network will be created.
+                          type: string
+                          x-kubernetes-validations:
+                            - message: Value is immutable
+                              rule: self == oldSelf
+                      required:
+                        - enabled
+                      type: object
+                      x-kubernetes-validations:
+                        - message: vpcID cannot be added or removed
+                          rule: has(self.vpcID) == has(oldSelf.vpcID)
+                        - message: id cannot be added or removed
+                          rule: has(self.id) == has(oldSelf.id)
+                        - message: subnet cannot be added or removed
+                          rule: has(self.subnet) == has(oldSelf.subnet)
+                        - message: subnet cannot be set when id is set
+                          rule: has(self.id) && !has(self.subnet) || !has(self.id)
+                        - message: vpcID cannot be set when id is set
+                          rule: has(self.id) && !has(self.vpcID) || !has(self.id)
+                    publicGateways:
+                      description: |-
+                        PublicGateways allows to create Public Gateways that will be attached to the
+                        Private Network of the cluster.
+                      items:
+                        description: PublicGatewaySpec defines Public Gateway settings for the cluster.
+                        properties:
+                          ip:
+                            description: IP to use when creating a Public Gateway.
+                            format: ipv4
+                            type: string
+                          type:
+                            default: VPC-GW-S
+                            description: Public Gateway commercial offer type.
+                            type: string
+                          zone:
+                            description: |-
+                              Zone where to create the Public Gateway. Must be in the same region as the
+                              cluster. Defaults to the first zone of the region.
+                            type: string
+                        type: object
+                      maxItems: 6
+                      type: array
+                  type: object
+                  x-kubernetes-validations:
+                    - message: controlPlaneDNS or controlPlanePrivateDNS is required when controlPlaneExtraLoadBalancers is set
+                      rule: '!has(self.controlPlaneExtraLoadBalancers) || has(self.controlPlaneDNS) || has(self.controlPlanePrivateDNS)'
+                    - message: privateNetwork is required when publicGateways is set
+                      rule: '!has(self.publicGateways) || has(self.privateNetwork) && self.privateNetwork.enabled'
+                    - message: privateNetwork is required when private LoadBalancer is enabled
+                      rule: '!has(self.controlPlaneLoadBalancer) || !has(self.controlPlaneLoadBalancer.private) || !self.controlPlaneLoadBalancer.private || has(self.privateNetwork) && self.privateNetwork.enabled'
+                    - message: private LoadBalancer must be enabled to set controlPlanePrivateDNS
+                      rule: '!has(self.controlPlanePrivateDNS) || has(self.controlPlaneLoadBalancer.private) && self.controlPlaneLoadBalancer.private'
+                    - message: controlPlaneDNS and controlPlanePrivateDNS cannot be set at the same time
+                      rule: '(has(self.controlPlaneDNS) ? 1 : 0) + (has(self.controlPlanePrivateDNS) ? 1 : 0) < 2'
+                projectID:
+                  description: ProjectID is the Scaleway project ID where the cluster will be created.
+                  pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+                  type: string
+                  x-kubernetes-validations:
+                    - message: Value is immutable
+                      rule: self == oldSelf
+                region:
+                  description: Region represents the region where the cluster will be hosted.
+                  pattern: ^[a-z]{2}-[a-z]{3}$
+                  type: string
+                  x-kubernetes-validations:
+                    - message: Value is immutable
+                      rule: self == oldSelf
+                scalewaySecretName:
+                  description: |-
+                    ScalewaySecretName is the name of the secret that contains the Scaleway client parameters.
+                    The following keys are required: SCW_ACCESS_KEY, SCW_SECRET_KEY.
+                    The following key is optional: SCW_API_URL.
+                  type: string
+              required:
+                - projectID
+                - region
+                - scalewaySecretName
+              type: object
+              x-kubernetes-validations:
+                - message: controlPlaneEndpoint is required once set
+                  rule: '!has(oldSelf.controlPlaneEndpoint) || has(self.controlPlaneEndpoint)'
+                - message: controlPlaneDNS cannot be added or removed
+                  rule: (has(self.network) && has(self.network.controlPlaneDNS)) == (has(oldSelf.network) && has(oldSelf.network.controlPlaneDNS))
+                - message: controlPlanePrivateDNS cannot be added or removed
+                  rule: (has(self.network) && has(self.network.controlPlanePrivateDNS)) == (has(oldSelf.network) && has(oldSelf.network.controlPlanePrivateDNS))
+                - message: privateNetwork cannot be added or removed
+                  rule: (has(self.network) && has(self.network.privateNetwork)) == (has(oldSelf.network) && has(oldSelf.network.privateNetwork))
+                - message: private cannot be added or removed
+                  rule: (has(self.network) && has(self.network.controlPlaneLoadBalancer) && has(self.network.controlPlaneLoadBalancer.private)) == (has(oldSelf.network) && has(oldSelf.network.controlPlaneLoadBalancer) && has(oldSelf.network.controlPlaneLoadBalancer.private))
+                - message: ip cannot be added or removed
+                  rule: (has(self.network) && has(self.network.controlPlaneLoadBalancer) && has(self.network.controlPlaneLoadBalancer.ip)) == (has(oldSelf.network) && has(oldSelf.network.controlPlaneLoadBalancer) && has(oldSelf.network.controlPlaneLoadBalancer.ip))
+                - message: zone cannot be added or removed
+                  rule: (has(self.network) && has(self.network.controlPlaneLoadBalancer) && has(self.network.controlPlaneLoadBalancer.zone)) == (has(oldSelf.network) && has(oldSelf.network.controlPlaneLoadBalancer) && has(oldSelf.network.controlPlaneLoadBalancer.zone))
+                - message: privateIP cannot be added or removed
+                  rule: (has(self.network) && has(self.network.controlPlaneLoadBalancer) && has(self.network.controlPlaneLoadBalancer.privateIP)) == (has(oldSelf.network) && has(oldSelf.network.controlPlaneLoadBalancer) && has(oldSelf.network.controlPlaneLoadBalancer.privateIP))
+            status:
+              description: ScalewayClusterStatus defines the observed state of ScalewayCluster.
+              properties:
+                failureDomains:
+                  additionalProperties:
+                    description: |-
+                      FailureDomainSpec is the Schema for Cluster API failure domains.
+                      It allows controllers to understand how many failure domains a cluster can optionally span across.
+                    properties:
+                      attributes:
+                        additionalProperties:
+                          type: string
+                        description: attributes is a free form map of attributes an infrastructure provider might use or require.
+                        type: object
+                      controlPlane:
+                        description: controlPlane determines if this failure domain is suitable for use by control plane machines.
+                        type: boolean
+                    type: object
+                  description: FailureDomains is a list of failure domain objects synced from the infrastructure provider.
+                  type: object
+                network:
+                  description: Network contains information about network resources of the cluster.
+                  properties:
+                    extraLoadBalancerIPs:
+                      description: ExtraLoadBalancerIPs is a list of IPs of the extra loadbalancers.
+                      items:
+                        type: string
+                      type: array
+                    loadBalancerIP:
+                      description: LoadBalancerIP is the public IP of the cluster control-plane.
+                      type: string
+                    privateNetworkID:
+                      description: PrivateNetworkID is set if the cluster has an associated Private Network.
+                      type: string
+                    publicGatewayIDs:
+                      description: PublicGatewayIDs is a list of Public Gateway IDs.
+                      items:
+                        type: string
+                      type: array
+                    vpcID:
+                      description: VPCID is set if the cluster has an associated Private Network.
+                      type: string
+                  type: object
+                ready:
+                  description: |-
+                    Ready denotes that the Scaleway cluster infrastructure is fully provisioned.
+                    NOTE: this field is part of the Cluster API contract and it is used to orchestrate provisioning.
+                    The value of this field is never updated after provisioning is completed.
+                  type: boolean
+              type: object
+          type: object
+          x-kubernetes-validations:
+            - message: name must be between 1 and 63 characters
+              rule: self.metadata.name.size() <= 63
+            - message: name must be a valid DNS label
+              rule: self.metadata.name.matches('^[a-z0-9]([-a-z0-9]*[a-z0-9])?$')
+      served: true
+      storage: true
+      subresources:
+        status: {}

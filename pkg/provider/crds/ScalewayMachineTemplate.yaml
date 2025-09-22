@@ -1,0 +1,179 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.18.0
+  labels:
+    cluster.x-k8s.io/v1beta1: v1alpha1
+  name: scalewaymachinetemplates.infrastructure.cluster.x-k8s.io
+spec:
+  group: infrastructure.cluster.x-k8s.io
+  names:
+    categories:
+      - cluster-api
+    kind: ScalewayMachineTemplate
+    listKind: ScalewayMachineTemplateList
+    plural: scalewaymachinetemplates
+    shortNames:
+      - smt
+    singular: scalewaymachinetemplate
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      schema:
+        openAPIV3Schema:
+          description: ScalewayMachineTemplate is the Schema for the scalewaymachinetemplates API.
+          properties:
+            apiVersion:
+              description: |-
+                APIVersion defines the versioned schema of this representation of an object.
+                Servers should convert recognized schemas to the latest internal value, and
+                may reject unrecognized values.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+              type: string
+            kind:
+              description: |-
+                Kind is a string value representing the REST resource this object represents.
+                Servers may infer this from the endpoint the client submits requests to.
+                Cannot be updated.
+                In CamelCase.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+              type: string
+            metadata:
+              type: object
+            spec:
+              description: ScalewayMachineTemplateSpec defines the desired state of ScalewayMachineTemplate.
+              properties:
+                template:
+                  properties:
+                    metadata:
+                      description: |-
+                        Standard object's metadata.
+                        More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata
+                      type: object
+                    spec:
+                      description: ScalewayMachineSpec defines the desired state of ScalewayMachine.
+                      properties:
+                        commercialType:
+                          default: PRO2-S
+                          description: CommercialType of instance (e.g. PRO2-S).
+                          type: string
+                          x-kubernetes-validations:
+                            - message: Value is immutable
+                              rule: self == oldSelf
+                        image:
+                          description: Image ID, Name or Label to use to create the instance.
+                          properties:
+                            id:
+                              description: ID of the image.
+                              type: string
+                            label:
+                              description: Label of the image.
+                              type: string
+                            name:
+                              description: Name of the image.
+                              type: string
+                          type: object
+                          x-kubernetes-validations:
+                            - message: Value is immutable
+                              rule: self == oldSelf
+                            - message: exactly one of id, name or label must be set
+                              rule: '(has(self.id) ? 1 : 0) + (has(self.name) ? 1 : 0) + (has(self.label) ? 1 : 0) == 1'
+                        placementGroup:
+                          description: PlacementGroup allows attaching a Placement Group to the instance.
+                          properties:
+                            id:
+                              description: ID of the placement group.
+                              type: string
+                            name:
+                              description: Name of the placement group.
+                              type: string
+                          type: object
+                          x-kubernetes-validations:
+                            - message: Value is immutable
+                              rule: self == oldSelf
+                            - message: exactly one of id or name must be set
+                              rule: '(has(self.id) ? 1 : 0) + (has(self.name) ? 1 : 0) == 1'
+                        providerID:
+                          description: ProviderID must match the provider ID as seen on the node object corresponding to this machine.
+                          type: string
+                          x-kubernetes-validations:
+                            - message: Value is immutable
+                              rule: self == oldSelf
+                        publicNetwork:
+                          description: PublicNetwork allows attaching public IPs to the instance.
+                          properties:
+                            enableIPv4:
+                              description: EnableIPv4 defines whether server has IPv4 address enabled.
+                              type: boolean
+                            enableIPv6:
+                              description: EnableIPv6 defines whether server has IPv6 addresses enabled.
+                              type: boolean
+                          type: object
+                          x-kubernetes-validations:
+                            - message: Value is immutable
+                              rule: self == oldSelf
+                        rootVolume:
+                          description: RootVolume defines the characteristics of the system (root) volume.
+                          properties:
+                            iops:
+                              description: IOPS is the number of IOPS requested for the disk. This is only applicable for block volumes.
+                              format: int64
+                              type: integer
+                            size:
+                              default: 20
+                              description: Size of the root volume in GB. Defaults to 20 GB.
+                              format: int64
+                              minimum: 8
+                              type: integer
+                            type:
+                              default: block
+                              description: |-
+                                Type of the root volume. Can be local or block. Note that not all types
+                                of instances support local volumes.
+                              enum:
+                                - local
+                                - block
+                              type: string
+                          type: object
+                          x-kubernetes-validations:
+                            - message: Value is immutable
+                              rule: self == oldSelf
+                        securityGroup:
+                          description: SecurityGroup allows attaching a Security Group to the instance.
+                          properties:
+                            id:
+                              description: ID of the security group.
+                              type: string
+                            name:
+                              description: Name of the security group.
+                              type: string
+                          type: object
+                          x-kubernetes-validations:
+                            - message: Value is immutable
+                              rule: self == oldSelf
+                            - message: exactly one of id or name must be set
+                              rule: '(has(self.id) ? 1 : 0) + (has(self.name) ? 1 : 0) == 1'
+                      required:
+                        - commercialType
+                        - image
+                      type: object
+                      x-kubernetes-validations:
+                        - message: rootVolume cannot be added or removed
+                          rule: has(self.rootVolume) == has(oldSelf.rootVolume)
+                        - message: publicNetwork cannot be added or removed
+                          rule: has(self.publicNetwork) == has(oldSelf.publicNetwork)
+                        - message: placementGroup cannot be added or removed
+                          rule: has(self.placementGroup) == has(oldSelf.placementGroup)
+                        - message: securityGroup cannot be added or removed
+                          rule: has(self.securityGroup) == has(oldSelf.securityGroup)
+                  required:
+                    - spec
+                  type: object
+              required:
+                - template
+              type: object
+          type: object
+      served: true
+      storage: true
