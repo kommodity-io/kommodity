@@ -61,6 +61,11 @@ func setupAPIServerConfig(ctx context.Context, openAPISpec *generatedopenapi.Spe
 	resourceConfig.EnableVersions(schemeGroupVersions...)
 	genericServerConfig.MergedResourceConfig = resourceConfig
 
+	err = applyAuth(ctx, genericServerConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to apply authentication/authorization config: %w", err)
+	}
+
 	return genericServerConfig, nil
 }
 

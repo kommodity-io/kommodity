@@ -6,7 +6,7 @@ toolchain go1.24.2
 
 replace github.com/google/cel-go => github.com/google/cel-go v0.22.0
 
-replace github.com/scaleway/cluster-api-provider-scaleway => github.com/kommodity-io/cluster-api-provider-scaleway v0.1.4-0.20250922081347-27550bc0faf7
+replace github.com/scaleway/cluster-api-provider-scaleway => github.com/kommodity-io/cluster-api-provider-scaleway v0.1.4-0.20250923063851-b9a37ed6100d
 
 require (
 	github.com/go-logr/zapr v1.3.0
@@ -18,6 +18,7 @@ require (
 	github.com/siderolabs/cluster-api-control-plane-provider-talos v0.5.10
 	github.com/siderolabs/kms-client v0.1.0
 	github.com/soheilhy/cmux v0.1.5
+	github.com/spf13/pflag v1.0.7
 	github.com/stretchr/testify v1.10.0
 	go.uber.org/zap v1.27.0
 	go.yaml.in/yaml/v3 v3.0.4
@@ -89,6 +90,7 @@ require (
 	github.com/cloudflare/circl v1.6.1 // indirect
 	github.com/containerd/go-cni v1.1.12 // indirect
 	github.com/containernetworking/cni v1.2.3 // indirect
+	github.com/coreos/go-oidc v2.3.0+incompatible // indirect
 	github.com/coreos/go-semver v0.3.1 // indirect
 	github.com/coreos/go-systemd/v22 v22.5.0 // indirect
 	github.com/cosi-project/runtime v1.10.7 // indirect
@@ -150,6 +152,7 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20241121165744-79df5c4772f2 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
+	github.com/pquerna/cachecontrol v0.1.0 // indirect
 	github.com/prometheus/client_golang v1.22.0 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.65.0 // indirect
@@ -167,7 +170,6 @@ require (
 	github.com/siderolabs/protoenc v0.2.2 // indirect
 	github.com/siderolabs/talos/pkg/machinery v1.11.0 // indirect
 	github.com/spf13/cobra v1.9.1 // indirect
-	github.com/spf13/pflag v1.0.7 // indirect
 	github.com/stoewer/go-strcase v1.3.0 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	go.etcd.io/etcd/api/v3 v3.5.21 // indirect
@@ -201,6 +203,7 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250715232539-7130f93afb79 // indirect
 	google.golang.org/protobuf v1.36.6 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
+	gopkg.in/go-jose/go-jose.v2 v2.6.3 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
