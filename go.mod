@@ -18,7 +18,6 @@ require (
 	github.com/siderolabs/cluster-api-control-plane-provider-talos v0.5.10
 	github.com/siderolabs/kms-client v0.1.0
 	github.com/soheilhy/cmux v0.1.5
-	github.com/spf13/pflag v1.0.7
 	github.com/stretchr/testify v1.10.0
 	go.uber.org/zap v1.27.0
 	go.yaml.in/yaml/v3 v3.0.4
@@ -170,6 +169,7 @@ require (
 	github.com/siderolabs/protoenc v0.2.2 // indirect
 	github.com/siderolabs/talos/pkg/machinery v1.11.0 // indirect
 	github.com/spf13/cobra v1.9.1 // indirect
+	github.com/spf13/pflag v1.0.7 // indirect
 	github.com/stoewer/go-strcase v1.3.0 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	go.etcd.io/etcd/api/v3 v3.5.21 // indirect
