@@ -103,6 +103,8 @@ func applyCRDsHook(genericServerConfig *genericapiserver.RecommendedConfig) gene
 			err = provider.ApplyAllProviders(dynamicClient)
 			if err != nil {
 				errCh <- fmt.Errorf("failed to apply all provider CRDs: %w", err)
+			} else {
+				errCh <- nil
 			}
 		}()
 
