@@ -17,6 +17,7 @@ const (
 )
 
 // NewAggregatedControllerManager creates a new controller manager with all relevant providers.
+//nolint:cyclop, funlen // Too long or too complex due to many error checks and setup steps, no real complexity here
 func NewAggregatedControllerManager(ctx context.Context, config *restclient.Config) (ctrl.Manager, error) {
 	logger := zapr.NewLogger(logging.FromContext(ctx))
 	ctrl.SetLogger(logger)
@@ -104,19 +105,19 @@ func NewAggregatedControllerManager(ctx context.Context, config *restclient.Conf
 
 	// Azure controllers
 
-	// logger.Info("Setting up AzureMachinePool controller")
+	logger.Info("Setting up AzureMachinePool controller")
 
-	// err = setupAzureMachinePoolWithManager(ctx, manager, MaxConcurrentReconciles)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("failed to setup AzureMachinePool controller: %w", err)
-	// }
+	err = setupAzureMachinePoolWithManager(ctx, manager, MaxConcurrentReconciles)
+	if err != nil {
+		return nil, fmt.Errorf("failed to setup AzureMachinePool controller: %w", err)
+	}
 
-	// logger.Info("Setting up AzureMachine controller")
+	logger.Info("Setting up AzureMachine controller")
 
-	// err = setupAzureMachineWithManager(ctx, manager, MaxConcurrentReconciles)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("failed to setup AzureMachine controller: %w", err)
-	// }
+	err = setupAzureMachineWithManager(ctx, manager, MaxConcurrentReconciles)
+	if err != nil {
+		return nil, fmt.Errorf("failed to setup AzureMachine controller: %w", err)
+	}
 
 	// Scaleway controllers
 

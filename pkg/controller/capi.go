@@ -94,7 +94,10 @@ func setupClusterResourceSetWithManager(ctx context.Context, manager ctrl.Manage
 	return nil
 }
 
-func setupClusterResourceSetBindingWithManager(ctx context.Context, manager ctrl.Manager, maxConcurrentReconciles int) error {
+func setupClusterResourceSetBindingWithManager(
+		ctx context.Context, 
+		manager ctrl.Manager, 
+		maxConcurrentReconciles int) error {
 	err := (&capi_controllers.ClusterResourceSetBindingReconciler{
 		Client: manager.GetClient(),
 	}).SetupWithManager(ctx, manager,
