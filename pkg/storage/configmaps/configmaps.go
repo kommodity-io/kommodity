@@ -4,7 +4,6 @@ package configmaps
 import (
 	"context"
 	"fmt"
-	"log"
 	"path"
 	"reflect"
 
@@ -154,7 +153,9 @@ func (configMapStrategy) PrepareForDelete(_ context.Context, _ runtime.Object) {
 func (configMapStrategy) Validate(_ context.Context, obj runtime.Object) field.ErrorList {
 	configMap, ok := obj.(*corev1.ConfigMap)
 	if !ok {
-		log.Printf("expected *corev1.ConfigMap, got %T", obj)
+		return field.ErrorList{field.Invalid(
+			field.NewPath("object"), obj,
+			storage.ErrObjectIsNotAConfigMap.Error())}
 	}
 
 	return validateConfigMap(configMap)
@@ -164,18 +165,22 @@ func (configMapStrategy) Validate(_ context.Context, obj runtime.Object) field.E
 func (configMapStrategy) ValidateUpdate(_ context.Context, obj, old runtime.Object) field.ErrorList {
 	newConfigMap, success := obj.(*corev1.ConfigMap)
 	if !success {
-		log.Printf("expected *corev1.ConfigMap, got %T", obj)
+		return field.ErrorList{field.Invalid(
+			field.NewPath("object"), obj,
+			storage.ErrObjectIsNotAConfigMap.Error())}
 	}
 
 	oldConfigMap, success := old.(*corev1.ConfigMap)
 	if !success {
-		log.Printf("expected *corev1.ConfigMap, got %T", obj)
+		return field.ErrorList{field.Invalid(
+			field.NewPath("object"), old,
+			storage.ErrObjectIsNotAConfigMap.Error())}
 	}
 
 	allErrs := field.ErrorList{}
 	allErrs = append(
-		allErrs, 
-		validation.ValidateObjectMetaUpdate(&newConfigMap.ObjectMeta, &oldConfigMap.ObjectMeta, field.NewPath("metadata"))...
+		allErrs,
+		validation.ValidateObjectMetaUpdate(&newConfigMap.ObjectMeta, &oldConfigMap.ObjectMeta, field.NewPath("metadata"))...,
 	)
 
 	if oldConfigMap.Immutable != nil && *oldConfigMap.Immutable {
@@ -201,8 +206,8 @@ func (configMapStrategy) ValidateUpdate(_ context.Context, obj, old runtime.Obje
 func validateConfigMap(cfg *corev1.ConfigMap) field.ErrorList {
 	allErrs := field.ErrorList{}
 	allErrs = append(
-		allErrs, 
-		validation.ValidateObjectMeta(&cfg.ObjectMeta, true, validation.NameIsDNSSubdomain, field.NewPath("metadata"))...
+		allErrs,
+		validation.ValidateObjectMeta(&cfg.ObjectMeta, true, validation.NameIsDNSSubdomain, field.NewPath("metadata"))...,
 	)
 
 	totalSize := 0
