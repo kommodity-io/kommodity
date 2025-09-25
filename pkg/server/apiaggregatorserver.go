@@ -100,7 +100,7 @@ func applyCRDsHook(genericServerConfig *genericapiserver.RecommendedConfig) gene
 		errCh := make(chan error)
 
 		go func() {
-			err = provider.ApplyAllProviders(dynamicClient)
+			err = provider.ApplyAllProviders(dynamicClient, ctx)
 			if err != nil {
 				errCh <- fmt.Errorf("failed to apply all provider CRDs: %w", err)
 			} else {

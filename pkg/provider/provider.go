@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/kommodity-io/kommodity/pkg/logging"
+	"go.uber.org/zap"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextensionsapiserver "k8s.io/apiextensions-apiserver/pkg/apiserver"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -23,7 +25,9 @@ import (
 var crds embed.FS
 
 // ApplyAllProviders applies all provider CRDs to the given dynamic Kubernetes client.
-func ApplyAllProviders(client *dynamic.DynamicClient) error {
+func ApplyAllProviders(client *dynamic.DynamicClient, ctx context.Context) error {
+	logger := logging.FromContext(ctx)
+
 	entries, err := crds.ReadDir("crds")
 	if err != nil {
 		return fmt.Errorf("failed to read CRD directory: %w", err)
@@ -32,6 +36,8 @@ func ApplyAllProviders(client *dynamic.DynamicClient) error {
 	decoder := yaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
 
 	for _, entry := range entries {
+
+		logger.Info("Applying CRD", zap.String("file", entry.Name()))
 		data, err := crds.ReadFile("crds/" + entry.Name())
 		if err != nil {
 			return fmt.Errorf("failed to read CRD file %s: %w", entry.Name(), err)
