@@ -135,8 +135,9 @@ func (serviceStrategy) NamespaceScoped() bool {
 func (serviceStrategy) PrepareForCreate(ctx context.Context, obj runtime.Object) {
 	service, success := obj.(*corev1.Service)
 	if !success {
-		logger := logging.FromContext(ctx)
-		logger.Warn("Expected *corev1.Service", zap.String("actual_type", fmt.Sprintf("%T", obj)))
+		log.Printf("expected *corev1.Service, got %T", obj)
+
+		return
 	}
 
 	service.Status = corev1.ServiceStatus{}
@@ -153,12 +154,16 @@ func (serviceStrategy) PrepareForUpdate(ctx context.Context, obj, old runtime.Ob
 
 	newService, success := obj.(*corev1.Service)
 	if !success {
-		logger.Warn("Expected *corev1.Service for new object", zap.String("actual_type", fmt.Sprintf("%T", obj)))
+		log.Printf("expected *corev1.Service, got %T", obj)
+
+		return
 	}
 
 	oldService, success := old.(*corev1.Service)
 	if !success {
-		logger.Warn("Expected *corev1.Service for old object", zap.String("actual_type", fmt.Sprintf("%T", old)))
+		log.Printf("expected *corev1.Service, got %T", old)
+
+		return
 	}
 
 	newService.Status = oldService.Status
@@ -176,8 +181,9 @@ func (serviceStrategy) PrepareForDelete(_ context.Context, _ runtime.Object) {}
 func (serviceStrategy) Validate(ctx context.Context, obj runtime.Object) field.ErrorList {
 	service, ok := obj.(*corev1.Service)
 	if !ok {
-		logger := logging.FromContext(ctx)
-		logger.Warn("Expected *corev1.Service", zap.String("actual_type", fmt.Sprintf("%T", obj)))
+		return field.ErrorList{field.Invalid(
+			field.NewPath("object"), obj,
+			storageerr.ErrObjectIsNotAService.Error())}
 	}
 
 	return validation.ValidateObjectMeta(
@@ -193,12 +199,16 @@ func (serviceStrategy) ValidateUpdate(ctx context.Context, obj, old runtime.Obje
 
 	newService, success := obj.(*corev1.Service)
 	if !success {
-		logger.Warn("Expected *corev1.Service for new object", zap.String("actual_type", fmt.Sprintf("%T", obj)))
+		return field.ErrorList{field.Invalid(
+			field.NewPath("object"), obj,
+			storageerr.ErrObjectIsNotAService.Error())}
 	}
 
 	oldService, success := old.(*corev1.Service)
 	if !success {
-		logger.Warn("Expected *corev1.Service for old object", zap.String("actual_type", fmt.Sprintf("%T", old)))
+		return field.ErrorList{field.Invalid(
+			field.NewPath("object"), old,
+			storageerr.ErrObjectIsNotAService.Error())}
 	}
 
 	allErrs := validation.ValidateObjectMetaUpdate(&newService.ObjectMeta,

@@ -141,12 +141,16 @@ func (namespaceStrategy) PrepareForUpdate(ctx context.Context, obj, old runtime.
 
 	newNamespace, success := obj.(*corev1.Namespace)
 	if !success {
-		logger.Warn("Expected *corev1.Namespace for new object", zap.String("actual_type", fmt.Sprintf("%T", obj)))
+		log.Printf("expected *corev1.Namespace, got %T", obj)
+
+		return
 	}
 
 	oldNamespace, success := old.(*corev1.Namespace)
 	if !success {
-		logger.Warn("Expected *corev1.Namespace for old object", zap.String("actual_type", fmt.Sprintf("%T", old)))
+		log.Printf("expected *corev1.Namespace, got %T", obj)
+
+		return
 	}
 
 	newNamespace.Spec.Finalizers = oldNamespace.Spec.Finalizers
@@ -165,8 +169,9 @@ func (namespaceStrategy) PrepareForDelete(_ context.Context, _ runtime.Object) {
 func (namespaceStrategy) Validate(ctx context.Context, obj runtime.Object) field.ErrorList {
 	namespaceObject, ok := obj.(*corev1.Namespace)
 	if !ok {
-		logger := logging.FromContext(ctx)
-		logger.Warn("Expected *corev1.Namespace", zap.String("actual_type", fmt.Sprintf("%T", obj)))
+		return field.ErrorList{field.Invalid(
+			field.NewPath("object"), obj,
+			storageerr.ErrObjectIsNotANamespace.Error())}
 	}
 
 	return validation.ValidateObjectMeta(
@@ -182,12 +187,16 @@ func (namespaceStrategy) ValidateUpdate(ctx context.Context, obj, old runtime.Ob
 
 	namespaceObject, success := obj.(*corev1.Namespace)
 	if !success {
-		logger.Warn("Expected *corev1.Namespace for new object", zap.String("actual_type", fmt.Sprintf("%T", obj)))
+		return field.ErrorList{field.Invalid(
+			field.NewPath("object"), obj,
+			storageerr.ErrObjectIsNotANamespace.Error())}
 	}
 
 	oldNamespaceObject, success := old.(*corev1.Namespace)
 	if !success {
-		logger.Warn("Expected *corev1.Namespace for old object", zap.String("actual_type", fmt.Sprintf("%T", old)))
+		return field.ErrorList{field.Invalid(
+			field.NewPath("object"), old,
+			storageerr.ErrObjectIsNotANamespace.Error())}
 	}
 
 	return validation.ValidateObjectMetaUpdate(
