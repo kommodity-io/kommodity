@@ -251,6 +251,7 @@ func requestGroupVersion(ctx context.Context) schema.GroupVersion {
 }
 
 // legacyValidateEvent makes sure that the event makes sense.
+//
 //nolint:cyclop, funlen // Too long or too complex due to many error checks, no real complexity here
 func legacyValidateEvent(event *corev1.Event, requestVersion schema.GroupVersion) field.ErrorList {
 	allErrs := field.ErrorList{}
