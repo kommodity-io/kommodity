@@ -1,7 +1,12 @@
 // Package storage provides error definitions for storage operations.
 package storage
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+
+	"k8s.io/apimachinery/pkg/runtime"
+)
 
 var (
 	// ErrObjectIsNotANamespace indicates that the object is not a namespace.
@@ -19,3 +24,8 @@ var (
 	// ErrFieldIsNull indicates that the field is null.
 	ErrFieldIsNull = errors.New("field must not be null")
 )
+
+// ExpectedGot returns an string wrapping the expected error with the actual type of the object.
+func ExpectedGot(expected error, got runtime.Object) string {
+	return fmt.Sprintf("%s, got %T", expected.Error(), got)
+}

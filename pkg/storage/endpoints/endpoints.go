@@ -4,7 +4,6 @@ package endpoints
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/netip"
 	"path"
 
@@ -148,7 +147,7 @@ func (endpointsStrategy) PrepareForCreate(_ context.Context, _ runtime.Object) {
 func (endpointsStrategy) WarningsOnCreate(_ context.Context, obj runtime.Object) []string {
 	endpoint, ok := obj.(*corev1.Endpoints)
 	if !ok {
-		log.Printf("expected *corev1.Endpoints, got %T", obj)
+		return []string{storage.ExpectedGot(storage.ErrObjectIsNotAnEndpoint, obj)}
 	}
 
 	return endpointsWarnings(endpoint)
@@ -162,7 +161,7 @@ func (endpointsStrategy) PrepareForUpdate(_ context.Context, _, _ runtime.Object
 func (endpointsStrategy) WarningsOnUpdate(_ context.Context, _, obj runtime.Object) []string {
 	endpoint, ok := obj.(*corev1.Endpoints)
 	if !ok {
-		log.Printf("expected *corev1.Endpoints, got %T", obj)
+		return []string{storage.ExpectedGot(storage.ErrObjectIsNotAnEndpoint, obj)}
 	}
 
 	return endpointsWarnings(endpoint)
@@ -175,7 +174,9 @@ func (endpointsStrategy) PrepareForDelete(_ context.Context, _ runtime.Object) {
 func (endpointsStrategy) Validate(_ context.Context, obj runtime.Object) field.ErrorList {
 	endpointObject, ok := obj.(*corev1.Endpoints)
 	if !ok {
-		log.Printf("expected *corev1.Endpoints, got %T", obj)
+		return field.ErrorList{field.Invalid(
+			field.NewPath("object"), obj,
+			storage.ErrObjectIsNotAnEndpoint.Error())}
 	}
 
 	return apimachineryvalidation.ValidateObjectMeta(
@@ -189,12 +190,16 @@ func (endpointsStrategy) Validate(_ context.Context, obj runtime.Object) field.E
 func (endpointsStrategy) ValidateUpdate(_ context.Context, obj, old runtime.Object) field.ErrorList {
 	endpointObject, success := obj.(*corev1.Endpoints)
 	if !success {
-		log.Printf("expected *corev1.Endpoints, got %T", obj)
+		return field.ErrorList{field.Invalid(
+			field.NewPath("object"), obj,
+			storage.ErrObjectIsNotAnEndpoint.Error())}
 	}
 
 	oldendpointObject, success := old.(*corev1.Endpoints)
 	if !success {
-		log.Printf("expected *corev1.Endpoints, got %T", obj)
+		return field.ErrorList{field.Invalid(
+			field.NewPath("object"), old,
+			storage.ErrObjectIsNotAnEndpoint.Error())}
 	}
 
 	return apimachineryvalidation.ValidateObjectMetaUpdate(

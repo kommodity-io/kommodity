@@ -144,9 +144,7 @@ func (secretStrategy) PrepareForCreate(_ context.Context, _ runtime.Object) {}
 func (secretStrategy) WarningsOnCreate(_ context.Context, obj runtime.Object) []string {
 	secret, ok := obj.(*corev1.Secret)
 	if !ok {
-		log.Printf("expected *corev1.Secret, got %T", obj)
-
-		return []string{fmt.Sprintf("unexpected object type: %T", obj)}
+		return []string{storage.ExpectedGot(storage.ErrObjectIsNotASecret, obj)}
 	}
 
 	return warningsForSecret(secret)
@@ -171,11 +169,15 @@ func (secretStrategy) PrepareForUpdate(_ context.Context, obj, old runtime.Objec
 	newSecret, success := obj.(*corev1.Secret)
 	if !success {
 		log.Printf("expected *corev1.Secret, got %T", obj)
+
+		return
 	}
 
 	oldSecret, success := old.(*corev1.Secret)
 	if !success {
 		log.Printf("expected *corev1.Secret, got %T", obj)
+
+		return
 	}
 
 	// this is weird, but consistent with what the validatedUpdate function used to do.
@@ -188,7 +190,7 @@ func (secretStrategy) PrepareForUpdate(_ context.Context, obj, old runtime.Objec
 func (secretStrategy) WarningsOnUpdate(_ context.Context, _, obj runtime.Object) []string {
 	secret, ok := obj.(*corev1.Secret)
 	if !ok {
-		log.Printf("expected *corev1.Secret, got %T", obj)
+		return []string{storage.ExpectedGot(storage.ErrObjectIsNotASecret, obj)}
 	}
 
 	return warningsForSecret(secret)
@@ -201,7 +203,9 @@ func (secretStrategy) PrepareForDelete(_ context.Context, _ runtime.Object) {}
 func (secretStrategy) Validate(_ context.Context, obj runtime.Object) field.ErrorList {
 	secretObject, ok := obj.(*corev1.Secret)
 	if !ok {
-		log.Printf("expected *corev1.Secret, got %T", obj)
+		return field.ErrorList{field.Invalid(
+			field.NewPath("object"), obj,
+			storage.ErrObjectIsNotASecret.Error())}
 	}
 
 	return validateSecret(secretObject)
@@ -211,23 +215,27 @@ func (secretStrategy) Validate(_ context.Context, obj runtime.Object) field.Erro
 func (secretStrategy) ValidateUpdate(_ context.Context, obj, old runtime.Object) field.ErrorList {
 	newSecretObject, success := obj.(*corev1.Secret)
 	if !success {
-		log.Printf("expected *corev1.Secret, got %T", obj)
+		return field.ErrorList{field.Invalid(
+			field.NewPath("object"), obj,
+			storage.ErrObjectIsNotASecret.Error())}
 	}
 
 	oldSecretObject, success := old.(*corev1.Secret)
 	if !success {
-		log.Printf("expected *corev1.Secret, got %T", obj)
+		return field.ErrorList{field.Invalid(
+			field.NewPath("object"), old,
+			storage.ErrObjectIsNotASecret.Error())}
 	}
 
 	allErrs := validation.ValidateObjectMetaUpdate(
-		&newSecretObject.ObjectMeta, 
-		&oldSecretObject.ObjectMeta, 
+		&newSecretObject.ObjectMeta,
+		&oldSecretObject.ObjectMeta,
 		field.NewPath("metadata"),
 	)
 
 	allErrs = append(
-		allErrs, 
-		validation.ValidateImmutableField(newSecretObject.Type, oldSecretObject.Type, field.NewPath("type"))...
+		allErrs,
+		validation.ValidateImmutableField(newSecretObject.Type, oldSecretObject.Type, field.NewPath("type"))...,
 	)
 
 	if oldSecretObject.Immutable != nil && *oldSecretObject.Immutable {
@@ -250,9 +258,9 @@ func (secretStrategy) ValidateUpdate(_ context.Context, obj, old runtime.Object)
 // ValidateSecret tests if required fields in the Secret are set.
 func validateSecret(secret *corev1.Secret) field.ErrorList {
 	allErrs := validation.ValidateObjectMeta(
-		&secret.ObjectMeta, 
-		true, 
-		validation.NameIsDNSSubdomain, 
+		&secret.ObjectMeta,
+		true,
+		validation.NameIsDNSSubdomain,
 		field.NewPath("metadata"),
 	)
 

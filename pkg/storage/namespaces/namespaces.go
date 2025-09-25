@@ -139,11 +139,15 @@ func (namespaceStrategy) PrepareForUpdate(_ context.Context, obj, old runtime.Ob
 	newNamespace, success := obj.(*corev1.Namespace)
 	if !success {
 		log.Printf("expected *corev1.Namespace, got %T", obj)
+
+		return
 	}
 
 	oldNamespace, success := old.(*corev1.Namespace)
 	if !success {
 		log.Printf("expected *corev1.Namespace, got %T", obj)
+
+		return
 	}
 
 	newNamespace.Spec.Finalizers = oldNamespace.Spec.Finalizers
@@ -162,7 +166,9 @@ func (namespaceStrategy) PrepareForDelete(_ context.Context, _ runtime.Object) {
 func (namespaceStrategy) Validate(_ context.Context, obj runtime.Object) field.ErrorList {
 	namespaceObject, ok := obj.(*corev1.Namespace)
 	if !ok {
-		log.Printf("expected *corev1.Namespace, got %T", obj)
+		return field.ErrorList{field.Invalid(
+			field.NewPath("object"), obj,
+			storageerr.ErrObjectIsNotANamespace.Error())}
 	}
 
 	return validation.ValidateObjectMeta(
@@ -176,12 +182,16 @@ func (namespaceStrategy) Validate(_ context.Context, obj runtime.Object) field.E
 func (namespaceStrategy) ValidateUpdate(_ context.Context, obj, old runtime.Object) field.ErrorList {
 	namespaceObject, success := obj.(*corev1.Namespace)
 	if !success {
-		log.Printf("expected *corev1.Namespace, got %T", obj)
+		return field.ErrorList{field.Invalid(
+			field.NewPath("object"), obj,
+			storageerr.ErrObjectIsNotANamespace.Error())}
 	}
 
 	oldNamespaceObject, success := old.(*corev1.Namespace)
 	if !success {
-		log.Printf("expected *corev1.Namespace, got %T", obj)
+		return field.ErrorList{field.Invalid(
+			field.NewPath("object"), old,
+			storageerr.ErrObjectIsNotANamespace.Error())}
 	}
 
 	return validation.ValidateObjectMetaUpdate(
