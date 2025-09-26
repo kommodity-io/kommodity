@@ -29,7 +29,7 @@ func NewAggregatedControllerManager(ctx context.Context, config *restclient.Conf
 		return nil, fmt.Errorf("failed to create controller manager: %w", err)
 	}
 
-	// CAPI controllers
+	// Core CAPI controllers
 
 	logger.Info("Setting up Cluster controller")
 
