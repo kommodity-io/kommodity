@@ -18,6 +18,7 @@ const (
 	defaultOIDCGroupsClaim   = "groups"
 
 	envServerPort        = "KOMMODITY_PORT"
+	envAdminGroup        = "KOMMODITY_ADMIN_GROUP"
 	envDisableAuth       = "KOMMODITY_INSECURE_DISABLE_AUTHENTICATION"
 	envOIDCIssuerURL     = "KOMMODITY_OIDC_ISSUER_URL"
 	envOIDCClientID      = "KOMMODITY_OIDC_CLIENT_ID"
@@ -112,4 +113,14 @@ func GetOIDCConfig(ctx context.Context) *OIDCConfig {
 		UsernameClaim: usernameClaim,
 		GroupsClaim:   groupsClaim,
 	}
+}
+
+// GetAdminGroup retrieves the admin group from the environment variable.
+func GetAdminGroup() (string, error) {
+	adminGroup := os.Getenv(envAdminGroup)
+	if adminGroup == "" {
+		return "", fmt.Errorf("%w: %s", ErrAdminGroupNotSet, envAdminGroup)
+	}
+
+	return adminGroup, nil
 }
