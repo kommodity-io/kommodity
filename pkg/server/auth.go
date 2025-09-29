@@ -10,7 +10,6 @@ import (
 	"k8s.io/apiserver/pkg/authentication/authenticator"
 	bearertoken "k8s.io/apiserver/pkg/authentication/request/bearertoken"
 	authunion "k8s.io/apiserver/pkg/authentication/request/union"
-	"k8s.io/apiserver/pkg/authorization/authorizer"
 	auth "k8s.io/apiserver/pkg/authorization/authorizer"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	oidc "k8s.io/apiserver/plugin/pkg/authenticator/token/oidc"
@@ -26,7 +25,7 @@ func (a *adminAuthorizer) Authorize(_ context.Context, attrs auth.Attributes) (a
 	user := attrs.GetUser()
 	if user == nil {
 		// no user — probably unauthenticated
-		return authorizer.DecisionDeny, "no user in attributes", nil
+		return auth.DecisionDeny, "no user in attributes", nil
 	}
 
 	adminGroup, err := kommodityconfig.GetAdminGroup()
