@@ -8,13 +8,14 @@ import (
     "k8s.io/apimachinery/pkg/runtime/schema"
 
 	scheme_1 "sigs.k8s.io/cluster-api/api/v1beta1"
-	scheme_2 "github.com/siderolabs/cluster-api-bootstrap-provider-talos/api/v1alpha2"
-	scheme_3 "github.com/siderolabs/cluster-api-bootstrap-provider-talos/api/v1alpha3"
-	scheme_4 "github.com/siderolabs/cluster-api-control-plane-provider-talos/api/v1alpha3"
-	scheme_5 "github.com/scaleway/cluster-api-provider-scaleway/api/v1alpha1"
-	scheme_6 "sigs.k8s.io/cluster-api-provider-azure/api/v1alpha1"
-	scheme_7 "sigs.k8s.io/cluster-api-provider-azure/api/v1beta1"
-	scheme_8 "sigs.k8s.io/cluster-api-provider-azure/exp/api/v1beta1"
+	scheme_2 "sigs.k8s.io/cluster-api/api/addons/v1beta1"
+	scheme_3 "github.com/siderolabs/cluster-api-bootstrap-provider-talos/api/v1alpha2"
+	scheme_4 "github.com/siderolabs/cluster-api-bootstrap-provider-talos/api/v1alpha3"
+	scheme_5 "github.com/siderolabs/cluster-api-control-plane-provider-talos/api/v1alpha3"
+	scheme_6 "github.com/scaleway/cluster-api-provider-scaleway/api/v1alpha1"
+	scheme_7 "sigs.k8s.io/cluster-api-provider-azure/api/v1alpha1"
+	scheme_8 "sigs.k8s.io/cluster-api-provider-azure/api/v1beta1"
+	scheme_9 "sigs.k8s.io/cluster-api-provider-azure/exp/api/v1beta1"
 )
 
 func addAllProvidersToScheme(scheme *runtime.Scheme) error {
@@ -27,6 +28,7 @@ func addAllProvidersToScheme(scheme *runtime.Scheme) error {
 	if err = scheme_6.AddToScheme(scheme); err != nil { return err }
 	if err = scheme_7.AddToScheme(scheme); err != nil { return err }
 	if err = scheme_8.AddToScheme(scheme); err != nil { return err }
+	if err = scheme_9.AddToScheme(scheme); err != nil { return err }
     return nil
 }
 
@@ -40,5 +42,6 @@ func GetProviderGroupKindVersions() []schema.GroupVersion {
 		scheme_6.GroupVersion,
 		scheme_7.GroupVersion,
 		scheme_8.GroupVersion,
+		scheme_9.GroupVersion,
   }
 }
