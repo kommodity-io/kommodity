@@ -4,6 +4,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/go-logr/zapr"
 	"github.com/kommodity-io/kommodity/pkg/logging"
@@ -14,9 +15,13 @@ import (
 const (
 	// MaxConcurrentReconciles is the maximum number of concurrent reconciles for controllers.
 	MaxConcurrentReconciles = 10
+
+	// RemoteConnectionGracePeriod is the grace period for remote connections.
+	RemoteConnectionGracePeriod = 5 * time.Minute
 )
 
 // NewAggregatedControllerManager creates a new controller manager with all relevant providers.
+//
 //nolint:cyclop, funlen // Too long or too complex due to many error checks and setup steps, no real complexity here
 func NewAggregatedControllerManager(ctx context.Context, config *restclient.Config) (ctrl.Manager, error) {
 	logger := zapr.NewLogger(logging.FromContext(ctx))
@@ -29,11 +34,16 @@ func NewAggregatedControllerManager(ctx context.Context, config *restclient.Conf
 		return nil, fmt.Errorf("failed to create controller manager: %w", err)
 	}
 
+	clusterCache, err := setupClusterCacheWithManager(ctx, manager, MaxConcurrentReconciles)
+	if err != nil {
+		return nil, fmt.Errorf("failed to setup ClusterCache: %w", err)
+	}
+
 	// Core CAPI controllers
 
 	logger.Info("Setting up Cluster controller")
 
-	err = setupClusterWithManager(ctx, manager, MaxConcurrentReconciles)
+	err = setupClusterWithManager(ctx, manager, clusterCache, MaxConcurrentReconciles, RemoteConnectionGracePeriod)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup cluster controller: %w", err)
 	}
@@ -47,7 +57,7 @@ func NewAggregatedControllerManager(ctx context.Context, config *restclient.Conf
 
 	logger.Info("Setting up Machine controller")
 
-	err = setupMachineWithManager(ctx, manager, MaxConcurrentReconciles)
+	err = setupMachineWithManager(ctx, manager, clusterCache, MaxConcurrentReconciles, RemoteConnectionGracePeriod)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup Machine controller: %w", err)
 	}
@@ -61,21 +71,21 @@ func NewAggregatedControllerManager(ctx context.Context, config *restclient.Conf
 
 	logger.Info("Setting up MachineSet controller")
 
-	err = setupMachineSetWithManager(ctx, manager, MaxConcurrentReconciles)
+	err = setupMachineSetWithManager(ctx, manager, clusterCache, MaxConcurrentReconciles)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup MachineSet controller: %w", err)
 	}
 
 	logger.Info("Setting up MachineHealthCheck controller")
 
-	err = setupMachineHealthCheckWithManager(ctx, manager, MaxConcurrentReconciles)
+	err = setupMachineHealthCheckWithManager(ctx, manager, clusterCache, MaxConcurrentReconciles)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup MachineHealthCheck controller: %w", err)
 	}
 
 	logger.Info("Setting up ClusterResourceSet controller")
 
-	err = setupClusterResourceSetWithManager(ctx, manager, MaxConcurrentReconciles)
+	err = setupClusterResourceSetWithManager(ctx, manager, clusterCache, MaxConcurrentReconciles)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup ClusterResourceSet controller: %w", err)
 	}
