@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/kommodity-io/kommodity/pkg/logging"
+	"go.uber.org/zap"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextensionsapiserver "k8s.io/apiextensions-apiserver/pkg/apiserver"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -23,7 +25,9 @@ import (
 var crds embed.FS
 
 // ApplyAllProviders applies all provider CRDs to the given dynamic Kubernetes client.
-func ApplyAllProviders(client *dynamic.DynamicClient) error {
+func ApplyAllProviders(ctx context.Context, client *dynamic.DynamicClient) error {
+	logger := logging.FromContext(ctx)
+
 	entries, err := crds.ReadDir("crds")
 	if err != nil {
 		return fmt.Errorf("failed to read CRD directory: %w", err)
@@ -32,6 +36,8 @@ func ApplyAllProviders(client *dynamic.DynamicClient) error {
 	decoder := yaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
 
 	for _, entry := range entries {
+		logger.Info("Applying CRD", zap.String("file", entry.Name()))
+
 		data, err := crds.ReadFile("crds/" + entry.Name())
 		if err != nil {
 			return fmt.Errorf("failed to read CRD file %s: %w", entry.Name(), err)
@@ -43,7 +49,7 @@ func ApplyAllProviders(client *dynamic.DynamicClient) error {
 				continue
 			}
 
-			err = loadCRD([]byte(crd), decoder, client)
+			err = loadCRD(ctx, []byte(crd), decoder, client)
 			if err != nil {
 				return fmt.Errorf("failed to load CRD: %w", err)
 			}
@@ -63,7 +69,7 @@ func ApplyAllProviders(client *dynamic.DynamicClient) error {
 	return nil
 }
 
-func loadCRD(crd []byte, decoder runtime.Serializer, client *dynamic.DynamicClient) error {
+func loadCRD(ctx context.Context, crd []byte, decoder runtime.Serializer, client *dynamic.DynamicClient) error {
 	obj := &unstructured.Unstructured{}
 
 	crdGVR := apiextensionsv1.SchemeGroupVersion.
@@ -74,14 +80,14 @@ func loadCRD(crd []byte, decoder runtime.Serializer, client *dynamic.DynamicClie
 		return fmt.Errorf("failed to decode YAML: %w", err)
 	}
 
-	_, err = client.Resource(crdGVR).Create(context.Background(), obj, metav1.CreateOptions{})
+	_, err = client.Resource(crdGVR).Create(ctx, obj, metav1.CreateOptions{})
 	if err == nil {
 		return nil
 	}
 
 	if errors.IsAlreadyExists(err) {
 		// Fetch the existing CRD to get its resourceVersion
-		existing, getErr := client.Resource(crdGVR).Get(context.Background(), obj.GetName(), metav1.GetOptions{})
+		existing, getErr := client.Resource(crdGVR).Get(ctx, obj.GetName(), metav1.GetOptions{})
 		if getErr != nil {
 			return fmt.Errorf("failed to get existing CRD: %w", getErr)
 		}
@@ -89,7 +95,7 @@ func loadCRD(crd []byte, decoder runtime.Serializer, client *dynamic.DynamicClie
 		// Set the resourceVersion to ensure we update the correct version
 		obj.SetResourceVersion(existing.GetResourceVersion())
 
-		_, err = client.Resource(crdGVR).Update(context.Background(), obj, metav1.UpdateOptions{})
+		_, err = client.Resource(crdGVR).Update(ctx, obj, metav1.UpdateOptions{})
 		if err != nil {
 			return fmt.Errorf("failed to update CRD: %w", err)
 		}
