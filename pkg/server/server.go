@@ -24,6 +24,7 @@ import (
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	aggregatorapiserver "k8s.io/kube-aggregator/pkg/apiserver"
+	aggregatorscheme "k8s.io/kube-aggregator/pkg/apiserver/scheme"
 
 	// Used to register the API schemes to force init() to be called.
 	_ "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/scheme"
@@ -64,6 +65,11 @@ func New(ctx context.Context) (*aggregatorapiserver.APIAggregator, error) {
 	err = enhanceScheme(apiextensionsapiserver.Scheme)
 	if err != nil {
 		return nil, fmt.Errorf("failed to enhance apiserver scheme: %w", err)
+	}
+
+	err = enhanceScheme(aggregatorscheme.Scheme)
+	if err != nil {
+		return nil, fmt.Errorf("failed to enhance kube-aggregator apiserver scheme: %w", err)
 	}
 
 	providerCache, err := provider.NewProviderCache(clientgoscheme.Scheme)
