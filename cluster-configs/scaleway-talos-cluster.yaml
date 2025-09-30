@@ -38,7 +38,7 @@ metadata:
 spec:
   failureDomains:
   - fr-par-2
-  projectID: "a76e6396-6a8e-4406-a1dc-ad4024c60295"
+  projectID: "${SCW_PROJECT_ID}"
   region: fr-par
   scalewaySecretName: my-cluster
 ---
@@ -47,9 +47,9 @@ kind: Secret
 metadata:
   name: my-cluster
   namespace: default
-stringData:
-  SCW_ACCESS_KEY: "SCWYHMHP60K2V7MPMF3Y"
-  SCW_SECRET_KEY: "615eee66-5427-4aab-9e56-b19a54ff709b"
+data:
+  SCW_ACCESS_KEY: "${SCW_ACCESS_KEY}"
+  SCW_SECRET_KEY: "${SCW_SECRET_KEY}"
 type: Opaque
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
