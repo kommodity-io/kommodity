@@ -19,7 +19,6 @@ spec:
     name: my-cluster
     namespace: default
 ---
-## Worker deployment configs
 apiVersion: bootstrap.cluster.x-k8s.io/v1alpha3
 kind: TalosConfigTemplate
 metadata:
@@ -30,29 +29,6 @@ spec:
     spec:
       generateType: worker
       talosVersion: v1.11.1
-      # configPatches:
-      #   - op: add
-      #     path: /machine/kubelet/registerWithFQDN
-      #     value: true
-      #   - op: add
-      #     path: /cluster/externalCloudProvider
-      #     value:
-      #       enabled: true
----
-# apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
-# kind: KubeadmConfigTemplate
-# metadata:
-#   name: my-cluster-md-0
-#   namespace: default
-# spec:
-#   template:
-#     spec:
-#       joinConfiguration:
-#         nodeRegistration:
-#           kubeletExtraArgs:
-#             cloud-provider: external
-#             provider-id: scaleway://instance/{{ ds.meta_data.zone }}/{{ ds.meta_data.id }}
-#           name: '{{ ds.meta_data.hostname }}'
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
 kind: ScalewayCluster
@@ -62,7 +38,7 @@ metadata:
 spec:
   failureDomains:
   - fr-par-2
-  projectID: "${SCW_PROJECT_ID}"
+  projectID: "a76e6396-6a8e-4406-a1dc-ad4024c60295"
   region: fr-par
   scalewaySecretName: my-cluster
 ---
@@ -72,8 +48,8 @@ metadata:
   name: my-cluster
   namespace: default
 stringData:
-  SCW_ACCESS_KEY: "${SCW_ACCESS_KEY}"
-  SCW_SECRET_KEY: "${SCW_SECRET_KEY}"
+  SCW_ACCESS_KEY: "SCWYHMHP60K2V7MPMF3Y"
+  SCW_SECRET_KEY: "615eee66-5427-4aab-9e56-b19a54ff709b"
 type: Opaque
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
@@ -135,7 +111,7 @@ metadata:
 spec:
   template:
     spec:
-      commercialType: DEV1-S # H100-1-80G
+      commercialType: DEV1-S
       image:
         name: talos-v1.11.0
       publicNetwork:
@@ -169,46 +145,3 @@ spec:
     init:
       generateType: ""
       hostname: {}
-      # configPatches:
-      #   - op: add
-      #     path: /cluster/network/cni
-      #     value:
-      #       name: custom
-      #       urls:
-      #         - https://raw.githubusercontent.com/projectcalico/calico/${CALICO_VERSION}/manifests/calico.yaml
-      #   - op: add
-      #     path: /machine/kubelet/registerWithFQDN
-      #     value: true
-      #   - op: add
-      #     path: /cluster/externalCloudProvider
-      #     value:
-      #       enabled: true
-      #       manifests:
-      #         - https://raw.githubusercontent.com/siderolabs/cluster-api-templates/main/aws/manifests/ccm.yaml
----
-# apiVersion: controlplane.cluster.x-k8s.io/v1beta1
-# kind: KubeadmControlPlane
-# metadata:
-#   name: my-cluster-control-plane
-#   namespace: default
-# spec:
-#   kubeadmConfigSpec:
-#     initConfiguration:
-#       nodeRegistration:
-#         kubeletExtraArgs:
-#           cloud-provider: external
-#           provider-id: scaleway://instance/{{ ds.meta_data.zone }}/{{ ds.meta_data.id}}
-#         name: '{{ ds.meta_data.hostname }}'
-#     joinConfiguration:
-#       nodeRegistration:
-#         kubeletExtraArgs:
-#           cloud-provider: external
-#           provider-id: scaleway://instance/{{ ds.meta_data.zone }}/{{ ds.meta_data.id }}
-#         name: '{{ ds.meta_data.hostname }}'
-#   machineTemplate:
-#     infrastructureRef:
-#       apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
-#       kind: ScalewayMachineTemplate
-#       name: my-cluster-control-plane
-#   replicas: 1
-#   version: v1.32.4
