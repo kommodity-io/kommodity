@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -18,10 +19,12 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	discoveryendpoint "k8s.io/apiserver/pkg/endpoints/discovery/aggregated"
 	genericapiserver "k8s.io/apiserver/pkg/server"
+	"k8s.io/client-go/discovery"
 	restclientdynamic "k8s.io/client-go/dynamic"
 	clientgoinformers "k8s.io/client-go/informers"
 	clientgoclientset "k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/cache"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	aggregatorapiserver "k8s.io/kube-aggregator/pkg/apiserver"
 	apiregistrationclient "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/typed/apiregistration/v1"
@@ -29,7 +32,13 @@ import (
 	"k8s.io/kubernetes/pkg/controlplane/controller/crdregistration"
 )
 
+const (
+	defaultWaitTime = 500 * time.Millisecond
+)
+
+//nolint:funlen
 func newAPIAggregatorServer(genericServerConfig *genericapiserver.RecommendedConfig,
+	providerCache *provider.Cache,
 	scheme *runtime.Scheme,
 	codecs serializer.CodecFactory,
 	delegationTarget genericapiserver.DelegationTarget,
@@ -81,19 +90,25 @@ func newAPIAggregatorServer(genericServerConfig *genericapiserver.RecommendedCon
 		return nil, fmt.Errorf("failed to add post start hook for auto-registration: %w", err)
 	}
 
-	err = aggregatorServer.GenericAPIServer.AddPostStartHook("apply-crds", applyCRDsHook(genericServerConfig, scheme))
+	err = aggregatorServer.GenericAPIServer.AddPostStartHook(
+		"apply-crds", applyCRDsHook(genericServerConfig, providerCache, crds))
 	if err != nil {
 		return nil, fmt.Errorf("failed to add post start hook for applying CRDs: %w", err)
+	}
+
+	err = aggregatorServer.GenericAPIServer.AddPostStartHook(
+		"start-controller-managers", startControllerManagersHook(genericServerConfig, providerCache, scheme))
+	if err != nil {
+		return nil, fmt.Errorf("failed to add post start hook for starting controller managers: %w", err)
 	}
 
 	return aggregatorServer, nil
 }
 
 func applyCRDsHook(genericServerConfig *genericapiserver.RecommendedConfig,
-	scheme *runtime.Scheme) genericapiserver.PostStartHookFunc {
+	providerCache *provider.Cache,
+	crds apiextensionsinformers.CustomResourceDefinitionInformer) genericapiserver.PostStartHookFunc {
 	return func(ctx genericapiserver.PostStartHookContext) error {
-		logger := logging.FromContext(ctx)
-
 		dynamicClient, err := restclientdynamic.NewForConfig(genericServerConfig.LoopbackClientConfig)
 		if err != nil {
 			return fmt.Errorf("failed to create dynamic rest client: %w", err)
@@ -102,17 +117,66 @@ func applyCRDsHook(genericServerConfig *genericapiserver.RecommendedConfig,
 		errCh := make(chan error)
 
 		go func() {
-			err = provider.ApplyAllProviders(ctx, dynamicClient)
+			err = providerCache.ApplyAllProviders(ctx, dynamicClient)
 			if err != nil {
 				errCh <- fmt.Errorf("failed to apply all provider CRDs: %w", err)
 			} else {
-				errCh <- nil
+				if !cache.WaitForCacheSync(ctx.Done(), crds.Informer().HasSynced) {
+					errCh <- ErrTimeoutWaitingForCRD
+				} else {
+					errCh <- nil
+				}
 			}
 		}()
 
 		err = <-errCh
 		if err != nil {
 			return fmt.Errorf("error applying provider CRDs: %w", err)
+		}
+
+		return nil
+	}
+}
+
+func startControllerManagersHook(genericServerConfig *genericapiserver.RecommendedConfig,
+	providerCache *provider.Cache,
+	scheme *runtime.Scheme) genericapiserver.PostStartHookFunc {
+	return func(ctx genericapiserver.PostStartHookContext) error {
+		logger := logging.FromContext(ctx)
+
+		discoveryClient, err := discovery.NewDiscoveryClientForConfig(genericServerConfig.LoopbackClientConfig)
+		if err != nil {
+			return fmt.Errorf("failed to create discovery client: %w", err)
+		}
+
+		providerAPIGroups := providerCache.GetProviderGroups()
+		logger.Info("Waiting for CRD discovery", zap.Strings("apiGroups", providerAPIGroups))
+
+		for {
+			apiGroups, err := discoveryClient.ServerGroups()
+			if err != nil {
+				return fmt.Errorf("failed to discover server groups: %w", err)
+			}
+
+			apiGroupNames := make([]string, len(apiGroups.Groups))
+			for i, group := range apiGroups.Groups {
+				apiGroupNames[i] = group.Name
+			}
+
+			logger.Debug("Discovered API groups", zap.Any("groups", apiGroupNames))
+
+			if slices.ContainsFunc(providerAPIGroups, func(group string) bool {
+				return slices.Contains(apiGroupNames, group)
+			}) {
+				logger.Info("All provider CRDs are available",
+					zap.Strings("expectedGroups", providerAPIGroups),
+					zap.Any("discoveredGroups", apiGroupNames))
+
+				break
+			}
+
+			logger.Info("Not all provider CRDs are available yet, waiting...")
+			time.Sleep(defaultWaitTime)
 		}
 
 		ctlMgr, err := controller.NewAggregatedControllerManager(ctx, genericServerConfig.LoopbackClientConfig, scheme)

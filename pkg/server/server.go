@@ -9,6 +9,7 @@ import (
 	"github.com/kommodity-io/kommodity/pkg/kine"
 	"github.com/kommodity-io/kommodity/pkg/logging"
 	generatedopenapi "github.com/kommodity-io/kommodity/pkg/openapi"
+	"github.com/kommodity-io/kommodity/pkg/provider"
 	"github.com/kommodity-io/kommodity/pkg/storage/configmaps"
 	"github.com/kommodity-io/kommodity/pkg/storage/endpoints"
 	"github.com/kommodity-io/kommodity/pkg/storage/events"
@@ -65,6 +66,16 @@ func New(ctx context.Context) (*aggregatorapiserver.APIAggregator, error) {
 		return nil, fmt.Errorf("failed to enhance apiserver scheme: %w", err)
 	}
 
+	providerCache, err := provider.NewProviderCache(clientgoscheme.Scheme)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create provider cache: %w", err)
+	}
+
+	err = providerCache.LoadCache(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load provider cache: %w", err)
+	}
+
 	codecs := serializer.NewCodecFactory(clientgoscheme.Scheme)
 
 	genericServerConfig, err := setupAPIServerConfig(ctx, openAPISpec, clientgoscheme.Scheme, codecs)
@@ -101,6 +112,7 @@ func New(ctx context.Context) (*aggregatorapiserver.APIAggregator, error) {
 	//nolint:contextcheck // No need to pass context here as its not used in the function call
 	aggregatorServer, err := newAPIAggregatorServer(
 		genericServerConfig,
+		providerCache,
 		clientgoscheme.Scheme,
 		codecs,
 		genericServer,
