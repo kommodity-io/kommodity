@@ -6,11 +6,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kommodity-io/kommodity/pkg/logging"
-	"go.uber.org/zap"
 	"github.com/kommodity-io/kommodity/pkg/controller"
 	"github.com/kommodity-io/kommodity/pkg/kine"
+	"github.com/kommodity-io/kommodity/pkg/logging"
 	"github.com/kommodity-io/kommodity/pkg/provider"
+	"go.uber.org/zap"
 	apiextensionsinformers "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -30,6 +30,7 @@ import (
 )
 
 func newAPIAggregatorServer(genericServerConfig *genericapiserver.RecommendedConfig,
+	scheme *runtime.Scheme,
 	codecs serializer.CodecFactory,
 	delegationTarget genericapiserver.DelegationTarget,
 	crds apiextensionsinformers.CustomResourceDefinitionInformer) (*aggregatorapiserver.APIAggregator, error) {
@@ -80,7 +81,7 @@ func newAPIAggregatorServer(genericServerConfig *genericapiserver.RecommendedCon
 		return nil, fmt.Errorf("failed to add post start hook for auto-registration: %w", err)
 	}
 
-	err = aggregatorServer.GenericAPIServer.AddPostStartHook("apply-crds", applyCRDsHook(genericServerConfig))
+	err = aggregatorServer.GenericAPIServer.AddPostStartHook("apply-crds", applyCRDsHook(genericServerConfig, scheme))
 	if err != nil {
 		return nil, fmt.Errorf("failed to add post start hook for applying CRDs: %w", err)
 	}
@@ -88,7 +89,8 @@ func newAPIAggregatorServer(genericServerConfig *genericapiserver.RecommendedCon
 	return aggregatorServer, nil
 }
 
-func applyCRDsHook(genericServerConfig *genericapiserver.RecommendedConfig) genericapiserver.PostStartHookFunc {
+func applyCRDsHook(genericServerConfig *genericapiserver.RecommendedConfig,
+	scheme *runtime.Scheme) genericapiserver.PostStartHookFunc {
 	return func(ctx genericapiserver.PostStartHookContext) error {
 		logger := logging.FromContext(ctx)
 
@@ -113,7 +115,7 @@ func applyCRDsHook(genericServerConfig *genericapiserver.RecommendedConfig) gene
 			return fmt.Errorf("error applying provider CRDs: %w", err)
 		}
 
-		ctlMgr, err := controller.NewAggregatedControllerManager(ctx, genericServerConfig.LoopbackClientConfig)
+		ctlMgr, err := controller.NewAggregatedControllerManager(ctx, genericServerConfig.LoopbackClientConfig, scheme)
 		if err != nil {
 			return fmt.Errorf("failed to create controller manager: %w", err)
 		}
