@@ -50,9 +50,10 @@ func setupTalosConfigWithManager(ctx context.Context, manager ctrl.Manager,
 func setupTalosControlPlaneWithManager(ctx context.Context, manager ctrl.Manager,
 	maxConcurrentReconciles int) error {
 	err := (&control_plane_controller.TalosControlPlaneReconciler{
-		Client: manager.GetClient(),
-		Log:    zapr.NewLogger(logging.FromContext(ctx)),
-		Scheme: manager.GetScheme(),
+		Client:    manager.GetClient(),
+		APIReader: manager.GetAPIReader(),
+		Log:       zapr.NewLogger(logging.FromContext(ctx)),
+		Scheme:    manager.GetScheme(),
 	}).SetupWithManager(manager, controller.Options{MaxConcurrentReconciles: maxConcurrentReconciles})
 	if err != nil {
 		return fmt.Errorf("failed to setup TalosControlPlane controller: %w", err)
