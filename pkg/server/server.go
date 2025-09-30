@@ -101,6 +101,7 @@ func New(ctx context.Context) (*aggregatorapiserver.APIAggregator, error) {
 	//nolint:contextcheck // No need to pass context here as its not used in the function call
 	aggregatorServer, err := newAPIAggregatorServer(
 		genericServerConfig,
+		clientgoscheme.Scheme,
 		codecs,
 		genericServer,
 		crdServer.Informers.Apiextensions().V1().CustomResourceDefinitions(),
