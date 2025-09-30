@@ -8,8 +8,13 @@ import (
 
 	"github.com/go-logr/zapr"
 	"github.com/kommodity-io/kommodity/pkg/logging"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	restclient "k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
@@ -22,14 +27,32 @@ const (
 
 // NewAggregatedControllerManager creates a new controller manager with all relevant providers.
 //
-//nolint:cyclop, funlen // Too long or too complex due to many error checks and setup steps, no real complexity here
-func NewAggregatedControllerManager(ctx context.Context, config *restclient.Config) (ctrl.Manager, error) {
+//nolint:funlen // Too long due to many error checks and setup steps, no real complexity here
+func NewAggregatedControllerManager(ctx context.Context, config *restclient.Config,
+	scheme *runtime.Scheme) (ctrl.Manager, error) {
 	logger := zapr.NewLogger(logging.FromContext(ctx))
 	ctrl.SetLogger(logger)
 
 	logger.Info("Creating controller manager")
 
-	manager, err := ctrl.NewManager(config, ctrl.Options{})
+	manager, err := ctrl.NewManager(config, ctrl.Options{
+		Scheme: scheme,
+		Logger: logger,
+		Cache: cache.Options{
+			Scheme: scheme,
+		},
+		Client: client.Options{
+			Scheme: scheme,
+			Cache: &client.CacheOptions{
+				DisableFor: []client.Object{
+					&corev1.ConfigMap{},
+					&corev1.Secret{},
+					&corev1.Pod{},
+					&appsv1.DaemonSet{},
+				},
+			},
+		},
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create controller manager: %w", err)
 	}
@@ -41,108 +64,38 @@ func NewAggregatedControllerManager(ctx context.Context, config *restclient.Conf
 
 	// Core CAPI controllers
 
-	logger.Info("Setting up Cluster controller")
+	logger.Info("Setting up CAPI controllers")
 
-	err = setupClusterWithManager(ctx, manager, clusterCache, MaxConcurrentReconciles, RemoteConnectionGracePeriod)
+	err = setupCAPI(ctx, manager, clusterCache, MaxConcurrentReconciles, RemoteConnectionGracePeriod)
 	if err != nil {
-		return nil, fmt.Errorf("failed to setup cluster controller: %w", err)
-	}
-
-	logger.Info("Setting up ClusterClass controller")
-
-	err = setupClusterClassWithManager(ctx, manager, MaxConcurrentReconciles)
-	if err != nil {
-		return nil, fmt.Errorf("failed to setup ClusterClass controller: %w", err)
-	}
-
-	logger.Info("Setting up Machine controller")
-
-	err = setupMachineWithManager(ctx, manager, clusterCache, MaxConcurrentReconciles, RemoteConnectionGracePeriod)
-	if err != nil {
-		return nil, fmt.Errorf("failed to setup Machine controller: %w", err)
-	}
-
-	logger.Info("Setting up MachineDeployment controller")
-
-	err = setupMachineDeploymentWithManager(ctx, manager, MaxConcurrentReconciles)
-	if err != nil {
-		return nil, fmt.Errorf("failed to setup MachineDeployment controller: %w", err)
-	}
-
-	logger.Info("Setting up MachineSet controller")
-
-	err = setupMachineSetWithManager(ctx, manager, clusterCache, MaxConcurrentReconciles)
-	if err != nil {
-		return nil, fmt.Errorf("failed to setup MachineSet controller: %w", err)
-	}
-
-	logger.Info("Setting up MachineHealthCheck controller")
-
-	err = setupMachineHealthCheckWithManager(ctx, manager, clusterCache, MaxConcurrentReconciles)
-	if err != nil {
-		return nil, fmt.Errorf("failed to setup MachineHealthCheck controller: %w", err)
-	}
-
-	logger.Info("Setting up ClusterResourceSet controller")
-
-	err = setupClusterResourceSetWithManager(ctx, manager, clusterCache, MaxConcurrentReconciles)
-	if err != nil {
-		return nil, fmt.Errorf("failed to setup ClusterResourceSet controller: %w", err)
-	}
-
-	logger.Info("Setting up ClusterResourceSetBinding controller")
-
-	err = setupClusterResourceSetBindingWithManager(ctx, manager, MaxConcurrentReconciles)
-	if err != nil {
-		return nil, fmt.Errorf("failed to setup ClusterResourceSetBinding controller: %w", err)
+		return nil, fmt.Errorf("failed to setup CAPI controllers: %w", err)
 	}
 
 	// Talos controllers
 
-	logger.Info("Setting up TalosConfig controller")
+	logger.Info("Setting up Talos controllers")
 
-	err = setupTalosConfigWithManager(ctx, manager, MaxConcurrentReconciles)
+	err = setupTalos(ctx, manager, MaxConcurrentReconciles)
 	if err != nil {
-		return nil, fmt.Errorf("failed to setup TalosConfig controller: %w", err)
-	}
-
-	logger.Info("Setting up TalosControlPlane controller")
-
-	err = setupTalosControlPlaneWithManager(ctx, manager, MaxConcurrentReconciles)
-	if err != nil {
-		return nil, fmt.Errorf("failed to setup TalosControlPlane controller: %w", err)
+		return nil, fmt.Errorf("failed to setup Talos controllers: %w", err)
 	}
 
 	// Azure controllers
 
-	logger.Info("Setting up AzureMachinePool controller")
+	logger.Info("Setting up Azure controllers")
 
-	err = setupAzureMachinePoolWithManager(ctx, manager, MaxConcurrentReconciles)
+	err = setupAzure(ctx, manager, MaxConcurrentReconciles)
 	if err != nil {
-		return nil, fmt.Errorf("failed to setup AzureMachinePool controller: %w", err)
-	}
-
-	logger.Info("Setting up AzureMachine controller")
-
-	err = setupAzureMachineWithManager(ctx, manager, MaxConcurrentReconciles)
-	if err != nil {
-		return nil, fmt.Errorf("failed to setup AzureMachine controller: %w", err)
+		return nil, fmt.Errorf("failed to setup Azure controllers: %w", err)
 	}
 
 	// Scaleway controllers
 
-	logger.Info("Setting up ScalewayMachine controller")
+	logger.Info("Setting up Scaleway controllers")
 
-	err = setupScalewayMachineWithManager(ctx, manager)
+	err = setupScaleway(ctx, manager)
 	if err != nil {
-		return nil, fmt.Errorf("failed to setup ScalewayMachine controller: %w", err)
-	}
-
-	logger.Info("Setting up ScalewayCluster controller")
-
-	err = setupScalewayClusterWithManager(ctx, manager)
-	if err != nil {
-		return nil, fmt.Errorf("failed to setup ScalewayCluster controller: %w", err)
+		return nil, fmt.Errorf("failed to setup Scaleway controllers: %w", err)
 	}
 
 	return manager, nil
