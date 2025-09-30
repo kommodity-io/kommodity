@@ -11,6 +11,7 @@ import (
 	bearertoken "k8s.io/apiserver/pkg/authentication/request/bearertoken"
 	authunion "k8s.io/apiserver/pkg/authentication/request/union"
 	auth "k8s.io/apiserver/pkg/authorization/authorizer"
+	"k8s.io/apiserver/pkg/authorization/authorizerfactory"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	oidc "k8s.io/apiserver/plugin/pkg/authenticator/token/oidc"
 )
@@ -48,6 +49,8 @@ func (a *adminAuthorizer) Authorize(_ context.Context, attrs auth.Attributes) (a
 
 func applyAuth(ctx context.Context, config *genericapiserver.RecommendedConfig) error {
 	if !kommodityconfig.ApplyAuth(ctx) {
+		config.Authorization.Authorizer = authorizerfactory.NewAlwaysAllowAuthorizer()
+
 		return nil
 	}
 

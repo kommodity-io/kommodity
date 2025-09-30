@@ -5,7 +5,6 @@ metadata:
   namespace: default
 spec:
   clusterNetwork:
-    apiServerPort: null
     pods:
       cidrBlocks:
       - 10.244.0.0/16
@@ -13,10 +12,12 @@ spec:
     apiVersion: controlplane.cluster.x-k8s.io/v1alpha3
     kind: TalosControlPlane
     name: talos-cluster-control-plane
+    namespace: default
   infrastructureRef:
     apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
     kind: ScalewayCluster
     name: my-cluster
+    namespace: default
 ---
 ## Worker deployment configs
 apiVersion: bootstrap.cluster.x-k8s.io/v1alpha3
@@ -89,6 +90,7 @@ spec:
       publicNetwork:
         enableIPv4: true
       rootVolume:
+        size: 20
         type: block
 ---
 apiVersion: cluster.x-k8s.io/v1beta1
@@ -98,7 +100,14 @@ metadata:
   namespace: default
 spec:
   clusterName: my-cluster
+  minReadySeconds: 0
+  progressDeadlineSeconds: 600
   replicas: 1
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+    type: RollingUpdate
   selector:
     matchLabels: null
   template:
@@ -108,13 +117,15 @@ spec:
           apiVersion: bootstrap.cluster.x-k8s.io/v1alpha3
           kind: TalosConfigTemplate
           name: talos-cluster-md-0
+          namespace: default
       clusterName: my-cluster
       failureDomain: fr-par-2
       infrastructureRef:
         apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
         kind: ScalewayMachineTemplate
         name: my-cluster-md-0
-      version: v1.32.4
+        namespace: default
+      version: v1.33.4
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
 kind: ScalewayMachineTemplate
@@ -124,12 +135,13 @@ metadata:
 spec:
   template:
     spec:
-      commercialType: H100-1-80G
+      commercialType: DEV1-S # H100-1-80G
       image:
         name: talos-v1.11.0
       publicNetwork:
         enableIPv4: true
       rootVolume:
+        size: 20
         type: block
 ---
 apiVersion: controlplane.cluster.x-k8s.io/v1alpha3
@@ -138,17 +150,25 @@ metadata:
   name: talos-cluster-control-plane
   namespace: default
 spec:
-  version: v1.32.4
+  version: v1.33.4
   replicas: 1
+  rolloutStrategy:
+    rollingUpdate:
+      maxSurge: 1
+    type: RollingUpdate
   infrastructureTemplate:
-    kind: ScalewayMachineTemplate
     apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+    kind: ScalewayMachineTemplate
     name: my-cluster-control-plane
     namespace: default
   controlPlaneConfig:
     controlplane:
       generateType: controlplane
       talosVersion: v1.11.0
+      hostname: {}
+    init:
+      generateType: ""
+      hostname: {}
       # configPatches:
       #   - op: add
       #     path: /cluster/network/cni
