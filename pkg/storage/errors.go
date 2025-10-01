@@ -21,6 +21,10 @@ var (
 	ErrObjectIsNotAnEndpoint = errors.New("object is not an Endpoint")
 	// ErrObjectIsNotAnEvent indicates that the object is not an event.
 	ErrObjectIsNotAnEvent = errors.New("object is not an Event")
+	// ErrObjectIsNotASelfSubjectAccessReview indicates that the object is not a SelfSubjectAccessReview.
+	ErrObjectIsNotASelfSubjectAccessReview = errors.New("object is not a SelfSubjectAccessReview")
+	// ErrObjectIsNotASubjectAccessReview indicates that the object is not a SubjectAccessReview.
+	ErrObjectIsNotASubjectAccessReview = errors.New("object is not a SubjectAccessReview")
 	// ErrFieldIsNull indicates that the field is null.
 	ErrFieldIsNull = errors.New("field must not be null")
 )
