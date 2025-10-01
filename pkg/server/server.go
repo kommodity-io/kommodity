@@ -5,10 +5,12 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/kommodity-io/kommodity/pkg/config"
 	"github.com/kommodity-io/kommodity/pkg/database"
 	"github.com/kommodity-io/kommodity/pkg/kine"
 	"github.com/kommodity-io/kommodity/pkg/logging"
 	generatedopenapi "github.com/kommodity-io/kommodity/pkg/openapi"
+	"github.com/kommodity-io/kommodity/pkg/provider"
 	"github.com/kommodity-io/kommodity/pkg/storage/configmaps"
 	"github.com/kommodity-io/kommodity/pkg/storage/endpoints"
 	"github.com/kommodity-io/kommodity/pkg/storage/events"
@@ -16,6 +18,7 @@ import (
 	"github.com/kommodity-io/kommodity/pkg/storage/secrets"
 	"github.com/kommodity-io/kommodity/pkg/storage/services"
 	"go.uber.org/zap"
+	authorizationapiv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
@@ -23,6 +26,7 @@ import (
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	aggregatorapiserver "k8s.io/kube-aggregator/pkg/apiserver"
+	aggregatorscheme "k8s.io/kube-aggregator/pkg/apiserver/scheme"
 
 	// Used to register the API schemes to force init() to be called.
 	_ "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/scheme"
@@ -40,10 +44,10 @@ const (
 // New creates a new Kubernetes API Server.
 //
 //nolint:cyclop, funlen // Too long or too complex due to many error checks and setup steps, no real complexity here
-func New(ctx context.Context) (*aggregatorapiserver.APIAggregator, error) {
+func New(ctx context.Context, cfg *config.KommodityConfig) (*aggregatorapiserver.APIAggregator, error) {
 	logger := logging.FromContext(ctx)
 
-	_, err := database.SetupDB()
+	_, err := database.SetupDB(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup database connection: %w", err)
 	}
@@ -65,14 +69,29 @@ func New(ctx context.Context) (*aggregatorapiserver.APIAggregator, error) {
 		return nil, fmt.Errorf("failed to enhance apiserver scheme: %w", err)
 	}
 
+	err = enhanceScheme(aggregatorscheme.Scheme)
+	if err != nil {
+		return nil, fmt.Errorf("failed to enhance kube-aggregator apiserver scheme: %w", err)
+	}
+
+	providerCache, err := provider.NewProviderCache(clientgoscheme.Scheme)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create provider cache: %w", err)
+	}
+
+	err = providerCache.LoadCache(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load provider cache: %w", err)
+	}
+
 	codecs := serializer.NewCodecFactory(clientgoscheme.Scheme)
 
-	genericServerConfig, err := setupAPIServerConfig(ctx, openAPISpec, clientgoscheme.Scheme, codecs)
+	genericServerConfig, err := setupAPIServerConfig(ctx, cfg, openAPISpec, clientgoscheme.Scheme, codecs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup config for the generic api server: %w", err)
 	}
 
-	crdServer, err := newAPIExtensionServer(genericServerConfig, codecs, genericapiserver.NewEmptyDelegate())
+	crdServer, err := newAPIExtensionServer(cfg, genericServerConfig, codecs, genericapiserver.NewEmptyDelegate())
 	if err != nil {
 		return nil, fmt.Errorf("failed to create apiextensions (CRD) server: %w", err)
 	}
@@ -85,7 +104,7 @@ func New(ctx context.Context) (*aggregatorapiserver.APIAggregator, error) {
 
 	logger.Info("Setting up legacy API")
 
-	legacyAPI, err := setupLegacyAPI(clientgoscheme.Scheme, codecs, logger)
+	legacyAPI, err := setupLegacyAPI(cfg, clientgoscheme.Scheme, codecs, logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup legacy API group info for the generic API server: %w", err)
 	}
@@ -97,10 +116,22 @@ func New(ctx context.Context) (*aggregatorapiserver.APIAggregator, error) {
 		return nil, fmt.Errorf("failed to install legacy API group into the generic API server: %w", err)
 	}
 
+	logger.Info("Installing authorization API group")
+
+	authorizationAPI := setupAuthorizationAPIGroupInfo(clientgoscheme.Scheme, codecs)
+
+	err = genericServer.InstallAPIGroup(authorizationAPI)
+	if err != nil {
+		return nil, fmt.Errorf("failed to install authorization API group into the generic API server: %w", err)
+	}
+
 	logger.Info("Creating new API aggregator server")
 	//nolint:contextcheck // No need to pass context here as its not used in the function call
 	aggregatorServer, err := newAPIAggregatorServer(
+		cfg,
 		genericServerConfig,
+		providerCache,
+		clientgoscheme.Scheme,
 		codecs,
 		genericServer,
 		crdServer.Informers.Apiextensions().V1().CustomResourceDefinitions(),
@@ -114,13 +145,14 @@ func New(ctx context.Context) (*aggregatorapiserver.APIAggregator, error) {
 
 //nolint:funlen // Too long or too complex due to many error checks and setup steps, no real complexity here
 func setupLegacyAPI(
+	cfg *config.KommodityConfig,
 	scheme *runtime.Scheme,
 	codecs serializer.CodecFactory,
 	logger *zap.Logger,
 ) (*genericapiserver.APIGroupInfo, error) {
 	logger.Info("Creating Kine legacy storage config")
 
-	kineStorageConfig, err := kine.NewKineStorageConfig(codecs.LegacyCodec(corev1.SchemeGroupVersion))
+	kineStorageConfig, err := kine.NewKineStorageConfig(cfg, codecs.LegacyCodec(corev1.SchemeGroupVersion))
 	if err != nil {
 		return nil, fmt.Errorf("unable to create Kine legacy storage config: %w", err)
 	}
@@ -180,4 +212,20 @@ func setupLegacyAPI(
 	}
 
 	return &coreAPIGroupInfo, nil
+}
+
+func setupAuthorizationAPIGroupInfo(scheme *runtime.Scheme,
+	codecs serializer.CodecFactory) *genericapiserver.APIGroupInfo {
+	apiGroupInfo := genericapiserver.NewDefaultAPIGroupInfo(
+		authorizationapiv1.GroupName,
+		scheme,
+		runtime.NewParameterCodec(scheme),
+		codecs,
+	)
+
+	apiGroupInfo.VersionedResourcesStorageMap["v1"] = map[string]rest.Storage{
+		"selfsubjectaccessreviews": NewSelfSubjectAccessReviewREST(),
+	}
+
+	return &apiGroupInfo
 }

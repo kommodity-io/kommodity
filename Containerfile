@@ -12,7 +12,7 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-RUN --mount=type=cache,target=/gomod-cache --mount=type=cache,target=/go-cache make build
+RUN --mount=type=cache,target=/gomod-cache --mount=type=cache,target=/go-cache GOOS=linux GOARCH=amd64 make build
 
 FROM gcr.io/distroless/static-debian12 AS runtime
 
@@ -21,5 +21,5 @@ COPY --from=build /app/bin/kommodity ${WORKDIR}/kommodity
 
 WORKDIR ${WORKDIR}
 
-EXPOSE 8443
+EXPOSE 8000
 ENTRYPOINT ["/app/kommodity"]

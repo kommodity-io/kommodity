@@ -47,11 +47,12 @@ services:
     image: kommodity:latest
     restart: no
     ports:
-      - "8443:8443"
+      - "8000:8000"
     environment:
       - KOMMODITY_DB_URI=postgres://kommodity:kommodity@postgres:5432/kommodity?sslmode=disable
       - KOMMODITY_KINE_URI=http://kine:2379
-      - KOMMODITY_API_SERVER_PORT=8443
+      - KOMMODITY_PORT=8000
+      - KOMMODITY_INSECURE_DISABLE_AUTHENTICATION=true
     depends_on:
       postgres:
         condition: service_healthy

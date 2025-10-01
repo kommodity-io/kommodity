@@ -55,6 +55,8 @@ types:
     - k8s.io/apimachinery/pkg/apis/meta/v1.APIResource
     - k8s.io/apimachinery/pkg/apis/meta/v1.ServerAddressByClientCIDR
     - k8s.io/apimachinery/pkg/apis/meta/v1.Condition
+    - k8s.io/apimachinery/pkg/apis/meta/v1.FieldSelectorRequirement
+    - k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelectorRequirement
   version:
     - k8s.io/apimachinery/pkg/version.Info
   runtime:
@@ -90,3 +92,12 @@ types:
     - k8s.io/kube-aggregator/pkg/apis/apiregistration/v1.APIServiceList
   intstr:
     - k8s.io/apimachinery/pkg/util/intstr.IntOrString
+  authorization:
+    - k8s.io/api/authorization/v1.SelfSubjectAccessReview
+    - k8s.io/api/authorization/v1.SelfSubjectAccessReviewSpec
+    - k8s.io/api/authorization/v1.SelfSubjectAccessReviewStatus
+    - k8s.io/api/authorization/v1.SubjectAccessReviewStatus
+    - k8s.io/api/authorization/v1.ResourceAttributes
+    - k8s.io/api/authorization/v1.NonResourceAttributes
+    - k8s.io/api/authorization/v1.FieldSelectorAttributes
+    - k8s.io/api/authorization/v1.LabelSelectorAttributes

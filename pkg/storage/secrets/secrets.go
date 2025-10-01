@@ -5,14 +5,13 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"log"
 	"path"
 	"reflect"
 
 	corev1 "k8s.io/api/core/v1"
 
-	"github.com/kommodity-io/kommodity/pkg/logging"
 	"github.com/kommodity-io/kommodity/pkg/storage"
-	"go.uber.org/zap"
 
 	"k8s.io/apimachinery/pkg/api/validation"
 	"k8s.io/apimachinery/pkg/fields"
@@ -145,10 +144,7 @@ func (secretStrategy) PrepareForCreate(_ context.Context, _ runtime.Object) {}
 func (secretStrategy) WarningsOnCreate(ctx context.Context, obj runtime.Object) []string {
 	secret, ok := obj.(*corev1.Secret)
 	if !ok {
-		logger := logging.FromContext(ctx)
-		logger.Warn("Expected *corev1.Secret", zap.String("actual_type", fmt.Sprintf("%T", obj)))
-
-		return []string{fmt.Sprintf("unexpected object type: %T", obj)}
+		return []string{storage.ExpectedGot(storage.ErrObjectIsNotASecret, obj)}
 	}
 
 	return warningsForSecret(secret)
@@ -170,16 +166,18 @@ func warningsForSecret(secret *corev1.Secret) []string {
 
 // PrepareForUpdate sets defaults for updated objects.
 func (secretStrategy) PrepareForUpdate(ctx context.Context, obj, old runtime.Object) {
-	logger := logging.FromContext(ctx)
-
 	newSecret, success := obj.(*corev1.Secret)
 	if !success {
-		logger.Warn("Expected *corev1.Secret for new object", zap.String("actual_type", fmt.Sprintf("%T", obj)))
+		log.Printf("expected *corev1.Secret, got %T", obj)
+
+		return
 	}
 
 	oldSecret, success := old.(*corev1.Secret)
 	if !success {
-		logger.Warn("Expected *corev1.Secret for old object", zap.String("actual_type", fmt.Sprintf("%T", old)))
+		log.Printf("expected *corev1.Secret, got %T", obj)
+
+		return
 	}
 
 	// this is weird, but consistent with what the validatedUpdate function used to do.
@@ -192,8 +190,7 @@ func (secretStrategy) PrepareForUpdate(ctx context.Context, obj, old runtime.Obj
 func (secretStrategy) WarningsOnUpdate(ctx context.Context, _, obj runtime.Object) []string {
 	secret, ok := obj.(*corev1.Secret)
 	if !ok {
-		logger := logging.FromContext(ctx)
-		logger.Warn("Expected *corev1.Secret", zap.String("actual_type", fmt.Sprintf("%T", obj)))
+		return []string{storage.ExpectedGot(storage.ErrObjectIsNotASecret, obj)}
 	}
 
 	return warningsForSecret(secret)
@@ -206,8 +203,9 @@ func (secretStrategy) PrepareForDelete(_ context.Context, _ runtime.Object) {}
 func (secretStrategy) Validate(ctx context.Context, obj runtime.Object) field.ErrorList {
 	secretObject, ok := obj.(*corev1.Secret)
 	if !ok {
-		logger := logging.FromContext(ctx)
-		logger.Warn("Expected *corev1.Secret", zap.String("actual_type", fmt.Sprintf("%T", obj)))
+		return field.ErrorList{field.Invalid(
+			field.NewPath("object"), obj,
+			storage.ErrObjectIsNotASecret.Error())}
 	}
 
 	return validateSecret(secretObject)
@@ -215,16 +213,18 @@ func (secretStrategy) Validate(ctx context.Context, obj runtime.Object) field.Er
 
 // ValidateUpdate validates updated objects.
 func (secretStrategy) ValidateUpdate(ctx context.Context, obj, old runtime.Object) field.ErrorList {
-	logger := logging.FromContext(ctx)
-
 	newSecretObject, success := obj.(*corev1.Secret)
 	if !success {
-		logger.Warn("Expected *corev1.Secret for new object", zap.String("actual_type", fmt.Sprintf("%T", obj)))
+		return field.ErrorList{field.Invalid(
+			field.NewPath("object"), obj,
+			storage.ErrObjectIsNotASecret.Error())}
 	}
 
 	oldSecretObject, success := old.(*corev1.Secret)
 	if !success {
-		logger.Warn("Expected *corev1.Secret for old object", zap.String("actual_type", fmt.Sprintf("%T", old)))
+		return field.ErrorList{field.Invalid(
+			field.NewPath("object"), old,
+			storage.ErrObjectIsNotASecret.Error())}
 	}
 
 	allErrs := validation.ValidateObjectMetaUpdate(

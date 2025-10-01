@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"fmt"
 	"net"
 
@@ -70,13 +69,23 @@ func enhanceScheme(scheme *runtime.Scheme) error {
 		return fmt.Errorf("failed to add rbac v1 API to scheme: %w", err)
 	}
 
+	err = authorizationapiv1.AddToScheme(scheme)
+	if err != nil {
+		return fmt.Errorf("failed to add authorization v1 API to scheme: %w", err)
+	}
+
+	err = authenticationv1.AddToScheme(scheme)
+	if err != nil {
+		return fmt.Errorf("failed to add authentication v1 API to scheme: %w", err)
+	}
+
 	return nil
 }
 
-func setupSecureServingWithSelfSigned(ctx context.Context) (*options.SecureServingOptions, error) {
+func setupSecureServingWithSelfSigned(cfg *config.KommodityConfig) (*options.SecureServingOptions, error) {
 	secureServing := options.NewSecureServingOptions()
 	secureServing.BindAddress = net.ParseIP("0.0.0.0")
-	secureServing.BindPort = config.GetAPIServerPort(ctx)
+	secureServing.BindPort = cfg.APIServerPort
 
 	// Generate self-signed certs for "localhost"
 	alternateIPs := []net.IP{

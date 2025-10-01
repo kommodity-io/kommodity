@@ -4,55 +4,98 @@ package controller
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/go-logr/zapr"
 	"github.com/kommodity-io/kommodity/pkg/logging"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	restclient "k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
 	// MaxConcurrentReconciles is the maximum number of concurrent reconciles for controllers.
 	MaxConcurrentReconciles = 10
+
+	// RemoteConnectionGracePeriod is the grace period for remote connections.
+	RemoteConnectionGracePeriod = 5 * time.Minute
 )
 
 // NewAggregatedControllerManager creates a new controller manager with all relevant providers.
-func NewAggregatedControllerManager(ctx context.Context, config *restclient.Config) (ctrl.Manager, error) {
-	ctrl.SetLogger(zapr.NewLogger(logging.FromContext(ctx)))
+//
+//nolint:funlen // Too long due to many error checks and setup steps, no real complexity here
+func NewAggregatedControllerManager(ctx context.Context, config *restclient.Config,
+	scheme *runtime.Scheme) (ctrl.Manager, error) {
+	logger := zapr.NewLogger(logging.FromContext(ctx))
+	ctrl.SetLogger(logger)
 
-	manager, err := ctrl.NewManager(config, ctrl.Options{})
+	logger.Info("Creating controller manager")
+
+	manager, err := ctrl.NewManager(config, ctrl.Options{
+		Scheme: scheme,
+		Logger: logger,
+		Cache: cache.Options{
+			Scheme: scheme,
+		},
+		Client: client.Options{
+			Scheme: scheme,
+			Cache: &client.CacheOptions{
+				DisableFor: []client.Object{
+					&corev1.ConfigMap{},
+					&corev1.Secret{},
+					&corev1.Pod{},
+					&appsv1.DaemonSet{},
+				},
+			},
+		},
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create controller manager: %w", err)
 	}
 
-	err = setupBootstrapProviderWithManager(ctx, manager, MaxConcurrentReconciles)
+	clusterCache, err := setupClusterCacheWithManager(ctx, manager, MaxConcurrentReconciles)
 	if err != nil {
-		return nil, fmt.Errorf("failed to setup talos bootstrap provider: %w", err)
+		return nil, fmt.Errorf("failed to setup ClusterCache: %w", err)
 	}
 
-	err = setupControlPlaneProviderWithManager(ctx, manager, MaxConcurrentReconciles)
+	// Core CAPI controllers
+
+	logger.Info("Setting up CAPI controllers")
+
+	err = setupCAPI(ctx, manager, clusterCache, MaxConcurrentReconciles, RemoteConnectionGracePeriod)
 	if err != nil {
-		return nil, fmt.Errorf("failed to setup talos control plane provider: %w", err)
+		return nil, fmt.Errorf("failed to setup CAPI controllers: %w", err)
 	}
 
-	err = setupAzureMachinePoolWithManager(ctx, manager, MaxConcurrentReconciles)
+	// Talos controllers
+
+	logger.Info("Setting up Talos controllers")
+
+	err = setupTalos(ctx, manager, MaxConcurrentReconciles)
 	if err != nil {
-		return nil, fmt.Errorf("failed to setup azure machine pool: %w", err)
+		return nil, fmt.Errorf("failed to setup Talos controllers: %w", err)
 	}
 
-	err = setupAzureMachineWithManager(ctx, manager, MaxConcurrentReconciles)
+	// Azure controllers
+
+	logger.Info("Setting up Azure controllers")
+
+	err = setupAzure(ctx, manager, MaxConcurrentReconciles)
 	if err != nil {
-		return nil, fmt.Errorf("failed to setup azure machine: %w", err)
+		return nil, fmt.Errorf("failed to setup Azure controllers: %w", err)
 	}
 
-	err = setupScalewayMachineWithManager(ctx, manager)
-	if err != nil {
-		return nil, fmt.Errorf("failed to setup scaleway machine: %w", err)
-	}
+	// Scaleway controllers
 
-	err = setupScalewayClusterWithManager(ctx, manager)
+	logger.Info("Setting up Scaleway controllers")
+
+	err = setupScaleway(ctx, manager)
 	if err != nil {
-		return nil, fmt.Errorf("failed to setup scaleway cluster: %w", err)
+		return nil, fmt.Errorf("failed to setup Scaleway controllers: %w", err)
 	}
 
 	return manager, nil

@@ -7,9 +7,7 @@ import (
 	"net/netip"
 	"path"
 
-	"github.com/kommodity-io/kommodity/pkg/logging"
 	"github.com/kommodity-io/kommodity/pkg/storage"
-	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
 	apimachineryvalidation "k8s.io/apimachinery/pkg/api/validation"
 	"k8s.io/apimachinery/pkg/fields"
@@ -149,8 +147,7 @@ func (endpointsStrategy) PrepareForCreate(_ context.Context, _ runtime.Object) {
 func (endpointsStrategy) WarningsOnCreate(ctx context.Context, obj runtime.Object) []string {
 	endpoint, ok := obj.(*corev1.Endpoints)
 	if !ok {
-		logger := logging.FromContext(ctx)
-		logger.Warn("Expected *corev1.Endpoints", zap.String("actual_type", fmt.Sprintf("%T", obj)))
+		return []string{storage.ExpectedGot(storage.ErrObjectIsNotAnEndpoint, obj)}
 	}
 
 	return endpointsWarnings(endpoint)
@@ -164,8 +161,7 @@ func (endpointsStrategy) PrepareForUpdate(_ context.Context, _, _ runtime.Object
 func (endpointsStrategy) WarningsOnUpdate(ctx context.Context, _, obj runtime.Object) []string {
 	endpoint, ok := obj.(*corev1.Endpoints)
 	if !ok {
-		logger := logging.FromContext(ctx)
-		logger.Warn("Expected *corev1.Endpoints", zap.String("actual_type", fmt.Sprintf("%T", obj)))
+		return []string{storage.ExpectedGot(storage.ErrObjectIsNotAnEndpoint, obj)}
 	}
 
 	return endpointsWarnings(endpoint)
@@ -178,8 +174,9 @@ func (endpointsStrategy) PrepareForDelete(_ context.Context, _ runtime.Object) {
 func (endpointsStrategy) Validate(ctx context.Context, obj runtime.Object) field.ErrorList {
 	endpointObject, ok := obj.(*corev1.Endpoints)
 	if !ok {
-		logger := logging.FromContext(ctx)
-		logger.Warn("Expected *corev1.Endpoints", zap.String("actual_type", fmt.Sprintf("%T", obj)))
+		return field.ErrorList{field.Invalid(
+			field.NewPath("object"), obj,
+			storage.ErrObjectIsNotAnEndpoint.Error())}
 	}
 
 	return apimachineryvalidation.ValidateObjectMeta(
@@ -191,16 +188,18 @@ func (endpointsStrategy) Validate(ctx context.Context, obj runtime.Object) field
 
 // ValidateUpdate validates updated objects.
 func (endpointsStrategy) ValidateUpdate(ctx context.Context, obj, old runtime.Object) field.ErrorList {
-	logger := logging.FromContext(ctx)
-
 	endpointObject, success := obj.(*corev1.Endpoints)
 	if !success {
-		logger.Warn("Expected *corev1.Endpoints for new object", zap.String("actual_type", fmt.Sprintf("%T", obj)))
+		return field.ErrorList{field.Invalid(
+			field.NewPath("object"), obj,
+			storage.ErrObjectIsNotAnEndpoint.Error())}
 	}
 
 	oldendpointObject, success := old.(*corev1.Endpoints)
 	if !success {
-		logger.Warn("Expected *corev1.Endpoints for old object", zap.String("actual_type", fmt.Sprintf("%T", old)))
+		return field.ErrorList{field.Invalid(
+			field.NewPath("object"), old,
+			storage.ErrObjectIsNotAnEndpoint.Error())}
 	}
 
 	return apimachineryvalidation.ValidateObjectMetaUpdate(

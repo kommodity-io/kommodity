@@ -9,9 +9,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
-	"github.com/kommodity-io/kommodity/pkg/logging"
 	"github.com/kommodity-io/kommodity/pkg/storage"
-	"go.uber.org/zap"
 
 	"k8s.io/apimachinery/pkg/api/validation"
 	"k8s.io/apimachinery/pkg/fields"
@@ -155,8 +153,9 @@ func (configMapStrategy) PrepareForDelete(_ context.Context, _ runtime.Object) {
 func (configMapStrategy) Validate(ctx context.Context, obj runtime.Object) field.ErrorList {
 	configMap, ok := obj.(*corev1.ConfigMap)
 	if !ok {
-		logger := logging.FromContext(ctx)
-		logger.Warn("Expected *corev1.ConfigMap", zap.String("actual_type", fmt.Sprintf("%T", obj)))
+		return field.ErrorList{field.Invalid(
+			field.NewPath("object"), obj,
+			storage.ErrObjectIsNotAConfigMap.Error())}
 	}
 
 	return validateConfigMap(configMap)
@@ -164,16 +163,18 @@ func (configMapStrategy) Validate(ctx context.Context, obj runtime.Object) field
 
 // ValidateUpdate validates updated objects.
 func (configMapStrategy) ValidateUpdate(ctx context.Context, obj, old runtime.Object) field.ErrorList {
-	logger := logging.FromContext(ctx)
-
 	newConfigMap, success := obj.(*corev1.ConfigMap)
 	if !success {
-		logger.Warn("Expected *corev1.ConfigMap for new object", zap.String("actual_type", fmt.Sprintf("%T", obj)))
+		return field.ErrorList{field.Invalid(
+			field.NewPath("object"), obj,
+			storage.ErrObjectIsNotAConfigMap.Error())}
 	}
 
 	oldConfigMap, success := old.(*corev1.ConfigMap)
 	if !success {
-		logger.Warn("Expected *corev1.ConfigMap for old object", zap.String("actual_type", fmt.Sprintf("%T", old)))
+		return field.ErrorList{field.Invalid(
+			field.NewPath("object"), old,
+			storage.ErrObjectIsNotAConfigMap.Error())}
 	}
 
 	allErrs := field.ErrorList{}

@@ -4,11 +4,32 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/kommodity-io/kommodity/pkg/logging"
 	"sigs.k8s.io/cluster-api-provider-azure/controllers"
 	capz_capi_controller "sigs.k8s.io/cluster-api-provider-azure/exp/controllers"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 )
+
+func setupAzure(ctx context.Context, manager ctrl.Manager, maxConcurrentReconciles int) error {
+	logger := logging.FromContext(ctx)
+
+	logger.Info("Setting up AzureMachinePool controller")
+
+	err := setupAzureMachinePoolWithManager(ctx, manager, maxConcurrentReconciles)
+	if err != nil {
+		return fmt.Errorf("failed to setup AzureMachinePool controller: %w", err)
+	}
+
+	logger.Info("Setting up AzureMachine controller")
+
+	err = setupAzureMachineWithManager(ctx, manager, maxConcurrentReconciles)
+	if err != nil {
+		return fmt.Errorf("failed to setup AzureMachine controller: %w", err)
+	}
+
+	return nil
+}
 
 func setupAzureMachinePoolWithManager(ctx context.Context, manager ctrl.Manager, maxConcurrentReconciles int) error {
 	err := (&capz_capi_controller.AzureMachinePoolReconciler{

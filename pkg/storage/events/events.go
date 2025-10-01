@@ -185,7 +185,9 @@ func (eventStrategy) Validate(ctx context.Context, obj runtime.Object) field.Err
 
 	event, ok := obj.(*corev1.Event)
 	if !ok {
-		return field.ErrorList{field.Invalid(field.NewPath("object"), obj, "object is not a *corev1.Event")}
+		return field.ErrorList{field.Invalid(
+			field.NewPath("object"), obj,
+			storageerr.ErrObjectIsNotAnEvent.Error())}
 	}
 
 	return validateEventCreate(event, groupVersion)
@@ -197,12 +199,16 @@ func (eventStrategy) ValidateUpdate(ctx context.Context, obj, old runtime.Object
 
 	event, success := obj.(*corev1.Event)
 	if !success {
-		return field.ErrorList{field.Invalid(field.NewPath("object"), obj, "object is not a *corev1.Event")}
+		return field.ErrorList{field.Invalid(
+			field.NewPath("object"), obj,
+			storageerr.ErrObjectIsNotAnEvent.Error())}
 	}
 
 	oldEvent, success := old.(*corev1.Event)
 	if !success {
-		return field.ErrorList{field.Invalid(field.NewPath("old"), old, "object is not a *corev1.Event")}
+		return field.ErrorList{field.Invalid(
+			field.NewPath("object"), old,
+			storageerr.ErrObjectIsNotAnEvent.Error())}
 	}
 
 	return validateEventUpdate(event, oldEvent, groupVersion)

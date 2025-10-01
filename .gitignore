@@ -15,3 +15,5 @@ __debug*
 
 # Generated files
 pkg/openapi/zz_generated.openapi.go
+
+.DS_Store

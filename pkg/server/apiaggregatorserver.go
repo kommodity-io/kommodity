@@ -3,14 +3,16 @@ package server
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
-	"github.com/kommodity-io/kommodity/pkg/logging"
-	"go.uber.org/zap"
+	"github.com/kommodity-io/kommodity/pkg/config"
 	"github.com/kommodity-io/kommodity/pkg/controller"
 	"github.com/kommodity-io/kommodity/pkg/kine"
+	"github.com/kommodity-io/kommodity/pkg/logging"
 	"github.com/kommodity-io/kommodity/pkg/provider"
+	"go.uber.org/zap"
 	apiextensionsinformers "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -18,10 +20,12 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	discoveryendpoint "k8s.io/apiserver/pkg/endpoints/discovery/aggregated"
 	genericapiserver "k8s.io/apiserver/pkg/server"
+	"k8s.io/client-go/discovery"
 	restclientdynamic "k8s.io/client-go/dynamic"
 	clientgoinformers "k8s.io/client-go/informers"
 	clientgoclientset "k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/cache"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	aggregatorapiserver "k8s.io/kube-aggregator/pkg/apiserver"
 	apiregistrationclient "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/typed/apiregistration/v1"
@@ -29,11 +33,19 @@ import (
 	"k8s.io/kubernetes/pkg/controlplane/controller/crdregistration"
 )
 
-func newAPIAggregatorServer(genericServerConfig *genericapiserver.RecommendedConfig,
+const (
+	defaultWaitTime = 500 * time.Millisecond
+)
+
+//nolint:funlen
+func newAPIAggregatorServer(cfg *config.KommodityConfig,
+	genericServerConfig *genericapiserver.RecommendedConfig,
+	providerCache *provider.Cache,
+	scheme *runtime.Scheme,
 	codecs serializer.CodecFactory,
 	delegationTarget genericapiserver.DelegationTarget,
 	crds apiextensionsinformers.CustomResourceDefinitionInformer) (*aggregatorapiserver.APIAggregator, error) {
-	config, err := setupAPIAggregatorConfig(genericServerConfig, codecs)
+	config, err := setupAPIAggregatorConfig(cfg, genericServerConfig, codecs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup API aggregator config: %w", err)
 	}
@@ -80,18 +92,25 @@ func newAPIAggregatorServer(genericServerConfig *genericapiserver.RecommendedCon
 		return nil, fmt.Errorf("failed to add post start hook for auto-registration: %w", err)
 	}
 
-	err = aggregatorServer.GenericAPIServer.AddPostStartHook("apply-crds", applyCRDsHook(genericServerConfig))
+	err = aggregatorServer.GenericAPIServer.AddPostStartHook(
+		"apply-crds", applyCRDsHook(genericServerConfig, providerCache, crds))
 	if err != nil {
 		return nil, fmt.Errorf("failed to add post start hook for applying CRDs: %w", err)
+	}
+
+	err = aggregatorServer.GenericAPIServer.AddPostStartHook(
+		"start-controller-managers", startControllerManagersHook(genericServerConfig, providerCache, scheme))
+	if err != nil {
+		return nil, fmt.Errorf("failed to add post start hook for starting controller managers: %w", err)
 	}
 
 	return aggregatorServer, nil
 }
 
-func applyCRDsHook(genericServerConfig *genericapiserver.RecommendedConfig) genericapiserver.PostStartHookFunc {
+func applyCRDsHook(genericServerConfig *genericapiserver.RecommendedConfig,
+	providerCache *provider.Cache,
+	crds apiextensionsinformers.CustomResourceDefinitionInformer) genericapiserver.PostStartHookFunc {
 	return func(ctx genericapiserver.PostStartHookContext) error {
-		logger := logging.FromContext(ctx)
-
 		dynamicClient, err := restclientdynamic.NewForConfig(genericServerConfig.LoopbackClientConfig)
 		if err != nil {
 			return fmt.Errorf("failed to create dynamic rest client: %w", err)
@@ -100,9 +119,15 @@ func applyCRDsHook(genericServerConfig *genericapiserver.RecommendedConfig) gene
 		errCh := make(chan error)
 
 		go func() {
-			err = provider.ApplyAllProviders(dynamicClient)
+			err = providerCache.ApplyAllProviders(ctx, dynamicClient)
 			if err != nil {
 				errCh <- fmt.Errorf("failed to apply all provider CRDs: %w", err)
+			} else {
+				if !cache.WaitForCacheSync(ctx.Done(), crds.Informer().HasSynced) {
+					errCh <- ErrTimeoutWaitingForCRD
+				} else {
+					errCh <- nil
+				}
 			}
 		}()
 
@@ -111,7 +136,52 @@ func applyCRDsHook(genericServerConfig *genericapiserver.RecommendedConfig) gene
 			return fmt.Errorf("error applying provider CRDs: %w", err)
 		}
 
-		ctlMgr, err := controller.NewAggregatedControllerManager(ctx, genericServerConfig.LoopbackClientConfig)
+		return nil
+	}
+}
+
+func startControllerManagersHook(genericServerConfig *genericapiserver.RecommendedConfig,
+	providerCache *provider.Cache,
+	scheme *runtime.Scheme) genericapiserver.PostStartHookFunc {
+	return func(ctx genericapiserver.PostStartHookContext) error {
+		logger := logging.FromContext(ctx)
+
+		discoveryClient, err := discovery.NewDiscoveryClientForConfig(genericServerConfig.LoopbackClientConfig)
+		if err != nil {
+			return fmt.Errorf("failed to create discovery client: %w", err)
+		}
+
+		providerAPIGroups := providerCache.GetProviderGroups()
+		logger.Info("Waiting for CRD discovery", zap.Strings("apiGroups", providerAPIGroups))
+
+		for {
+			apiGroups, err := discoveryClient.ServerGroups()
+			if err != nil {
+				return fmt.Errorf("failed to discover server groups: %w", err)
+			}
+
+			apiGroupNames := make([]string, len(apiGroups.Groups))
+			for i, group := range apiGroups.Groups {
+				apiGroupNames[i] = group.Name
+			}
+
+			logger.Debug("Discovered API groups", zap.Any("groups", apiGroupNames))
+
+			if slices.ContainsFunc(providerAPIGroups, func(group string) bool {
+				return slices.Contains(apiGroupNames, group)
+			}) {
+				logger.Info("All provider CRDs are available",
+					zap.Strings("expectedGroups", providerAPIGroups),
+					zap.Any("discoveredGroups", apiGroupNames))
+
+				break
+			}
+
+			logger.Info("Not all provider CRDs are available yet, waiting...")
+			time.Sleep(defaultWaitTime)
+		}
+
+		ctlMgr, err := controller.NewAggregatedControllerManager(ctx, genericServerConfig.LoopbackClientConfig, scheme)
 		if err != nil {
 			return fmt.Errorf("failed to create controller manager: %w", err)
 		}
@@ -176,9 +246,11 @@ func registerAPIServicesAndVersions(delegationTarget genericapiserver.Delegation
 	return apiServices
 }
 
-func setupAPIAggregatorConfig(genericServerConfig *genericapiserver.RecommendedConfig,
+func setupAPIAggregatorConfig(
+	cfg *config.KommodityConfig,
+	genericServerConfig *genericapiserver.RecommendedConfig,
 	codecs serializer.CodecFactory) (*aggregatorapiserver.Config, error) {
-	kineStorageConfig, err := kine.NewKineStorageConfig(
+	kineStorageConfig, err := kine.NewKineStorageConfig(cfg,
 		codecs.CodecForVersions(
 			codecs.LegacyCodec(apiregistrationv1.SchemeGroupVersion),
 			codecs.UniversalDeserializer(),

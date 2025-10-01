@@ -12,7 +12,28 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 )
 
-func setupBootstrapProviderWithManager(ctx context.Context, manager ctrl.Manager,
+func setupTalos(ctx context.Context, manager ctrl.Manager,
+	maxConcurrentReconciles int) error {
+	logger := logging.FromContext(ctx)
+
+	logger.Info("Setting up TalosConfig controller")
+
+	err := setupTalosConfigWithManager(ctx, manager, maxConcurrentReconciles)
+	if err != nil {
+		return fmt.Errorf("failed to setup TalosConfig controller: %w", err)
+	}
+
+	logger.Info("Setting up TalosControlPlane controller")
+
+	err = setupTalosControlPlaneWithManager(ctx, manager, maxConcurrentReconciles)
+	if err != nil {
+		return fmt.Errorf("failed to setup TalosControlPlane controller: %w", err)
+	}
+
+	return nil
+}
+
+func setupTalosConfigWithManager(ctx context.Context, manager ctrl.Manager,
 	maxConcurrentReconciles int) error {
 	err := (&bootstrap_controller.TalosConfigReconciler{
 		Client: manager.GetClient(),
@@ -20,21 +41,22 @@ func setupBootstrapProviderWithManager(ctx context.Context, manager ctrl.Manager
 		Scheme: manager.GetScheme(),
 	}).SetupWithManager(ctx, manager, controller.Options{MaxConcurrentReconciles: maxConcurrentReconciles})
 	if err != nil {
-		return fmt.Errorf("failed to setup bootstrap provider: %w", err)
+		return fmt.Errorf("failed to setup TalosConfig controller: %w", err)
 	}
 
 	return nil
 }
 
-func setupControlPlaneProviderWithManager(ctx context.Context, manager ctrl.Manager,
+func setupTalosControlPlaneWithManager(ctx context.Context, manager ctrl.Manager,
 	maxConcurrentReconciles int) error {
 	err := (&control_plane_controller.TalosControlPlaneReconciler{
-		Client: manager.GetClient(),
-		Log:    zapr.NewLogger(logging.FromContext(ctx)),
-		Scheme: manager.GetScheme(),
+		Client:    manager.GetClient(),
+		APIReader: manager.GetAPIReader(),
+		Log:       zapr.NewLogger(logging.FromContext(ctx)),
+		Scheme:    manager.GetScheme(),
 	}).SetupWithManager(manager, controller.Options{MaxConcurrentReconciles: maxConcurrentReconciles})
 	if err != nil {
-		return fmt.Errorf("failed to setup control plane provider: %w", err)
+		return fmt.Errorf("failed to setup TalosControlPlane controller: %w", err)
 	}
 
 	return nil
