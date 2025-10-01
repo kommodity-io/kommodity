@@ -35,7 +35,7 @@ func setupAPIServerConfig(ctx context.Context,
 		openapi.NewDefinitionNamer(scheme),
 	)
 
-	secureServing, err := setupSecureServingWithSelfSigned(ctx, cfg)
+	secureServing, err := setupSecureServingWithSelfSigned(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup secure serving config: %w", err)
 	}

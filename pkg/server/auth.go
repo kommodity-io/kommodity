@@ -25,7 +25,7 @@ type adminAuthorizer struct {
 	cfg *config.KommodityConfig
 }
 
-func (a adminAuthorizer) Authorize(ctx context.Context, attrs auth.Attributes) (auth.Decision, string, error) {
+func (a adminAuthorizer) Authorize(_ context.Context, attrs auth.Attributes) (auth.Decision, string, error) {
 	if !a.cfg.AuthConfig.Apply {
 		return auth.DecisionAllow, "allowed: auth is disabled", nil
 	}

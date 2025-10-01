@@ -60,7 +60,9 @@ func NewHTTPMuxFactory(ctx context.Context, cfg *config.KommodityConfig) combine
 	}
 }
 
-func setupProxy(ctx context.Context, cfg *config.KommodityConfig, tlsClient rest.TLSClientConfig) (*httputil.ReverseProxy, error) {
+func setupProxy(ctx context.Context,
+	cfg *config.KommodityConfig,
+	tlsClient rest.TLSClientConfig) (*httputil.ReverseProxy, error) {
 	// Target backend URL (where the proxy will forward requests)
 	target, err := url.Parse("https://localhost:" + strconv.Itoa(cfg.APIServerPort))
 	if err != nil {

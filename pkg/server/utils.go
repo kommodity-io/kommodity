@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"fmt"
 	"net"
 
@@ -83,7 +82,7 @@ func enhanceScheme(scheme *runtime.Scheme) error {
 	return nil
 }
 
-func setupSecureServingWithSelfSigned(ctx context.Context, cfg *config.KommodityConfig) (*options.SecureServingOptions, error) {
+func setupSecureServingWithSelfSigned(cfg *config.KommodityConfig) (*options.SecureServingOptions, error) {
 	secureServing := options.NewSecureServingOptions()
 	secureServing.BindAddress = net.ParseIP("0.0.0.0")
 	secureServing.BindPort = cfg.APIServerPort
