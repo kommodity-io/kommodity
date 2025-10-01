@@ -17,6 +17,7 @@ import (
 	"github.com/kommodity-io/kommodity/pkg/storage/secrets"
 	"github.com/kommodity-io/kommodity/pkg/storage/services"
 	"go.uber.org/zap"
+	authorizationapiv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
@@ -114,6 +115,15 @@ func New(ctx context.Context) (*aggregatorapiserver.APIAggregator, error) {
 		return nil, fmt.Errorf("failed to install legacy API group into the generic API server: %w", err)
 	}
 
+	logger.Info("Installing authorization API group")
+
+	authorizationAPI := setupAuthorizationAPIGroupInfo(clientgoscheme.Scheme, codecs)
+
+	err = genericServer.InstallAPIGroup(authorizationAPI)
+	if err != nil {
+		return nil, fmt.Errorf("failed to install authorization API group into the generic API server: %w", err)
+	}
+
 	logger.Info("Creating new API aggregator server")
 	//nolint:contextcheck // No need to pass context here as its not used in the function call
 	aggregatorServer, err := newAPIAggregatorServer(
@@ -199,4 +209,20 @@ func setupLegacyAPI(
 	}
 
 	return &coreAPIGroupInfo, nil
+}
+
+func setupAuthorizationAPIGroupInfo(scheme *runtime.Scheme,
+	codecs serializer.CodecFactory) *genericapiserver.APIGroupInfo {
+	apiGroupInfo := genericapiserver.NewDefaultAPIGroupInfo(
+		authorizationapiv1.GroupName,
+		scheme,
+		runtime.NewParameterCodec(scheme),
+		codecs,
+	)
+
+	apiGroupInfo.VersionedResourcesStorageMap["v1"] = map[string]rest.Storage{
+		"selfsubjectaccessreviews": NewSelfSubjectAccessReviewREST(),
+	}
+
+	return &apiGroupInfo
 }

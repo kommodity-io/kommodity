@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	kommodityconfig "github.com/kommodity-io/kommodity/pkg/config"
+	"github.com/kommodity-io/kommodity/pkg/storage/selfsubjectaccessreviews"
 	"k8s.io/apiserver/pkg/apis/apiserver"
 	"k8s.io/apiserver/pkg/authentication/authenticator"
 	bearertoken "k8s.io/apiserver/pkg/authentication/request/bearertoken"
@@ -22,7 +23,11 @@ const (
 
 type adminAuthorizer struct{}
 
-func (a *adminAuthorizer) Authorize(_ context.Context, attrs auth.Attributes) (auth.Decision, string, error) {
+func (a adminAuthorizer) Authorize(ctx context.Context, attrs auth.Attributes) (auth.Decision, string, error) {
+	if !kommodityconfig.ApplyAuth(ctx) {
+		return auth.DecisionAllow, "allowed: auth is disabled", nil
+	}
+
 	user := attrs.GetUser()
 	if user == nil {
 		// no user — probably unauthenticated
@@ -45,6 +50,13 @@ func (a *adminAuthorizer) Authorize(_ context.Context, attrs auth.Attributes) (a
 	}
 
 	return auth.DecisionDeny, "forbidden: user is not in admin group or system:masters group", nil
+}
+
+// NewSelfSubjectAccessReviewREST creates a new REST storage for SelfSubjectAccessReview.
+func NewSelfSubjectAccessReviewREST() *selfsubjectaccessreviews.SelfSubjectAccessReviewREST {
+	return &selfsubjectaccessreviews.SelfSubjectAccessReviewREST{
+		Authorizer: adminAuthorizer{},
+	}
 }
 
 func applyAuth(ctx context.Context, config *genericapiserver.RecommendedConfig) error {
