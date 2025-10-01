@@ -97,3 +97,7 @@ generate: .env fetch-providers ## Run code generation.
 .PHONY: teardown
 teardown: compose-down ## Tear down the local development environment.
 	rm -f .env
+
+.PHONY: build-image
+build-image: ## Build the Docker image.
+	docker build -f Containerfile -t kommodity:latest .

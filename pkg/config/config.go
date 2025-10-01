@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	defaultServerPort        = 8080
+	defaultServerPort        = 8000
 	defaultAPIServerPort     = 8443
 	defaultDisableAuth       = false
 	defaultOIDCUsernameClaim = "email"
