@@ -70,6 +70,16 @@ func enhanceScheme(scheme *runtime.Scheme) error {
 		return fmt.Errorf("failed to add rbac v1 API to scheme: %w", err)
 	}
 
+	err = authorizationapiv1.AddToScheme(scheme)
+	if err != nil {
+		return fmt.Errorf("failed to add authorization v1 API to scheme: %w", err)
+	}
+
+	err = authenticationv1.AddToScheme(scheme)
+	if err != nil {
+		return fmt.Errorf("failed to add authentication v1 API to scheme: %w", err)
+	}
+
 	return nil
 }
 
