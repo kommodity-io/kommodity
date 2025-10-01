@@ -105,15 +105,17 @@ grpcurl -plaintext -d "{\"data\": \"$(echo -n "$SEALED" | base64)\"}" \
 
 Several environment variables can be set to configure Kommodity:
 
-| Environment Variable         | Description                                              | Default Value         |
+| Environment Variable        | Description                                              | Default Value        |
 |-----------------------------|----------------------------------------------------------|----------------------|
 | `KOMMODITY_PORT`            | Port for the Kommodity server                            | `8000`               |
 | `KOMMODITY_ADMIN_GROUP`     | Name of the admin group for privileged access            | (none)               |
-| `KOMMODITY_INSECURE_DISABLE_AUTHENTICATION` | Disable authentication for local development         | `false`              |
+| `KOMMODITY_INSECURE_DISABLE_AUTHENTICATION` | Disable authentication for local development         | `false`  |
 | `KOMMODITY_OIDC_ISSUER_URL` | OIDC issuer URL for authentication                       | (none)               |
 | `KOMMODITY_OIDC_CLIENT_ID`  | OIDC client ID for authentication                        | (none)               |
-| `KOMMODITY_OIDC_USERNAME_CLAIM` | OIDC claim used for username                         | (none)              |
-| `KOMMODITY_OIDC_GROUPS_CLAIM`  | OIDC claim used for groups                           | (none)             |
+| `KOMMODITY_OIDC_USERNAME_CLAIM` | OIDC claim used for username                         | (none)               |
+| `KOMMODITY_OIDC_GROUPS_CLAIM`  | OIDC claim used for groups                            | (none)               |
+| `KOMMODITY_DB_URI`          | URI of the PostgreSQL database                           | (none)               |
+| `KOMMODITY_KINE_URI`        | URI of the Kine database                                 | (none)               |
 
 ## License
 
