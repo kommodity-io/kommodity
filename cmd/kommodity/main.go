@@ -37,9 +37,16 @@ func main() {
 	// Configure the zap OTEL logger.
 	zap.ReplaceGlobals(logger)
 
+	cfg, err := config.LoadConfig(ctx)
+	if err != nil {
+		logger.Error("Failed to load config", zap.Error(err))
+
+		return
+	}
+
 	server, err := combinedserver.New(combinedserver.ServerConfig{
-		Port:        config.GetServerPort(ctx),
-		HTTPFactory: server.NewHTTPMuxFactory(ctx),
+		Port:        cfg.ServerPort,
+		HTTPFactory: server.NewHTTPMuxFactory(ctx, cfg),
 		GRPCFactory: kms.NewGRPCServerFactory(),
 	})
 	if err != nil {

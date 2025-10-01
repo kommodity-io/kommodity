@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/kommodity-io/kommodity/pkg/config"
 	generatedopenapi "github.com/kommodity-io/kommodity/pkg/openapi"
 	"github.com/kommodity-io/kommodity/pkg/provider"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -20,7 +21,10 @@ import (
 	componentbaseversion "k8s.io/component-base/version"
 )
 
-func setupAPIServerConfig(ctx context.Context, openAPISpec *generatedopenapi.Spec, scheme *runtime.Scheme,
+func setupAPIServerConfig(ctx context.Context,
+	cfg *config.KommodityConfig,
+	openAPISpec *generatedopenapi.Spec,
+	scheme *runtime.Scheme,
 	codecs serializer.CodecFactory) (*genericapiserver.RecommendedConfig, error) {
 	genericServerConfig := genericapiserver.NewRecommendedConfig(codecs)
 
@@ -31,7 +35,7 @@ func setupAPIServerConfig(ctx context.Context, openAPISpec *generatedopenapi.Spe
 		openapi.NewDefinitionNamer(scheme),
 	)
 
-	secureServing, err := setupSecureServingWithSelfSigned(ctx)
+	secureServing, err := setupSecureServingWithSelfSigned(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup secure serving config: %w", err)
 	}
@@ -61,7 +65,7 @@ func setupAPIServerConfig(ctx context.Context, openAPISpec *generatedopenapi.Spe
 	resourceConfig.EnableVersions(schemeGroupVersions...)
 	genericServerConfig.MergedResourceConfig = resourceConfig
 
-	err = applyAuth(ctx, genericServerConfig)
+	err = applyAuth(ctx, cfg, genericServerConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to apply authentication/authorization config: %w", err)
 	}
