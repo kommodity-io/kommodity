@@ -47,9 +47,16 @@ $(LINTER):
 	grep -q '^KOMMODITY_PORT=' .env || echo 'KOMMODITY_PORT=8000' >> .env
 	grep -q '^KOMMODITY_INSECURE_DISABLE_AUTHENTICATION=' .env || echo 'KOMMODITY_INSECURE_DISABLE_AUTHENTICATION=true' >> .env
 
-.PHONY: setup
-setup: generate
+.PHONY: compose-up
+compose-up:
 	docker compose up -d --build --force-recreate
+
+.PHONY: compose-down
+compose-down: # Shuts down docker containers and removes volumes
+	docker compose down --remove-orphans -v
+
+.PHONY: setup
+setup: generate compose-up
 
 .PHONY: run
 run: ## Run the application locally.
@@ -87,6 +94,6 @@ lint-fix: $(LINTER) ## Run the linter and fix issues.
 generate: .env fetch-providers ## Run code generation.
 	go generate ./...
 
-teardown: ## Tear down the local development environment.
-	docker compose down --remove-orphans -v
+.PHONY: teardown
+teardown: compose-down ## Tear down the local development environment.
 	rm -f .env
