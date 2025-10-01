@@ -26,10 +26,12 @@ As a build system, we use `make`.
 ```bash
 # Create a binary in the `bin/` directory.
 make build
-# Run code generation and start docker compose
+# Run code generation and start the local development setup (through docker compose)
 make setup
 # Run the application locally.
 make run
+# Teardown the local development setup
+make teardown
 ```
 
 ## Demo
@@ -41,8 +43,36 @@ kubectl --kubeconfig kommodity.yaml api-resources
 kubectl --kubeconfig kommodity.yaml create -f examples/namespace.yaml
 kubectl --kubeconfig kommodity.yaml create -f examples/secret.yaml
 # Test gRPC reflection.
-grpcurl -plaintext localhost:8080 list
+grpcurl -plaintext localhost:8000 list
 ```
+
+## Features
+
+### 🔒 OIDC Authentication
+
+Kommodity supports authentication using OpenID Connect (OIDC), allowing integration with modern identity providers such as Google, or Azure AD. By leveraging OIDC, Kommodity enables secure, standards-based authentication for API requests.
+
+This feature ensures that only authorized users—those in the configured admin group or the Kubernetes `system:masters` group—can perform privileged operations. When authentication is disabled (`KOMMODITY_INSECURE_DISABLE_AUTHENTICATION=true`), all requests are allowed by default for easier local development and testing.
+
+### 🗄️ Storage
+
+Storage of Kubernetes resource objects is done in a PostgreSQL database. We chose PostgreSQL because it is widely available as a managed service on virtually every cloud provider, making it easy to deploy and operate Kommodity in any environment.
+
+This approach leverages [Kine](https://github.com/k3s-io/kine) to translate Kubernetes API storage operations into PostgreSQL queries, ensuring compatibility and reliability.
+
+### 🧩 Providers Configuration
+
+Kommodity is designed to be extensible and support multiple providers. The list of supported providers is managed in the [`providers.yaml`](pkg/provider/providers.yaml) file. Each entry specifies the provider name, repository, relevant Go module, and the YAML file containing the provider’s CustomResourceDefinitions (CRDs).
+
+For each provider, you can:
+
+- **Specify CRD filters:** Use the `filter` field to select only the CRDs you need for your deployment.
+- **Exclude unwanted CRDs:** Add CRD kinds to the `deny_list` to prevent them from being installed.
+- **Define API scheme locations:** The `scheme_locations` field lists the API versions and groups to include for each provider.
+
+This flexible configuration allows you to streamline your setup and avoid installing unnecessary resources.
+
+> **ℹ️ Note:** Providers need to be compatible with version `1.10.4` of Cluster API.
 
 ### Mock KMS Service
 
@@ -70,6 +100,22 @@ grpcurl -plaintext -d "{\"data\": \"$(echo -n "$SEALED" | base64)\"}" \
   localhost:8080 sidero.kms.KMSService/Unseal \
   | jq -r '.data' | base64 --decode
 ```
+
+## 🔧 Configuration
+
+Several environment variables can be set to configure Kommodity:
+
+| Environment Variable        | Description                                              | Default Value        |
+|-----------------------------|----------------------------------------------------------|----------------------|
+| `KOMMODITY_PORT`            | Port for the Kommodity server                            | `8000`               |
+| `KOMMODITY_ADMIN_GROUP`     | Name of the admin group for privileged access            | (none)               |
+| `KOMMODITY_INSECURE_DISABLE_AUTHENTICATION` | Disable authentication for local development         | `false`  |
+| `KOMMODITY_OIDC_ISSUER_URL` | OIDC issuer URL for authentication                       | (none)               |
+| `KOMMODITY_OIDC_CLIENT_ID`  | OIDC client ID for authentication                        | (none)               |
+| `KOMMODITY_OIDC_USERNAME_CLAIM` | OIDC claim used for username                         | (none)               |
+| `KOMMODITY_OIDC_GROUPS_CLAIM`  | OIDC claim used for groups                            | (none)               |
+| `KOMMODITY_DB_URI`          | URI of the PostgreSQL database                           | (none)               |
+| `KOMMODITY_KINE_URI`        | URI of the Kine database                                 | (none)               |
 
 ## License
 
