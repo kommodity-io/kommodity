@@ -4,10 +4,11 @@ package namespaces
 import (
 	"context"
 	"fmt"
-	"log"
 	"path"
 
 	corev1 "k8s.io/api/core/v1"
+	"github.com/kommodity-io/kommodity/pkg/logging"
+	"go.uber.org/zap"
 
 	storageerr "github.com/kommodity-io/kommodity/pkg/storage"
 
@@ -138,14 +139,14 @@ func (namespaceStrategy) WarningsOnCreate(_ context.Context, _ runtime.Object) [
 func (namespaceStrategy) PrepareForUpdate(ctx context.Context, obj, old runtime.Object) {
 	newNamespace, success := obj.(*corev1.Namespace)
 	if !success {
-		log.Printf("expected *corev1.Namespace, got %T", obj)
+		logging.FromContext(ctx).Error("Received unexpected type", zap.String("expected", "*corev1.Namespace"), zap.String("received", fmt.Sprintf("%T", obj)))
 
 		return
 	}
 
 	oldNamespace, success := old.(*corev1.Namespace)
 	if !success {
-		log.Printf("expected *corev1.Namespace, got %T", obj)
+		logging.FromContext(ctx).Error("Received unexpected type", zap.String("expected", "*corev1.Namespace"), zap.String("received", fmt.Sprintf("%T", obj)))
 
 		return
 	}
