@@ -12,4 +12,6 @@ var (
 	ErrMissingOIDCConfig = errors.New("OIDC configuration is not set")
 	// ErrTimeoutWaitingForCRD indicates that the timeout waiting for CRD to be established.
 	ErrTimeoutWaitingForCRD = errors.New("timeout waiting for CRD to be established")
+	// ErrNoAdminGroupConfigured indicates that no admin group is configured.
+	ErrNoAdminGroupConfigured = errors.New("no admin group configured")
 )
