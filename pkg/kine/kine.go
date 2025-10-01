@@ -1,25 +1,20 @@
+// Package kine provides utilities to configure Kine as the storage backend for Kommodity.
 package kine
 
 import (
-	"os"
-
+	"github.com/kommodity-io/kommodity/pkg/config"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apiserver/pkg/storage/storagebackend"
 )
 
 // NewKineStorageConfig creates the storage configurations to connect to Kine.
-func NewKineStorageConfig(codec runtime.Codec) (*storagebackend.Config, error) {
-	kineURI := os.Getenv("KOMMODITY_KINE_URI")
-	if kineURI == "" {
-		return nil, ErrKommodityKineEnvVarNotSet
-	}
-
+func NewKineStorageConfig(cfg *config.KommodityConfig, codec runtime.Codec) (*storagebackend.Config, error) {
 	return &storagebackend.Config{
 		Type:   storagebackend.StorageTypeETCD3,
 		Prefix: "/registry",
 		Codec:  codec,
 		Transport: storagebackend.TransportConfig{
-			ServerList: []string{kineURI},
+			ServerList: []string{*cfg.KineURI},
 		},
 	}, nil
 }

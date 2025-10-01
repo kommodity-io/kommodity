@@ -18,9 +18,9 @@ import (
 )
 
 // NewHTTPMuxFactory creates a new HTTP mux proxy factory for the API server.
-func NewHTTPMuxFactory(ctx context.Context) combinedserver.HTTPMuxFactory {
+func NewHTTPMuxFactory(ctx context.Context, cfg *config.KommodityConfig) combinedserver.HTTPMuxFactory {
 	return func(mux *http.ServeMux) error {
-		server, err := New(ctx)
+		server, err := New(ctx, cfg)
 		if err != nil {
 			return fmt.Errorf("failed to create server: %w", err)
 		}
@@ -46,7 +46,7 @@ func NewHTTPMuxFactory(ctx context.Context) combinedserver.HTTPMuxFactory {
 			}
 		}()
 
-		proxy, err := setupProxy(ctx,
+		proxy, err := setupProxy(ctx, cfg,
 			server.GenericAPIServer.LoopbackClientConfig.TLSClientConfig)
 		if err != nil {
 			return fmt.Errorf("failed to setup proxy: %w", err)
@@ -60,11 +60,9 @@ func NewHTTPMuxFactory(ctx context.Context) combinedserver.HTTPMuxFactory {
 	}
 }
 
-func setupProxy(ctx context.Context, tlsClient rest.TLSClientConfig) (*httputil.ReverseProxy, error) {
-	port := config.GetAPIServerPort(ctx)
-
+func setupProxy(ctx context.Context, cfg *config.KommodityConfig, tlsClient rest.TLSClientConfig) (*httputil.ReverseProxy, error) {
 	// Target backend URL (where the proxy will forward requests)
-	target, err := url.Parse("https://localhost:" + strconv.Itoa(port))
+	target, err := url.Parse("https://localhost:" + strconv.Itoa(cfg.APIServerPort))
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse target URL: %w", err)
 	}

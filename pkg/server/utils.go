@@ -83,10 +83,10 @@ func enhanceScheme(scheme *runtime.Scheme) error {
 	return nil
 }
 
-func setupSecureServingWithSelfSigned(ctx context.Context) (*options.SecureServingOptions, error) {
+func setupSecureServingWithSelfSigned(ctx context.Context, cfg *config.KommodityConfig) (*options.SecureServingOptions, error) {
 	secureServing := options.NewSecureServingOptions()
 	secureServing.BindAddress = net.ParseIP("0.0.0.0")
-	secureServing.BindPort = config.GetAPIServerPort(ctx)
+	secureServing.BindPort = cfg.APIServerPort
 
 	// Generate self-signed certs for "localhost"
 	alternateIPs := []net.IP{
