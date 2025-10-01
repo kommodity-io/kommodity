@@ -31,7 +31,7 @@ const (
 )
 
 const (
-	configurationNotSpecified = "Configuration not specified using default value"
+	configurationNotSpecified = "Configuration not specified, using default value"
 )
 
 // KommodityConfig holds the configuration settings for the Kommodity API server.
