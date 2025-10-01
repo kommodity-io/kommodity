@@ -112,8 +112,8 @@ Several environment variables can be set to configure Kommodity:
 | `KOMMODITY_INSECURE_DISABLE_AUTHENTICATION` | Disable authentication for local development         | `false`  |
 | `KOMMODITY_OIDC_ISSUER_URL` | OIDC issuer URL for authentication                       | (none)               |
 | `KOMMODITY_OIDC_CLIENT_ID`  | OIDC client ID for authentication                        | (none)               |
-| `KOMMODITY_OIDC_USERNAME_CLAIM` | OIDC claim used for username                         | (none)               |
-| `KOMMODITY_OIDC_GROUPS_CLAIM`  | OIDC claim used for groups                            | (none)               |
+| `KOMMODITY_OIDC_USERNAME_CLAIM` | OIDC claim used for username                         | `email`              |
+| `KOMMODITY_OIDC_GROUPS_CLAIM`  | OIDC claim used for groups                            | `groups`             |
 | `KOMMODITY_DB_URI`          | URI of the PostgreSQL database                           | (none)               |
 | `KOMMODITY_KINE_URI`        | URI of the Kine database                                 | (none)               |
 
