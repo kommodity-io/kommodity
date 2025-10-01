@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kommodity-io/kommodity/pkg/config"
 	"github.com/kommodity-io/kommodity/pkg/controller"
 	"github.com/kommodity-io/kommodity/pkg/kine"
 	"github.com/kommodity-io/kommodity/pkg/logging"
@@ -37,13 +38,14 @@ const (
 )
 
 //nolint:funlen
-func newAPIAggregatorServer(genericServerConfig *genericapiserver.RecommendedConfig,
+func newAPIAggregatorServer(cfg *config.KommodityConfig,
+	genericServerConfig *genericapiserver.RecommendedConfig,
 	providerCache *provider.Cache,
 	scheme *runtime.Scheme,
 	codecs serializer.CodecFactory,
 	delegationTarget genericapiserver.DelegationTarget,
 	crds apiextensionsinformers.CustomResourceDefinitionInformer) (*aggregatorapiserver.APIAggregator, error) {
-	config, err := setupAPIAggregatorConfig(genericServerConfig, codecs)
+	config, err := setupAPIAggregatorConfig(cfg, genericServerConfig, codecs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup API aggregator config: %w", err)
 	}
@@ -244,9 +246,11 @@ func registerAPIServicesAndVersions(delegationTarget genericapiserver.Delegation
 	return apiServices
 }
 
-func setupAPIAggregatorConfig(genericServerConfig *genericapiserver.RecommendedConfig,
+func setupAPIAggregatorConfig(
+	cfg *config.KommodityConfig,
+	genericServerConfig *genericapiserver.RecommendedConfig,
 	codecs serializer.CodecFactory) (*aggregatorapiserver.Config, error) {
-	kineStorageConfig, err := kine.NewKineStorageConfig(
+	kineStorageConfig, err := kine.NewKineStorageConfig(cfg,
 		codecs.CodecForVersions(
 			codecs.LegacyCodec(apiregistrationv1.SchemeGroupVersion),
 			codecs.UniversalDeserializer(),

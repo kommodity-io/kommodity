@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"slices"
 
-	kommodityconfig "github.com/kommodity-io/kommodity/pkg/config"
+	"github.com/kommodity-io/kommodity/pkg/config"
 	"github.com/kommodity-io/kommodity/pkg/storage/selfsubjectaccessreviews"
 	"k8s.io/apiserver/pkg/apis/apiserver"
 	"k8s.io/apiserver/pkg/authentication/authenticator"
@@ -21,10 +21,12 @@ const (
 	systemPrivilegedGroup = "system:masters"
 )
 
-type adminAuthorizer struct{}
+type adminAuthorizer struct {
+	cfg *config.KommodityConfig
+}
 
-func (a adminAuthorizer) Authorize(ctx context.Context, attrs auth.Attributes) (auth.Decision, string, error) {
-	if !kommodityconfig.ApplyAuth(ctx) {
+func (a adminAuthorizer) Authorize(_ context.Context, attrs auth.Attributes) (auth.Decision, string, error) {
+	if !a.cfg.AuthConfig.Apply {
 		return auth.DecisionAllow, "allowed: auth is disabled", nil
 	}
 
@@ -34,11 +36,11 @@ func (a adminAuthorizer) Authorize(ctx context.Context, attrs auth.Attributes) (
 		return auth.DecisionDeny, "no user in attributes", nil
 	}
 
-	adminGroup, err := kommodityconfig.GetAdminGroup()
-	if err != nil {
+	adminGroup := a.cfg.AuthConfig.AdminGroup
+	if adminGroup == "" {
 		return auth.DecisionDeny,
 			"forbidden: no admin group configured",
-			fmt.Errorf("no admin group configured: %w", err)
+			ErrNoAdminGroupConfigured
 	}
 
 	if slices.Contains(user.GetGroups(), systemPrivilegedGroup) {
@@ -59,8 +61,8 @@ func NewSelfSubjectAccessReviewREST() *selfsubjectaccessreviews.SelfSubjectAcces
 	}
 }
 
-func applyAuth(ctx context.Context, config *genericapiserver.RecommendedConfig) error {
-	if !kommodityconfig.ApplyAuth(ctx) {
+func applyAuth(ctx context.Context, cfg *config.KommodityConfig, config *genericapiserver.RecommendedConfig) error {
+	if !cfg.AuthConfig.Apply {
 		config.Authorization.Authorizer = authorizerfactory.NewAlwaysAllowAuthorizer()
 
 		return nil
@@ -68,7 +70,7 @@ func applyAuth(ctx context.Context, config *genericapiserver.RecommendedConfig) 
 
 	prefix := ""
 
-	oidcConfig := kommodityconfig.GetOIDCConfig(ctx)
+	oidcConfig := cfg.AuthConfig.OIDCConfig
 	if oidcConfig == nil {
 		return ErrMissingOIDCConfig
 	}
