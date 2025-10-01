@@ -146,7 +146,7 @@ func (endpointsStrategy) NamespaceScoped() bool {
 func (endpointsStrategy) PrepareForCreate(_ context.Context, _ runtime.Object) {}
 
 // WarningsOnCreate returns warnings for create operations.
-func (endpointsStrategy) WarningsOnCreate(ctx context.Context, obj runtime.Object) []string {
+func (endpointsStrategy) WarningsOnCreate(_ context.Context, obj runtime.Object) []string {
 	endpoint, ok := obj.(*corev1.Endpoints)
 	if !ok {
 		return []string{storage.ExpectedGot(storage.ErrObjectIsNotAnEndpoint, obj)}
@@ -160,7 +160,7 @@ func (endpointsStrategy) PrepareForUpdate(_ context.Context, _, _ runtime.Object
 }
 
 // WarningsOnUpdate returns warnings for update operations.
-func (endpointsStrategy) WarningsOnUpdate(ctx context.Context, _, obj runtime.Object) []string {
+func (endpointsStrategy) WarningsOnUpdate(_ context.Context, _, obj runtime.Object) []string {
 	endpoint, ok := obj.(*corev1.Endpoints)
 	if !ok {
 		return []string{storage.ExpectedGot(storage.ErrObjectIsNotAnEndpoint, obj)}
@@ -173,7 +173,7 @@ func (endpointsStrategy) WarningsOnUpdate(ctx context.Context, _, obj runtime.Ob
 func (endpointsStrategy) PrepareForDelete(_ context.Context, _ runtime.Object) {}
 
 // Validate validates new objects.
-func (endpointsStrategy) Validate(ctx context.Context, obj runtime.Object) field.ErrorList {
+func (endpointsStrategy) Validate(_ context.Context, obj runtime.Object) field.ErrorList {
 	endpointObject, ok := obj.(*corev1.Endpoints)
 	if !ok {
 		return field.ErrorList{field.Invalid(
@@ -189,9 +189,13 @@ func (endpointsStrategy) Validate(ctx context.Context, obj runtime.Object) field
 }
 
 // ValidateUpdate validates updated objects.
+<<<<<<< HEAD
 func (endpointsStrategy) ValidateUpdate(ctx context.Context, obj, old runtime.Object) field.ErrorList {
 	logger := logging.FromContext(ctx)
 
+=======
+func (endpointsStrategy) ValidateUpdate(_ context.Context, obj, old runtime.Object) field.ErrorList {
+>>>>>>> 3067c68 (fix(storage): linting)
 	endpointObject, success := obj.(*corev1.Endpoints)
 	if !success {
 		return field.ErrorList{field.Invalid(

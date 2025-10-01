@@ -152,7 +152,7 @@ func (configMapStrategy) WarningsOnUpdate(_ context.Context, _ runtime.Object, _
 func (configMapStrategy) PrepareForDelete(_ context.Context, _ runtime.Object) {}
 
 // Validate validates new objects.
-func (configMapStrategy) Validate(ctx context.Context, obj runtime.Object) field.ErrorList {
+func (configMapStrategy) Validate(_ context.Context, obj runtime.Object) field.ErrorList {
 	configMap, ok := obj.(*corev1.ConfigMap)
 	if !ok {
 		return field.ErrorList{field.Invalid(
@@ -164,9 +164,7 @@ func (configMapStrategy) Validate(ctx context.Context, obj runtime.Object) field
 }
 
 // ValidateUpdate validates updated objects.
-func (configMapStrategy) ValidateUpdate(ctx context.Context, obj, old runtime.Object) field.ErrorList {
-	logger := logging.FromContext(ctx)
-
+func (configMapStrategy) ValidateUpdate(_ context.Context, obj, old runtime.Object) field.ErrorList {
 	newConfigMap, success := obj.(*corev1.ConfigMap)
 	if !success {
 		return field.ErrorList{field.Invalid(

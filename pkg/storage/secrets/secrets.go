@@ -144,7 +144,7 @@ func (secretStrategy) NamespaceScoped() bool {
 func (secretStrategy) PrepareForCreate(_ context.Context, _ runtime.Object) {}
 
 // WarningsOnCreate returns warnings for create operations.
-func (secretStrategy) WarningsOnCreate(ctx context.Context, obj runtime.Object) []string {
+func (secretStrategy) WarningsOnCreate(_ context.Context, obj runtime.Object) []string {
 	secret, ok := obj.(*corev1.Secret)
 	if !ok {
 		return []string{storage.ExpectedGot(storage.ErrObjectIsNotASecret, obj)}
@@ -173,14 +173,18 @@ func (secretStrategy) PrepareForUpdate(ctx context.Context, obj, old runtime.Obj
 
 	newSecret, success := obj.(*corev1.Secret)
 	if !success {
-		logging.FromContext(ctx).Error("Received unexpected type", zap.String("expected", "*corev1.Secret"), zap.String("received", fmt.Sprintf("%T", obj)))
+		logging.FromContext(ctx).Error("Received unexpected type",
+			zap.String("expected", "*corev1.Secret"),
+			zap.String("received", fmt.Sprintf("%T", obj)))
 
 		return
 	}
 
 	oldSecret, success := old.(*corev1.Secret)
 	if !success {
-		logging.FromContext(ctx).Error("Received unexpected type", zap.String("expected", "*corev1.Secret"), zap.String("received", fmt.Sprintf("%T", obj)))
+		logging.FromContext(ctx).Error("Received unexpected type",
+			zap.String("expected", "*corev1.Secret"),
+			zap.String("received", fmt.Sprintf("%T", obj)))
 
 		return
 	}
@@ -192,7 +196,7 @@ func (secretStrategy) PrepareForUpdate(ctx context.Context, obj, old runtime.Obj
 }
 
 // WarningsOnUpdate returns warnings for update operations.
-func (secretStrategy) WarningsOnUpdate(ctx context.Context, _, obj runtime.Object) []string {
+func (secretStrategy) WarningsOnUpdate(_ context.Context, _, obj runtime.Object) []string {
 	secret, ok := obj.(*corev1.Secret)
 	if !ok {
 		return []string{storage.ExpectedGot(storage.ErrObjectIsNotASecret, obj)}
@@ -205,7 +209,7 @@ func (secretStrategy) WarningsOnUpdate(ctx context.Context, _, obj runtime.Objec
 func (secretStrategy) PrepareForDelete(_ context.Context, _ runtime.Object) {}
 
 // Validate validates new objects.
-func (secretStrategy) Validate(ctx context.Context, obj runtime.Object) field.ErrorList {
+func (secretStrategy) Validate(_ context.Context, obj runtime.Object) field.ErrorList {
 	secretObject, ok := obj.(*corev1.Secret)
 	if !ok {
 		return field.ErrorList{field.Invalid(
@@ -217,9 +221,7 @@ func (secretStrategy) Validate(ctx context.Context, obj runtime.Object) field.Er
 }
 
 // ValidateUpdate validates updated objects.
-func (secretStrategy) ValidateUpdate(ctx context.Context, obj, old runtime.Object) field.ErrorList {
-	logger := logging.FromContext(ctx)
-
+func (secretStrategy) ValidateUpdate(_ context.Context, obj, old runtime.Object) field.ErrorList {
 	newSecretObject, success := obj.(*corev1.Secret)
 	if !success {
 		return field.ErrorList{field.Invalid(

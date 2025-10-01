@@ -137,7 +137,9 @@ func (serviceStrategy) NamespaceScoped() bool {
 func (serviceStrategy) PrepareForCreate(ctx context.Context, obj runtime.Object) {
 	service, success := obj.(*corev1.Service)
 	if !success {
-		logging.FromContext(ctx).Error("Received unexpected type", zap.String("expected", "*corev1.Service"), zap.String("received", fmt.Sprintf("%T", obj)))
+		logging.FromContext(ctx).Error("Received unexpected type",
+			zap.String("expected", "*corev1.Service"),
+			zap.String("received", fmt.Sprintf("%T", obj)))
 
 		return
 	}
@@ -156,14 +158,18 @@ func (serviceStrategy) PrepareForUpdate(ctx context.Context, obj, old runtime.Ob
 
 	newService, success := obj.(*corev1.Service)
 	if !success {
-		logging.FromContext(ctx).Error("Received unexpected type", zap.String("expected", "*corev1.Service"), zap.String("received", fmt.Sprintf("%T", obj)))
+		logging.FromContext(ctx).Error("Received unexpected type",
+			zap.String("expected", "*corev1.Service"),
+			zap.String("received", fmt.Sprintf("%T", obj)))
 
 		return
 	}
 
 	oldService, success := old.(*corev1.Service)
 	if !success {
-		logging.FromContext(ctx).Error("Received unexpected type", zap.String("expected", "*corev1.Service"), zap.String("received", fmt.Sprintf("%T", old)))
+		logging.FromContext(ctx).Error("Received unexpected type",
+			zap.String("expected", "*corev1.Service"),
+			zap.String("received", fmt.Sprintf("%T", old)))
 
 		return
 	}
@@ -180,7 +186,7 @@ func (serviceStrategy) WarningsOnUpdate(_ context.Context, _, _ runtime.Object) 
 func (serviceStrategy) PrepareForDelete(_ context.Context, _ runtime.Object) {}
 
 // Validate validates new objects.
-func (serviceStrategy) Validate(ctx context.Context, obj runtime.Object) field.ErrorList {
+func (serviceStrategy) Validate(_ context.Context, obj runtime.Object) field.ErrorList {
 	service, ok := obj.(*corev1.Service)
 	if !ok {
 		return field.ErrorList{field.Invalid(
@@ -196,9 +202,7 @@ func (serviceStrategy) Validate(ctx context.Context, obj runtime.Object) field.E
 }
 
 // ValidateUpdate validates updated objects.
-func (serviceStrategy) ValidateUpdate(ctx context.Context, obj, old runtime.Object) field.ErrorList {
-	logger := logging.FromContext(ctx)
-
+func (serviceStrategy) ValidateUpdate(_ context.Context, obj, old runtime.Object) field.ErrorList {
 	newService, success := obj.(*corev1.Service)
 	if !success {
 		return field.ErrorList{field.Invalid(

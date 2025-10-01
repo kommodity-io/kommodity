@@ -143,14 +143,18 @@ func (namespaceStrategy) PrepareForUpdate(ctx context.Context, obj, old runtime.
 
 	newNamespace, success := obj.(*corev1.Namespace)
 	if !success {
-		logging.FromContext(ctx).Error("Received unexpected type", zap.String("expected", "*corev1.Namespace"), zap.String("received", fmt.Sprintf("%T", obj)))
+		logging.FromContext(ctx).Error("Received unexpected type",
+			zap.String("expected", "*corev1.Namespace"),
+			zap.String("received", fmt.Sprintf("%T", obj)))
 
 		return
 	}
 
 	oldNamespace, success := old.(*corev1.Namespace)
 	if !success {
-		logging.FromContext(ctx).Error("Received unexpected type", zap.String("expected", "*corev1.Namespace"), zap.String("received", fmt.Sprintf("%T", obj)))
+		logging.FromContext(ctx).Error("Received unexpected type",
+			zap.String("expected", "*corev1.Namespace"),
+			zap.String("received", fmt.Sprintf("%T", obj)))
 
 		return
 	}
@@ -168,7 +172,7 @@ func (namespaceStrategy) WarningsOnUpdate(_ context.Context, _, _ runtime.Object
 func (namespaceStrategy) PrepareForDelete(_ context.Context, _ runtime.Object) {}
 
 // Validate validates new objects.
-func (namespaceStrategy) Validate(ctx context.Context, obj runtime.Object) field.ErrorList {
+func (namespaceStrategy) Validate(_ context.Context, obj runtime.Object) field.ErrorList {
 	namespaceObject, ok := obj.(*corev1.Namespace)
 	if !ok {
 		return field.ErrorList{field.Invalid(
@@ -184,9 +188,7 @@ func (namespaceStrategy) Validate(ctx context.Context, obj runtime.Object) field
 }
 
 // ValidateUpdate validates updated objects.
-func (namespaceStrategy) ValidateUpdate(ctx context.Context, obj, old runtime.Object) field.ErrorList {
-	logger := logging.FromContext(ctx)
-
+func (namespaceStrategy) ValidateUpdate(_ context.Context, obj, old runtime.Object) field.ErrorList {
 	namespaceObject, success := obj.(*corev1.Namespace)
 	if !success {
 		return field.ErrorList{field.Invalid(
