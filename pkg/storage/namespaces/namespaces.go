@@ -7,6 +7,8 @@ import (
 	"path"
 
 	corev1 "k8s.io/api/core/v1"
+	"github.com/kommodity-io/kommodity/pkg/logging"
+	"go.uber.org/zap"
 
 	"github.com/kommodity-io/kommodity/pkg/logging"
 	storageerr "github.com/kommodity-io/kommodity/pkg/storage"
@@ -141,14 +143,14 @@ func (namespaceStrategy) PrepareForUpdate(ctx context.Context, obj, old runtime.
 
 	newNamespace, success := obj.(*corev1.Namespace)
 	if !success {
-		log.Printf("expected *corev1.Namespace, got %T", obj)
+		logging.FromContext(ctx).Error("Received unexpected type", zap.String("expected", "*corev1.Namespace"), zap.String("received", fmt.Sprintf("%T", obj)))
 
 		return
 	}
 
 	oldNamespace, success := old.(*corev1.Namespace)
 	if !success {
-		log.Printf("expected *corev1.Namespace, got %T", obj)
+		logging.FromContext(ctx).Error("Received unexpected type", zap.String("expected", "*corev1.Namespace"), zap.String("received", fmt.Sprintf("%T", obj)))
 
 		return
 	}
