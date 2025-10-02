@@ -101,3 +101,10 @@ teardown: compose-down ## Tear down the local development environment.
 .PHONY: build-image
 build-image: ## Build the Docker image.
 	docker build -f Containerfile -t kommodity:latest .
+
+setup-kind-management-cluster:
+	./scripts/setup-kind-management-cluster.sh
+
+delete-kind-management-cluster:
+	kind delete cluster --name kind-management
+
