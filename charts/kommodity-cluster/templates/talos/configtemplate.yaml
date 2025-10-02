@@ -1,0 +1,13 @@
+{{- range $name, $np := .Values.kommodity.nodepools }}
+---
+apiVersion: bootstrap.cluster.x-k8s.io/v1alpha3
+kind: TalosConfigTemplate
+metadata:
+  name: {{ $.Release.Name }}-worker-{{ $name }}
+  namespace: {{ $.Release.Namespace }}
+spec:
+  template:
+    spec:
+      generateType: worker
+      talosVersion: {{ include "kommodity.talosVersion" $ }}
+{{- end }}

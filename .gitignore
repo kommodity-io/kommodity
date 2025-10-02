@@ -17,3 +17,5 @@ __debug*
 pkg/openapi/zz_generated.openapi.go
 
 .DS_Store
+
+*.secret.yaml

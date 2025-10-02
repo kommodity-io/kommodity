@@ -1,0 +1,23 @@
+{{- if eq .Values.kommodity.provider.name "Scaleway" }}
+{{- $zones := dict }}
+{{- range $name, $np := .Values.kommodity.nodepools }}
+  {{- $_ := set $zones $np.zone true }}
+{{- end }}
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: ScalewayCluster
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  failureDomains:
+  {{- range $zone, $_ := $zones }}
+    - {{ $zone }}
+  {{- end }}
+  {{- if hasKey .Values.kommodity.provider.config "projectID" }}
+  projectID: {{ .Values.kommodity.provider.config.projectID }}
+  {{- else }}
+  {{- fail "missing required projectID in kommodity.provider.config for Scaleway" -}}
+  {{- end }}
+  region: {{ .Values.kommodity.region }}
+  scalewaySecretName: {{ .Values.kommodity.provider.secret.name }}
+{{- end }}

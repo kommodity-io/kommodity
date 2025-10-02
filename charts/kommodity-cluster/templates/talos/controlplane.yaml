@@ -1,0 +1,26 @@
+---
+apiVersion: controlplane.cluster.x-k8s.io/v1alpha3
+kind: TalosControlPlane
+metadata:
+  name: {{ $.Release.Name }}-controlplane
+  namespace: {{ $.Release.Namespace }}
+spec:
+  version: {{ $.Values.kubernetes.version }}
+  replicas: {{ $.Values.kommodity.controlplane.replicas }}
+  rolloutStrategy:
+    rollingUpdate:
+      maxSurge: 1
+    type: RollingUpdate
+  infrastructureTemplate:
+    apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+    kind: ScalewayMachineTemplate
+    name: {{ $.Release.Name }}-controlplane
+    namespace: {{ $.Release.Namespace }}
+  controlPlaneConfig:
+    controlplane:
+      generateType: controlplane
+      talosVersion: {{ include "kommodity.talosVersion" $ }}
+      hostname: {}
+    init:
+      generateType: ""
+      hostname: {}

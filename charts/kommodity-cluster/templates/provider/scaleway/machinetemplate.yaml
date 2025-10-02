@@ -1,0 +1,43 @@
+{{- if eq .Values.kommodity.provider.name "Scaleway" }}
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: ScalewayMachineTemplate
+metadata:
+  name: {{ .Release.Name }}-controlplane
+  namespace: {{ .Release.Namespace }}
+spec:
+  template:
+    spec:
+      commercialType: {{ .Values.kommodity.controlplane.sku }}
+      image:
+        name: {{ .Values.talos.imagePrefix }}{{ include "kommodity.talosVersion" $ }}
+      {{- if .Values.kommodity.network.ipv4.public }}
+      publicNetwork:
+        enableIPv4: {{ .Values.kommodity.network.ipv4.enabled }}
+      {{- end }}
+      rootVolume:
+        size: {{ .Values.kommodity.controlplane.os.disk.size }}
+        type: block
+
+{{- range $name, $np := .Values.kommodity.nodepools }}
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: ScalewayMachineTemplate
+metadata:
+  name: {{ $.Release.Name }}-worker-{{ $name }}
+  namespace: {{ $.Release.Namespace }}
+spec:
+  template:
+    spec:
+      commercialType: {{ $np.sku }}
+      image:
+        name: {{ $.Values.talos.imagePrefix }}{{ include "kommodity.talosVersion" $ }}
+      {{- if $.Values.kommodity.network.ipv4.public }}
+      publicNetwork:
+        enableIPv4: {{ $.Values.kommodity.network.ipv4.enabled }}
+      {{- end }}
+      rootVolume:
+        size: {{ $np.os.disk.size }}
+        type: block
+{{- end }}
+{{- end }}
