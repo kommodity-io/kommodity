@@ -34,6 +34,45 @@ make run
 make teardown
 ```
 
+### ⚠️ Dependencies
+
+If you want to run Kommodity with authentication using OpenID Connect (OIDC), you need to have `kubectl` `oidc-login` plugin installed. We recommend that you install it via [`krew`](https://krew.sigs.k8s.io/docs/user-guide/setup/install/).
+
+```bash
+kubectl krew install oidc-login
+```
+
+Example of `kommodity.yaml` kubeconfig file with OIDC authentication:
+
+```yaml
+apiVersion: v1
+kind: Config
+clusters:
+  - name: kommodity
+    cluster:
+      server: http://localhost:8000
+users:
+  - name: oidc
+    user:
+      exec:
+        apiVersion: client.authentication.k8s.io/v1
+        command: kubectl
+        args:
+          - oidc-login
+          - get-token
+          - --oidc-issuer-url=ISSUER_URL
+          - --oidc-client-id=YOUR_CLIENT_ID
+          - --oidc-extra-scope=email
+          - --oidc-extra-scope=profile
+contexts:
+  - name: kommodity-context
+    context:
+      cluster: kommodity
+      user: oidc
+current-context: kommodity-context
+preferences: {}
+```
+
 ## Demo
 
 ```bash
