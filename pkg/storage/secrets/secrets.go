@@ -5,11 +5,12 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"log"
 	"path"
 	"reflect"
 
 	corev1 "k8s.io/api/core/v1"
+	"github.com/kommodity-io/kommodity/pkg/logging"
+	"go.uber.org/zap"
 
 	"github.com/kommodity-io/kommodity/pkg/storage"
 
@@ -165,17 +166,21 @@ func warningsForSecret(secret *corev1.Secret) []string {
 }
 
 // PrepareForUpdate sets defaults for updated objects.
-func (secretStrategy) PrepareForUpdate(_ context.Context, obj, old runtime.Object) {
+func (secretStrategy) PrepareForUpdate(ctx context.Context, obj, old runtime.Object) {
 	newSecret, success := obj.(*corev1.Secret)
 	if !success {
-		log.Printf("expected *corev1.Secret, got %T", obj)
+		logging.FromContext(ctx).Error("Received unexpected type",
+			zap.String("expected", "*corev1.Secret"),
+			zap.String("received", fmt.Sprintf("%T", obj)))
 
 		return
 	}
 
 	oldSecret, success := old.(*corev1.Secret)
 	if !success {
-		log.Printf("expected *corev1.Secret, got %T", obj)
+		logging.FromContext(ctx).Error("Received unexpected type",
+			zap.String("expected", "*corev1.Secret"),
+			zap.String("received", fmt.Sprintf("%T", obj)))
 
 		return
 	}
