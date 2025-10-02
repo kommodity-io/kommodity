@@ -95,9 +95,7 @@ This feature ensures that only authorized users—those in the configured admin 
 
 ### 🗄️ Storage
 
-Storage of Kubernetes resource objects is done in a PostgreSQL database. We chose PostgreSQL because it is widely available as a managed service on virtually every cloud provider, making it easy to deploy and operate Kommodity in any environment.
-
-This approach leverages [Kine](https://github.com/k3s-io/kine) to translate Kubernetes API storage operations into PostgreSQL queries, ensuring compatibility and reliability.
+Kommodity sorely relies on Kine as translation layer for storage of Kubernetes resource objects in database of your choice. Check [here](https://deepwiki.com/k3s-io/kine#backend-driver-architecture) for supported databases in Kine.
 
 ### 🧩 Providers Configuration
 
