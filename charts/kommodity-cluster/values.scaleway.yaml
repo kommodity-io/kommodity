@@ -40,7 +40,7 @@ kommodity:
     default:
       replicas: 1
       sku: PLAY2-NANO
-      zone: fr-par-2
+      zone: fr-par-2 # Note: Make sure the Talos image specified below is available in this zone
       os:
         disk:
           size: 20
