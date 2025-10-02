@@ -341,10 +341,10 @@ jobs:
 
             [[ ! -f "charts/$chart/Chart.lock" ]] && helm dependency build "charts/$chart"
             helm package "charts/$chart"
-            helm push $chart-*.tgz oci://ghcr.io/nicklasfrahm/charts
+            helm push $chart-*.tgz oci://ghcr.io/kommodity-io/charts
             if [[ -f "charts/$chart/artifacthub-repo.yml" ]]; then
               oras push \
-                "ghcr.io/nicklasfrahm/charts/$chart:artifacthub.io" \
+                "ghcr.io/kommodity-io/charts/$chart:artifacthub.io" \
                 --config /dev/null:application/vnd.cncf.artifacthub.config.v1+yaml \
                 "charts/$chart/artifacthub-repo.yml:application/vnd.cncf.artifacthub.repository-metadata.layer.v1.yaml"
             fi
