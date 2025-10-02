@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"github.com/kommodity-io/kommodity/pkg/config"
-	"github.com/kommodity-io/kommodity/pkg/database"
 	"github.com/kommodity-io/kommodity/pkg/kine"
 	"github.com/kommodity-io/kommodity/pkg/logging"
 	generatedopenapi "github.com/kommodity-io/kommodity/pkg/openapi"
@@ -46,11 +45,6 @@ const (
 //nolint:cyclop, funlen // Too long or too complex due to many error checks and setup steps, no real complexity here
 func New(ctx context.Context, cfg *config.KommodityConfig) (*aggregatorapiserver.APIAggregator, error) {
 	logger := logging.FromContext(ctx)
-
-	_, err := database.SetupDB(cfg)
-	if err != nil {
-		return nil, fmt.Errorf("failed to setup database connection: %w", err)
-	}
 
 	logger.Info("Setting up Open API Specs")
 
