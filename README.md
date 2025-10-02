@@ -117,6 +117,9 @@ Several environment variables can be set to configure Kommodity:
 | `KOMMODITY_DB_URI`          | URI of the PostgreSQL database                           | (none)               |
 | `KOMMODITY_KINE_URI`        | URI of the Kine database                                 | (none)               |
 
+## Limitations
+- Helm [`hooks`](https://helm.sh/docs/topics/charts_hooks/) are not supported.
+
 ## License
 
 Kommodity is licensed under the [Apache License 2.0](LICENSE).

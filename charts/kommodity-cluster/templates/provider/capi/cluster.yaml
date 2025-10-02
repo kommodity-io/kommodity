@@ -1,0 +1,28 @@
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: Cluster
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  clusterNetwork:
+    pods:
+      cidrBlocks:
+      {{- range $cidr := .Values.kommodity.network.cluster.podCIDR }}
+        - {{ $cidr }}
+      {{- end }}
+  controlPlaneRef:
+    apiVersion: controlplane.cluster.x-k8s.io/v1alpha3
+    kind: TalosControlPlane
+    name: {{ .Release.Name }}-controlplane
+    namespace: {{ .Release.Namespace }}
+  infrastructureRef:
+    apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+    {{- if not .Values.kommodity.provider.name }}
+    {{- fail "kommodity.provider.name must be set in values.yaml" -}}
+    {{- else if eq .Values.kommodity.provider.name "Scaleway" }}
+    kind: ScalewayCluster
+    {{- else }}
+    {{- fail "infrastructure provider is not supported" -}}
+    {{- end }}
+    name: {{ .Release.Name }}
+    namespace: {{ .Release.Namespace }}
