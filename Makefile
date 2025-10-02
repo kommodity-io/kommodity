@@ -67,7 +67,6 @@ run: ## Run the application locally.
 .PHONY: fetch-providers
 fetch-providers: 
 	./scripts/fetch-providers.sh
-	./scripts/add-to-scheme-providers.sh
 
 build: bin/kommodity ## Build the application.
 
