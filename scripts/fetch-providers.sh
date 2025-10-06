@@ -11,6 +11,12 @@ for i in $(seq 0 $((count - 1))); do
   go_module=$(yq -r ".providers[$i].go_module" "$yq_path")
   file=$(yq ".providers[$i].file_name" "$yq_path")
   filter=$(yq -r ".providers[$i].filter" "$yq_path")
+  development_mode=$(yq -r ".providers[$i].development_mode" "$yq_path")
+
+  if [ "$development_mode" == "true" ] && [ "$KOMMODITY_DEVELOPMENT_MODE" != "true" ]; then
+    echo "Skipping $name as it is only for development mode"
+    continue
+  fi
 
   if [ -n "$go_module" ] && [ "$go_module" != "null" ]; then
     version=$(go mod graph | grep "$go_module" | head -n1 | awk -F'@' '{print $2}')
