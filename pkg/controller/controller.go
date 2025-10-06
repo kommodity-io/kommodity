@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/go-logr/zapr"
+	"github.com/kommodity-io/kommodity/pkg/config"
 	"github.com/kommodity-io/kommodity/pkg/logging"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -28,14 +29,16 @@ const (
 // NewAggregatedControllerManager creates a new controller manager with all relevant providers.
 //
 //nolint:funlen // Too long due to many error checks and setup steps, no real complexity here
-func NewAggregatedControllerManager(ctx context.Context, config *restclient.Config,
+func NewAggregatedControllerManager(ctx context.Context,
+	kommodityConfig *config.KommodityConfig,
+	restConfig *restclient.Config,
 	scheme *runtime.Scheme) (ctrl.Manager, error) {
 	logger := zapr.NewLogger(logging.FromContext(ctx))
 	ctrl.SetLogger(logger)
 
 	logger.Info("Creating controller manager")
 
-	manager, err := ctrl.NewManager(config, ctrl.Options{
+	manager, err := ctrl.NewManager(restConfig, ctrl.Options{
 		Scheme: scheme,
 		Logger: logger,
 		Cache: cache.Options{
@@ -60,6 +63,16 @@ func NewAggregatedControllerManager(ctx context.Context, config *restclient.Conf
 	clusterCache, err := setupClusterCacheWithManager(ctx, manager, MaxConcurrentReconciles)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup ClusterCache: %w", err)
+	}
+
+	// Docker controllers for local development and testing only (KOMMODITY_DEVELOPMENT_MODE=true)
+	if kommodityConfig.DevelopmentMode {
+		logger.Info("Setting up Docker controllers")
+
+		err = setupDocker(ctx, manager, clusterCache, MaxConcurrentReconciles)
+		if err != nil {
+			return nil, fmt.Errorf("failed to setup Docker controllers: %w", err)
+		}
 	}
 
 	// Core CAPI controllers
