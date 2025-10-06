@@ -1,4 +1,18 @@
 providers:
+  # Only used for development and testing purposes with KOMMODITY_DEVELOPMENT_MODE=true
+  - name: docker-docker
+    development_mode: true
+    repository: github.com/kubernetes-sigs/cluster-api
+    go_module: sigs.k8s.io/cluster-api
+    file_name: infrastructure-components-development.yaml
+    filter: select(.kind == "CustomResourceDefinition")
+    scheme_locations:
+      - test/infrastructure/docker/api/v1beta1
+    deny_list:
+      - DevCluster
+      - DevClusterTemplate
+      - DevMachine
+      - DevMachineTemplate
   - name: cluster-api
     repository: github.com/kubernetes-sigs/cluster-api
     go_module: sigs.k8s.io/cluster-api

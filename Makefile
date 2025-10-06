@@ -46,6 +46,7 @@ $(LINTER):
 	grep -q '^KOMMODITY_KINE_URI=' .env || echo 'KOMMODITY_KINE_URI=http://localhost:2379' >> .env
 	grep -q '^KOMMODITY_PORT=' .env || echo 'KOMMODITY_PORT=8000' >> .env
 	grep -q '^KOMMODITY_INSECURE_DISABLE_AUTHENTICATION=' .env || echo 'KOMMODITY_INSECURE_DISABLE_AUTHENTICATION=true' >> .env
+	grep -q '^KOMMODITY_DEVELOPMENT_MODE=' .env || echo 'KOMMODITY_DEVELOPMENT_MODE=true' >> .env
 
 .PHONY: compose-up
 compose-up:
