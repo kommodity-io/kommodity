@@ -36,7 +36,7 @@ make teardown
 
 ### ⚠️ Dependencies
 
-If you want to run Kommodity with authentication using OpenID Connect (OIDC), you need to have `kubectl` `oidc-login` plugin installed. We recommend that you install it via [`krew`](https://krew.sigs.k8s.io/docs/user-guide/setup/install/).
+If you want to run Kommodity with authentication using OpenID Connect (OIDC), you need to have `kubectl` `oidc-login` plugin installed. We recommend that you install it via [krew](https://krew.sigs.k8s.io/docs/user-guide/setup/install/).
 
 ```bash
 kubectl krew install oidc-login
@@ -153,6 +153,7 @@ Several environment variables can be set to configure Kommodity:
 | `KOMMODITY_OIDC_GROUPS_CLAIM`  | OIDC claim used for groups                            | `groups`             |
 | `KOMMODITY_DB_URI`          | URI of the PostgreSQL database                           | (none)               |
 | `KOMMODITY_KINE_URI`        | URI of the Kine database                                 | (none)               |
+| `KOMMODITY_DEVELOPMENT_MODE` | Enable development mode (installs development CRDs for Docker)      | `false`              |
 
 ## Limitations
 - Helm [`hooks`](https://helm.sh/docs/topics/charts_hooks/) are not supported.

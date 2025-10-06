@@ -18,6 +18,7 @@ const (
 	defaultDisableAuth       = false
 	defaultOIDCUsernameClaim = "email"
 	defaultOIDCGroupsClaim   = "groups"
+	defaultDevelopmentMode   = false
 
 	envServerPort        = "KOMMODITY_PORT"
 	envAdminGroup        = "KOMMODITY_ADMIN_GROUP"
@@ -28,6 +29,7 @@ const (
 	envOIDCGroupsClaim   = "KOMMODITY_OIDC_GROUPS_CLAIM"
 	envDatabaseURI       = "KOMMODITY_DB_URI"
 	envKineURI           = "KOMMODITY_KINE_URI"
+	envDevelopmentMode   = "KOMMODITY_DEVELOPMENT_MODE"
 )
 
 const (
@@ -36,11 +38,12 @@ const (
 
 // KommodityConfig holds the configuration settings for the Kommodity API server.
 type KommodityConfig struct {
-	ServerPort    int
-	APIServerPort int
-	DBURI         *url.URL
-	KineURI       *string
-	AuthConfig    *AuthConfig
+	ServerPort      int
+	APIServerPort   int
+	DBURI           *url.URL
+	KineURI         *string
+	AuthConfig      *AuthConfig
+	DevelopmentMode bool
 }
 
 // AuthConfig holds the authentication configuration settings for the Kommodity API server.
@@ -64,6 +67,7 @@ func LoadConfig(ctx context.Context) (*KommodityConfig, error) {
 	serverPort := getServerPort(ctx)
 	apply := getApplyAuth(ctx)
 	oidcConfig := getOIDCConfig(ctx)
+	developmentMode := getDevelopmentMode(ctx)
 
 	adminGroup, err := getAdminGroup()
 	if apply && err != nil {
@@ -90,6 +94,7 @@ func LoadConfig(ctx context.Context) (*KommodityConfig, error) {
 			OIDCConfig: oidcConfig,
 			AdminGroup: adminGroup,
 		},
+		DevelopmentMode: developmentMode,
 	}, nil
 }
 
@@ -211,4 +216,29 @@ func getKineURI() (*string, error) {
 	}
 
 	return &kineURI, nil
+}
+
+func getDevelopmentMode(ctx context.Context) bool {
+	logger := logging.FromContext(ctx)
+
+	developmentMode := os.Getenv(envDevelopmentMode)
+	if developmentMode == "" {
+		logger.Info(configurationNotSpecified,
+			zap.Bool("default", defaultDevelopmentMode),
+			zap.String("envVar", envDevelopmentMode))
+
+		return defaultDevelopmentMode
+	}
+
+	developmentModeBool, err := strconv.ParseBool(developmentMode)
+	if err != nil {
+		logger.Info("failed to convert development mode to boolean",
+			zap.String("envVar", envDevelopmentMode),
+			zap.String("value", developmentMode),
+			zap.Bool("default", defaultDevelopmentMode))
+
+		return defaultDevelopmentMode
+	}
+
+	return developmentModeBool
 }

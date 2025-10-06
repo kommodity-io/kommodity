@@ -18,4 +18,9 @@ pkg/openapi/zz_generated.openapi.go
 
 .DS_Store
 
+# Ignore values files with secrets
 *.secret.yaml
+
+# Ignore CRDs used for development mode only (KOMMODITY_DEVELOPMENT_MODE=true)
+pkg/provider/crds/Dev*.yaml
+pkg/provider/crds/Docker*.yaml

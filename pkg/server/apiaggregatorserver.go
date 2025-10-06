@@ -99,7 +99,7 @@ func newAPIAggregatorServer(cfg *config.KommodityConfig,
 	}
 
 	err = aggregatorServer.GenericAPIServer.AddPostStartHook(
-		"start-controller-managers", startControllerManagersHook(genericServerConfig, providerCache, scheme))
+		"start-controller-managers", startControllerManagersHook(cfg, genericServerConfig, providerCache, scheme))
 	if err != nil {
 		return nil, fmt.Errorf("failed to add post start hook for starting controller managers: %w", err)
 	}
@@ -140,7 +140,8 @@ func applyCRDsHook(genericServerConfig *genericapiserver.RecommendedConfig,
 	}
 }
 
-func startControllerManagersHook(genericServerConfig *genericapiserver.RecommendedConfig,
+func startControllerManagersHook(cfg *config.KommodityConfig,
+	genericServerConfig *genericapiserver.RecommendedConfig,
 	providerCache *provider.Cache,
 	scheme *runtime.Scheme) genericapiserver.PostStartHookFunc {
 	return func(ctx genericapiserver.PostStartHookContext) error {
@@ -181,7 +182,7 @@ func startControllerManagersHook(genericServerConfig *genericapiserver.Recommend
 			time.Sleep(defaultWaitTime)
 		}
 
-		ctlMgr, err := controller.NewAggregatedControllerManager(ctx, genericServerConfig.LoopbackClientConfig, scheme)
+		ctlMgr, err := controller.NewAggregatedControllerManager(ctx, cfg, genericServerConfig.LoopbackClientConfig, scheme)
 		if err != nil {
 			return fmt.Errorf("failed to create controller manager: %w", err)
 		}
