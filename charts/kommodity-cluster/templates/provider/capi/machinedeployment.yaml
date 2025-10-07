@@ -27,10 +27,13 @@ spec:
       clusterName: {{ $.Release.Name }}
       failureDomain: {{ $np.zone }}
       infrastructureRef:
-        apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
         {{- if not $.Values.kommodity.provider.name }}
         {{- fail "kommodity.provider.name must be set in values.yaml" -}}
+        {{- else if eq $.Values.kommodity.provider.name "Docker" }}
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+        kind: DockerMachineTemplate
         {{- else if eq $.Values.kommodity.provider.name "Scaleway" }}
+        apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
         kind: ScalewayMachineTemplate
         {{- else }}
         {{- fail "infrastructure provider is not supported" -}}

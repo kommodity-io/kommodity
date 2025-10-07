@@ -10,7 +10,7 @@ spec:
     spec:
       commercialType: {{ .Values.kommodity.controlplane.sku }}
       image:
-        name: {{ .Values.talos.imagePrefix }}{{ include "kommodity.talosVersion" $ }}
+        name: {{ .Values.talos.imageName }}
       {{- if .Values.kommodity.network.ipv4.public }}
       publicNetwork:
         enableIPv4: {{ .Values.kommodity.network.ipv4.enabled }}
@@ -31,7 +31,7 @@ spec:
     spec:
       commercialType: {{ $np.sku }}
       image:
-        name: {{ $.Values.talos.imagePrefix }}{{ include "kommodity.talosVersion" $ }}
+        name: {{ $.Values.talos.imageName }}
       {{- if $.Values.kommodity.network.ipv4.public }}
       publicNetwork:
         enableIPv4: {{ $.Values.kommodity.network.ipv4.enabled }}

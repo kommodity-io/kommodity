@@ -1,0 +1,27 @@
+# Default values for kommodity-cluster in Scaleway.
+kommodity:
+  provider:
+    name: Docker
+
+  network:
+    ipv4:
+      enabled: true
+      public: true
+    cluster:
+      podCIDR:
+        - 10.244.0.0/16
+
+  controlplane: {}
+
+  nodepools:
+    default: {}
+
+
+# Configurations related to Talos
+# Follow this documentation to generate a Talos image for Scaleway: https://www.talos.dev/v1.11/talos-guides/install/cloud-platforms/scaleway/
+talos:
+  version: v1.11.0
+
+# Configurations related to Kubernetes
+kubernetes:
+  version: v1.33.4

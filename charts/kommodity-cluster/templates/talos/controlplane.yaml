@@ -12,8 +12,17 @@ spec:
       maxSurge: 1
     type: RollingUpdate
   infrastructureTemplate:
+    {{- if not $.Values.kommodity.provider.name }}
+    {{- fail "kommodity.provider.name must be set in values.yaml" -}}
+    {{- else if eq $.Values.kommodity.provider.name "Docker" }}
+    apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+    kind: DockerMachineTemplate
+    {{- else if eq $.Values.kommodity.provider.name "Scaleway" }}
     apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
     kind: ScalewayMachineTemplate
+    {{- else }}
+    {{- fail "infrastructure provider is not supported" -}}
+    {{- end }}
     name: {{ $.Release.Name }}-controlplane
     namespace: {{ $.Release.Namespace }}
   controlPlaneConfig:
@@ -22,5 +31,5 @@ spec:
       talosVersion: {{ include "kommodity.talosVersion" $ }}
       hostname: {}
     init:
-      generateType: ""
+      generateType: init
       hostname: {}
