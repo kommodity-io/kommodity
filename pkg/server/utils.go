@@ -34,49 +34,29 @@ import (
 )
 
 func enhanceScheme(scheme *runtime.Scheme) error {
-	err := corev1.AddToScheme(scheme)
-	if err != nil {
-		return fmt.Errorf("failed to add core v1 API to scheme: %w", err)
+	addFuncs := []struct {
+		name string
+		fn   func(*runtime.Scheme) error
+	}{
+		{"apiextensionsinternal.AddToScheme", apiextensionsinternal.AddToScheme},
+		{"apiextensionsv1.AddToScheme", apiextensionsv1.AddToScheme},
+		{"apiregistration.AddToScheme", apiregistration.AddToScheme},
+		{"apiregistrationv1.AddToScheme", apiregistrationv1.AddToScheme},
+		{"appsv1.AddToScheme", appsv1.AddToScheme},
+		{"authenticationv1.AddToScheme", authenticationv1.AddToScheme},
+		{"authorizationapiv1.AddToScheme", authorizationapiv1.AddToScheme},
+		{"corev1.AddToScheme", corev1.AddToScheme},
+		{"discoveryv1.AddToScheme", discoveryv1.AddToScheme},
+		{"eventsv1.AddToScheme", eventsv1.AddToScheme},
+		{"metav1.AddMetaToScheme", metav1.AddMetaToScheme},
+		{"rbacv1.AddToScheme", rbacv1.AddToScheme},
 	}
 
-	err = metav1.AddMetaToScheme(scheme)
-	if err != nil {
-		return fmt.Errorf("failed to add metav1 API to scheme: %w", err)
-	}
-
-	err = apiextensionsv1.AddToScheme(scheme)
-	if err != nil {
-		return fmt.Errorf("failed to add apiextensions v1 API to scheme: %w", err)
-	}
-
-	err = apiextensionsinternal.AddToScheme(scheme)
-	if err != nil {
-		return fmt.Errorf("failed to add apiextensions internal API to scheme: %w", err)
-	}
-
-	err = apiregistrationv1.AddToScheme(scheme)
-	if err != nil {
-		return fmt.Errorf("failed to add apiregistration v1 API to scheme: %w", err)
-	}
-
-	err = apiregistration.AddToScheme(scheme)
-	if err != nil {
-		return fmt.Errorf("failed to add apiregistration API to scheme: %w", err)
-	}
-
-	err = rbacv1.AddToScheme(scheme)
-	if err != nil {
-		return fmt.Errorf("failed to add rbac v1 API to scheme: %w", err)
-	}
-
-	err = authorizationapiv1.AddToScheme(scheme)
-	if err != nil {
-		return fmt.Errorf("failed to add authorization v1 API to scheme: %w", err)
-	}
-
-	err = authenticationv1.AddToScheme(scheme)
-	if err != nil {
-		return fmt.Errorf("failed to add authentication v1 API to scheme: %w", err)
+	for _, add := range addFuncs {
+		err := add.fn(scheme)
+		if err != nil {
+			return fmt.Errorf("failed to add %s: %w", add.name, err)
+		}
 	}
 
 	return nil
