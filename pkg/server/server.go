@@ -27,8 +27,6 @@ import (
 
 	// Used to register the API schemes to force init() to be called.
 	_ "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/scheme"
-
-	_ "k8s.io/apiextensions-apiserver/pkg/apiserver"
 )
 
 const (
