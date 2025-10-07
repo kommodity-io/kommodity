@@ -10,15 +10,13 @@ import (
 )
 
 func setupClusterCacheWithManager(ctx context.Context, manager ctrl.Manager,
-	maxConcurrentReconciles int) (clustercache.ClusterCache, error) {
+	opt controller.Options) (clustercache.ClusterCache, error) {
 	cache, err := clustercache.SetupWithManager(ctx, manager, clustercache.Options{
 		SecretClient: manager.GetClient(),
 		Client: clustercache.ClientOptions{
 			UserAgent: "kommodity-clustercache",
 		},
-	}, controller.Options{
-		MaxConcurrentReconciles: maxConcurrentReconciles,
-	})
+	}, opt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup ClusterCache: %w", err)
 	}

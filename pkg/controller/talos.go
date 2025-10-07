@@ -8,24 +8,28 @@ import (
 	"github.com/kommodity-io/kommodity/pkg/logging"
 	bootstrap_controller "github.com/siderolabs/cluster-api-bootstrap-provider-talos/controllers"
 	control_plane_controller "github.com/siderolabs/cluster-api-control-plane-provider-talos/controllers"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	"sigs.k8s.io/cluster-api/controllers/remote"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 )
 
 func setupTalos(ctx context.Context, manager ctrl.Manager,
-	maxConcurrentReconciles int) error {
+	opt controller.Options) error {
 	logger := logging.FromContext(ctx)
 
 	logger.Info("Setting up TalosConfig controller")
 
-	err := setupTalosConfigWithManager(ctx, manager, maxConcurrentReconciles)
+	err := setupTalosConfigWithManager(ctx, manager, opt)
 	if err != nil {
 		return fmt.Errorf("failed to setup TalosConfig controller: %w", err)
 	}
 
 	logger.Info("Setting up TalosControlPlane controller")
 
-	err = setupTalosControlPlaneWithManager(ctx, manager, maxConcurrentReconciles)
+	err = setupTalosControlPlaneWithManager(ctx, manager, opt)
 	if err != nil {
 		return fmt.Errorf("failed to setup TalosControlPlane controller: %w", err)
 	}
@@ -34,12 +38,12 @@ func setupTalos(ctx context.Context, manager ctrl.Manager,
 }
 
 func setupTalosConfigWithManager(ctx context.Context, manager ctrl.Manager,
-	maxConcurrentReconciles int) error {
+	opt controller.Options) error {
 	err := (&bootstrap_controller.TalosConfigReconciler{
 		Client: manager.GetClient(),
 		Log:    zapr.NewLogger(logging.FromContext(ctx)),
 		Scheme: manager.GetScheme(),
-	}).SetupWithManager(ctx, manager, controller.Options{MaxConcurrentReconciles: maxConcurrentReconciles})
+	}).SetupWithManager(ctx, manager, opt)
 	if err != nil {
 		return fmt.Errorf("failed to setup TalosConfig controller: %w", err)
 	}
@@ -47,14 +51,42 @@ func setupTalosConfigWithManager(ctx context.Context, manager ctrl.Manager,
 	return nil
 }
 
-func setupTalosControlPlaneWithManager(ctx context.Context, manager ctrl.Manager,
-	maxConcurrentReconciles int) error {
-	err := (&control_plane_controller.TalosControlPlaneReconciler{
+//nolint:staticcheck // Waiting for Talos Reconciler to be updated to controller-runtime v0.11.x
+func setupTalosControlPlaneWithManager(ctx context.Context, manager ctrl.Manager, opt controller.Options) error {
+	logger := zapr.NewLogger(logging.FromContext(ctx))
+
+	tracker, err := remote.NewClusterCacheTracker(manager,
+		remote.ClusterCacheTrackerOptions{
+			SecretCachingClient: manager.GetClient(),
+			Log:                 &logger,
+			ControllerName:      "talos-control-plane-controller",
+			ClientUncachedObjects: []client.Object{
+				&corev1.ConfigMap{},
+				&corev1.Secret{},
+				&corev1.Pod{},
+				&appsv1.Deployment{},
+				&appsv1.DaemonSet{},
+			},
+		})
+	if err != nil {
+		return fmt.Errorf("failed to create cluster cache tracker: %w", err)
+	}
+
+	err = (&remote.ClusterCacheReconciler{
+		Client:  manager.GetClient(),
+		Tracker: tracker,
+	}).SetupWithManager(ctx, manager, opt)
+	if err != nil {
+		return fmt.Errorf("failed to setup ClusterCacheReconciler: %w", err)
+	}
+
+	err = (&control_plane_controller.TalosControlPlaneReconciler{
 		Client:    manager.GetClient(),
 		APIReader: manager.GetAPIReader(),
 		Log:       zapr.NewLogger(logging.FromContext(ctx)),
 		Scheme:    manager.GetScheme(),
-	}).SetupWithManager(manager, controller.Options{MaxConcurrentReconciles: maxConcurrentReconciles})
+		Tracker:   tracker,
+	}).SetupWithManager(manager, opt)
 	if err != nil {
 		return fmt.Errorf("failed to setup TalosControlPlane controller: %w", err)
 	}

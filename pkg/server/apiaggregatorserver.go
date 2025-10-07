@@ -155,31 +155,9 @@ func startControllerManagersHook(cfg *config.KommodityConfig,
 		providerAPIGroups := providerCache.GetProviderGroups()
 		logger.Info("Waiting for CRD discovery", zap.Strings("apiGroups", providerAPIGroups))
 
-		for {
-			apiGroups, err := discoveryClient.ServerGroups()
-			if err != nil {
-				return fmt.Errorf("failed to discover server groups: %w", err)
-			}
-
-			apiGroupNames := make([]string, len(apiGroups.Groups))
-			for i, group := range apiGroups.Groups {
-				apiGroupNames[i] = group.Name
-			}
-
-			logger.Debug("Discovered API groups", zap.Any("groups", apiGroupNames))
-
-			if slices.ContainsFunc(providerAPIGroups, func(group string) bool {
-				return slices.Contains(apiGroupNames, group)
-			}) {
-				logger.Info("All provider CRDs are available",
-					zap.Strings("expectedGroups", providerAPIGroups),
-					zap.Any("discoveredGroups", apiGroupNames))
-
-				break
-			}
-
-			logger.Info("Not all provider CRDs are available yet, waiting...")
-			time.Sleep(defaultWaitTime)
+		err = waitForProviderCRDsAreEstablished(ctx, discoveryClient, providerCache)
+		if err != nil {
+			return fmt.Errorf("failed to waiting for provider CRDs are established: %w", err)
 		}
 
 		ctlMgr, err := controller.NewAggregatedControllerManager(ctx, cfg, genericServerConfig.LoopbackClientConfig, scheme)
@@ -201,6 +179,53 @@ func startControllerManagersHook(cfg *config.KommodityConfig,
 
 		return nil
 	}
+}
+
+func waitForProviderCRDsAreEstablished(ctx context.Context,
+	discoveryClient *discovery.DiscoveryClient,
+	providerCache *provider.Cache) error {
+	logger := logging.FromContext(ctx)
+
+	providerAPIGroups := providerCache.GetProviderGroups()
+	logger.Info("Waiting for CRD discovery", zap.Strings("apiGroups", providerAPIGroups))
+
+	for {
+		apiGroups, err := discoveryClient.ServerGroups()
+		if err != nil {
+			return fmt.Errorf("failed to discover server groups: %w", err)
+		}
+
+		apiGroupNames := make([]string, 0)
+
+		for _, group := range apiGroups.Groups {
+			if group.Name != "" {
+				apiGroupNames = append(apiGroupNames, group.Name)
+			}
+		}
+
+		logger.Info("Discovered API groups", zap.Any("groups", apiGroupNames))
+
+		hasSameAmountAPIGroups := len(apiGroupNames) >= len(providerAPIGroups)
+		hasSameAPIGroups := slices.ContainsFunc(providerAPIGroups, func(group string) bool {
+			return slices.Contains(apiGroupNames, group)
+		})
+
+		if hasSameAPIGroups && hasSameAmountAPIGroups {
+			logger.Info("All provider CRDs are available",
+				zap.Strings("expectedGroups", providerAPIGroups),
+				zap.Any("discoveredGroups", apiGroupNames))
+
+			break
+		}
+
+		logger.Info("Not all provider CRDs are available yet, waiting...",
+			zap.Int("expectedCount", len(providerAPIGroups)),
+			zap.Strings("expectedGroups", providerAPIGroups),
+			zap.Any("discoveredGroups", apiGroupNames))
+		time.Sleep(defaultWaitTime)
+	}
+
+	return nil
 }
 
 func registerAPIServicesAndVersions(delegationTarget genericapiserver.DelegationTarget,
@@ -251,12 +276,16 @@ func setupAPIAggregatorConfig(
 	cfg *config.KommodityConfig,
 	genericServerConfig *genericapiserver.RecommendedConfig,
 	codecs serializer.CodecFactory) (*aggregatorapiserver.Config, error) {
+	var schemeGroupVersions = append(
+		provider.GetProviderGroupKindVersions(),
+		getSupportedGroupKindVersions()...)
+
 	kineStorageConfig, err := kine.NewKineStorageConfig(cfg,
 		codecs.CodecForVersions(
-			codecs.LegacyCodec(apiregistrationv1.SchemeGroupVersion),
+			codecs.LegacyCodec(schemeGroupVersions...),
 			codecs.UniversalDeserializer(),
-			schema.GroupVersions{apiregistrationv1.SchemeGroupVersion},
-			runtime.InternalGroupVersioner,
+			schema.GroupVersions(schemeGroupVersions),
+			schema.GroupVersions(schemeGroupVersions),
 		))
 	if err != nil {
 		return nil, fmt.Errorf("unable to create Kine legacy storage config: %w", err)
