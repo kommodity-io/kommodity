@@ -43,23 +43,23 @@ services:
     networks:
       - kommodity-net
 
-  # kommodity:
-  #   image: kommodity:latest
-  #   restart: no
-  #   ports:
-  #     - "8000:8000"
-  #   environment:
-  #     - KOMMODITY_DB_URI=postgres://kommodity:kommodity@postgres:5432/kommodity?sslmode=disable
-  #     - KOMMODITY_KINE_URI=http://kine:2379
-  #     - KOMMODITY_PORT=8000
-  #     - KOMMODITY_INSECURE_DISABLE_AUTHENTICATION=true
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #     kine:
-  #       condition: service_healthy
-  #   networks:
-  #     - kommodity-net
+  kommodity:
+    image: kommodity:latest
+    restart: no
+    ports:
+      - "8000:8000"
+    environment:
+      - KOMMODITY_DB_URI=postgres://kommodity:kommodity@postgres:5432/kommodity?sslmode=disable
+      - KOMMODITY_KINE_URI=http://kine:2379
+      - KOMMODITY_PORT=8000
+      - KOMMODITY_INSECURE_DISABLE_AUTHENTICATION=true
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kine:
+        condition: service_healthy
+    networks:
+      - kommodity-net
 
 volumes:
   pgdata:
