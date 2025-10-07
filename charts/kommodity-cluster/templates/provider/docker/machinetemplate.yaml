@@ -20,6 +20,6 @@ metadata:
 spec:
   template:
     spec:
-      customImage: ghcr.io/siderolabs/talos:{{ .Values.talos.version }}
+      customImage: ghcr.io/siderolabs/talos:{{ $.Values.talos.version }}
 {{- end }}
 {{- end }}
