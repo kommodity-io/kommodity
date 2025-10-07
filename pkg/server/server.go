@@ -23,17 +23,10 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apiserver/pkg/registry/rest"
 	genericapiserver "k8s.io/apiserver/pkg/server"
-	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	aggregatorapiserver "k8s.io/kube-aggregator/pkg/apiserver"
-	aggregatorscheme "k8s.io/kube-aggregator/pkg/apiserver/scheme"
 
 	// Used to register the API schemes to force init() to be called.
 	_ "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/scheme"
-
-	//nolint:staticcheck // Used to register the API schemes to force init() to be called.
-	_ "k8s.io/apiextensions-apiserver/pkg/apiserver"
-	//nolint:staticcheck
-	apiextensionsapiserver "k8s.io/apiextensions-apiserver/pkg/apiserver"
 )
 
 const (
@@ -53,22 +46,14 @@ func New(ctx context.Context, cfg *config.KommodityConfig) (*aggregatorapiserver
 		return nil, fmt.Errorf("failed to extract desired OpenAPI spec for server: %w", err)
 	}
 
-	err = enhanceScheme(clientgoscheme.Scheme)
+	scheme := runtime.NewScheme()
+
+	err = enhanceScheme(scheme)
 	if err != nil {
-		return nil, fmt.Errorf("failed to enhance client-go/kubernetes/scheme scheme: %w", err)
+		return nil, fmt.Errorf("failed to enhance local scheme: %w", err)
 	}
 
-	err = enhanceScheme(apiextensionsapiserver.Scheme)
-	if err != nil {
-		return nil, fmt.Errorf("failed to enhance apiserver scheme: %w", err)
-	}
-
-	err = enhanceScheme(aggregatorscheme.Scheme)
-	if err != nil {
-		return nil, fmt.Errorf("failed to enhance kube-aggregator apiserver scheme: %w", err)
-	}
-
-	providerCache, err := provider.NewProviderCache(clientgoscheme.Scheme)
+	providerCache, err := provider.NewProviderCache(scheme)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create provider cache: %w", err)
 	}
@@ -78,9 +63,9 @@ func New(ctx context.Context, cfg *config.KommodityConfig) (*aggregatorapiserver
 		return nil, fmt.Errorf("failed to load provider cache: %w", err)
 	}
 
-	codecs := serializer.NewCodecFactory(clientgoscheme.Scheme)
+	codecs := serializer.NewCodecFactory(scheme)
 
-	genericServerConfig, err := setupAPIServerConfig(ctx, cfg, openAPISpec, clientgoscheme.Scheme, codecs)
+	genericServerConfig, err := setupAPIServerConfig(ctx, cfg, openAPISpec, scheme, codecs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup config for the generic api server: %w", err)
 	}
@@ -98,7 +83,7 @@ func New(ctx context.Context, cfg *config.KommodityConfig) (*aggregatorapiserver
 
 	logger.Info("Setting up legacy API")
 
-	legacyAPI, err := setupLegacyAPI(cfg, clientgoscheme.Scheme, codecs, logger)
+	legacyAPI, err := setupLegacyAPI(cfg, scheme, codecs, logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup legacy API group info for the generic API server: %w", err)
 	}
@@ -112,7 +97,7 @@ func New(ctx context.Context, cfg *config.KommodityConfig) (*aggregatorapiserver
 
 	logger.Info("Installing authorization API group")
 
-	authorizationAPI := setupAuthorizationAPIGroupInfo(clientgoscheme.Scheme, codecs)
+	authorizationAPI := setupAuthorizationAPIGroupInfo(scheme, codecs)
 
 	err = genericServer.InstallAPIGroup(authorizationAPI)
 	if err != nil {
@@ -125,7 +110,7 @@ func New(ctx context.Context, cfg *config.KommodityConfig) (*aggregatorapiserver
 		cfg,
 		genericServerConfig,
 		providerCache,
-		clientgoscheme.Scheme,
+		scheme,
 		codecs,
 		genericServer,
 		crdServer.Informers.Apiextensions().V1().CustomResourceDefinitions(),
