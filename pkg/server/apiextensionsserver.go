@@ -8,7 +8,6 @@ import (
 	"github.com/kommodity-io/kommodity/pkg/kine"
 	"github.com/kommodity-io/kommodity/pkg/provider"
 	apiextensionsapiserver "k8s.io/apiextensions-apiserver/pkg/apiserver"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	genericapiserver "k8s.io/apiserver/pkg/server"
@@ -46,7 +45,7 @@ func setupAPIExtensionConfig(cfg *config.KommodityConfig,
 			codecs.LegacyCodec(schemeGroupVersions...),
 			codecs.UniversalDeserializer(),
 			schema.GroupVersions(schemeGroupVersions),
-			runtime.InternalGroupVersioner,
+			schema.GroupVersions(schemeGroupVersions),
 		))
 	if err != nil {
 		return nil, fmt.Errorf("unable to create Kine legacy storage config: %w", err)

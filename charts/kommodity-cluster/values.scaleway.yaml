@@ -1,0 +1,57 @@
+# Default values for kommodity-cluster in Scaleway.
+kommodity:
+  provider:
+    name: Scaleway
+    secret:
+      # Scaleway secret example:
+      #
+      # apiVersion: v1
+      # kind: Secret
+      # metadata:
+      #   name: my-cluster-scaleway-secret
+      #   namespace: default
+      # data:
+      #   SCW_ACCESS_KEY: <YOUR_BASE64_ENCODED_ACCESS_KEY>
+      #   SCW_SECRET_KEY: <YOUR_BASE64_ENCODED_SECRET_KEY>
+      # type: Opaque
+      name: my-cluster-scaleway-secret
+      namespace: default
+    config:
+      projectID: <YOUR_PROJECT_ID_HERE>
+
+  region: fr-par
+
+  network:
+    ipv4:
+      enabled: true
+      public: true
+    cluster:
+      podCIDR:
+        - 10.244.0.0/16
+
+  controlplane:
+    replicas: 1
+    sku: PLAY2-NANO
+    os:
+      disk:
+        size: 20
+
+  nodepools:
+    default:
+      replicas: 1
+      sku: PLAY2-NANO
+      zone: fr-par-2 # Note: Make sure the Talos image specified below is available in this zone
+      os:
+        disk:
+          size: 20
+
+
+# Configurations related to Talos
+# Follow this documentation to generate a Talos image for Scaleway: https://www.talos.dev/v1.11/talos-guides/install/cloud-platforms/scaleway/
+talos:
+  version: v1.11.0
+  imageName: talos-v1.11.0
+
+# Configurations related to Kubernetes
+kubernetes:
+  version: v1.33.4

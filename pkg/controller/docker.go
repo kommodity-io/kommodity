@@ -14,7 +14,7 @@ import (
 )
 
 func setupDocker(ctx context.Context, manager ctrl.Manager,
-	clusterCache clustercache.ClusterCache, maxConcurrentReconciles int) error {
+	clusterCache clustercache.ClusterCache, opt controller.Options) error {
 	logger := logging.FromContext(ctx)
 
 	runtimeClient, err := container.NewDockerClient()
@@ -24,14 +24,14 @@ func setupDocker(ctx context.Context, manager ctrl.Manager,
 
 	logger.Info("Setting up DockerCluster controller")
 
-	err = setupDockerClusterWithManager(ctx, manager, runtimeClient, maxConcurrentReconciles)
+	err = setupDockerClusterWithManager(ctx, manager, runtimeClient, opt)
 	if err != nil {
 		return fmt.Errorf("failed to setup DockerCluster controller: %w", err)
 	}
 
 	logger.Info("Setting up DockerMachine controller")
 
-	err = setupDockerMachineWithManager(ctx, manager, clusterCache, runtimeClient, maxConcurrentReconciles)
+	err = setupDockerMachineWithManager(ctx, manager, clusterCache, runtimeClient, opt)
 	if err != nil {
 		return fmt.Errorf("failed to setup DockerMachine controller: %w", err)
 	}
@@ -40,11 +40,11 @@ func setupDocker(ctx context.Context, manager ctrl.Manager,
 }
 
 func setupDockerClusterWithManager(ctx context.Context, manager ctrl.Manager,
-	runtimeClient container.Runtime, maxConcurrentReconciles int) error {
+	runtimeClient container.Runtime, opt controller.Options) error {
 	err := (&docker_capi_controller.DockerClusterReconciler{
 		Client:           manager.GetClient(),
 		ContainerRuntime: runtimeClient,
-	}).SetupWithManager(ctx, manager, controller.Options{MaxConcurrentReconciles: maxConcurrentReconciles})
+	}).SetupWithManager(ctx, manager, opt)
 	if err != nil {
 		return fmt.Errorf("failed to setup docker cluster: %w", err)
 	}
@@ -53,12 +53,12 @@ func setupDockerClusterWithManager(ctx context.Context, manager ctrl.Manager,
 }
 
 func setupDockerMachineWithManager(ctx context.Context, manager ctrl.Manager,
-	clusterCache clustercache.ClusterCache, runtimeClient container.Runtime, maxConcurrentReconciles int) error {
+	clusterCache clustercache.ClusterCache, runtimeClient container.Runtime, opt controller.Options) error {
 	err := (&docker_capi_controller.DockerMachineReconciler{
 		Client:           manager.GetClient(),
 		ContainerRuntime: runtimeClient,
 		ClusterCache:     clusterCache,
-	}).SetupWithManager(ctx, manager, controller.Options{MaxConcurrentReconciles: maxConcurrentReconciles})
+	}).SetupWithManager(ctx, manager, opt)
 	if err != nil {
 		return fmt.Errorf("failed to setup docker machine: %w", err)
 	}
