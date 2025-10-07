@@ -155,6 +155,9 @@ Several environment variables can be set to configure Kommodity:
 | `KOMMODITY_KINE_URI`        | URI of the Kine database                                 | (none)               |
 | `KOMMODITY_DEVELOPMENT_MODE` | Enable development mode (installs development CRDs for Docker)      | `false`              |
 
+## Limitations
+- Helm [`hooks`](https://helm.sh/docs/topics/charts_hooks/) are not supported.
+
 ## License
 
 Kommodity is licensed under the [Apache License 2.0](LICENSE).

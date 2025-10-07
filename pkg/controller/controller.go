@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/go-logr/logr"
 	"github.com/go-logr/zapr"
 	"github.com/kommodity-io/kommodity/pkg/config"
 	"github.com/kommodity-io/kommodity/pkg/logging"
@@ -16,6 +17,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 const (
@@ -51,6 +54,7 @@ func NewAggregatedControllerManager(ctx context.Context,
 					&corev1.ConfigMap{},
 					&corev1.Secret{},
 					&corev1.Pod{},
+					&appsv1.Deployment{},
 					&appsv1.DaemonSet{},
 				},
 			},
@@ -60,35 +64,42 @@ func NewAggregatedControllerManager(ctx context.Context,
 		return nil, fmt.Errorf("failed to create controller manager: %w", err)
 	}
 
-	clusterCache, err := setupClusterCacheWithManager(ctx, manager, MaxConcurrentReconciles)
-	if err != nil {
-		return nil, fmt.Errorf("failed to setup ClusterCache: %w", err)
+	controllerOpts := controller.Options{
+		MaxConcurrentReconciles: MaxConcurrentReconciles,
+		LogConstructor: func(_ *reconcile.Request) logr.Logger {
+			return logger
+		},
 	}
 
-	// Docker controllers for local development and testing only (KOMMODITY_DEVELOPMENT_MODE=true)
-	if kommodityConfig.DevelopmentMode {
-		logger.Info("Setting up Docker controllers")
-
-		err = setupDocker(ctx, manager, clusterCache, MaxConcurrentReconciles)
-		if err != nil {
-			return nil, fmt.Errorf("failed to setup Docker controllers: %w", err)
-		}
+	clusterCache, err := setupClusterCacheWithManager(ctx, manager, controllerOpts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to setup ClusterCache: %w", err)
 	}
 
 	// Core CAPI controllers
 
 	logger.Info("Setting up CAPI controllers")
 
-	err = setupCAPI(ctx, manager, clusterCache, MaxConcurrentReconciles, RemoteConnectionGracePeriod)
+	err = setupCAPI(ctx, manager, clusterCache, controllerOpts, RemoteConnectionGracePeriod)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup CAPI controllers: %w", err)
+	}
+
+	// Docker controllers for local development and testing only (KOMMODITY_DEVELOPMENT_MODE=true)
+	if kommodityConfig.DevelopmentMode {
+		logger.Info("Setting up Docker controllers")
+
+		err = setupDocker(ctx, manager, clusterCache, controllerOpts)
+		if err != nil {
+			return nil, fmt.Errorf("failed to setup Docker controllers: %w", err)
+		}
 	}
 
 	// Talos controllers
 
 	logger.Info("Setting up Talos controllers")
 
-	err = setupTalos(ctx, manager, MaxConcurrentReconciles)
+	err = setupTalos(ctx, manager, controllerOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup Talos controllers: %w", err)
 	}
@@ -97,7 +108,7 @@ func NewAggregatedControllerManager(ctx context.Context,
 
 	logger.Info("Setting up Azure controllers")
 
-	err = setupAzure(ctx, manager, MaxConcurrentReconciles)
+	err = setupAzure(ctx, manager, controllerOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup Azure controllers: %w", err)
 	}
