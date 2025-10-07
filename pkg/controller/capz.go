@@ -11,19 +11,19 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 )
 
-func setupAzure(ctx context.Context, manager ctrl.Manager, maxConcurrentReconciles int) error {
+func setupAzure(ctx context.Context, manager ctrl.Manager, opt controller.Options) error {
 	logger := logging.FromContext(ctx)
 
 	logger.Info("Setting up AzureMachinePool controller")
 
-	err := setupAzureMachinePoolWithManager(ctx, manager, maxConcurrentReconciles)
+	err := setupAzureMachinePoolWithManager(ctx, manager, opt)
 	if err != nil {
 		return fmt.Errorf("failed to setup AzureMachinePool controller: %w", err)
 	}
 
 	logger.Info("Setting up AzureMachine controller")
 
-	err = setupAzureMachineWithManager(ctx, manager, maxConcurrentReconciles)
+	err = setupAzureMachineWithManager(ctx, manager, opt)
 	if err != nil {
 		return fmt.Errorf("failed to setup AzureMachine controller: %w", err)
 	}
@@ -31,12 +31,12 @@ func setupAzure(ctx context.Context, manager ctrl.Manager, maxConcurrentReconcil
 	return nil
 }
 
-func setupAzureMachinePoolWithManager(ctx context.Context, manager ctrl.Manager, maxConcurrentReconciles int) error {
+func setupAzureMachinePoolWithManager(ctx context.Context, manager ctrl.Manager, opt controller.Options) error {
 	err := (&capz_capi_controller.AzureMachinePoolReconciler{
 		Client: manager.GetClient(),
 		Scheme: manager.GetScheme(),
 	}).SetupWithManager(ctx, manager,
-		controllers.Options{Options: controller.Options{MaxConcurrentReconciles: maxConcurrentReconciles}})
+		controllers.Options{Options: opt})
 	if err != nil {
 		return fmt.Errorf("failed to setup azure machine pool: %w", err)
 	}
@@ -44,11 +44,11 @@ func setupAzureMachinePoolWithManager(ctx context.Context, manager ctrl.Manager,
 	return nil
 }
 
-func setupAzureMachineWithManager(ctx context.Context, manager ctrl.Manager, maxConcurrentReconciles int) error {
+func setupAzureMachineWithManager(ctx context.Context, manager ctrl.Manager, opt controller.Options) error {
 	err := (&controllers.AzureMachineReconciler{
 		Client: manager.GetClient(),
 	}).SetupWithManager(ctx, manager,
-		controllers.Options{Options: controller.Options{MaxConcurrentReconciles: maxConcurrentReconciles}})
+		controllers.Options{Options: opt})
 	if err != nil {
 		return fmt.Errorf("failed to setup azure machine: %w", err)
 	}
