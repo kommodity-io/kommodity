@@ -3,6 +3,7 @@
 yq_path="pkg/provider/providers.yaml"
 
 rm -f pkg/provider/crds/*.yaml
+rm -f pkg/provider/webhooks/*.yaml
 
 count=$(yq '.providers | length' "$yq_path")
 for i in $(seq 0 $((count - 1))); do
@@ -24,7 +25,8 @@ for i in $(seq 0 $((count - 1))); do
     version=$(go mod graph | grep "$repo" | head -n1 | awk -F'@' '{print $2}')
   fi
   
-  url="https://${repo}/releases/download/${version}/$file"
+  # Fetch CRD manifests
+  url="https://github.com/${repo}/releases/download/${version}/$file"
   
   echo "Fetching from $url with filter $filter"
 
@@ -39,4 +41,24 @@ for i in $(seq 0 $((count - 1))); do
   done
 
   rm -f "pkg/provider/${name}.yaml"
+
+  # Fetch webhooks if present
+  webhook_count=$(yq ".providers[$i].webhooks | length" "$yq_path")
+  if [ "$webhook_count" != "null" ] && [ "$webhook_count" -gt 0 ]; then
+    for j in $(seq 0 $((webhook_count - 1))); do
+      webhook_path=$(yq -r ".providers[$i].webhooks[$j]" "$yq_path")
+
+      # Compose raw github URL for webhook manifest
+      webhook_url="https://raw.githubusercontent.com/${repo}/refs/tags/${version}/${webhook_path}"
+      
+      echo "Fetching webhook manifest from $webhook_url"
+      
+      curl -sL "$webhook_url" -o "pkg/provider/${name}-webhook.yaml"
+      
+      # Split webhook manifest into individual YAMLs
+      yq '(.metadata.name |= "'${name}'-" + .)' "pkg/provider/${name}-webhook.yaml" | yq -s '"pkg/provider/webhooks/\(.metadata.name).yaml"'
+
+      rm -f "pkg/provider/${name}-webhook.yaml"
+    done
+  fi
 done

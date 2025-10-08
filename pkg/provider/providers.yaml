@@ -2,7 +2,7 @@ providers:
   # Only used for development and testing purposes with KOMMODITY_DEVELOPMENT_MODE=true
   - name: docker-docker
     development_mode: true
-    repository: github.com/kubernetes-sigs/cluster-api
+    repository: kubernetes-sigs/cluster-api
     go_module: sigs.k8s.io/cluster-api
     file_name: infrastructure-components-development.yaml
     filter: select(.kind == "CustomResourceDefinition")
@@ -13,8 +13,8 @@ providers:
       - DevClusterTemplate
       - DevMachine
       - DevMachineTemplate
-  - name: cluster-api
-    repository: github.com/kubernetes-sigs/cluster-api
+  - name: capi
+    repository: kubernetes-sigs/cluster-api
     go_module: sigs.k8s.io/cluster-api
     file_name: core-components.yaml
     filter: select(.kind == "CustomResourceDefinition")
@@ -23,21 +23,27 @@ providers:
       - api/addons/v1beta1
       - exp/api/v1beta1
       - exp/runtime/api/v1alpha1
-  - name: talos-bootstrap-provider
-    repository: github.com/siderolabs/cluster-api-bootstrap-provider-talos
+    webhooks:
+      - config/webhook/manifests.yaml
+  - name: cabpt
+    repository: siderolabs/cluster-api-bootstrap-provider-talos
     file_name: bootstrap-components.yaml
     filter: select(.kind == "CustomResourceDefinition")
     scheme_locations:
       - api/v1alpha2
       - api/v1alpha3
-  - name: talos-control-plane-provider
-    repository: github.com/siderolabs/cluster-api-control-plane-provider-talos
+    webhooks:
+      - config/webhook/manifests.yaml
+  - name: cacppt
+    repository: siderolabs/cluster-api-control-plane-provider-talos
     file_name: control-plane-components.yaml
     filter: select(.kind == "CustomResourceDefinition")
     scheme_locations:
       - api/v1alpha3
-  - name: scaleway-machine-pool-provider
-    repository: github.com/scaleway/cluster-api-provider-scaleway
+    webhooks:
+      - config/webhook/manifests.yaml
+  - name: scw
+    repository: scaleway/cluster-api-provider-scaleway
     file_name: infrastructure-components.yaml
     filter: select(.kind == "CustomResourceDefinition")
     deny_list:
@@ -46,8 +52,8 @@ providers:
       - ScalewayManagedMachinePool
     scheme_locations:
       - api/v1alpha1
-  - name: azure-machine-pool-provider
-    repository: github.com/kubernetes-sigs/cluster-api-provider-azure
+  - name: capz
+    repository: kubernetes-sigs/cluster-api-provider-azure
     go_module: sigs.k8s.io/cluster-api-provider-azure
     file_name: infrastructure-components.yaml
     # We only want to include Kinds of type CustomResourceDefinition with at least one .spec.version which is not deprecated.
