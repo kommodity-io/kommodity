@@ -4,62 +4,73 @@ package controller
 import (
 	"context"
 	"fmt"
-	"time"
+	"path/filepath"
+	"strings"
 
 	"github.com/go-logr/logr"
 	"github.com/go-logr/zapr"
 	"github.com/kommodity-io/kommodity/pkg/config"
+	"github.com/kommodity-io/kommodity/pkg/controller/reconciler"
+	"github.com/kommodity-io/kommodity/pkg/controller/webhook"
 	"github.com/kommodity-io/kommodity/pkg/logging"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	restclient "k8s.io/client-go/rest"
+	genericapiserver "k8s.io/apiserver/pkg/server"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	ctrlwebhook "sigs.k8s.io/controller-runtime/pkg/webhook"
 )
 
 const (
 	// MaxConcurrentReconciles is the maximum number of concurrent reconciles for controllers.
 	MaxConcurrentReconciles = 10
 
-	// RemoteConnectionGracePeriod is the grace period for remote connections.
-	RemoteConnectionGracePeriod = 5 * time.Minute
+	expectedCertSplitCount = 3
 )
 
 // NewAggregatedControllerManager creates a new controller manager with all relevant providers.
 //
-//nolint:funlen // Too long due to many error checks and setup steps, no real complexity here
+//nolint:funlen // Function length is long because of NewManager initialization.
 func NewAggregatedControllerManager(ctx context.Context,
 	kommodityConfig *config.KommodityConfig,
-	restConfig *restclient.Config,
+	genericServerConfig *genericapiserver.RecommendedConfig,
 	scheme *runtime.Scheme) (ctrl.Manager, error) {
 	logger := zapr.NewLogger(logging.FromContext(ctx))
 	ctrl.SetLogger(logger)
 
 	logger.Info("Creating controller manager")
 
-	manager, err := ctrl.NewManager(restConfig, ctrl.Options{
-		Scheme: scheme,
-		Logger: logger,
-		Cache: cache.Options{
+	webhookServer, err := getWebhookServerConfig(genericServerConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get webhook server config: %w", err)
+	}
+
+	manager, err := ctrl.NewManager(
+		genericServerConfig.LoopbackClientConfig,
+		ctrl.Options{
 			Scheme: scheme,
-		},
-		Client: client.Options{
-			Scheme: scheme,
-			Cache: &client.CacheOptions{
-				DisableFor: []client.Object{
-					&corev1.ConfigMap{},
-					&corev1.Secret{},
-					&corev1.Pod{},
-					&appsv1.Deployment{},
-					&appsv1.DaemonSet{},
+			Logger: logger,
+			Cache: cache.Options{
+				Scheme: scheme,
+			},
+			Client: client.Options{
+				Scheme: scheme,
+				Cache: &client.CacheOptions{
+					DisableFor: []client.Object{
+						&corev1.ConfigMap{},
+						&corev1.Secret{},
+						&corev1.Pod{},
+						&appsv1.Deployment{},
+						&appsv1.DaemonSet{},
+					},
 				},
 			},
-		},
-	})
+			WebhookServer: webhookServer,
+		})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create controller manager: %w", err)
 	}
@@ -76,51 +87,46 @@ func NewAggregatedControllerManager(ctx context.Context,
 		return nil, fmt.Errorf("failed to setup ClusterCache: %w", err)
 	}
 
-	// Core CAPI controllers
+	logger.Info("Setting up reconcilers")
 
-	logger.Info("Setting up CAPI controllers")
-
-	err = setupCAPI(ctx, manager, clusterCache, controllerOpts, RemoteConnectionGracePeriod)
+	err = reconciler.SetupReconcilers(ctx, kommodityConfig, &manager, clusterCache, controllerOpts)
 	if err != nil {
-		return nil, fmt.Errorf("failed to setup CAPI controllers: %w", err)
+		return nil, fmt.Errorf("failed to setup reconcilers: %w", err)
 	}
 
-	// Docker controllers for local development and testing only (KOMMODITY_DEVELOPMENT_MODE=true)
-	if kommodityConfig.DevelopmentMode {
-		logger.Info("Setting up Docker controllers")
+	logger.Info("Setting up webhooks")
 
-		err = setupDocker(ctx, manager, clusterCache, controllerOpts)
-		if err != nil {
-			return nil, fmt.Errorf("failed to setup Docker controllers: %w", err)
-		}
-	}
-
-	// Talos controllers
-
-	logger.Info("Setting up Talos controllers")
-
-	err = setupTalos(ctx, manager, controllerOpts)
+	err = webhook.SetupWebhooks(ctx, &manager, clusterCache)
 	if err != nil {
-		return nil, fmt.Errorf("failed to setup Talos controllers: %w", err)
+		return nil, fmt.Errorf("failed to setup webhooks: %w", err)
 	}
 
-	// Azure controllers
-
-	logger.Info("Setting up Azure controllers")
-
-	err = setupAzure(ctx, manager, controllerOpts)
-	if err != nil {
-		return nil, fmt.Errorf("failed to setup Azure controllers: %w", err)
-	}
-
-	// Scaleway controllers
-
-	logger.Info("Setting up Scaleway controllers")
-
-	err = setupScaleway(ctx, manager)
-	if err != nil {
-		return nil, fmt.Errorf("failed to setup Scaleway controllers: %w", err)
-	}
+	logger.Info("Controller manager created")
 
 	return manager, nil
+}
+
+func getWebhookServerConfig(genericServerConfig *genericapiserver.RecommendedConfig) (ctrlwebhook.Server, error) {
+	combinedCertName := genericServerConfig.SecureServing.Cert.Name()
+	if combinedCertName == "" {
+		return nil, ErrWebhookServerCertsNotConfigured
+	}
+
+	certNames := strings.Split(combinedCertName, "::")
+	if len(certNames) != expectedCertSplitCount {
+		return nil, ErrWebhookServerCertKeyNotConfigured
+	}
+
+	certDir, certFile := filepath.Split(certNames[1])
+	keyDir, keyFile := filepath.Split(certNames[2])
+
+	if certDir != keyDir {
+		return nil, ErrWebhookServerCertKeyNotInSameDir
+	}
+
+	return ctrlwebhook.NewServer(ctrlwebhook.Options{
+		CertDir:  certDir,
+		CertName: certFile,
+		KeyName:  keyFile,
+	}), nil
 }
