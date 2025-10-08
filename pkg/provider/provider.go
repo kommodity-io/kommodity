@@ -199,7 +199,6 @@ func (pc *Cache) load(ctx context.Context,
 	client *dynamic.DynamicClient,
 	gvr schema.GroupVersionResource,
 	obj *unstructured.Unstructured) error {
-
 	_, err := client.Resource(gvr).Create(ctx, obj, metav1.CreateOptions{})
 	if err == nil {
 		return nil
