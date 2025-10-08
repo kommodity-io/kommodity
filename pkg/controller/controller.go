@@ -96,7 +96,7 @@ func NewAggregatedControllerManager(ctx context.Context,
 
 	logger.Info("Setting up webhooks")
 
-	err = webhook.SetupWebhooks(ctx, kommodityConfig, &manager, clusterCache)
+	err = webhook.SetupWebhooks(ctx, &manager, clusterCache)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup webhooks: %w", err)
 	}

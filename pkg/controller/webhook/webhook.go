@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/kommodity-io/kommodity/pkg/config"
 	"github.com/kommodity-io/kommodity/pkg/logging"
 	"sigs.k8s.io/cluster-api/controllers/clustercache"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -13,7 +12,6 @@ import (
 
 // SetupWebhooks sets up all webhooks with the provided manager.
 func SetupWebhooks(ctx context.Context,
-	kommodityConfig *config.KommodityConfig,
 	manager *ctrl.Manager,
 	clusterCache clustercache.ClusterCache) error {
 	logger := logging.FromContext(ctx)
