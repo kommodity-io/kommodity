@@ -34,14 +34,23 @@ jobs:
         env:
           BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
         run: |
-          if git diff --exit-code origin/$BRANCH_NAME -- pkg/provider/crds/*.yaml; then
-            echo "diff_found=false" >> $GITHUB_OUTPUT
-          else
+          crds_changed=false
+          webhooks_changed=false
+          if ! git diff --exit-code origin/$BRANCH_NAME -- pkg/provider/crds/*.yaml; then
+            crds_changed=true
+          fi
+          if ! git diff --exit-code origin/$BRANCH_NAME -- pkg/provider/webhooks/*.yaml; then
+            webhooks_changed=true
+          fi
+
+          if [ "$crds_changed" = "true" ] || [ "$webhooks_changed" = "true" ]; then
             echo "diff_found=true" >> $GITHUB_OUTPUT
+          else
+            echo "diff_found=false" >> $GITHUB_OUTPUT
           fi
 
       - name: Fail if providers.yaml changed
         if: ${{ steps.diff.outputs.diff_found == 'true' }}
         run: |
-          echo "Error: One or more files in pkg/provider/crds/*.yaml have changed after running 'make fetch-providers'. Please commit the updated files."
+          echo "Error: One or more files in pkg/provider/crds/*.yaml or pkg/provider/webhooks/*.yaml have changed after running 'make fetch-providers'. Please commit the updated files."
           exit 1
