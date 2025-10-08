@@ -1,4 +1,4 @@
-package controller
+package reconciler
 
 import (
 	"context"

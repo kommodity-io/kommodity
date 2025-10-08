@@ -131,7 +131,9 @@ func setupLegacyAPI(
 ) (*genericapiserver.APIGroupInfo, error) {
 	logger.Info("Creating Kine legacy storage config")
 
-	kineStorageConfig, err := kine.NewKineStorageConfig(cfg, codecs.LegacyCodec(corev1.SchemeGroupVersion))
+	noConv := serializer.WithoutConversionCodecFactory{CodecFactory: codecs}
+
+	kineStorageConfig, err := kine.NewKineStorageConfig(cfg, noConv.LegacyCodec(corev1.SchemeGroupVersion))
 	if err != nil {
 		return nil, fmt.Errorf("unable to create Kine legacy storage config: %w", err)
 	}

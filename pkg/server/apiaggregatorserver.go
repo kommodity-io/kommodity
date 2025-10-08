@@ -160,7 +160,7 @@ func startControllerManagersHook(cfg *config.KommodityConfig,
 			return fmt.Errorf("failed to waiting for provider CRDs are established: %w", err)
 		}
 
-		ctlMgr, err := controller.NewAggregatedControllerManager(ctx, cfg, genericServerConfig.LoopbackClientConfig, scheme)
+		ctlMgr, err := controller.NewAggregatedControllerManager(ctx, cfg, genericServerConfig, scheme)
 		if err != nil {
 			return fmt.Errorf("failed to create controller manager: %w", err)
 		}
