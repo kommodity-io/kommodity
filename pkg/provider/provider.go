@@ -212,7 +212,7 @@ func (pc *Cache) load(ctx context.Context,
 		}
 
 		// Set the resourceVersion to ensure we update the correct version
-		crd.SetResourceVersion(existing.GetResourceVersion())
+		obj.SetResourceVersion(existing.GetResourceVersion())
 
 		_, err = client.Resource(gvr).Update(ctx, obj, metav1.UpdateOptions{})
 		if err != nil {
