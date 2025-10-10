@@ -38,6 +38,7 @@ func enhanceScheme(scheme *runtime.Scheme) error {
 		name string
 		fn   func(*runtime.Scheme) error
 	}{
+		{"admissionregistrationv1.AddToScheme", admissionregistrationv1.AddToScheme},
 		{"apiextensionsinternal.AddToScheme", apiextensionsinternal.AddToScheme},
 		{"apiextensionsv1.AddToScheme", apiextensionsv1.AddToScheme},
 		{"apiregistration.AddToScheme", apiregistration.AddToScheme},
