@@ -57,6 +57,7 @@ types:
     - k8s.io/apimachinery/pkg/apis/meta/v1.Condition
     - k8s.io/apimachinery/pkg/apis/meta/v1.FieldSelectorRequirement
     - k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelectorRequirement
+    - k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector
   version:
     - k8s.io/apimachinery/pkg/version.Info
   runtime:
@@ -101,3 +102,14 @@ types:
     - k8s.io/api/authorization/v1.NonResourceAttributes
     - k8s.io/api/authorization/v1.FieldSelectorAttributes
     - k8s.io/api/authorization/v1.LabelSelectorAttributes
+  admissionregistration:
+    - k8s.io/api/admissionregistration/v1.MutatingWebhookConfiguration
+    - k8s.io/api/admissionregistration/v1.MutatingWebhookConfigurationList
+    - k8s.io/api/admissionregistration/v1.MutatingWebhook
+    - k8s.io/api/admissionregistration/v1.ValidatingWebhookConfiguration
+    - k8s.io/api/admissionregistration/v1.ValidatingWebhookConfigurationList
+    - k8s.io/api/admissionregistration/v1.ValidatingWebhook
+    - k8s.io/api/admissionregistration/v1.MatchCondition
+    - k8s.io/api/admissionregistration/v1.RuleWithOperations
+    - k8s.io/api/admissionregistration/v1.WebhookClientConfig
+    - k8s.io/api/admissionregistration/v1.ServiceReference
