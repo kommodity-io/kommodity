@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"slices"
 
 	"github.com/kommodity-io/kommodity/pkg/config"
@@ -11,6 +12,8 @@ import (
 	"k8s.io/apiserver/pkg/authentication/authenticator"
 	bearertoken "k8s.io/apiserver/pkg/authentication/request/bearertoken"
 	authunion "k8s.io/apiserver/pkg/authentication/request/union"
+	requnion "k8s.io/apiserver/pkg/authentication/request/union"
+	"k8s.io/apiserver/pkg/authentication/user"
 	auth "k8s.io/apiserver/pkg/authorization/authorizer"
 	"k8s.io/apiserver/pkg/authorization/authorizerfactory"
 	genericapiserver "k8s.io/apiserver/pkg/server"
@@ -20,6 +23,17 @@ import (
 const (
 	systemPrivilegedGroup = "system:masters"
 )
+
+type anonymousReqAuth struct{}
+
+func (anonymousReqAuth) AuthenticateRequest(_ *http.Request) (*authenticator.Response, bool, error) {
+	return &authenticator.Response{
+		User: &user.DefaultInfo{
+			Name:   user.Anonymous,                    // "system:anonymous"
+			Groups: []string{user.AllUnauthenticated}, // "system:unauthenticated"
+		},
+	}, true, nil
+}
 
 type adminAuthorizer struct {
 	cfg *config.KommodityConfig
@@ -55,14 +69,15 @@ func (a adminAuthorizer) Authorize(_ context.Context, attrs auth.Attributes) (au
 }
 
 // NewSelfSubjectAccessReviewREST creates a new REST storage for SelfSubjectAccessReview.
-func NewSelfSubjectAccessReviewREST() *selfsubjectaccessreviews.SelfSubjectAccessReviewREST {
+func NewSelfSubjectAccessReviewREST(cfg *config.KommodityConfig) *selfsubjectaccessreviews.SelfSubjectAccessReviewREST {
 	return &selfsubjectaccessreviews.SelfSubjectAccessReviewREST{
-		Authorizer: adminAuthorizer{},
+		Authorizer: adminAuthorizer{cfg: cfg},
 	}
 }
 
 func applyAuth(ctx context.Context, cfg *config.KommodityConfig, config *genericapiserver.RecommendedConfig) error {
 	if !cfg.AuthConfig.Apply {
+		config.Authentication.Authenticator = requnion.New(anonymousReqAuth{})
 		config.Authorization.Authorizer = authorizerfactory.NewAlwaysAllowAuthorizer()
 
 		return nil
@@ -111,7 +126,7 @@ func applyAuth(ctx context.Context, cfg *config.KommodityConfig, config *generic
 	config.Authorization.Authorizer = &adminAuthorizer{}
 
 	config.Authentication.APIAudiences = authenticator.Audiences(jwtAuthenticator.Issuer.Audiences)
-	config.Authentication.Authenticator = authunion.New(bearerOIDC)
+	config.Authentication.Authenticator = authunion.New(bearerOIDC, anonymousReqAuth{})
 
 	return nil
 }

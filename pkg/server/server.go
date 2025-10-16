@@ -102,7 +102,7 @@ func New(ctx context.Context, cfg *config.KommodityConfig) (*aggregatorapiserver
 
 	logger.Info("Installing authorization API group")
 
-	authorizationAPI := setupAuthorizationAPIGroupInfo(scheme, codecs)
+	authorizationAPI := setupAuthorizationAPIGroupInfo(cfg, scheme, codecs)
 
 	err = genericServer.InstallAPIGroup(authorizationAPI)
 	if err != nil {
@@ -233,7 +233,8 @@ func setupLegacyAPI(
 	return &coreAPIGroupInfo, nil
 }
 
-func setupAuthorizationAPIGroupInfo(scheme *runtime.Scheme,
+func setupAuthorizationAPIGroupInfo(cfg *config.KommodityConfig,
+	scheme *runtime.Scheme,
 	codecs serializer.CodecFactory) *genericapiserver.APIGroupInfo {
 	apiGroupInfo := genericapiserver.NewDefaultAPIGroupInfo(
 		authorizationapiv1.GroupName,
@@ -243,7 +244,7 @@ func setupAuthorizationAPIGroupInfo(scheme *runtime.Scheme,
 	)
 
 	apiGroupInfo.VersionedResourcesStorageMap["v1"] = map[string]rest.Storage{
-		"selfsubjectaccessreviews": NewSelfSubjectAccessReviewREST(),
+		"selfsubjectaccessreviews": NewSelfSubjectAccessReviewREST(cfg),
 	}
 
 	return &apiGroupInfo
