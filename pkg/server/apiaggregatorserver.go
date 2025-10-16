@@ -119,11 +119,10 @@ func applyCRDsHook(cfg *config.KommodityConfig,
 
 		go func() {
 			webhookURL := fmt.Sprintf("https://localhost:%d", cfg.WebhookPort)
-			crt, _ := genericServerConfig.SecureServing.Cert.CurrentCertKeyContent()
 
-			err = providerCache.ApplyWebhookProviders(ctx, webhookURL, crt, dynamicClient)
+			crt, err := getServingPEMFromFiles(genericServerConfig)
 			if err != nil {
-				errCh <- fmt.Errorf("failed to apply all provider webhooks: %w", err)
+				errCh <- fmt.Errorf("failed to get serving PEM from files: %w", err)
 
 				return
 			}
@@ -135,8 +134,29 @@ func applyCRDsHook(cfg *config.KommodityConfig,
 				return
 			}
 
+			err = providerCache.ApplyWebhookProviders(ctx, webhookURL, crt, dynamicClient)
+			if err != nil {
+				errCh <- fmt.Errorf("failed to apply all provider webhooks: %w", err)
+
+				return
+			}
+
 			if !cache.WaitForCacheSync(ctx.Done(), crds.Informer().HasSynced) {
 				errCh <- ErrTimeoutWaitingForCRD
+			} else {
+				errCh <- nil
+			}
+
+			mwcInf := genericServerConfig.SharedInformerFactory.
+				Admissionregistration().V1().MutatingWebhookConfigurations()
+			vwcInf := genericServerConfig.SharedInformerFactory.
+				Admissionregistration().V1().ValidatingWebhookConfigurations()
+
+			if !cache.WaitForCacheSync(ctx.Done(),
+				mwcInf.Informer().HasSynced,
+				vwcInf.Informer().HasSynced,
+			) {
+				errCh <- ErrTimeoutWaitingForWebhook
 			} else {
 				errCh <- nil
 			}

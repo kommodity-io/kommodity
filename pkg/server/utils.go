@@ -3,6 +3,9 @@ package server
 import (
 	"fmt"
 	"net"
+	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/kommodity-io/kommodity/pkg/config"
 	admissionv1 "k8s.io/api/admission/v1"
@@ -29,9 +32,14 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	genericapiserver "k8s.io/apiserver/pkg/server"
 	"k8s.io/apiserver/pkg/server/options"
 	apiregistration "k8s.io/kube-aggregator/pkg/apis/apiregistration"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
+)
+
+const (
+	expectedCertSplitCount = 3
 )
 
 func enhanceScheme(scheme *runtime.Scheme) error {
@@ -112,6 +120,26 @@ func setupSecureServingWithSelfSigned(cfg *config.KommodityConfig) (*options.Sec
 	}
 
 	return secureServing, nil
+}
+
+func getServingPEMFromFiles(genericServerConfig *genericapiserver.RecommendedConfig) ([]byte, error) {
+	combinedCertName := genericServerConfig.SecureServing.Cert.Name()
+	if combinedCertName == "" {
+		return nil, ErrWebhookServerCertsNotConfigured
+	}
+
+	certNames := strings.Split(combinedCertName, "::")
+	if len(certNames) != expectedCertSplitCount {
+		return nil, ErrWebhookServerCertKeyNotConfigured
+	}
+
+	certDir, certFile := filepath.Split(certNames[1])
+
+	pem, err := os.ReadFile(filepath.Join(certDir, certFile))
+	if err != nil {
+		return nil, fmt.Errorf("read webhook serving cert: %w", err)
+	}
+	return pem, nil
 }
 
 func getSupportedGroupKindVersions() []schema.GroupVersion {

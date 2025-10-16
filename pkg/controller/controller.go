@@ -5,13 +5,10 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"path/filepath"
-	"strings"
 
 	"github.com/go-logr/logr"
 	"github.com/go-logr/zapr"
 	"github.com/kommodity-io/kommodity/pkg/config"
-	"github.com/kommodity-io/kommodity/pkg/controller/reconciler"
 	"github.com/kommodity-io/kommodity/pkg/controller/webhook"
 	"github.com/kommodity-io/kommodity/pkg/logging"
 	appsv1 "k8s.io/api/apps/v1"
@@ -30,8 +27,6 @@ import (
 const (
 	// MaxConcurrentReconciles is the maximum number of concurrent reconciles for controllers.
 	MaxConcurrentReconciles = 10
-
-	expectedCertSplitCount = 3
 )
 
 // NewAggregatedControllerManager creates a new controller manager with all relevant providers.
@@ -46,11 +41,7 @@ func NewAggregatedControllerManager(ctx context.Context,
 
 	logger.Info("Creating controller manager")
 
-	webhookServer, err := getWebhookServerConfig(genericServerConfig, kommodityConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get webhook server config: %w", err)
-	}
-
+	webhookServer := getWebhookServerConfig(genericServerConfig, kommodityConfig)
 	webhookServer.Register("/convert", crwebconv.NewWebhookHandler(scheme))
 
 	manager, err := ctrl.NewManager(
@@ -100,10 +91,10 @@ func NewAggregatedControllerManager(ctx context.Context,
 
 	logger.Info("Setting up reconcilers")
 
-	err = reconciler.SetupReconcilers(ctx, kommodityConfig, &manager, clusterCache, controllerOpts)
-	if err != nil {
-		return nil, fmt.Errorf("failed to setup reconcilers: %w", err)
-	}
+	// err = reconciler.SetupReconcilers(ctx, kommodityConfig, &manager, clusterCache, controllerOpts)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("failed to setup reconcilers: %w", err)
+	// }
 
 	logger.Info("Controller manager created")
 
@@ -111,41 +102,22 @@ func NewAggregatedControllerManager(ctx context.Context,
 }
 
 func getWebhookServerConfig(genericServerConfig *genericapiserver.RecommendedConfig,
-	kommodityConfig *config.KommodityConfig) (ctrlwebhook.Server, error) {
-	combinedCertName := genericServerConfig.SecureServing.Cert.Name()
-	if combinedCertName == "" {
-		return nil, ErrWebhookServerCertsNotConfigured
-	}
-
-	certNames := strings.Split(combinedCertName, "::")
-	if len(certNames) != expectedCertSplitCount {
-		return nil, ErrWebhookServerCertKeyNotConfigured
-	}
-
-	certDir, certFile := filepath.Split(certNames[1])
-	keyDir, keyFile := filepath.Split(certNames[2])
-
-	if certDir != keyDir {
-		return nil, ErrWebhookServerCertKeyNotInSameDir
-	}
+	kommodityConfig *config.KommodityConfig) ctrlwebhook.Server {
 
 	return ctrlwebhook.NewServer(ctrlwebhook.Options{
-		Port:     kommodityConfig.WebhookPort,
-		CertDir:  certDir,
-		CertName: certFile,
-		KeyName:  keyFile,
-		TLSOpts:  setupWebhookTLSOptions(genericServerConfig),
-	}), nil
+		Port:    kommodityConfig.WebhookPort,
+		TLSOpts: setupWebhookTLSOptions(genericServerConfig),
+	})
 }
 
-func setupWebhookTLSOptions(genericServerConfig *genericapiserver.RecommendedConfig) []func(*tls.Config) {
+func setupWebhookTLSOptions(gsc *genericapiserver.RecommendedConfig) []func(*tls.Config) {
 	return []func(*tls.Config){
 		func(c *tls.Config) {
-			servingCertPEM, servingKeyPEM := genericServerConfig.SecureServing.Cert.CurrentCertKeyContent()
+			certPEM, keyPEM := gsc.SecureServing.Cert.CurrentCertKeyContent()
 
-			pair, err := tls.X509KeyPair(servingCertPEM, servingKeyPEM)
+			pair, err := tls.X509KeyPair(certPEM, keyPEM)
 			if err == nil {
-				c.Certificates = []tls.Certificate{pair}
+				c.GetCertificate = func(*tls.ClientHelloInfo) (*tls.Certificate, error) { return &pair, nil }
 			}
 		},
 	}
