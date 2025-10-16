@@ -21,6 +21,10 @@ var (
 	ErrObjectIsNotAnEndpoint = errors.New("object is not an Endpoint")
 	// ErrObjectIsNotAnEvent indicates that the object is not an event.
 	ErrObjectIsNotAnEvent = errors.New("object is not an Event")
+	// ErrObjectIsNotAnMutatingWebhookConfiguration indicates that the object is not a MutatingWebhookConfiguration.
+	ErrObjectIsNotAnMutatingWebhookConfiguration = errors.New("object is not a MutatingWebhookConfiguration")
+	// ErrObjectIsNotAValidatingWebhookConfiguration indicates that the object is not a ValidatingWebhookConfiguration.
+	ErrObjectIsNotAValidatingWebhookConfiguration = errors.New("object is not a ValidatingWebhookConfiguration")
 	// ErrObjectIsNotASelfSubjectAccessReview indicates that the object is not a SelfSubjectAccessReview.
 	ErrObjectIsNotASelfSubjectAccessReview = errors.New("object is not a SelfSubjectAccessReview")
 	// ErrObjectIsNotASubjectAccessReview indicates that the object is not a SubjectAccessReview.

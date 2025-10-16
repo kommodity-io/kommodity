@@ -16,10 +16,13 @@ import (
 	"github.com/kommodity-io/kommodity/pkg/storage/namespaces"
 	"github.com/kommodity-io/kommodity/pkg/storage/secrets"
 	"github.com/kommodity-io/kommodity/pkg/storage/services"
+	"github.com/kommodity-io/kommodity/pkg/storage/webhookconfigurations"
 	"go.uber.org/zap"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	authorizationapiv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apiserver/pkg/registry/rest"
 	genericapiserver "k8s.io/apiserver/pkg/server"
@@ -52,6 +55,8 @@ func New(ctx context.Context, cfg *config.KommodityConfig) (*aggregatorapiserver
 	if err != nil {
 		return nil, fmt.Errorf("failed to enhance local scheme: %w", err)
 	}
+
+	mapCoreInternalAliases(scheme)
 
 	providerCache, err := provider.NewProviderCache(scheme)
 	if err != nil {
@@ -104,19 +109,52 @@ func New(ctx context.Context, cfg *config.KommodityConfig) (*aggregatorapiserver
 		return nil, fmt.Errorf("failed to install authorization API group into the generic API server: %w", err)
 	}
 
+	admissionRegistrationAPI, err := setupAdmissionRegistrationAPIGroupInfo(cfg, scheme, codecs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to setup admissionregistration API group info: %w", err)
+	}
+
+	err = genericServer.InstallAPIGroup(admissionRegistrationAPI)
+	if err != nil {
+		return nil, fmt.Errorf("failed to install admissionregistration API group into the generic API server: %w", err)
+	}
+
 	logger.Info("Creating new API aggregator server")
+
+	controllerScheme := runtime.NewScheme()
+
+	err = enhanceScheme(controllerScheme)
+	if err != nil {
+		return nil, fmt.Errorf("failed to enhance controller scheme: %w", err)
+	}
+
+	err = provider.AddAllProvidersToScheme(controllerScheme)
+	if err != nil {
+		return nil, fmt.Errorf("failed to add providers to controller scheme: %w", err)
+	}
+
 	//nolint:contextcheck // No need to pass context here as its not used in the function call
 	aggregatorServer, err := newAPIAggregatorServer(
 		cfg,
 		genericServerConfig,
 		providerCache,
-		scheme,
+		controllerScheme,
 		codecs,
 		genericServer,
 		crdServer.Informers.Apiextensions().V1().CustomResourceDefinitions(),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup API aggregator server: %w", err)
+	}
+
+	err = aggregatorServer.GenericAPIServer.AddPostStartHook("start-shared-informers-main",
+		func(ctx genericapiserver.PostStartHookContext) error {
+			genericServerConfig.SharedInformerFactory.Start(ctx.Done())
+
+			return nil
+		})
+	if err != nil {
+		return nil, fmt.Errorf("failed to add post start hook for starting shared informers: %w", err)
 	}
 
 	return aggregatorServer, nil
@@ -209,4 +247,41 @@ func setupAuthorizationAPIGroupInfo(scheme *runtime.Scheme,
 	}
 
 	return &apiGroupInfo
+}
+
+func setupAdmissionRegistrationAPIGroupInfo(cfg *config.KommodityConfig,
+	scheme *runtime.Scheme,
+	codecs serializer.CodecFactory) (*genericapiserver.APIGroupInfo, error) {
+	noConv := serializer.WithoutConversionCodecFactory{CodecFactory: codecs}
+
+	kineStorageConfig, err := kine.NewKineStorageConfig(cfg,
+		noConv.LegacyCodec(admissionregistrationv1.SchemeGroupVersion))
+	if err != nil {
+		return nil, fmt.Errorf("unable to create Kine legacy storage config: %w", err)
+	}
+
+	apiGroupInfo := genericapiserver.NewDefaultAPIGroupInfo(
+		admissionregistrationv1.GroupName,
+		scheme,
+		runtime.NewParameterCodec(scheme),
+		codecs,
+	)
+	apiGroupInfo.PrioritizedVersions = []schema.GroupVersion{admissionregistrationv1.SchemeGroupVersion}
+
+	mutatingWebhookConfigStorage, err := webhookconfigurations.NewMutatingWebhookConfigurationREST(*kineStorageConfig, *scheme)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create mutating webhook configuration REST storage: %w", err)
+	}
+
+	validatingWebhookConfigStorage, err := webhookconfigurations.NewValidatingWebhookConfigurationREST(*kineStorageConfig, *scheme)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create validating webhook configuration REST storage: %w", err)
+	}
+
+	apiGroupInfo.VersionedResourcesStorageMap["v1"] = map[string]rest.Storage{
+		"mutatingwebhookconfigurations":   mutatingWebhookConfigStorage,
+		"validatingwebhookconfigurations": validatingWebhookConfigStorage,
+	}
+
+	return &apiGroupInfo, nil
 }
