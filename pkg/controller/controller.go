@@ -3,6 +3,7 @@ package controller
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -23,6 +24,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	ctrlwebhook "sigs.k8s.io/controller-runtime/pkg/webhook"
+	crwebconv "sigs.k8s.io/controller-runtime/pkg/webhook/conversion"
 )
 
 const (
@@ -44,10 +46,12 @@ func NewAggregatedControllerManager(ctx context.Context,
 
 	logger.Info("Creating controller manager")
 
-	webhookServer, err := getWebhookServerConfig(genericServerConfig)
+	webhookServer, err := getWebhookServerConfig(genericServerConfig, kommodityConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get webhook server config: %w", err)
 	}
+
+	webhookServer.Register("/convert", crwebconv.NewWebhookHandler(scheme))
 
 	manager, err := ctrl.NewManager(
 		genericServerConfig.LoopbackClientConfig,
@@ -87,13 +91,6 @@ func NewAggregatedControllerManager(ctx context.Context,
 		return nil, fmt.Errorf("failed to setup ClusterCache: %w", err)
 	}
 
-	logger.Info("Setting up reconcilers")
-
-	err = reconciler.SetupReconcilers(ctx, kommodityConfig, &manager, clusterCache, controllerOpts)
-	if err != nil {
-		return nil, fmt.Errorf("failed to setup reconcilers: %w", err)
-	}
-
 	logger.Info("Setting up webhooks")
 
 	err = webhook.SetupWebhooks(ctx, &manager, clusterCache)
@@ -101,12 +98,20 @@ func NewAggregatedControllerManager(ctx context.Context,
 		return nil, fmt.Errorf("failed to setup webhooks: %w", err)
 	}
 
+	logger.Info("Setting up reconcilers")
+
+	err = reconciler.SetupReconcilers(ctx, kommodityConfig, &manager, clusterCache, controllerOpts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to setup reconcilers: %w", err)
+	}
+
 	logger.Info("Controller manager created")
 
 	return manager, nil
 }
 
-func getWebhookServerConfig(genericServerConfig *genericapiserver.RecommendedConfig) (ctrlwebhook.Server, error) {
+func getWebhookServerConfig(genericServerConfig *genericapiserver.RecommendedConfig,
+	kommodityConfig *config.KommodityConfig) (ctrlwebhook.Server, error) {
 	combinedCertName := genericServerConfig.SecureServing.Cert.Name()
 	if combinedCertName == "" {
 		return nil, ErrWebhookServerCertsNotConfigured
@@ -125,8 +130,23 @@ func getWebhookServerConfig(genericServerConfig *genericapiserver.RecommendedCon
 	}
 
 	return ctrlwebhook.NewServer(ctrlwebhook.Options{
+		Port:     kommodityConfig.WebhookPort,
 		CertDir:  certDir,
 		CertName: certFile,
 		KeyName:  keyFile,
+		TLSOpts:  setupWebhookTLSOptions(genericServerConfig),
 	}), nil
+}
+
+func setupWebhookTLSOptions(genericServerConfig *genericapiserver.RecommendedConfig) []func(*tls.Config) {
+	return []func(*tls.Config){
+		func(c *tls.Config) {
+			servingCertPEM, servingKeyPEM := genericServerConfig.SecureServing.Cert.CurrentCertKeyContent()
+
+			pair, err := tls.X509KeyPair(servingCertPEM, servingKeyPEM)
+			if err == nil {
+				c.Certificates = []tls.Certificate{pair}
+			}
+		},
+	}
 }
