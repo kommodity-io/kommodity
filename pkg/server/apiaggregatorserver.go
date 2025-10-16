@@ -22,8 +22,6 @@ import (
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	"k8s.io/client-go/discovery"
 	restclientdynamic "k8s.io/client-go/dynamic"
-	clientgoinformers "k8s.io/client-go/informers"
-	clientgoclientset "k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
@@ -93,7 +91,7 @@ func newAPIAggregatorServer(cfg *config.KommodityConfig,
 	}
 
 	err = aggregatorServer.GenericAPIServer.AddPostStartHook(
-		"apply-crds", applyCRDsHook(genericServerConfig, providerCache, crds))
+		"apply-crds", applyCRDsHook(cfg, genericServerConfig, providerCache, crds))
 	if err != nil {
 		return nil, fmt.Errorf("failed to add post start hook for applying CRDs: %w", err)
 	}
@@ -107,7 +105,8 @@ func newAPIAggregatorServer(cfg *config.KommodityConfig,
 	return aggregatorServer, nil
 }
 
-func applyCRDsHook(genericServerConfig *genericapiserver.RecommendedConfig,
+func applyCRDsHook(cfg *config.KommodityConfig,
+	genericServerConfig *genericapiserver.RecommendedConfig,
 	providerCache *provider.Cache,
 	crds apiextensionsinformers.CustomResourceDefinitionInformer) genericapiserver.PostStartHookFunc {
 	return func(ctx genericapiserver.PostStartHookContext) error {
@@ -119,15 +118,27 @@ func applyCRDsHook(genericServerConfig *genericapiserver.RecommendedConfig,
 		errCh := make(chan error)
 
 		go func() {
-			err = providerCache.ApplyAllProviders(ctx, dynamicClient)
+			webhookURL := fmt.Sprintf("https://localhost:%d", cfg.WebhookPort)
+			crt, _ := genericServerConfig.SecureServing.Cert.CurrentCertKeyContent()
+
+			err = providerCache.ApplyWebhookProviders(ctx, webhookURL, crt, dynamicClient)
+			if err != nil {
+				errCh <- fmt.Errorf("failed to apply all provider webhooks: %w", err)
+
+				return
+			}
+
+			err = providerCache.ApplyCRDProviders(ctx, webhookURL, crt, dynamicClient)
 			if err != nil {
 				errCh <- fmt.Errorf("failed to apply all provider CRDs: %w", err)
+
+				return
+			}
+
+			if !cache.WaitForCacheSync(ctx.Done(), crds.Informer().HasSynced) {
+				errCh <- ErrTimeoutWaitingForCRD
 			} else {
-				if !cache.WaitForCacheSync(ctx.Done(), crds.Informer().HasSynced) {
-					errCh <- ErrTimeoutWaitingForCRD
-				} else {
-					errCh <- nil
-				}
+				errCh <- nil
 			}
 		}()
 
@@ -276,30 +287,31 @@ func setupAPIAggregatorConfig(
 	cfg *config.KommodityConfig,
 	genericServerConfig *genericapiserver.RecommendedConfig,
 	codecs serializer.CodecFactory) (*aggregatorapiserver.Config, error) {
-	var schemeGroupVersions = append(
-		provider.GetProviderGroupKindVersions(),
-		getSupportedGroupKindVersions()...)
+	noConv := serializer.WithoutConversionCodecFactory{CodecFactory: codecs}
 
 	kineStorageConfig, err := kine.NewKineStorageConfig(cfg,
-		codecs.CodecForVersions(
-			codecs.LegacyCodec(schemeGroupVersions...),
-			codecs.UniversalDeserializer(),
-			schema.GroupVersions(schemeGroupVersions),
-			schema.GroupVersions(schemeGroupVersions),
-		))
+		noConv.LegacyCodec(apiregistrationv1.SchemeGroupVersion))
 	if err != nil {
 		return nil, fmt.Errorf("unable to create Kine legacy storage config: %w", err)
 	}
 
-	aggregatorConfig := aggregatorapiserver.Config{
-		GenericConfig: genericServerConfig,
-	}
+	aggregatorGenericConfig := genericapiserver.NewRecommendedConfig(codecs)
+	aggregatorGenericConfig.SecureServing = genericServerConfig.SecureServing
+	aggregatorGenericConfig.Authentication = genericServerConfig.Authentication
+	aggregatorGenericConfig.Authorization = genericServerConfig.Authorization
+	aggregatorGenericConfig.LoopbackClientConfig = genericServerConfig.LoopbackClientConfig
+	aggregatorGenericConfig.EffectiveVersion = genericServerConfig.EffectiveVersion
+	aggregatorGenericConfig.OpenAPIV3Config = genericServerConfig.OpenAPIV3Config
+	aggregatorGenericConfig.EquivalentResourceRegistry = genericServerConfig.EquivalentResourceRegistry
+	aggregatorGenericConfig.RESTOptionsGetter = kine.NewKineRESTOptionsGetter(*kineStorageConfig)
+	aggregatorGenericConfig.AggregatedDiscoveryGroupManager = genericServerConfig.AggregatedDiscoveryGroupManager
+	aggregatorGenericConfig.MergedResourceConfig = genericServerConfig.MergedResourceConfig
+	aggregatorGenericConfig.BuildHandlerChainFunc = genericapiserver.BuildHandlerChainWithStorageVersionPrecondition
+	aggregatorGenericConfig.SharedInformerFactory = genericServerConfig.SharedInformerFactory
+	aggregatorGenericConfig.AdmissionControl = genericServerConfig.AdmissionControl
+	aggregatorGenericConfig.SkipOpenAPIInstallation = true
 
-	aggregatorConfig.GenericConfig.SkipOpenAPIInstallation = true
-	aggregatorConfig.GenericConfig.BuildHandlerChainFunc = genericapiserver.BuildHandlerChainWithStorageVersionPrecondition
-	aggregatorConfig.GenericConfig.RESTOptionsGetter = kine.NewKineRESTOptionsGetter(*kineStorageConfig)
-	aggregatorConfig.GenericConfig.SharedInformerFactory = clientgoinformers.NewSharedInformerFactory(
-		clientgoclientset.NewForConfigOrDie(genericServerConfig.LoopbackClientConfig), defaultResyncPeriod*time.Minute)
-
-	return &aggregatorConfig, nil
+	return &aggregatorapiserver.Config{
+		GenericConfig: aggregatorGenericConfig,
+	}, nil
 }

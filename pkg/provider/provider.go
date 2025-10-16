@@ -3,6 +3,7 @@ package provider
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/kommodity-io/kommodity/pkg/logging"
@@ -29,6 +30,7 @@ var webhooks embed.FS
 // Cache caches provider CRDs to avoid redundant loading.
 type Cache struct {
 	decoder runtime.Serializer
+	scheme  *runtime.Scheme
 
 	providerCRDs     map[string][]unstructured.Unstructured
 	providerWebhooks []unstructured.Unstructured
@@ -36,16 +38,17 @@ type Cache struct {
 
 // NewProviderCache creates a new ProviderCache.
 func NewProviderCache(scheme *runtime.Scheme) (*Cache, error) {
-	err := addAllProvidersToScheme(scheme)
-	if err != nil {
-		return nil, fmt.Errorf("failed to add providers to scheme: %w", err)
-	}
-
 	return &Cache{
 		decoder:          yaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme),
+		scheme:           scheme,
 		providerCRDs:     make(map[string][]unstructured.Unstructured),
 		providerWebhooks: make([]unstructured.Unstructured, 0),
 	}, nil
+}
+
+// AddAllProvidersToScheme adds all provider CRDs to the given scheme.
+func AddAllProvidersToScheme(scheme *runtime.Scheme) error {
+	return addAllProvidersToScheme(scheme)
 }
 
 // GetProviderGroups returns the groups of all cached providers.
@@ -74,8 +77,13 @@ func (pc *Cache) LoadCache(ctx context.Context) error {
 	return nil
 }
 
-// ApplyAllProviders applies all provider CRDs to the given dynamic Kubernetes client.
-func (pc *Cache) ApplyAllProviders(ctx context.Context, client *dynamic.DynamicClient) error {
+// ApplyCRDProviders applies all provider CRDs to the given dynamic Kubernetes client.
+//
+//nolint:gocognit,funlen,cyclop,nestif,nolintlint
+func (pc *Cache) ApplyCRDProviders(ctx context.Context,
+	webhookURL string,
+	webhookCRT []byte,
+	client *dynamic.DynamicClient) error {
 	logger := logging.FromContext(ctx)
 
 	for group, objs := range pc.providerCRDs {
@@ -83,6 +91,32 @@ func (pc *Cache) ApplyAllProviders(ctx context.Context, client *dynamic.DynamicC
 
 		for _, obj := range objs {
 			logger.Info("Applying CRD", zap.String("group", group))
+
+			conversion, found, _ := unstructured.NestedFieldNoCopy(obj.Object, "spec", "conversion")
+			if found && conversion != nil {
+				conversionStrategy, found, _ := unstructured.NestedString(obj.Object, "spec", "conversion", "strategy")
+				if found && conversionStrategy == "Webhook" {
+					webhook, found, err := unstructured.NestedFieldNoCopy(obj.Object, "spec", "conversion", "webhook")
+					if err != nil || !found {
+						return fmt.Errorf("failed to extract webhook from crd configuration: %w", err)
+					}
+
+					webhookMap, success := webhook.(map[string]any)
+					if !success {
+						return fmt.Errorf("failed to convert webhook from unstructured to map[string]any")
+					}
+
+					err = pc.updateWebhookWithClientData(webhookMap, webhookURL, webhookCRT)
+					if err != nil {
+						return fmt.Errorf("failed to update webhook with client data: %w", err)
+					}
+
+					err = unstructured.SetNestedField(obj.Object, webhookMap, "spec", "conversion", "webhook")
+					if err != nil {
+						return fmt.Errorf("failed to set webhook in crd configuration: %w", err)
+					}
+				}
+			}
 
 			crdGVR := apiextensionsv1.SchemeGroupVersion.
 				WithResource("customresourcedefinitions")
@@ -94,10 +128,25 @@ func (pc *Cache) ApplyAllProviders(ctx context.Context, client *dynamic.DynamicC
 		}
 	}
 
+	return nil
+}
+
+// ApplyWebhookProviders applies all provider webhooks to the given dynamic Kubernetes client.
+func (pc *Cache) ApplyWebhookProviders(ctx context.Context,
+	webhookURL string,
+	webhookCRT []byte,
+	client *dynamic.DynamicClient) error {
+	logger := logging.FromContext(ctx)
+
 	logger.Info("Applying provider webhooks", zap.Int("count", len(pc.providerWebhooks)))
 
 	for _, obj := range pc.providerWebhooks {
 		logger.Info("Applying webhook", zap.String("name", obj.GetName()))
+
+		err := pc.updateWebhooksWithClientData(&obj, webhookURL, webhookCRT)
+		if err != nil {
+			return fmt.Errorf("failed to update webhook %s with client data: %w", obj.GetName(), err)
+		}
 
 		webhookGVR := admissionregistrationv1.SchemeGroupVersion.
 			WithResource("mutatingwebhookconfigurations")
@@ -107,11 +156,71 @@ func (pc *Cache) ApplyAllProviders(ctx context.Context, client *dynamic.DynamicC
 				WithResource("validatingwebhookconfigurations")
 		}
 
-		err := pc.load(ctx, client, webhookGVR, &obj)
+		err = pc.load(ctx, client, webhookGVR, &obj)
 		if err != nil {
 			return fmt.Errorf("failed to load webhook %s: %w", obj.GetName(), err)
 		}
 	}
+
+	return nil
+}
+
+func (pc *Cache) updateWebhooksWithClientData(webhook *unstructured.Unstructured,
+	webhookURL string,
+	webhookCRT []byte) error {
+	webhooks, found, err := unstructured.NestedSlice(webhook.Object, "webhooks")
+	if err != nil || !found {
+		return fmt.Errorf("failed to extract webhooks from webhook configuration: %w", err)
+	}
+
+	for index := range webhooks {
+		webhook, success := webhooks[index].(map[string]any)
+		if !success {
+			return fmt.Errorf("failed to convert webhook from unstructured to map[string]any")
+		}
+
+		err := pc.updateWebhookWithClientData(webhook, webhookURL, webhookCRT)
+		if err != nil {
+			return fmt.Errorf("failed to update webhook with client data: %w", err)
+		}
+	}
+
+	err = unstructured.SetNestedSlice(webhook.Object, webhooks, "webhooks")
+	if err != nil {
+		return fmt.Errorf("failed to set webhooks in webhook configuration: %w", err)
+	}
+
+	return nil
+}
+
+func (pc *Cache) updateWebhookWithClientData(webhook map[string]any,
+	webhookURL string,
+	webhookCRT []byte) error {
+	path, found, err := unstructured.NestedString(webhook, "clientConfig", "service", "path")
+	if err != nil || !found {
+		return fmt.Errorf("failed to extract path from webhook configuration: %w", err)
+	}
+
+	url := webhookURL + path
+
+	clientConfig := admissionregistrationv1.WebhookClientConfig{
+		URL:      &url,
+		CABundle: webhookCRT,
+	}
+
+	var clientConfigMap map[string]interface{}
+
+	b, err := json.Marshal(clientConfig)
+	if err != nil {
+		return fmt.Errorf("failed to marshal clientConfig: %w", err)
+	}
+
+	err = json.Unmarshal(b, &clientConfigMap)
+	if err != nil {
+		return fmt.Errorf("failed to unmarshal clientConfig: %w", err)
+	}
+
+	webhook["clientConfig"] = clientConfigMap
 
 	return nil
 }
@@ -137,11 +246,44 @@ func (pc *Cache) loadCRDCache(ctx context.Context) error {
 			return fmt.Errorf("failed to decode CRD: %w", err)
 		}
 
+		pc.loadCRDInScheme(group, obj)
+
 		pc.providerCRDs[group] = append(pc.providerCRDs[group], *obj)
 		logger.Info("Cached CRD", zap.String("group", group))
 	}
 
 	return nil
+}
+
+func (pc *Cache) loadCRDInScheme(group string, obj *unstructured.Unstructured) {
+	kind, _, _ := unstructured.NestedString(obj.Object, "spec", "names", "kind")
+	versions, _, _ := unstructured.NestedSlice(obj.Object, "spec", "versions")
+
+	for _, version := range versions {
+		versionSpec, success := version.(map[string]any)
+		if !success {
+			continue
+		}
+
+		if served, success := versionSpec["served"].(bool); !success || !served {
+			continue
+		}
+
+		versionName, success := versionSpec["name"].(string)
+		if !success {
+			continue
+		}
+
+		gvk := schema.GroupVersionKind{Group: group, Version: versionName, Kind: kind}
+
+		known := pc.scheme.KnownTypes(gvk.GroupVersion())
+		if _, exists := known[kind]; exists {
+			continue
+		}
+
+		pc.scheme.AddKnownTypeWithName(gvk, &unstructured.Unstructured{})
+		pc.scheme.AddKnownTypeWithName(gvk.GroupVersion().WithKind(kind+"List"), &unstructured.UnstructuredList{})
+	}
 }
 
 func (pc *Cache) loadWebhookCache(ctx context.Context) error {
