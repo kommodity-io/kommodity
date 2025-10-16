@@ -122,16 +122,3 @@ func setupWebhookTLSOptions(gsc *genericapiserver.RecommendedConfig) []func(*tls
 		},
 	}
 }
-
-func setupWebhookTLSOptions(genericServerConfig *genericapiserver.RecommendedConfig) []func(*tls.Config) {
-	return []func(*tls.Config){
-		func(c *tls.Config) {
-			servingCertPEM, servingKeyPEM := genericServerConfig.SecureServing.Cert.CurrentCertKeyContent()
-
-			pair, err := tls.X509KeyPair(servingCertPEM, servingKeyPEM)
-			if err == nil {
-				c.Certificates = []tls.Certificate{pair}
-			}
-		},
-	}
-}
