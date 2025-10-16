@@ -5,6 +5,7 @@ import (
 	"net"
 
 	"github.com/kommodity-io/kommodity/pkg/config"
+	admissionv1 "k8s.io/api/admission/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	authenticationv1 "k8s.io/api/authentication/v1"
@@ -38,6 +39,7 @@ func enhanceScheme(scheme *runtime.Scheme) error {
 		name string
 		fn   func(*runtime.Scheme) error
 	}{
+		{"admissionv1.AddToScheme", admissionv1.AddToScheme},
 		{"admissionregistrationv1.AddToScheme", admissionregistrationv1.AddToScheme},
 		{"apiextensionsinternal.AddToScheme", apiextensionsinternal.AddToScheme},
 		{"apiextensionsv1.AddToScheme", apiextensionsv1.AddToScheme},
@@ -61,6 +63,35 @@ func enhanceScheme(scheme *runtime.Scheme) error {
 	}
 
 	return nil
+}
+
+func mapCoreInternalAliases(scheme *runtime.Scheme) {
+	gvInternal := schema.GroupVersion{Group: "", Version: runtime.APIVersionInternal}
+
+	add := func(kind string, obj runtime.Object) {
+		if _, exists := scheme.KnownTypes(gvInternal)[kind]; !exists {
+			scheme.AddKnownTypeWithName(gvInternal.WithKind(kind), obj)
+		}
+	}
+
+	// Objects
+	add("ConfigMap", &corev1.ConfigMap{})
+	add("Secret", &corev1.Secret{})
+	add("Event", &corev1.Event{})
+	add("Namespace", &corev1.Namespace{})
+	add("Service", &corev1.Service{})
+	add("Endpoints", &corev1.Endpoints{})
+
+	// Lists (needed by watch/list paths)
+	add("ConfigMapList", &corev1.ConfigMapList{})
+	add("SecretList", &corev1.SecretList{})
+	add("EventList", &corev1.EventList{})
+	add("NamespaceList", &corev1.NamespaceList{})
+	add("ServiceList", &corev1.ServiceList{})
+	add("EndpointsList", &corev1.EndpointsList{})
+
+	add("ValidatingWebhookConfiguration", &admissionregistrationv1.ValidatingWebhookConfiguration{})
+	add("MutatingWebhookConfiguration", &admissionregistrationv1.MutatingWebhookConfiguration{})
 }
 
 func setupSecureServingWithSelfSigned(cfg *config.KommodityConfig) (*options.SecureServingOptions, error) {
@@ -87,11 +118,8 @@ func getSupportedGroupKindVersions() []schema.GroupVersion {
 	return []schema.GroupVersion{
 		corev1.SchemeGroupVersion,
 		apiextensionsv1.SchemeGroupVersion,
-		apiextensionsinternal.SchemeGroupVersion,
 		apiregistrationv1.SchemeGroupVersion,
-		apiregistration.SchemeGroupVersion,
 		admissionregistrationv1.SchemeGroupVersion,
-		corev1.SchemeGroupVersion,
 		appsv1.SchemeGroupVersion,
 		authenticationv1.SchemeGroupVersion,
 		authorizationapiv1.SchemeGroupVersion,
@@ -106,7 +134,7 @@ func getSupportedGroupKindVersions() []schema.GroupVersion {
 		nodev1.SchemeGroupVersion,
 		policyapiv1.SchemeGroupVersion,
 		rbacv1.SchemeGroupVersion,
-		storageapiv1.SchemeGroupVersion,
 		schedulingapiv1.SchemeGroupVersion,
+		storageapiv1.SchemeGroupVersion,
 	}
 }
