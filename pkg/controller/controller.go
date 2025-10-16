@@ -9,6 +9,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/go-logr/zapr"
 	"github.com/kommodity-io/kommodity/pkg/config"
+	"github.com/kommodity-io/kommodity/pkg/controller/reconciler"
 	"github.com/kommodity-io/kommodity/pkg/controller/webhook"
 	"github.com/kommodity-io/kommodity/pkg/logging"
 	appsv1 "k8s.io/api/apps/v1"
@@ -91,10 +92,10 @@ func NewAggregatedControllerManager(ctx context.Context,
 
 	logger.Info("Setting up reconcilers")
 
-	// err = reconciler.SetupReconcilers(ctx, kommodityConfig, &manager, clusterCache, controllerOpts)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("failed to setup reconcilers: %w", err)
-	// }
+	err = reconciler.SetupReconcilers(ctx, kommodityConfig, &manager, clusterCache, controllerOpts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to setup reconcilers: %w", err)
+	}
 
 	logger.Info("Controller manager created")
 
@@ -117,6 +118,19 @@ func setupWebhookTLSOptions(gsc *genericapiserver.RecommendedConfig) []func(*tls
 			pair, err := tls.X509KeyPair(certPEM, keyPEM)
 			if err == nil {
 				c.GetCertificate = func(*tls.ClientHelloInfo) (*tls.Certificate, error) { return &pair, nil }
+			}
+		},
+	}
+}
+
+func setupWebhookTLSOptions(genericServerConfig *genericapiserver.RecommendedConfig) []func(*tls.Config) {
+	return []func(*tls.Config){
+		func(c *tls.Config) {
+			servingCertPEM, servingKeyPEM := genericServerConfig.SecureServing.Cert.CurrentCertKeyContent()
+
+			pair, err := tls.X509KeyPair(servingCertPEM, servingKeyPEM)
+			if err == nil {
+				c.Certificates = []tls.Certificate{pair}
 			}
 		},
 	}
