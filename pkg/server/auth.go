@@ -12,7 +12,6 @@ import (
 	"k8s.io/apiserver/pkg/authentication/authenticator"
 	bearertoken "k8s.io/apiserver/pkg/authentication/request/bearertoken"
 	authunion "k8s.io/apiserver/pkg/authentication/request/union"
-	requnion "k8s.io/apiserver/pkg/authentication/request/union"
 	"k8s.io/apiserver/pkg/authentication/user"
 	auth "k8s.io/apiserver/pkg/authorization/authorizer"
 	"k8s.io/apiserver/pkg/authorization/authorizerfactory"
@@ -77,7 +76,7 @@ func NewSelfSubjectAccessReviewREST(cfg *config.KommodityConfig) *selfsubjectacc
 
 func applyAuth(ctx context.Context, cfg *config.KommodityConfig, config *genericapiserver.RecommendedConfig) error {
 	if !cfg.AuthConfig.Apply {
-		config.Authentication.Authenticator = requnion.New(anonymousReqAuth{})
+		config.Authentication.Authenticator = authunion.New(anonymousReqAuth{})
 		config.Authorization.Authorizer = authorizerfactory.NewAlwaysAllowAuthorizer()
 
 		return nil

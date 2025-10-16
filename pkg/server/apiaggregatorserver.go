@@ -105,6 +105,7 @@ func newAPIAggregatorServer(cfg *config.KommodityConfig,
 	return aggregatorServer, nil
 }
 
+//nolint:funlen // Not possible to shorten this function in a meaningful way due to go routine.
 func applyCRDsHook(cfg *config.KommodityConfig,
 	genericServerConfig *genericapiserver.RecommendedConfig,
 	providerCache *provider.Cache,

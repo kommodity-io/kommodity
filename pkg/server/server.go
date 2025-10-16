@@ -269,12 +269,14 @@ func setupAdmissionRegistrationAPIGroupInfo(cfg *config.KommodityConfig,
 	)
 	apiGroupInfo.PrioritizedVersions = []schema.GroupVersion{admissionregistrationv1.SchemeGroupVersion}
 
-	mutatingWebhookConfigStorage, err := webhookconfigurations.NewMutatingWebhookConfigurationREST(*kineStorageConfig, *scheme)
+	mutatingWebhookConfigStorage, err := webhookconfigurations.NewMutatingWebhookConfigurationREST(
+		*kineStorageConfig, *scheme)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create mutating webhook configuration REST storage: %w", err)
 	}
 
-	validatingWebhookConfigStorage, err := webhookconfigurations.NewValidatingWebhookConfigurationREST(*kineStorageConfig, *scheme)
+	validatingWebhookConfigStorage, err := webhookconfigurations.NewValidatingWebhookConfigurationREST(
+		*kineStorageConfig, *scheme)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create validating webhook configuration REST storage: %w", err)
 	}

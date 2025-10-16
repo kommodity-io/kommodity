@@ -1,4 +1,6 @@
 // Package webhookconfigurations implements the storage strategy towards kine for the admission registration resource.
+//
+//nolint:dupl,lll // This file is very similar to mutatingwebhookconfigurations.go but the differences are still significant.
 package webhookconfigurations
 
 import (
@@ -28,7 +30,8 @@ import (
 const validatingWebhookConfigurationResource = "validatingwebhookconfigurations"
 
 // NewValidatingWebhookConfigurationREST creates a REST interface for validating webhook configurations.
-func NewValidatingWebhookConfigurationREST(storageConfig storagebackend.Config, scheme runtime.Scheme) (rest.Storage, error) {
+func NewValidatingWebhookConfigurationREST(storageConfig storagebackend.Config,
+	scheme runtime.Scheme) (rest.Storage, error) {
 	store, _, err := factory.Create(
 		*storageConfig.ForResource(admissionregistrationv1.Resource(validatingWebhookConfigurationResource)),
 		func() runtime.Object { return &admissionregistrationv1.ValidatingWebhookConfiguration{} },
@@ -65,7 +68,7 @@ func NewValidatingWebhookConfigurationREST(storageConfig storagebackend.Config, 
 	}, nil
 }
 
-// ObjectNameFunc returns the name of the object.
+// VWCObjectNameFunc returns the name of the object.
 func VWCObjectNameFunc(obj runtime.Object) (string, error) {
 	vwc, ok := obj.(*admissionregistrationv1.ValidatingWebhookConfiguration)
 	if !ok {
@@ -101,6 +104,8 @@ func VWCSelectableFields(obj *admissionregistrationv1.ValidatingWebhookConfigura
 
 // validatingWebhookConfigurationStrategy implements RESTCreateStrategy, RESTUpdateStrategy, RESTDeleteStrategy
 // Heavily inspired by: https://github.com/kubernetes/kubernetes/blob/master/pkg/registry/admissionregistration/validatingwebhookconfiguration/strategy.go
+//
+//nolint:lll
 type validatingWebhookConfigurationStrategy struct {
 	runtime.ObjectTyper
 	names.NameGenerator
@@ -131,7 +136,7 @@ func (validatingWebhookConfigurationStrategy) PrepareForCreate(ctx context.Conte
 }
 
 // WarningsOnCreate returns warnings for the creation of the given object.
-func (validatingWebhookConfigurationStrategy) WarningsOnCreate(ctx context.Context, obj runtime.Object) []string {
+func (validatingWebhookConfigurationStrategy) WarningsOnCreate(_ context.Context, _ runtime.Object) []string {
 	return nil
 }
 
@@ -160,7 +165,7 @@ func (validatingWebhookConfigurationStrategy) PrepareForUpdate(ctx context.Conte
 }
 
 // Validate validates a new validatingWebhookConfiguration.
-func (validatingWebhookConfigurationStrategy) Validate(ctx context.Context, obj runtime.Object) field.ErrorList {
+func (validatingWebhookConfigurationStrategy) Validate(_ context.Context, obj runtime.Object) field.ErrorList {
 	vwc, success := obj.(*admissionregistrationv1.ValidatingWebhookConfiguration)
 	if !success {
 		return field.ErrorList{field.Invalid(
@@ -171,25 +176,11 @@ func (validatingWebhookConfigurationStrategy) Validate(ctx context.Context, obj 
 	allErrors := apimachineryvalidation.ValidateObjectMeta(&vwc.ObjectMeta, false,
 		apimachineryvalidation.NameIsDNSSubdomain, field.NewPath("metadata"))
 
-	// hookNames := sets.NewString()
-	// for i, hook := range vwc.Webhooks {
-	// 	allErrors = append(allErrors, validateMutatingWebhook(&hook, opts, field.NewPath("webhooks").Index(i))...)
-	// 	allErrors = append(allErrors, validateAdmissionReviewVersions(hook.AdmissionReviewVersions, true,
-	// 		field.NewPath("webhooks").Index(i).Child("admissionReviewVersions"))...)
-
-	// 	if len(hook.Name) > 0 {
-	// 		if hookNames.Has(hook.Name) {
-	// 			allErrors = append(allErrors, field.Duplicate(field.NewPath("webhooks").Index(i).Child("name"), hook.Name))
-	// 		} else {
-	// 			hookNames.Insert(hook.Name)
-	// 		}
-	// 	}
-	// }
 	return allErrors
 }
 
 // Canonicalize normalizes the object after validation.
-func (validatingWebhookConfigurationStrategy) Canonicalize(obj runtime.Object) {
+func (validatingWebhookConfigurationStrategy) Canonicalize(_ runtime.Object) {
 }
 
 // AllowCreateOnUpdate is false for mutatingWebhookConfiguration; this means you may not create one with a PUT request.
@@ -198,7 +189,8 @@ func (validatingWebhookConfigurationStrategy) AllowCreateOnUpdate() bool {
 }
 
 // ValidateUpdate is the default update validation for an end user.
-func (validatingWebhookConfigurationStrategy) ValidateUpdate(ctx context.Context, obj, old runtime.Object) field.ErrorList {
+func (validatingWebhookConfigurationStrategy) ValidateUpdate(_ context.Context, obj,
+	old runtime.Object) field.ErrorList {
 	newvwc, success := obj.(*admissionregistrationv1.ValidatingWebhookConfiguration)
 	if !success {
 		return field.ErrorList{field.Invalid(
@@ -220,12 +212,12 @@ func (validatingWebhookConfigurationStrategy) ValidateUpdate(ctx context.Context
 }
 
 // WarningsOnUpdate returns warnings for the given update.
-func (validatingWebhookConfigurationStrategy) WarningsOnUpdate(ctx context.Context, obj, old runtime.Object) []string {
+func (validatingWebhookConfigurationStrategy) WarningsOnUpdate(_ context.Context, _, _ runtime.Object) []string {
 	return nil
 }
 
-// AllowUnconditionalUpdate is the default update policy for validatingWebhookConfigurationStrategy objects. Status update should
-// only be allowed if version match.
+// AllowUnconditionalUpdate is the default update policy for validatingWebhookConfigurationStrategy objects.
+// Status update should only be allowed if version match.
 func (validatingWebhookConfigurationStrategy) AllowUnconditionalUpdate() bool {
 	return false
 }

@@ -103,7 +103,6 @@ func NewAggregatedControllerManager(ctx context.Context,
 
 func getWebhookServerConfig(genericServerConfig *genericapiserver.RecommendedConfig,
 	kommodityConfig *config.KommodityConfig) ctrlwebhook.Server {
-
 	return ctrlwebhook.NewServer(ctrlwebhook.Options{
 		Port:    kommodityConfig.WebhookPort,
 		TLSOpts: setupWebhookTLSOptions(genericServerConfig),

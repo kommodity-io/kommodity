@@ -135,10 +135,12 @@ func getServingPEMFromFiles(genericServerConfig *genericapiserver.RecommendedCon
 
 	certDir, certFile := filepath.Split(certNames[1])
 
+	//nolint:gosec // We know that the certFile is a file path.
 	pem, err := os.ReadFile(filepath.Join(certDir, certFile))
 	if err != nil {
 		return nil, fmt.Errorf("read webhook serving cert: %w", err)
 	}
+
 	return pem, nil
 }
 

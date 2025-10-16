@@ -1,4 +1,6 @@
 // Package webhookconfigurations implements the storage strategy towards kine for the admission registration resource.
+//
+//nolint:dupl,lll // This file is very similar to validatingwebhookconfigurations.go but the differences are still significant.
 package webhookconfigurations
 
 import (
@@ -28,7 +30,8 @@ import (
 const mutatingWebhookConfigurationResource = "mutatingwebhookconfigurations"
 
 // NewMutatingWebhookConfigurationREST creates a REST interface for mutating webhook configurations.
-func NewMutatingWebhookConfigurationREST(storageConfig storagebackend.Config, scheme runtime.Scheme) (rest.Storage, error) {
+func NewMutatingWebhookConfigurationREST(storageConfig storagebackend.Config,
+	scheme runtime.Scheme) (rest.Storage, error) {
 	store, _, err := factory.Create(
 		*storageConfig.ForResource(admissionregistrationv1.Resource(mutatingWebhookConfigurationResource)),
 		func() runtime.Object { return &admissionregistrationv1.MutatingWebhookConfiguration{} },
@@ -101,6 +104,8 @@ func MWCSelectableFields(obj *admissionregistrationv1.MutatingWebhookConfigurati
 
 // mutatingWebhookConfigurationStrategy implements RESTCreateStrategy, RESTUpdateStrategy, RESTDeleteStrategy
 // Heavily inspired by: https://github.com/kubernetes/kubernetes/blob/master/pkg/registry/admissionregistration/mutatingwebhookconfiguration/strategy.go
+//
+//nolint:lll
 type mutatingWebhookConfigurationStrategy struct {
 	runtime.ObjectTyper
 	names.NameGenerator
@@ -134,7 +139,7 @@ func (mutatingWebhookConfigurationStrategy) PrepareForCreate(ctx context.Context
 }
 
 // WarningsOnCreate returns warnings for the creation of the given object.
-func (mutatingWebhookConfigurationStrategy) WarningsOnCreate(ctx context.Context, obj runtime.Object) []string {
+func (mutatingWebhookConfigurationStrategy) WarningsOnCreate(_ context.Context, _ runtime.Object) []string {
 	return nil
 }
 
@@ -163,7 +168,7 @@ func (mutatingWebhookConfigurationStrategy) PrepareForUpdate(ctx context.Context
 }
 
 // Validate validates a new mutatingWebhookConfiguration.
-func (mutatingWebhookConfigurationStrategy) Validate(ctx context.Context, obj runtime.Object) field.ErrorList {
+func (mutatingWebhookConfigurationStrategy) Validate(_ context.Context, obj runtime.Object) field.ErrorList {
 	mwc, success := obj.(*admissionregistrationv1.MutatingWebhookConfiguration)
 	if !success {
 		return field.ErrorList{field.Invalid(
@@ -178,7 +183,7 @@ func (mutatingWebhookConfigurationStrategy) Validate(ctx context.Context, obj ru
 }
 
 // Canonicalize normalizes the object after validation.
-func (mutatingWebhookConfigurationStrategy) Canonicalize(obj runtime.Object) {
+func (mutatingWebhookConfigurationStrategy) Canonicalize(_ runtime.Object) {
 }
 
 // AllowCreateOnUpdate is false for mutatingWebhookConfiguration; this means you may not create one with a PUT request.
@@ -187,7 +192,7 @@ func (mutatingWebhookConfigurationStrategy) AllowCreateOnUpdate() bool {
 }
 
 // ValidateUpdate is the default update validation for an end user.
-func (mutatingWebhookConfigurationStrategy) ValidateUpdate(ctx context.Context, obj, old runtime.Object) field.ErrorList {
+func (mutatingWebhookConfigurationStrategy) ValidateUpdate(_ context.Context, obj, old runtime.Object) field.ErrorList {
 	newMWC, success := obj.(*admissionregistrationv1.MutatingWebhookConfiguration)
 	if !success {
 		return field.ErrorList{field.Invalid(
@@ -209,7 +214,7 @@ func (mutatingWebhookConfigurationStrategy) ValidateUpdate(ctx context.Context, 
 }
 
 // WarningsOnUpdate returns warnings for the given update.
-func (mutatingWebhookConfigurationStrategy) WarningsOnUpdate(ctx context.Context, obj, old runtime.Object) []string {
+func (mutatingWebhookConfigurationStrategy) WarningsOnUpdate(_ context.Context, _, _ runtime.Object) []string {
 	return nil
 }
 

@@ -12,17 +12,12 @@ import (
 	generatedopenapi "github.com/kommodity-io/kommodity/pkg/openapi"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
-	"k8s.io/apiserver/pkg/admission/plugin/policy/mutating"
-	"k8s.io/apiserver/pkg/admission/plugin/policy/validating"
-	webhookinit "k8s.io/apiserver/pkg/admission/plugin/webhook/initializer"
 	"k8s.io/apiserver/pkg/endpoints/discovery/aggregated"
 	"k8s.io/apiserver/pkg/endpoints/openapi"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	"k8s.io/apiserver/pkg/server/options"
 	apiserverstorage "k8s.io/apiserver/pkg/server/storage"
 	"k8s.io/apiserver/pkg/util/feature"
-	webhookutil "k8s.io/apiserver/pkg/util/webhook"
-	restclientdynamic "k8s.io/client-go/dynamic"
 	clientgoinformers "k8s.io/client-go/informers"
 	clientgoclientset "k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
@@ -80,23 +75,9 @@ func setupAPIServerConfig(ctx context.Context,
 	genericServerConfig.SharedInformerFactory = clientgoinformers.NewSharedInformerFactory(
 		kubeClient, defaultResyncPeriod*time.Minute)
 
-	dynamicClient, err := restclientdynamic.NewForConfig(loopbackConfig)
+	err = applyAdmission(genericServerConfig, kubeClient)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create dynamic client: %w", err)
-	}
-
-	webhookInitializer := webhookinit.NewPluginInitializer(
-		webhookutil.NewDefaultAuthenticationInfoResolverWrapper(nil, nil, loopbackConfig, nil),
-		webhookutil.NewDefaultServiceResolver())
-
-	admissionOpts := options.NewAdmissionOptions()
-	admissionOpts.EnablePlugins = []string{"NamespaceLifecycle", "MutatingAdmissionWebhook", "ValidatingAdmissionWebhook"}
-	admissionOpts.DisablePlugins = []string{validating.PluginName, mutating.PluginName}
-
-	err = admissionOpts.ApplyTo(&genericServerConfig.Config, genericServerConfig.SharedInformerFactory,
-		kubeClient, dynamicClient, genericServerConfig.FeatureGate, webhookInitializer)
-	if err != nil {
-		return nil, fmt.Errorf("apply admission (main server): %w", err)
+		return nil, fmt.Errorf("failed to apply admission config: %w", err)
 	}
 
 	return genericServerConfig, nil

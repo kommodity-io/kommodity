@@ -22,11 +22,14 @@ type dispatchingRESTOptionsGetter struct {
 	cr  genericregistry.RESTOptionsGetter // for all CustomResources
 }
 
-func (d dispatchingRESTOptionsGetter) GetRESTOptions(resource schema.GroupResource, example runtime.Object) (genericregistry.RESTOptions, error) {
+func (d dispatchingRESTOptionsGetter) GetRESTOptions(resource schema.GroupResource,
+	example runtime.Object) (genericregistry.RESTOptions, error) {
 	if resource.Group == apiextensionsv1.GroupName {
+		//nolint:wrapcheck // No need to wrap this error as it's just a passthrough.
 		return d.crd.GetRESTOptions(resource, example)
 	}
 
+	//nolint:wrapcheck // No need to wrap this error as it's just a passthrough.
 	return d.cr.GetRESTOptions(resource, example)
 }
 
