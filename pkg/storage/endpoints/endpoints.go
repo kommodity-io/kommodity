@@ -180,7 +180,7 @@ func (endpointsStrategy) Validate(_ context.Context, obj runtime.Object) field.E
 	}
 
 	return apimachineryvalidation.ValidateObjectMeta(
-		&endpointObject.ObjectMeta, false,
+		&endpointObject.ObjectMeta, true,
 		storage.FieldIsNonNull,
 		field.NewPath("metadata"),
 	)
