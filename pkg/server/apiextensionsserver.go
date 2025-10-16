@@ -13,7 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	genericregistry "k8s.io/apiserver/pkg/registry/generic"
 	genericapiserver "k8s.io/apiserver/pkg/server"
-	"k8s.io/apiserver/pkg/util/webhook"
+	webhookutil "k8s.io/apiserver/pkg/util/webhook"
 )
 
 // dispatching getter chooses per-group storage codec.
@@ -83,14 +83,15 @@ func setupAPIExtensionConfig(cfg *config.KommodityConfig,
 	crdRecommended.MergedResourceConfig = genericServerConfig.MergedResourceConfig
 	crdRecommended.BuildHandlerChainFunc = genericapiserver.BuildHandlerChainWithStorageVersionPrecondition
 	crdRecommended.SharedInformerFactory = genericServerConfig.SharedInformerFactory
-	crdRecommended.AdmissionControl = genericServerConfig.AdmissionControl
 
 	return &apiextensionsapiserver.Config{
 		GenericConfig: crdRecommended,
 		ExtraConfig: apiextensionsapiserver.ExtraConfig{
 			CRDRESTOptionsGetter: restOptionsGetter,
-			ServiceResolver:      webhook.NewDefaultServiceResolver(),
-			MasterCount:          1,
+			ServiceResolver:      webhookutil.NewDefaultServiceResolver(),
+			AuthResolverWrapper: webhookutil.NewDefaultAuthenticationInfoResolverWrapper(
+				nil, nil, crdRecommended.LoopbackClientConfig, nil),
+			MasterCount: 1,
 		},
 	}, nil
 }

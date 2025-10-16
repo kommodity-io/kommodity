@@ -328,8 +328,8 @@ func setupAPIAggregatorConfig(
 	aggregatorGenericConfig.MergedResourceConfig = genericServerConfig.MergedResourceConfig
 	aggregatorGenericConfig.BuildHandlerChainFunc = genericapiserver.BuildHandlerChainWithStorageVersionPrecondition
 	aggregatorGenericConfig.SharedInformerFactory = genericServerConfig.SharedInformerFactory
-	aggregatorGenericConfig.AdmissionControl = genericServerConfig.AdmissionControl
 	aggregatorGenericConfig.SkipOpenAPIInstallation = true
+	aggregatorGenericConfig.FeatureGate = genericServerConfig.FeatureGate
 
 	return &aggregatorapiserver.Config{
 		GenericConfig: aggregatorGenericConfig,

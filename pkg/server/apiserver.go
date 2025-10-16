@@ -12,20 +12,20 @@ import (
 	generatedopenapi "github.com/kommodity-io/kommodity/pkg/openapi"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
-	whinit "k8s.io/apiserver/pkg/admission/plugin/webhook/initializer"
-	"k8s.io/apiserver/pkg/admission/plugin/webhook/mutating"
-	"k8s.io/apiserver/pkg/admission/plugin/webhook/validating"
+	"k8s.io/apiserver/pkg/admission/plugin/policy/mutating"
+	"k8s.io/apiserver/pkg/admission/plugin/policy/validating"
+	webhookinit "k8s.io/apiserver/pkg/admission/plugin/webhook/initializer"
 	"k8s.io/apiserver/pkg/endpoints/discovery/aggregated"
 	"k8s.io/apiserver/pkg/endpoints/openapi"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	"k8s.io/apiserver/pkg/server/options"
 	apiserverstorage "k8s.io/apiserver/pkg/server/storage"
-	utilwebhook "k8s.io/apiserver/pkg/util/webhook"
+	"k8s.io/apiserver/pkg/util/feature"
+	webhookutil "k8s.io/apiserver/pkg/util/webhook"
 	restclientdynamic "k8s.io/client-go/dynamic"
 	clientgoinformers "k8s.io/client-go/informers"
 	clientgoclientset "k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
-	"k8s.io/component-base/featuregate"
 	componentbaseversion "k8s.io/component-base/version"
 )
 
@@ -36,6 +36,7 @@ func setupAPIServerConfig(ctx context.Context,
 	codecs serializer.CodecFactory) (*genericapiserver.RecommendedConfig, error) {
 	genericServerConfig := genericapiserver.NewRecommendedConfig(codecs)
 
+	genericServerConfig.FeatureGate = feature.DefaultFeatureGate
 	genericServerConfig.EquivalentResourceRegistry = runtime.NewEquivalentResourceRegistry()
 	genericServerConfig.AggregatedDiscoveryGroupManager = aggregated.NewResourceManager("apis")
 	genericServerConfig.EffectiveVersion = componentbaseversion.DefaultBuildEffectiveVersion()
@@ -79,21 +80,21 @@ func setupAPIServerConfig(ctx context.Context,
 	genericServerConfig.SharedInformerFactory = clientgoinformers.NewSharedInformerFactory(
 		kubeClient, defaultResyncPeriod*time.Minute)
 
-	dynamicClient, err := restclientdynamic.NewForConfig(genericServerConfig.LoopbackClientConfig)
+	dynamicClient, err := restclientdynamic.NewForConfig(loopbackConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create dynamic client: %w", err)
 	}
 
-	serviceResolver := utilwebhook.NewDefaultServiceResolver()
-	authnWrapper := utilwebhook.AuthenticationInfoResolverWrapper(func(r utilwebhook.AuthenticationInfoResolver) utilwebhook.AuthenticationInfoResolver { return r })
-	webhookInitializer := whinit.NewPluginInitializer(authnWrapper, serviceResolver)
+	webhookInitializer := webhookinit.NewPluginInitializer(
+		webhookutil.NewDefaultAuthenticationInfoResolverWrapper(nil, nil, loopbackConfig, nil),
+		webhookutil.NewDefaultServiceResolver())
 
 	admissionOpts := options.NewAdmissionOptions()
-	admissionOpts.EnablePlugins = []string{"NamespaceLifecycle", validating.PluginName, mutating.PluginName}
-	admissionOpts.DisablePlugins = []string{"ValidatingAdmissionPolicy", "MutatingAdmissionPolicy"}
+	admissionOpts.EnablePlugins = []string{"NamespaceLifecycle", "MutatingAdmissionWebhook", "ValidatingAdmissionWebhook"}
+	admissionOpts.DisablePlugins = []string{validating.PluginName, mutating.PluginName}
 
 	err = admissionOpts.ApplyTo(&genericServerConfig.Config, genericServerConfig.SharedInformerFactory,
-		kubeClient, dynamicClient, featuregate.NewFeatureGate(), webhookInitializer)
+		kubeClient, dynamicClient, genericServerConfig.FeatureGate, webhookInitializer)
 	if err != nil {
 		return nil, fmt.Errorf("apply admission (main server): %w", err)
 	}
