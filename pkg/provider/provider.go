@@ -179,6 +179,14 @@ func (pc *Cache) updateWebhooksWithClientData(webhook *unstructured.Unstructured
 			return fmt.Errorf("failed to convert webhook from unstructured to map[string]any")
 		}
 
+		if _, exists := webhook["namespaceSelector"]; !exists {
+			webhook["namespaceSelector"] = map[string]interface{}{}
+		}
+
+		if _, exists := webhook["objectSelector"]; !exists {
+			webhook["objectSelector"] = map[string]interface{}{}
+		}
+
 		err := pc.updateWebhookWithClientData(webhook, webhookURL, webhookCRT)
 		if err != nil {
 			return fmt.Errorf("failed to update webhook with client data: %w", err)
@@ -196,6 +204,7 @@ func (pc *Cache) updateWebhooksWithClientData(webhook *unstructured.Unstructured
 func (pc *Cache) updateWebhookWithClientData(webhook map[string]any,
 	webhookURL string,
 	webhookCRT []byte) error {
+
 	path, found, err := unstructured.NestedString(webhook, "clientConfig", "service", "path")
 	if err != nil || !found {
 		return fmt.Errorf("failed to extract path from webhook configuration: %w", err)
@@ -209,17 +218,14 @@ func (pc *Cache) updateWebhookWithClientData(webhook map[string]any,
 	}
 
 	var clientConfigMap map[string]interface{}
-
 	b, err := json.Marshal(clientConfig)
 	if err != nil {
 		return fmt.Errorf("failed to marshal clientConfig: %w", err)
 	}
-
 	err = json.Unmarshal(b, &clientConfigMap)
 	if err != nil {
 		return fmt.Errorf("failed to unmarshal clientConfig: %w", err)
 	}
-
 	webhook["clientConfig"] = clientConfigMap
 
 	return nil
