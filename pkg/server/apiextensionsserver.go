@@ -86,6 +86,7 @@ func setupAPIExtensionConfig(cfg *config.KommodityConfig,
 	crdRecommended.MergedResourceConfig = genericServerConfig.MergedResourceConfig
 	crdRecommended.BuildHandlerChainFunc = genericapiserver.BuildHandlerChainWithStorageVersionPrecondition
 	crdRecommended.SharedInformerFactory = genericServerConfig.SharedInformerFactory
+	crdRecommended.AdmissionControl = genericServerConfig.AdmissionControl
 
 	return &apiextensionsapiserver.Config{
 		GenericConfig: crdRecommended,
