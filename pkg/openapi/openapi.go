@@ -13,12 +13,14 @@ package openapi
 //go:generate go run k8s.io/kube-openapi/cmd/openapi-gen --output-dir=./version --output-pkg=github.com/kommodity-io/kommodity/pkg/openapi/version --output-file=zz_generated.openapi.go --logtostderr k8s.io/apimachinery/pkg/version
 //go:generate go run k8s.io/kube-openapi/cmd/openapi-gen --output-dir=./apiextensions --output-pkg=github.com/kommodity-io/kommodity/pkg/openapi/apiextensions --output-file=zz_generated.openapi.go --logtostderr k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1
 //go:generate go run k8s.io/kube-openapi/cmd/openapi-gen --output-dir=./apiregistration --output-pkg=github.com/kommodity-io/kommodity/pkg/openapi/apiregistration --output-file=zz_generated.openapi.go --logtostderr k8s.io/kube-aggregator/pkg/apis/apiregistration/v1
+//go:generate go run k8s.io/kube-openapi/cmd/openapi-gen --output-dir=./admissionregistration --output-pkg=github.com/kommodity-io/kommodity/pkg/openapi/admissionregistration --output-file=zz_generated.openapi.go --logtostderr k8s.io/api/admissionregistration/v1
 //go:generate go run k8s.io/kube-openapi/cmd/openapi-gen --output-dir=./intstr --output-pkg=github.com/kommodity-io/kommodity/pkg/openapi/intstr --output-file=zz_generated.openapi.go --logtostderr k8s.io/apimachinery/pkg/util/intstr
 //go:generate go run k8s.io/kube-openapi/cmd/openapi-gen --output-dir=./authorization --output-pkg=github.com/kommodity-io/kommodity/pkg/openapi/authorization --output-file=zz_generated.openapi.go --logtostderr k8s.io/api/authorization/v1
 
 import (
 	"fmt"
 
+	"github.com/kommodity-io/kommodity/pkg/openapi/admissionregistration"
 	"github.com/kommodity-io/kommodity/pkg/openapi/apiextensions"
 	"github.com/kommodity-io/kommodity/pkg/openapi/authorization"
 	"github.com/kommodity-io/kommodity/pkg/openapi/core"
@@ -60,13 +62,14 @@ func NewOpenAPISpec() (*Spec, error) {
 // GetOpenAPIDefinitions retrieves the OpenAPI definitions defined in types.yaml.
 func (o *Spec) GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenAPIDefinition {
 	kubernetesOpenAPIDefinitions := map[string]map[string]common.OpenAPIDefinition{
-		"core":          core.GetOpenAPIDefinitions(ref),
-		"meta":          meta.GetOpenAPIDefinitions(ref),
-		"version":       version.GetOpenAPIDefinitions(ref),
-		"runtime":       runtime.GetOpenAPIDefinitions(ref),
-		"apiextensions": apiextensions.GetOpenAPIDefinitions(ref),
-		"intstr":        intstr.GetOpenAPIDefinitions(ref),
-		"authorization": authorization.GetOpenAPIDefinitions(ref),
+		"core":                  core.GetOpenAPIDefinitions(ref),
+		"meta":                  meta.GetOpenAPIDefinitions(ref),
+		"version":               version.GetOpenAPIDefinitions(ref),
+		"runtime":               runtime.GetOpenAPIDefinitions(ref),
+		"apiextensions":         apiextensions.GetOpenAPIDefinitions(ref),
+		"intstr":                intstr.GetOpenAPIDefinitions(ref),
+		"authorization":         authorization.GetOpenAPIDefinitions(ref),
+		"admissionregistration": admissionregistration.GetOpenAPIDefinitions(ref),
 	}
 
 	openAPIDefinition := make(map[string]common.OpenAPIDefinition)

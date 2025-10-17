@@ -10,6 +10,7 @@ import (
 
 	"github.com/kommodity-io/kommodity/pkg/logging"
 	"go.uber.org/zap"
+	ctrlwebhook "sigs.k8s.io/controller-runtime/pkg/webhook"
 )
 
 const (
@@ -40,6 +41,7 @@ const (
 type KommodityConfig struct {
 	ServerPort      int
 	APIServerPort   int
+	WebhookPort     int
 	DBURI           *url.URL
 	KineURI         *string
 	AuthConfig      *AuthConfig
@@ -87,6 +89,7 @@ func LoadConfig(ctx context.Context) (*KommodityConfig, error) {
 	return &KommodityConfig{
 		ServerPort:    serverPort,
 		APIServerPort: defaultAPIServerPort,
+		WebhookPort:   ctrlwebhook.DefaultPort,
 		DBURI:         dbURI,
 		KineURI:       kineURI,
 		AuthConfig: &AuthConfig{

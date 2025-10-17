@@ -15,9 +15,25 @@ import (
 
 EOF
 
-# Extract all scheme_locations with their go_module or repository and generate import aliases
-yq -r '.providers[] | (.go_module // .repository) as $base | .scheme_locations[] | $base + "/" + .' "$providers_yaml" | \
-  awk '{ alias="scheme_" NR; printf "\t%s \"%s\"\n", alias, $0 }' >> "$output_file"
+alias_counter=0
+
+count=$(yq '.providers | length' "$providers_yaml")
+for i in $(seq 0 $((count - 1))); do
+  repo=$(yq ".providers[$i].repository" "$providers_yaml")
+  go_module=$(yq -r ".providers[$i].go_module" "$providers_yaml")
+  scheme_locations=$(yq -r ".providers[$i].scheme_locations[]" "$providers_yaml")
+
+  if [ "$go_module" != "null" ] && [ -n "$go_module" ]; then
+    base="$go_module"
+  else
+    base="github.com/$repo"
+  fi
+
+  for scheme_location in $scheme_locations; do
+    alias="scheme_$((alias_counter+=1))"
+    echo -e "\t$alias \"$base/$scheme_location\"" >> "$output_file"
+  done
+done
 
 cat >> "$output_file" <<EOF
 )
