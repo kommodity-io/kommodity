@@ -43,7 +43,7 @@ func (*REST) ShortNames() []string {
 }
 
 // NewEndpointsREST creates a REST interface for corev1 Endpoint resource.
-func NewEndpointsREST(storageConfig storagebackend.Config, _ runtime.Scheme) (rest.Storage, error) {
+func NewEndpointsREST(storageConfig storagebackend.Config, scheme runtime.Scheme) (rest.Storage, error) {
 	store, _, err := factory.Create(
 		*storageConfig.ForResource(corev1.Resource(endpointResource)),
 		func() runtime.Object { return &corev1.Endpoints{} },
@@ -60,7 +60,7 @@ func NewEndpointsREST(storageConfig storagebackend.Config, _ runtime.Scheme) (re
 	}
 
 	endpointsStrategy := endpointsStrategy{
-		runtime.NewScheme(),
+		&scheme,
 		names.SimpleNameGenerator,
 	}
 
@@ -180,7 +180,7 @@ func (endpointsStrategy) Validate(_ context.Context, obj runtime.Object) field.E
 	}
 
 	return apimachineryvalidation.ValidateObjectMeta(
-		&endpointObject.ObjectMeta, false,
+		&endpointObject.ObjectMeta, true,
 		storage.FieldIsNonNull,
 		field.NewPath("metadata"),
 	)

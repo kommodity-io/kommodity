@@ -2,19 +2,36 @@ package server
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/kommodity-io/kommodity/pkg/config"
 	"github.com/kommodity-io/kommodity/pkg/kine"
-	"github.com/kommodity-io/kommodity/pkg/provider"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextensionsapiserver "k8s.io/apiextensions-apiserver/pkg/apiserver"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
+	genericregistry "k8s.io/apiserver/pkg/registry/generic"
 	genericapiserver "k8s.io/apiserver/pkg/server"
-	"k8s.io/apiserver/pkg/util/webhook"
-	clientgoinformers "k8s.io/client-go/informers"
-	clientgoclientset "k8s.io/client-go/kubernetes"
+	webhookutil "k8s.io/apiserver/pkg/util/webhook"
 )
+
+// dispatching getter chooses per-group storage codec.
+type dispatchingRESTOptionsGetter struct {
+	crd genericregistry.RESTOptionsGetter // for apiextensions.k8s.io/*
+	cr  genericregistry.RESTOptionsGetter // for all CustomResources
+}
+
+func (d dispatchingRESTOptionsGetter) GetRESTOptions(resource schema.GroupResource,
+	example runtime.Object) (genericregistry.RESTOptions, error) {
+	if resource.Group == apiextensionsv1.GroupName {
+		//nolint:wrapcheck // No need to wrap this error as it's just a passthrough.
+		return d.crd.GetRESTOptions(resource, example)
+	}
+
+	//nolint:wrapcheck // No need to wrap this error as it's just a passthrough.
+	return d.cr.GetRESTOptions(resource, example)
+}
 
 func newAPIExtensionServer(cfg *config.KommodityConfig,
 	genericServerConfig *genericapiserver.RecommendedConfig,
@@ -36,22 +53,24 @@ func newAPIExtensionServer(cfg *config.KommodityConfig,
 func setupAPIExtensionConfig(cfg *config.KommodityConfig,
 	genericServerConfig *genericapiserver.RecommendedConfig,
 	codecs serializer.CodecFactory) (*apiextensionsapiserver.Config, error) {
-	var schemeGroupVersions = append(
-		provider.GetProviderGroupKindVersions(),
-		getSupportedGroupKindVersions()...)
+	noConv := serializer.WithoutConversionCodecFactory{CodecFactory: codecs}
 
-	kineStorageConfig, err := kine.NewKineStorageConfig(cfg,
-		codecs.CodecForVersions(
-			codecs.LegacyCodec(schemeGroupVersions...),
-			codecs.UniversalDeserializer(),
-			schema.GroupVersions(schemeGroupVersions),
-			schema.GroupVersions(schemeGroupVersions),
-		))
+	crdStorageCfg, err := kine.NewKineStorageConfig(cfg,
+		noConv.LegacyCodec(apiextensionsv1.SchemeGroupVersion))
 	if err != nil {
-		return nil, fmt.Errorf("unable to create Kine legacy storage config: %w", err)
+		return nil, fmt.Errorf("unable to create CRD Kine storage config: %w", err)
 	}
 
-	restOptions := kine.NewKineRESTOptionsGetter(*kineStorageConfig)
+	crdROG := kine.NewKineRESTOptionsGetter(*crdStorageCfg)
+
+	crStorageCfg, err := kine.NewKineStorageConfig(cfg, unstructured.UnstructuredJSONScheme)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create CR Kine storage config: %w", err)
+	}
+
+	crROG := kine.NewKineRESTOptionsGetter(*crStorageCfg)
+
+	restOptionsGetter := dispatchingRESTOptionsGetter{crd: crdROG, cr: crROG}
 
 	// Make sure that the API Legacy server and the Extension server are running with same configs
 	crdRecommended := genericapiserver.NewRecommendedConfig(codecs)
@@ -62,19 +81,21 @@ func setupAPIExtensionConfig(cfg *config.KommodityConfig,
 	crdRecommended.EffectiveVersion = genericServerConfig.EffectiveVersion
 	crdRecommended.OpenAPIV3Config = genericServerConfig.OpenAPIV3Config
 	crdRecommended.EquivalentResourceRegistry = genericServerConfig.EquivalentResourceRegistry
-	crdRecommended.RESTOptionsGetter = restOptions
+	crdRecommended.RESTOptionsGetter = restOptionsGetter
 	crdRecommended.AggregatedDiscoveryGroupManager = genericServerConfig.AggregatedDiscoveryGroupManager
 	crdRecommended.MergedResourceConfig = genericServerConfig.MergedResourceConfig
 	crdRecommended.BuildHandlerChainFunc = genericapiserver.BuildHandlerChainWithStorageVersionPrecondition
-	crdRecommended.SharedInformerFactory = clientgoinformers.NewSharedInformerFactory(
-		clientgoclientset.NewForConfigOrDie(genericServerConfig.LoopbackClientConfig), defaultResyncPeriod*time.Minute)
+	crdRecommended.SharedInformerFactory = genericServerConfig.SharedInformerFactory
+	crdRecommended.AdmissionControl = genericServerConfig.AdmissionControl
 
 	return &apiextensionsapiserver.Config{
 		GenericConfig: crdRecommended,
 		ExtraConfig: apiextensionsapiserver.ExtraConfig{
-			CRDRESTOptionsGetter: restOptions,
-			ServiceResolver:      webhook.NewDefaultServiceResolver(),
-			MasterCount:          1,
+			CRDRESTOptionsGetter: restOptionsGetter,
+			ServiceResolver:      webhookutil.NewDefaultServiceResolver(),
+			AuthResolverWrapper: webhookutil.NewDefaultAuthenticationInfoResolverWrapper(
+				nil, nil, crdRecommended.LoopbackClientConfig, nil),
+			MasterCount: 1,
 		},
 	}, nil
 }

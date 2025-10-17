@@ -195,7 +195,7 @@ func (serviceStrategy) Validate(_ context.Context, obj runtime.Object) field.Err
 	}
 
 	return validation.ValidateObjectMeta(
-		&service.ObjectMeta, false,
+		&service.ObjectMeta, true,
 		validation.NameIsDNS1035Label,
 		field.NewPath("metadata"),
 	)
