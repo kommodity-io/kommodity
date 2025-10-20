@@ -47,7 +47,7 @@ func main() {
 	server, err := combinedserver.New(combinedserver.ServerConfig{
 		Port:        cfg.ServerPort,
 		HTTPFactory: server.NewHTTPMuxFactory(ctx, cfg),
-		GRPCFactory: kms.NewGRPCServerFactory(),
+		GRPCFactory: kms.NewGRPCServerFactory(cfg),
 	})
 	if err != nil {
 		logger.Error("Failed to create combined server", zap.Error(err))

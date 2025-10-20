@@ -56,6 +56,8 @@ func setupAPIServerConfig(ctx context.Context,
 		return nil, fmt.Errorf("failed to setup loopback client config: %w", err)
 	}
 
+	cfg.ClientConfig.LoopbackClientConfig = loopbackConfig
+
 	genericServerConfig.LoopbackClientConfig = loopbackConfig
 
 	resourceConfig := apiserverstorage.NewResourceConfig()

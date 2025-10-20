@@ -10,6 +10,7 @@ import (
 
 	"github.com/kommodity-io/kommodity/pkg/logging"
 	"go.uber.org/zap"
+	restclient "k8s.io/client-go/rest"
 	ctrlwebhook "sigs.k8s.io/controller-runtime/pkg/webhook"
 )
 
@@ -45,6 +46,7 @@ type KommodityConfig struct {
 	DBURI           *url.URL
 	KineURI         *string
 	AuthConfig      *AuthConfig
+	ClientConfig    *ClientConfig
 	DevelopmentMode bool
 }
 
@@ -53,6 +55,11 @@ type AuthConfig struct {
 	Apply      bool
 	OIDCConfig *OIDCConfig
 	AdminGroup string
+}
+
+// ClientConfig holds the client configuration settings for the Kommodity API server.
+type ClientConfig struct {
+	LoopbackClientConfig *restclient.Config
 }
 
 // OIDCConfig holds the OIDC configuration settings from the environment variables.
@@ -97,6 +104,7 @@ func LoadConfig(ctx context.Context) (*KommodityConfig, error) {
 			OIDCConfig: oidcConfig,
 			AdminGroup: adminGroup,
 		},
+		ClientConfig:    &ClientConfig{},
 		DevelopmentMode: developmentMode,
 	}, nil
 }
