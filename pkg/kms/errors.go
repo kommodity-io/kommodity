@@ -8,4 +8,6 @@ var (
 	ErrEmptyClientContext = errors.New("client context is empty")
 	// ErrEmptyData is an error that indicates the data is empty.
 	ErrEmptyData = errors.New("data is empty")
+	// ErrCipherTooShort is an error that indicates the ciphertext is too short.
+	ErrCipherTooShort = errors.New("ciphertext too short")
 )
