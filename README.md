@@ -85,6 +85,15 @@ kubectl --kubeconfig kommodity.yaml create -f examples/secret.yaml
 grpcurl -plaintext localhost:8000 list
 ```
 
+### Setup Kubectl for Kommodity Talos Cluster
+
+```bash
+kubectl --kubeconfig <kommodity kubeconfig file> get secrets <cluster name>-talosconfig -ojson\ 
+  | jq -r '.data.talosconfig'\
+  | base64 -d > talosconfig
+talosctl --talosconfig talosconfig kubeconfig -n <controlplane node ip>
+```
+
 ## Features
 
 ### 🔒 OIDC Authentication
@@ -124,7 +133,7 @@ The `kms` package provides a mock implementation of the [Talos Linux Key Managem
 # Test sealing.
 export SECRET="This is super secret"
 grpcurl -plaintext -d "{\"data\": \"$(echo -n "$SECRET" | base64)\"}" \
-  localhost:8080 sidero.kms.KMSService/Seal \
+  localhost:8000 sidero.kms.KMSService/Seal \
   | jq -r '.data' | base64 --decode
 ```
 
@@ -134,7 +143,7 @@ grpcurl -plaintext -d "{\"data\": \"$(echo -n "$SECRET" | base64)\"}" \
 # Test unsealing.
 export SEALED="sealed:This is super secret"
 grpcurl -plaintext -d "{\"data\": \"$(echo -n "$SEALED" | base64)\"}" \
-  localhost:8080 sidero.kms.KMSService/Unseal \
+  localhost:8000 sidero.kms.KMSService/Unseal \
   | jq -r '.data' | base64 --decode
 ```
 
