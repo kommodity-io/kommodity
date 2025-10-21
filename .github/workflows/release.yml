@@ -187,6 +187,7 @@ jobs:
 
       - name: Create release
         uses: docker://ghcr.io/codfish/semantic-release-action:v3
+        id: semantic
         with:
           repository-url: https://github.com/${{ github.repository }}
           branches: |
@@ -201,3 +202,22 @@ jobs:
             ]
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.180
+        with:
+          context: .
+          file: Containerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/kommodity:latest
+            ghcr.io/${{ github.repository }}/kommodity:${{ steps.semantic.outputs.release-version }}
+            ghcr.io/${{ github.repository }}/kommodity:${{ github.sha }}
+          platforms: linux/amd64,linux/arm64
