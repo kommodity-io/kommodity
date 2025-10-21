@@ -172,6 +172,7 @@ jobs:
       contents: write
       pull-requests: write
       issues: write
+      packages: write
     steps:
       - name: Checkout
         uses: actions/checkout@v5
