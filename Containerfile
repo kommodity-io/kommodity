@@ -1,6 +1,9 @@
-FROM golang:1.24-alpine AS build
+FROM --platform=$BUILDPLATFORM golang:1.24-alpine AS build
 
-ARG PLATFORM=amd64
+# This is set automatically by buildx
+ARG TARGETARCH
+ARG TARGETOS
+
 WORKDIR /app
 
 RUN go env -w GOCACHE=/go-cache
@@ -12,7 +15,7 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-RUN --mount=type=cache,target=/gomod-cache --mount=type=cache,target=/go-cache GOOS=linux GOARCH=${PLATFORM} make build
+RUN --mount=type=cache,target=/gomod-cache --mount=type=cache,target=/go-cache GOOS=${TARGETOS} GOARCH=${TARGETARCH} make build
 
 FROM gcr.io/distroless/static-debian12 AS runtime
 
