@@ -1,6 +1,6 @@
 FROM golang:1.24-alpine AS build
 
-ARG VERSION
+ARG PLATFORM=amd64
 WORKDIR /app
 
 RUN go env -w GOCACHE=/go-cache
@@ -12,7 +12,7 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-RUN --mount=type=cache,target=/gomod-cache --mount=type=cache,target=/go-cache GOOS=linux GOARCH=amd64 make build
+RUN --mount=type=cache,target=/gomod-cache --mount=type=cache,target=/go-cache GOOS=linux GOARCH=${PLATFORM} make build
 
 FROM gcr.io/distroless/static-debian12 AS runtime
 
