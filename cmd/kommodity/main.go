@@ -9,6 +9,7 @@ import (
 
 	"github.com/kommodity-io/kommodity/pkg/combinedserver"
 	"github.com/kommodity-io/kommodity/pkg/config"
+	"github.com/kommodity-io/kommodity/pkg/kine"
 	"github.com/kommodity-io/kommodity/pkg/kms"
 	"github.com/kommodity-io/kommodity/pkg/logging"
 	"github.com/kommodity-io/kommodity/pkg/server"
@@ -59,6 +60,18 @@ func main() {
 	}
 
 	finalizers = append(finalizers, server.Shutdown)
+
+	go func() {
+		err = kine.StartKine(cfg)
+		if err != nil {
+			logger.Error("Failed to start Kine server", zap.Error(err))
+
+			// Ensure that the server is shut down gracefully when an error occurs.
+			signals <- syscall.SIGTERM
+
+			return
+		}
+	}()
 
 	go func() {
 		err = server.ListenAndServe(ctx)
