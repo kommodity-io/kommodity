@@ -21,6 +21,7 @@ const (
 	defaultOIDCUsernameClaim = "email"
 	defaultOIDCGroupsClaim   = "groups"
 	defaultDevelopmentMode   = false
+	defaultKineURI           = "127.0.0.1:2379"
 
 	envServerPort        = "KOMMODITY_PORT"
 	envAdminGroup        = "KOMMODITY_ADMIN_GROUP"
@@ -30,7 +31,6 @@ const (
 	envOIDCUsernameClaim = "KOMMODITY_OIDC_USERNAME_CLAIM"
 	envOIDCGroupsClaim   = "KOMMODITY_OIDC_GROUPS_CLAIM"
 	envDatabaseURI       = "KOMMODITY_DB_URI"
-	envKineURI           = "KOMMODITY_KINE_URI"
 	envDevelopmentMode   = "KOMMODITY_DEVELOPMENT_MODE"
 )
 
@@ -44,7 +44,7 @@ type KommodityConfig struct {
 	APIServerPort   int
 	WebhookPort     int
 	DBURI           *url.URL
-	KineURI         *string
+	KineURI         string
 	AuthConfig      *AuthConfig
 	ClientConfig    *ClientConfig
 	DevelopmentMode bool
@@ -88,17 +88,12 @@ func LoadConfig(ctx context.Context) (*KommodityConfig, error) {
 		return nil, fmt.Errorf("failed to get database URI: %w", err)
 	}
 
-	kineURI, err := getKineURI()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get Kine URI: %w", err)
-	}
-
 	return &KommodityConfig{
 		ServerPort:    serverPort,
 		APIServerPort: defaultAPIServerPort,
 		WebhookPort:   ctrlwebhook.DefaultPort,
 		DBURI:         dbURI,
-		KineURI:       kineURI,
+		KineURI:       defaultKineURI,
 		AuthConfig: &AuthConfig{
 			Apply:      apply,
 			OIDCConfig: oidcConfig,
@@ -218,15 +213,6 @@ func getDatabaseURI() (*url.URL, error) {
 	}
 
 	return uri, nil
-}
-
-func getKineURI() (*string, error) {
-	kineURI := os.Getenv(envKineURI)
-	if kineURI == "" {
-		return nil, ErrKommodityKineEnvVarNotSet
-	}
-
-	return &kineURI, nil
 }
 
 func getDevelopmentMode(ctx context.Context) bool {

@@ -14,7 +14,7 @@ func NewKineStorageConfig(cfg *config.KommodityConfig, codec runtime.Codec) (*st
 		Prefix: "/registry",
 		Codec:  codec,
 		Transport: storagebackend.TransportConfig{
-			ServerList: []string{*cfg.KineURI},
+			ServerList: []string{cfg.KineURI},
 		},
 	}, nil
 }
