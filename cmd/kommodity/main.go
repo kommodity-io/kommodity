@@ -19,6 +19,7 @@ import (
 	_ "github.com/joho/godotenv/autoload"
 )
 
+//nolint:funlen // Not complex enough to warrant breaking down, only initialization logic and goroutines.
 func main() {
 	logger := logging.NewLogger()
 	ctx := logging.WithLogger(genericapiserver.SetupSignalContext(), logger)
