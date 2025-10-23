@@ -222,14 +222,22 @@ jobs:
       - name: Extract version from tag
         id: extract_version
         run: |
-          version=${GITHUB_REF#refs/tags/}
+          #!/bin/bash
 
-          # Make sure we only get one tag and it matches the expected format.
-          if [[ ! "${version}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "Tag '${version}' does not match required format."
-            exit 1
+          git fetch --tags --force
+
+          TAGS=$(git tag --points-at HEAD)
+
+          # Filter tags matching semantic version pattern
+          SEMVER_TAG=$(echo "$TAGS" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1)
+
+          if [ -z "$SEMVER_TAG" ]; then
+              echo "No semantic version tag found for this commit."
+              exit 1
+          else
+              echo "Found semantic version tag: $SEMVER_TAG"
+              echo "version=${SEMVER_TAG}" >> $GITHUB_OUTPUT
           fi
-          echo "version=${version}" >> $GITHUB_OUTPUT
 
       - name: Build and push Docker image
         uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.180
