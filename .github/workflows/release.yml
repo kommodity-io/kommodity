@@ -165,7 +165,7 @@ jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
-    # if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs:
       - build
     permissions:
@@ -185,22 +185,22 @@ jobs:
           path: release
           merge-multiple: true
 
-      # - name: Create release
-      #   uses: docker://ghcr.io/codfish/semantic-release-action:v3
-      #   with:
-      #     repository-url: https://github.com/${{ github.repository }}
-      #     branches: |
-      #       [
-      #         "main"
-      #       ]
-      #     plugins: |
-      #       [
-      #         "@semantic-release/commit-analyzer",
-      #         "@semantic-release/release-notes-generator",
-      #         ["@semantic-release/github", { assets: [{ path: "release/**"}] }]
-      #       ]
-      #   env:
-      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create release
+        uses: docker://ghcr.io/codfish/semantic-release-action:v3
+        with:
+          repository-url: https://github.com/${{ github.repository }}
+          branches: |
+            [
+              "main"
+            ]
+          plugins: |
+            [
+              "@semantic-release/commit-analyzer",
+              "@semantic-release/release-notes-generator",
+              ["@semantic-release/github", { assets: [{ path: "release/**"}] }]
+            ]
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   docker-build-push:
     name: Build and push Docker image
@@ -234,8 +234,6 @@ jobs:
         run: |
           #!/bin/bash
 
-          df -h
-
           git fetch --tags --force
 
           TAGS=$(git tag --points-at HEAD)
@@ -245,7 +243,7 @@ jobs:
 
           if [ -z "$SEMVER_TAG" ]; then
               echo "No semantic version tag found for this commit."
-              # exit 1
+              exit 1
           else
               echo "Found semantic version tag: $SEMVER_TAG"
               echo "version=${SEMVER_TAG}" >> $GITHUB_OUTPUT
@@ -256,13 +254,9 @@ jobs:
         with:
           context: .
           file: Containerfile
-          push: false
+          push: true
           platforms: linux/amd64,linux/arm64
           tags: |
             ghcr.io/${{ github.repository }}/kommodity:latest
-
-      - name: Get disk space
-        run: |
-          #!/bin/bash
-
-          df -h
+            ghcr.io/${{ github.repository }}/kommodity:${{ steps.extract_version.outputs.version }}
+            ghcr.io/${{ github.repository }}/kommodity:${{ github.sha }}
