@@ -1,0 +1,11 @@
+{{- if .Values.kommodity.security.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: attestation-policy-{{ .Release.Name }}
+  namespace: kommodity-systems
+data:
+  confidentialCompute: "{{ .Values.kommodity.security.attestationPolicy.confidentialCompute }}"
+  secureBoot: "{{ .Values.kommodity.security.attestationPolicy.secureBoot }}"
+  imageSignature: "{{ .Values.kommodity.security.attestationPolicy.imageSignature }}"
+{{- end }}

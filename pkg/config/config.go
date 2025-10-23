@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/kommodity-io/kommodity/pkg/logging"
 	"go.uber.org/zap"
@@ -15,23 +16,25 @@ import (
 )
 
 const (
-	defaultServerPort        = 8000
-	defaultAPIServerPort     = 8443
-	defaultDisableAuth       = false
-	defaultOIDCUsernameClaim = "email"
-	defaultOIDCGroupsClaim   = "groups"
-	defaultDevelopmentMode   = false
-	defaultKineURI           = "127.0.0.1:2379"
+	defaultServerPort          = 8000
+	defaultAPIServerPort       = 8443
+	defaultDisableAuth         = false
+	defaultOIDCUsernameClaim   = "email"
+	defaultOIDCGroupsClaim     = "groups"
+	defaultDevelopmentMode     = false
+	defaultKineURI             = "127.0.0.1:2379"
+	defaultAttestationNonceTTL = 5 * time.Minute
 
-	envServerPort        = "KOMMODITY_PORT"
-	envAdminGroup        = "KOMMODITY_ADMIN_GROUP"
-	envDisableAuth       = "KOMMODITY_INSECURE_DISABLE_AUTHENTICATION"
-	envOIDCIssuerURL     = "KOMMODITY_OIDC_ISSUER_URL"
-	envOIDCClientID      = "KOMMODITY_OIDC_CLIENT_ID"
-	envOIDCUsernameClaim = "KOMMODITY_OIDC_USERNAME_CLAIM"
-	envOIDCGroupsClaim   = "KOMMODITY_OIDC_GROUPS_CLAIM"
-	envDatabaseURI       = "KOMMODITY_DB_URI"
-	envDevelopmentMode   = "KOMMODITY_DEVELOPMENT_MODE"
+	envServerPort          = "KOMMODITY_PORT"
+	envAdminGroup          = "KOMMODITY_ADMIN_GROUP"
+	envDisableAuth         = "KOMMODITY_INSECURE_DISABLE_AUTHENTICATION"
+	envOIDCIssuerURL       = "KOMMODITY_OIDC_ISSUER_URL"
+	envOIDCClientID        = "KOMMODITY_OIDC_CLIENT_ID"
+	envOIDCUsernameClaim   = "KOMMODITY_OIDC_USERNAME_CLAIM"
+	envOIDCGroupsClaim     = "KOMMODITY_OIDC_GROUPS_CLAIM"
+	envDatabaseURI         = "KOMMODITY_DB_URI"
+	envAttestationNonceTTL = "KOMMODITY_ATTESTATION_NONCE_TTL"
+	envDevelopmentMode     = "KOMMODITY_DEVELOPMENT_MODE"
 )
 
 const (
@@ -40,14 +43,15 @@ const (
 
 // KommodityConfig holds the configuration settings for the Kommodity API server.
 type KommodityConfig struct {
-	ServerPort      int
-	APIServerPort   int
-	WebhookPort     int
-	DBURI           *url.URL
-	KineURI         string
-	AuthConfig      *AuthConfig
-	ClientConfig    *ClientConfig
-	DevelopmentMode bool
+	ServerPort        int
+	APIServerPort     int
+	WebhookPort       int
+	DBURI             *url.URL
+	KineURI           string
+	AttestationConfig *AttestationConfig
+	AuthConfig        *AuthConfig
+	ClientConfig      *ClientConfig
+	DevelopmentMode   bool
 }
 
 // AuthConfig holds the authentication configuration settings for the Kommodity API server.
@@ -55,6 +59,11 @@ type AuthConfig struct {
 	Apply      bool
 	OIDCConfig *OIDCConfig
 	AdminGroup string
+}
+
+// AttestationConfig holds the attestation configuration settings for the Kommodity API server.
+type AttestationConfig struct {
+	NonceTTL time.Duration
 }
 
 // ClientConfig holds the client configuration settings for the Kommodity API server.
@@ -89,11 +98,12 @@ func LoadConfig(ctx context.Context) (*KommodityConfig, error) {
 	}
 
 	return &KommodityConfig{
-		ServerPort:    serverPort,
-		APIServerPort: defaultAPIServerPort,
-		WebhookPort:   ctrlwebhook.DefaultPort,
-		DBURI:         dbURI,
-		KineURI:       defaultKineURI,
+		ServerPort:        serverPort,
+		APIServerPort:     defaultAPIServerPort,
+		WebhookPort:       ctrlwebhook.DefaultPort,
+		DBURI:             dbURI,
+		KineURI:           defaultKineURI,
+		AttestationConfig: getAttestationConfig(ctx),
 		AuthConfig: &AuthConfig{
 			Apply:      apply,
 			OIDCConfig: oidcConfig,
@@ -213,6 +223,37 @@ func getDatabaseURI() (*url.URL, error) {
 	}
 
 	return uri, nil
+}
+
+func getAttestationConfig(ctx context.Context) *AttestationConfig {
+	logger := logging.FromContext(ctx)
+
+	nonceTTLStr := os.Getenv(envAttestationNonceTTL)
+	if nonceTTLStr == "" {
+		logger.Info(configurationNotSpecified,
+			zap.String("envVar", envAttestationNonceTTL),
+			zap.String("default", defaultAttestationNonceTTL.String()))
+
+		return &AttestationConfig{
+			NonceTTL: defaultAttestationNonceTTL,
+		}
+	}
+
+	nonceTTL, err := time.ParseDuration(nonceTTLStr)
+	if err != nil {
+		logger.Info("failed to parse attestation nonce TTL",
+			zap.String("envVar", envAttestationNonceTTL),
+			zap.String("value", nonceTTLStr),
+			zap.String("default", defaultAttestationNonceTTL.String()))
+
+		return &AttestationConfig{
+			NonceTTL: defaultAttestationNonceTTL,
+		}
+	}
+
+	return &AttestationConfig{
+		NonceTTL: nonceTTL,
+	}
 }
 
 func getDevelopmentMode(ctx context.Context) bool {
