@@ -9,6 +9,7 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
+	"net"
 	"strings"
 
 	"github.com/google/uuid"
@@ -17,6 +18,7 @@ import (
 	"github.com/siderolabs/kms-client/api/kms"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 
 	corev1 "k8s.io/api/core/v1"
@@ -28,9 +30,8 @@ import (
 
 const (
 	//nolint:gosec // this is just a prefix for KMS secrets
-	secretPrefix       = "talos-kms-"
-	keySize            = 32 // 256 bits
-	kommodityNamespace = "kommodity-system"
+	secretPrefix = "talos-kms"
+	keySize      = 32 // 256 bits
 )
 
 // ServiceServer is a struct that implements the ServiceServer interface.
@@ -41,7 +42,6 @@ type ServiceServer struct {
 }
 
 // Seal is a method that encrypts data using the KMS service.
-// DISCLAIMER: This is a mock implementation that appends a "sealed:" prefix to the input data.
 func (s *ServiceServer) Seal(ctx context.Context, req *kms.Request) (*kms.Response, error) {
 	nodeUUID, err := validateNodeUUID(req)
 	if err != nil {
@@ -54,6 +54,16 @@ func (s *ServiceServer) Seal(ctx context.Context, req *kms.Request) (*kms.Respon
 		return nil, status.Error(codes.InvalidArgument, "data is required")
 	}
 
+	client, ok := peer.FromContext(ctx)
+	if !ok {
+		return nil, ErrEmptyClientContext
+	}
+
+	host, _, err := net.SplitHostPort(client.Addr.String())
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract client IP: %w", err)
+	}
+
 	kubeClient, err := clientgoclientset.NewForConfig(s.config.ClientConfig.LoopbackClientConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create kube client: %w", err)
@@ -61,7 +71,7 @@ func (s *ServiceServer) Seal(ctx context.Context, req *kms.Request) (*kms.Respon
 
 	encryptionKey, err := getEncryptionKey(ctx, kubeClient, nodeUUID)
 	if apierrors.IsNotFound(err) {
-		encryptionKey, err = createEncryptionKey(ctx, kubeClient, nodeUUID)
+		encryptionKey, err = createEncryptionKey(ctx, kubeClient, nodeUUID, host)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create encryption key: %w", err)
 		}
@@ -130,8 +140,9 @@ func getEncryptionKey(ctx context.Context, kubeClient *clientgoclientset.Clients
 	return secret.Data["encryptionKey"], nil
 }
 
-func createEncryptionKey(ctx context.Context, kubeClient *clientgoclientset.Clientset,
-	nodeUUID string) ([]byte, error) {
+func createEncryptionKey(ctx context.Context,
+	kubeClient *clientgoclientset.Clientset,
+	nodeUUID, nodeIP string) ([]byte, error) {
 	secretName := getSecretName(nodeUUID)
 
 	key := make([]byte, keySize)
@@ -144,11 +155,8 @@ func createEncryptionKey(ctx context.Context, kubeClient *clientgoclientset.Clie
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      secretName,
-			Namespace: kommodityNamespace,
-			Labels: map[string]string{
-				"app.kubernetes.io/managed-by": "kommodity",
-				"talos.dev/node-uuid":          nodeUUID,
-			},
+			Namespace: config.KommodityNamespace,
+			Labels:    config.GetKommodityLabels(nodeUUID, nodeIP),
 		},
 		Type: corev1.SecretTypeOpaque,
 		Data: map[string][]byte{
@@ -165,11 +173,11 @@ func createEncryptionKey(ctx context.Context, kubeClient *clientgoclientset.Clie
 }
 
 func getSecretsAPI(kubeClient *clientgoclientset.Clientset) v1.SecretInterface {
-	return (*kubeClient).CoreV1().Secrets(kommodityNamespace)
+	return kubeClient.CoreV1().Secrets(config.KommodityNamespace)
 }
 
 func getSecretName(nodeUUID string) string {
-	return secretPrefix + nodeUUID
+	return fmt.Sprintf("%s-%s", secretPrefix, nodeUUID)
 }
 
 func validateNodeUUID(req *kms.Request) (string, error) {
