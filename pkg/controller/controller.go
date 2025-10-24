@@ -20,6 +20,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	ctrlwebhook "sigs.k8s.io/controller-runtime/pkg/webhook"
 	crwebconv "sigs.k8s.io/controller-runtime/pkg/webhook/conversion"
@@ -52,6 +53,9 @@ func NewAggregatedControllerManager(ctx context.Context,
 			Logger: logger,
 			Cache: cache.Options{
 				Scheme: scheme,
+			},
+			Metrics: metricsserver.Options{
+				BindAddress: "0",
 			},
 			Client: client.Options{
 				Scheme: scheme,
