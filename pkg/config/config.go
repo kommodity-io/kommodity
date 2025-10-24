@@ -22,7 +22,7 @@ const (
 	defaultOIDCUsernameClaim   = "email"
 	defaultOIDCGroupsClaim     = "groups"
 	defaultDevelopmentMode     = false
-	defaultKineURI             = "127.0.0.1:2379"
+	defaultKineURI             = "unix://bin/kine.sock"
 	defaultAttestationNonceTTL = 5 * time.Minute
 
 	envServerPort          = "KOMMODITY_PORT"
