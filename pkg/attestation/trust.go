@@ -9,6 +9,8 @@ import (
 	"github.com/kommodity-io/kommodity/pkg/config"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientgoclientset "k8s.io/client-go/kubernetes"
+	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	ctrlclint "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
@@ -34,6 +36,7 @@ func getTrust(cfg *config.KommodityConfig) func(http.ResponseWriter, *http.Reque
 			return
 		}
 
+		//nolint:varnamelen // Variable name ip is appropriate for the context.
 		ip := request.PathValue("ip")
 		if ip == "" {
 			http.Error(response, "IP address is required", http.StatusBadRequest)
@@ -48,19 +51,66 @@ func getTrust(cfg *config.KommodityConfig) func(http.ResponseWriter, *http.Reque
 			return
 		}
 
-		_ = kubeClient
+		ctrlClient, err := ctrlclint.New(cfg.ClientConfig.LoopbackClientConfig, ctrlclint.Options{})
+		if err != nil {
+			http.Error(response, "Failed to create controller client", http.StatusInternalServerError)
 
-		// Call K8s API to get all Machines and validate that we have a
-		// node with specific IP and is in boostrapping state.
+			return
+		}
+
+		machine, err := findManagedMachineByIP(request.Context(), &ctrlClient, ip)
+		if err != nil {
+			http.Error(response, "Failed to find machine by IP: "+err.Error(), http.StatusInternalServerError)
+
+			return
+		}
+
+		policy, err := getAttestationPolicy(request.Context(), kubeClient, machine.Spec.ClusterName)
+		if err != nil {
+			http.Error(response, "Failed to get attestation policy: "+err.Error(), http.StatusInternalServerError)
+
+			return
+		}
+
+		report, err := getMachineAttestationReport(request.Context(), kubeClient, machine)
+		if err != nil {
+			http.Error(response, "Failed to get attestation report: "+err.Error(), http.StatusInternalServerError)
+
+			return
+		}
+
+		_ = report
+		_ = policy
+
+		// Compare report with policy to determine trust status.
+		// For now, we return Not Implemented.
 
 		response.WriteHeader(http.StatusNotImplemented)
 	}
 }
 
-func getAttestationPolicy(ctx context.Context, kubeClient *clientgoclientset.Clientset, releaseName string) (*attestationPolicy, error) {
-	cmName := fmt.Sprintf("%s-%s", configMapPolicyPrefix, releaseName)
+func getMachineAttestationReport(ctx context.Context,
+	kubeClient *clientgoclientset.Clientset,
+	machine *clusterv1.Machine) (*attestationReport, error) {
+	configMapName := getConfigMapReportName(machine)
 
-	attestationConfigMap, err := getConfigMapAPI(kubeClient).Get(ctx, cmName, metav1.GetOptions{})
+	attestationConfigMap, err := getConfigMapAPI(kubeClient).Get(ctx, configMapName, metav1.GetOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get attestation report config map: %w", err)
+	}
+
+	// Define attestationReport structure and populate it from attestationConfigMap.Data
+	_ = attestationConfigMap
+
+	return &attestationReport{}, nil
+}
+
+func getAttestationPolicy(ctx context.Context,
+	kubeClient *clientgoclientset.Clientset,
+	clusterName string) (*attestationPolicy, error) {
+	configMapName := fmt.Sprintf("%s-%s", configMapPolicyPrefix, clusterName)
+
+	attestationConfigMap, err := getConfigMapAPI(kubeClient).Get(ctx, configMapName, metav1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get attestation policy config map: %w", err)
 	}

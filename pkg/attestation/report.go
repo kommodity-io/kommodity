@@ -10,18 +10,18 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientgoclientset "k8s.io/client-go/kubernetes"
-	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
-)
-
-const (
-	configMapReportPrefix = "attestation-report"
+	ctrlclint "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 type reportRequest struct {
-	Nounce   string          `json:"nounce"`
-	NodeUUID string          `json:"nodeUUID"` //nolint:tagliatelle
-	NodeIP   string          `json:"nodeIP"`   //nolint:tagliatelle
-	Report   json.RawMessage `json:"report"`
+	Nounce string          `json:"nounce"`
+	Node   nodeInfo        `json:"node"`
+	Report json.RawMessage `json:"report"`
+}
+
+type nodeInfo struct {
+	UUID string `json:"uuid"`
+	IP   string `json:"ip"`
 }
 
 func postReport(nounceStore *NounceStore, cfg *config.KommodityConfig) func(http.ResponseWriter, *http.Request) {
@@ -54,14 +54,7 @@ func postReport(nounceStore *NounceStore, cfg *config.KommodityConfig) func(http
 			return
 		}
 
-		kubeClient, err := clientgoclientset.NewForConfig(cfg.ClientConfig.LoopbackClientConfig)
-		if err != nil {
-			http.Error(response, "Failed to create kube client", http.StatusInternalServerError)
-
-			return
-		}
-
-		err = saveAttestationReport(request.Context(), kubeClient, req.NodeUUID, req.NodeIP, req.Report)
+		err = saveAttestationReport(request.Context(), cfg, req.Node, req.Report)
 		if err != nil {
 			http.Error(response, "Failed to save attestation report", http.StatusInternalServerError)
 
@@ -73,31 +66,38 @@ func postReport(nounceStore *NounceStore, cfg *config.KommodityConfig) func(http
 }
 
 func saveAttestationReport(ctx context.Context,
-	kubeClient *clientgoclientset.Clientset,
-	nodeUUID, nodeIP string,
+	cfg *config.KommodityConfig,
+	node nodeInfo,
 	report json.RawMessage,
 ) error {
-	_, err := getConfigMapAPI(kubeClient).Create(ctx, &corev1.ConfigMap{
+	kubeClient, err := clientgoclientset.NewForConfig(cfg.ClientConfig.LoopbackClientConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create kube client: %w", err)
+	}
+
+	ctrlClient, err := ctrlclint.New(cfg.ClientConfig.LoopbackClientConfig, ctrlclint.Options{})
+	if err != nil {
+		return fmt.Errorf("failed to create controller client: %w", err)
+	}
+
+	machine, err := findManagedMachineByIP(ctx, &ctrlClient, node.IP)
+	if err != nil {
+		return fmt.Errorf("failed to find managed machine by IP %s: %w", node.IP, err)
+	}
+
+	_, err = getConfigMapAPI(kubeClient).Create(ctx, &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      getConfigMapName(nodeUUID),
+			Name:      getConfigMapReportName(machine),
 			Namespace: config.KommodityNamespace,
-			Labels:    config.GetKommodityLabels(nodeUUID, nodeIP),
+			Labels:    config.GetKommodityLabels(node.UUID, node.IP),
 		},
 		Data: map[string]string{
 			"report": string(report),
 		},
 	}, metav1.CreateOptions{})
 	if err != nil {
-		return fmt.Errorf("failed to save attestation report for node %s: %w", nodeUUID, err)
+		return fmt.Errorf("failed to save attestation report for node %s: %w", node.IP, err)
 	}
 
 	return nil
-}
-
-func getConfigMapName(nodeUUID string) string {
-	return fmt.Sprintf("%s-%s", configMapReportPrefix, nodeUUID)
-}
-
-func getConfigMapAPI(kubeClient *clientgoclientset.Clientset) v1.ConfigMapInterface {
-	return kubeClient.CoreV1().ConfigMaps(config.KommodityNamespace)
 }
