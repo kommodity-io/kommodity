@@ -5,8 +5,15 @@ kind: DockerMachineTemplate
 metadata:
   name: {{ .Release.Name }}-controlplane
   namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: kommodity
 spec:
   template:
+    metadata:
+      labels:
+        cluster.x-k8s.io/cluster-name: {{ .Release.Name }}
+        cluster.x-k8s.io/deployment-name: {{ .Release.Name }}-controlplane
+        app.kubernetes.io/managed-by: kommodity
     spec:
       customImage: ghcr.io/siderolabs/talos:{{ .Values.talos.version }}
 
@@ -17,8 +24,15 @@ kind: DockerMachineTemplate
 metadata:
   name: {{ $.Release.Name }}-worker-{{ $name }}
   namespace: {{ $.Release.Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: kommodity
 spec:
   template:
+    metadata:
+      labels:
+        cluster.x-k8s.io/cluster-name: {{ $.Release.Name }}
+        cluster.x-k8s.io/deployment-name: {{ $.Release.Name }}-worker-{{ $name }}
+        app.kubernetes.io/managed-by: kommodity
     spec:
       customImage: ghcr.io/siderolabs/talos:{{ $.Values.talos.version }}
 {{- end }}
