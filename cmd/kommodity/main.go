@@ -60,29 +60,30 @@ func main() {
 		}
 	}()
 
+	rootCtx := context.WithoutCancel(ctx)
 	kineReadyChan := make(chan struct{})
 	kineServer.WaitForKine(ctx, kineReadyChan)
-	logger.Info("Kine server started successfully")
-
-	server, err := combinedserver.New(combinedserver.ServerConfig{
-		Port:        cfg.ServerPort,
-		HTTPFactory: server.NewHTTPMuxFactory(ctx, cfg),
-		GRPCFactory: kms.NewGRPCServerFactory(cfg),
-	})
-	if err != nil {
-		logger.Error("Failed to create combined server", zap.Error(err))
-
-		// Ensure that the server is shut down gracefully when an error occurs.
-		signals <- syscall.SIGTERM
-
-		return
-	}
-
-	finalizers = append(finalizers, server.Shutdown)
 
 	go func() {
 		// Wait for Kine to be ready before starting the API server.
 		<-kineReadyChan
+		logger.Info("Kine server started successfully")
+
+		server, err := combinedserver.New(combinedserver.ServerConfig{
+			Port:        cfg.ServerPort,
+			HTTPFactory: server.NewHTTPMuxFactory(rootCtx, cfg),
+			GRPCFactory: kms.NewGRPCServerFactory(cfg),
+		})
+		if err != nil {
+			logger.Error("Failed to create combined server", zap.Error(err))
+
+			// Ensure that the server is shut down gracefully when an error occurs.
+			signals <- syscall.SIGTERM
+
+			return
+		}
+
+		finalizers = append(finalizers, server.Shutdown)
 
 		err = server.ListenAndServe(ctx)
 		if err != nil {

@@ -3,12 +3,15 @@ package kine
 import (
 	"context"
 	"fmt"
-	"net"
 	"time"
+
+	clientv3 "go.etcd.io/etcd/client/v3"
+	"google.golang.org/grpc/credentials/insecure"
 
 	kineconfig "github.com/k3s-io/kine/pkg/app"
 	"github.com/kommodity-io/kommodity/pkg/config"
 	"github.com/kommodity-io/kommodity/pkg/logging"
+	"google.golang.org/grpc"
 )
 
 const (
@@ -31,7 +34,12 @@ func NewServer(cfg *config.KommodityConfig) *Server {
 func (ks *Server) StartKine() error {
 	kineApp := kineconfig.New()
 
-	err := kineApp.Run(append([]string{"kine"}, "--endpoint="+ks.cfg.DBURI.String()))
+	err := kineApp.Run([]string{
+		"kine",
+		"--listen-address=" + ks.cfg.KineURI,
+		"--endpoint=" + ks.cfg.DBURI.String(),
+		"--metrics-bind-address=0",
+	})
 	if err != nil {
 		return fmt.Errorf("failed to start kine: %w", err)
 	}
@@ -44,22 +52,22 @@ func (ks *Server) WaitForKine(ctx context.Context, readyChan chan struct{}) {
 	go func() {
 		logger := logging.FromContext(ctx)
 		for {
-			logger.Info("Waiting for Kine to be ready...")
+			logger.Info("Waiting for Kine to be ready (grpc health check)...")
 
-			dialer := &net.Dialer{Timeout: kineDialTimeout}
-
-			conn, err := dialer.DialContext(
-				ctx,
-				"tcp",
-				ks.cfg.KineURI,
-			)
+			cli, err := clientv3.New(clientv3.Config{
+				Endpoints:   []string{ks.cfg.KineURI},
+				DialTimeout: kineDialTimeout,
+				DialOptions: []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())},
+			})
 			if err == nil {
-				// Intentionally ignore close errors
-				_ = conn.Close()
+				_, err := cli.Get(ctx, "health-check")
+				_ = cli.Close()
 
-				close(readyChan)
+				if err == nil {
+					close(readyChan)
 
-				return
+					return
+				}
 			}
 
 			time.Sleep(kineDialTimeout)
