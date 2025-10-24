@@ -4,6 +4,8 @@ kind: TalosControlPlane
 metadata:
   name: {{ $.Release.Name }}-controlplane
   namespace: {{ $.Release.Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: kommodity
 spec:
   version: {{ $.Values.kubernetes.version }}
   replicas: {{ $.Values.kommodity.controlplane.replicas }}

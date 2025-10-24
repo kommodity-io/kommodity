@@ -8,6 +8,8 @@ kind: ScalewayCluster
 metadata:
   name: {{ .Release.Name }}
   namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: kommodity
 spec:
   failureDomains:
   {{- range $zone, $_ := $zones }}

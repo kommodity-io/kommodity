@@ -4,6 +4,8 @@ kind: MachineDeployment
 metadata:
   name: {{ $.Release.Name }}-worker-{{ $name }}
   namespace: {{ $.Release.Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: kommodity
 spec:
   clusterName: {{ $.Release.Name }}
   minReadySeconds: 0
@@ -17,6 +19,11 @@ spec:
   selector:
     matchLabels: null
   template:
+    metadata:
+      labels:
+        cluster.x-k8s.io/cluster-name: {{ $.Release.Name }}
+        cluster.x-k8s.io/deployment-name: {{ $.Release.Name }}-worker-{{ $name }}
+        app.kubernetes.io/managed-by: kommodity
     spec:
       bootstrap:
         configRef:

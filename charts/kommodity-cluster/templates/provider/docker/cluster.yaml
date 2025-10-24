@@ -4,6 +4,8 @@ kind: DockerCluster
 metadata:
   name: {{ .Release.Name }}
   namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: kommodity
 spec:
   controlPlaneEndpoint:
     host: localhost

@@ -160,6 +160,7 @@ Several environment variables can be set to configure Kommodity:
 | `KOMMODITY_OIDC_CLIENT_ID`  | OIDC client ID for authentication                        | (none)               |
 | `KOMMODITY_OIDC_USERNAME_CLAIM` | OIDC claim used for username                         | `email`              |
 | `KOMMODITY_OIDC_GROUPS_CLAIM`  | OIDC claim used for groups                            | `groups`             |
+| `KOMMODITY_ATTESTATION_NONCE_TTL` | TTL for attestation nonces (e.g., `5m`, `1h`)      | `5m`                |
 | `KOMMODITY_DB_URI`          | URI of the PostgreSQL database                           | (none)               |
 | `KOMMODITY_DEVELOPMENT_MODE` | Enable development mode (installs development CRDs for Docker)      | `false`              |
 
