@@ -35,21 +35,3 @@ spec:
     init:
       generateType: init
       hostname: {}
-    {{- if $.Values.kommodity.kms.enabled }}
-    strategicPatches:
-      - |
-        machine:
-          systemDiskEncryption:
-            state:
-                provider: luks2
-                keys:
-                  - kms:
-                      endpoint: {{ $.Values.kommodity.kms.endpoint | quote }}
-                    slot: 0
-            ephemeral:
-                provider: luks2
-                keys:
-                  - kms:
-                      endpoint: {{ $.Values.kommodity.kms.endpoint | quote }}
-                    slot: 0
-    {{- end }}

@@ -11,9 +11,6 @@ kommodity:
       podCIDR:
         - 10.244.0.0/16
 
-  kms:
-    enabled: false
-
   security:
     enabled: false
     attestationPolicy:
