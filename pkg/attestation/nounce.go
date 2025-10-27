@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"time"
+
+	"github.com/kommodity-io/kommodity/pkg/net"
 )
 
 type nounceResponse struct {
@@ -11,10 +13,16 @@ type nounceResponse struct {
 	ExpiresAt time.Time `json:"expiresAt"`
 }
 
-func getNounce(nounceStore *NounceStore) func(http.ResponseWriter, *http.Request) {
+func getNounce(nounceStore *NounceStore, rateLimiter *net.RateLimiter) func(http.ResponseWriter, *http.Request) {
 	return func(response http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodGet {
 			http.Error(response, "Method not allowed", http.StatusMethodNotAllowed)
+
+			return
+		}
+
+		if !rateLimiter.GetClientLimiter(request.RemoteAddr).Allow() {
+			http.Error(response, "Rate limit exceeded", http.StatusTooManyRequests)
 
 			return
 		}
