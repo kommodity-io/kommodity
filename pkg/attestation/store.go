@@ -73,13 +73,13 @@ func (s *NounceStore) use(nounce string) (bool, error) {
 
 	exp, exists := s.data[nounce]
 	if !exists {
-		return false, ErrInvalidNounce
+		return false, ErrInvalidNonce
 	}
 
 	if now.After(exp) {
 		delete(s.data, nounce)
 
-		return false, ErrExpiredNounce
+		return false, ErrExpiredNonce
 	}
 
 	// single-use
