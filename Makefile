@@ -45,7 +45,7 @@ $(LINTER):
 	grep -q '^KOMMODITY_DB_URI=' .env || echo 'KOMMODITY_DB_URI=postgres://kommodity:kommodity@localhost:5432/kommodity?sslmode=disable' >> .env
 	grep -q '^KOMMODITY_PORT=' .env || echo 'KOMMODITY_PORT=8000' >> .env
 	grep -q '^KOMMODITY_INSECURE_DISABLE_AUTHENTICATION=' .env || echo 'KOMMODITY_INSECURE_DISABLE_AUTHENTICATION=true' >> .env
-	grep -q '^KOMMODITY_DEVELOPMENT_MODE=' .env || echo 'KOMMODITY_DEVELOPMENT_MODE=true' >> .env
+	grep -q '^KOMMODITY_DEVELOPMENT_MODE=' .env || echo 'KOMMODITY_DEVELOPMENT_MODE=false' >> .env
 
 .PHONY: compose-up
 compose-up:
@@ -54,6 +54,10 @@ compose-up:
 .PHONY: compose-down
 compose-down: # Shuts down docker containers and removes volumes
 	docker compose down --remove-orphans -v
+
+.PHONY: select-in-local-db
+select-in-local-db:
+	psql -h localhost -d kommodity -U kommodity -c "SELECT * FROM kine;"
 
 .PHONY: setup
 setup: generate compose-up
@@ -101,6 +105,18 @@ teardown: compose-down ## Tear down the local development environment.
 .PHONY: build-image
 build-image: ## Build the Docker image.
 	docker buildx build -f Containerfile -t kommodity:latest .
+
+# Run the container image
+# .env file created by 'make .env'
+# Make sure KOMMODITY_DB_URI targets 'postgres' not 'localhost'
+# kommodity_kommodity-net network created by 'make compose-up'
+.PHONY: run-container
+run-container: build-image
+	docker run \
+		-p 8000:8000 \
+		--env-file .env \
+		--network kommodity_kommodity-net \
+		kommodity:latest
 
 setup-kind-management-cluster:
 	./scripts/setup-kind-management-cluster.sh

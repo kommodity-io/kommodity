@@ -3,6 +3,7 @@ package kine
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	clientv3 "go.etcd.io/etcd/client/v3"
@@ -15,7 +16,8 @@ import (
 )
 
 const (
-	kineDialTimeout = 2 * time.Second
+	kineDialTimeout         = 2 * time.Second
+	binDirectoryPermissions = 0750
 )
 
 // Server represents a Kine server instance.
@@ -32,9 +34,15 @@ func NewServer(cfg *config.KommodityConfig) *Server {
 
 // StartKine starts a Kine server based on the provided Kommodity configuration.
 func (ks *Server) StartKine() error {
+	// Ensure bin folder exists
+	err := os.MkdirAll("bin", binDirectoryPermissions)
+	if err != nil {
+		return fmt.Errorf("failed to create bin directory: %w", err)
+	}
+
 	kineApp := kineconfig.New()
 
-	err := kineApp.Run([]string{
+	err = kineApp.Run([]string{
 		"kine",
 		"--listen-address=" + ks.cfg.KineURI,
 		"--endpoint=" + ks.cfg.DBURI.String(),
