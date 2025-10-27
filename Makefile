@@ -45,7 +45,7 @@ $(LINTER):
 	grep -q '^KOMMODITY_DB_URI=' .env || echo 'KOMMODITY_DB_URI=postgres://kommodity:kommodity@localhost:5432/kommodity?sslmode=disable' >> .env
 	grep -q '^KOMMODITY_PORT=' .env || echo 'KOMMODITY_PORT=8000' >> .env
 	grep -q '^KOMMODITY_INSECURE_DISABLE_AUTHENTICATION=' .env || echo 'KOMMODITY_INSECURE_DISABLE_AUTHENTICATION=true' >> .env
-	grep -q '^KOMMODITY_DEVELOPMENT_MODE=' .env || echo 'KOMMODITY_DEVELOPMENT_MODE=false' >> .env
+	grep -q '^KOMMODITY_DEVELOPMENT_MODE=' .env || echo 'KOMMODITY_DEVELOPMENT_MODE=true' >> .env
 
 .PHONY: compose-up
 compose-up:
@@ -112,7 +112,7 @@ build-image: ## Build the Docker image.
 # kommodity_kommodity-net network created by 'make compose-up'
 .PHONY: run-container
 run-container: build-image
-	docker run \
+	docker run --rm \
 		-p 8000:8000 \
 		--env-file .env \
 		--network kommodity_kommodity-net \
