@@ -4,6 +4,10 @@ package attestation
 import (
 	"net/http"
 
+	restutils "github.com/kommodity-io/kommodity/pkg/attestation/rest"
+	restnounce "github.com/kommodity-io/kommodity/pkg/attestation/rest/nounce"
+	restreport "github.com/kommodity-io/kommodity/pkg/attestation/rest/report"
+	resttrust "github.com/kommodity-io/kommodity/pkg/attestation/rest/trust"
 	"github.com/kommodity-io/kommodity/pkg/combinedserver"
 	"github.com/kommodity-io/kommodity/pkg/config"
 	"github.com/kommodity-io/kommodity/pkg/net"
@@ -13,11 +17,11 @@ import (
 func NewHTTPMuxFactory(cfg *config.KommodityConfig) combinedserver.HTTPMuxFactory {
 	return func(mux *http.ServeMux) error {
 		rateLimiter := net.NewRateLimiter()
-		nounceStore := newNounceStore(cfg.AttestationConfig.NonceTTL)
+		nounceStore := restutils.NewNounceStore(cfg.AttestationConfig.NonceTTL)
 
-		mux.HandleFunc("GET /nounce", getNounce(nounceStore, rateLimiter))
-		mux.HandleFunc("POST /report", postReport(nounceStore, cfg))
-		mux.HandleFunc("GET /report/{ip}/trust", getTrust(cfg))
+		mux.HandleFunc("GET /nounce", restnounce.GetNounce(nounceStore, rateLimiter))
+		mux.HandleFunc("POST /report", restreport.PostReport(nounceStore, cfg))
+		mux.HandleFunc("GET /report/{ip}/trust", resttrust.GetTrust(cfg))
 
 		return nil
 	}
