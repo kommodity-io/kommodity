@@ -55,6 +55,10 @@ compose-up:
 compose-down: # Shuts down docker containers and removes volumes
 	docker compose down --remove-orphans -v
 
+.PHONY: select-in-local-db
+select-in-local-db:
+	psql -h localhost -d kommodity -U kommodity -c "SELECT * FROM kine;"
+
 .PHONY: setup
 setup: generate compose-up
 
@@ -101,6 +105,18 @@ teardown: compose-down ## Tear down the local development environment.
 .PHONY: build-image
 build-image: ## Build the Docker image.
 	docker buildx build -f Containerfile -t kommodity:latest .
+
+# Run the container image
+# .env file created by 'make .env'
+# Make sure KOMMODITY_DB_URI targets 'postgres' not 'localhost'
+# kommodity_kommodity-net network created by 'make compose-up'
+.PHONY: run-container
+run-container: build-image
+	docker run --rm \
+		-p 8000:8000 \
+		--env-file .env \
+		--network kommodity_kommodity-net \
+		kommodity:latest
 
 setup-kind-management-cluster:
 	./scripts/setup-kind-management-cluster.sh

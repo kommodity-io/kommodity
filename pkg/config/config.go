@@ -35,6 +35,7 @@ const (
 	envDatabaseURI         = "KOMMODITY_DB_URI"
 	envAttestationNonceTTL = "KOMMODITY_ATTESTATION_NONCE_TTL"
 	envDevelopmentMode     = "KOMMODITY_DEVELOPMENT_MODE"
+  envKineURI             = "KOMMODITY_KINE_URI"
 )
 
 const (
@@ -86,6 +87,7 @@ func LoadConfig(ctx context.Context) (*KommodityConfig, error) {
 	apply := getApplyAuth(ctx)
 	oidcConfig := getOIDCConfig(ctx)
 	developmentMode := getDevelopmentMode(ctx)
+	kineURI := getKineURI(ctx)
 
 	adminGroup, err := getAdminGroup()
 	if apply && err != nil {
@@ -102,7 +104,7 @@ func LoadConfig(ctx context.Context) (*KommodityConfig, error) {
 		APIServerPort:     defaultAPIServerPort,
 		WebhookPort:       ctrlwebhook.DefaultPort,
 		DBURI:             dbURI,
-		KineURI:           defaultKineURI,
+		KineURI:           kineURI,
 		AttestationConfig: getAttestationConfig(ctx),
 		AuthConfig: &AuthConfig{
 			Apply:      apply,
@@ -120,8 +122,8 @@ func getServerPort(ctx context.Context) int {
 	serverPort := os.Getenv(envServerPort)
 	if serverPort == "" {
 		logger.Info(configurationNotSpecified,
-			zap.Int("default", defaultServerPort),
-			zap.String("envVar", envServerPort))
+			zap.String("envVar", envServerPort),
+			zap.Int("default", defaultServerPort))
 
 		return defaultServerPort
 	}
@@ -145,8 +147,8 @@ func getApplyAuth(ctx context.Context) bool {
 	disableAuth := os.Getenv(envDisableAuth)
 	if disableAuth == "" {
 		logger.Info(configurationNotSpecified,
-			zap.Bool("default", defaultDisableAuth),
-			zap.String("envVar", envDisableAuth))
+			zap.String("envVar", envDisableAuth),
+			zap.Bool("default", defaultDisableAuth))
 
 		return defaultDisableAuth
 	}
@@ -262,8 +264,8 @@ func getDevelopmentMode(ctx context.Context) bool {
 	developmentMode := os.Getenv(envDevelopmentMode)
 	if developmentMode == "" {
 		logger.Info(configurationNotSpecified,
-			zap.Bool("default", defaultDevelopmentMode),
-			zap.String("envVar", envDevelopmentMode))
+			zap.String("envVar", envDevelopmentMode),
+			zap.Bool("default", defaultDevelopmentMode))
 
 		return defaultDevelopmentMode
 	}
@@ -279,4 +281,19 @@ func getDevelopmentMode(ctx context.Context) bool {
 	}
 
 	return developmentModeBool
+}
+
+func getKineURI(ctx context.Context) string {
+	logger := logging.FromContext(ctx)
+
+	kineURI := os.Getenv(envKineURI)
+	if kineURI == "" {
+		logger.Info(configurationNotSpecified,
+			zap.String("envVar", envKineURI),
+			zap.String("default", defaultKineURI))
+
+		return defaultKineURI
+	}
+
+	return kineURI
 }
