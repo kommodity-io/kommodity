@@ -19,19 +19,22 @@ type nounceResponse struct {
 func GetNounce(nounceStore *restutils.NounceStore,
 	rateLimiter *net.RateLimiter) func(http.ResponseWriter, *http.Request) {
 	return func(response http.ResponseWriter, request *http.Request) {
+		//nolint:varnamelen // Variable name ip is appropriate for the context.
+		ip := request.RemoteAddr
+
 		if request.Method != http.MethodGet {
 			http.Error(response, "Method not allowed", http.StatusMethodNotAllowed)
 
 			return
 		}
 
-		if !rateLimiter.GetClientLimiter(request.RemoteAddr).Allow() {
+		if !rateLimiter.GetClientLimiter(ip).Allow() {
 			http.Error(response, "Rate limit exceeded", http.StatusTooManyRequests)
 
 			return
 		}
 
-		nounce, ttl, err := nounceStore.Generate()
+		nounce, ttl, err := nounceStore.Generate(ip)
 		if err != nil {
 			http.Error(response, "Failed to generate nounce", http.StatusInternalServerError)
 

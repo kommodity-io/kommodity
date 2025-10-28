@@ -45,7 +45,7 @@ func PostReport(nounceStore *restutils.NounceStore,
 			return
 		}
 
-		valid, err := nounceStore.Use(req.Nounce)
+		valid, err := nounceStore.Use(request.RemoteAddr, req.Nounce)
 		if err != nil {
 			http.Error(response, err.Error(), http.StatusBadRequest)
 
