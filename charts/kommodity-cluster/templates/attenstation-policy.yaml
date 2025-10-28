@@ -2,7 +2,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: attestation-policy-{{ .Release.Name }}
+  name: {{ .Release.Name }}-attestation-policy
   namespace: kommodity-system
   labels:
     cluster.x-k8s.io/cluster-name: {{ .Release.Name }}
