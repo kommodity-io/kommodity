@@ -83,6 +83,8 @@ func (s *NounceStore) Generate(ip string) (string, time.Time, error) {
 }
 
 // Use validates and consumes a nounce. It returns true if the nounce is valid and not expired.
+//
+//nolint:varnamelen // Variable name ip is appropriate for the context.
 func (s *NounceStore) Use(ip, nounce string) (bool, error) {
 	now := time.Now()
 
