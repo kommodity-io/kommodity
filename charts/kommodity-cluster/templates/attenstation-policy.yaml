@@ -1,0 +1,14 @@
+{{- if .Values.kommodity.security.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-attestation-policy
+  namespace: kommodity-system
+  labels:
+    cluster.x-k8s.io/cluster-name: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: kommodity
+data:
+  confidentialCompute: "{{ .Values.kommodity.security.attestationPolicy.confidentialCompute }}"
+  secureBoot: "{{ .Values.kommodity.security.attestationPolicy.secureBoot }}"
+  imageSignature: "{{ .Values.kommodity.security.attestationPolicy.imageSignature }}"
+{{- end }}

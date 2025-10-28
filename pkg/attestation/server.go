@@ -1,0 +1,28 @@
+// Package attestation provides functionality for attestation services for establishing trust for the Talos machines.
+package attestation
+
+import (
+	"net/http"
+
+	restutils "github.com/kommodity-io/kommodity/pkg/attestation/rest"
+	restnounce "github.com/kommodity-io/kommodity/pkg/attestation/rest/nounce"
+	restreport "github.com/kommodity-io/kommodity/pkg/attestation/rest/report"
+	resttrust "github.com/kommodity-io/kommodity/pkg/attestation/rest/trust"
+	"github.com/kommodity-io/kommodity/pkg/combinedserver"
+	"github.com/kommodity-io/kommodity/pkg/config"
+	"github.com/kommodity-io/kommodity/pkg/net"
+)
+
+// NewHTTPMuxFactory creates a new HTTP mux factory for the attestation server.
+func NewHTTPMuxFactory(cfg *config.KommodityConfig) combinedserver.HTTPMuxFactory {
+	return func(mux *http.ServeMux) error {
+		rateLimiter := net.NewRateLimiter()
+		nounceStore := restutils.NewNounceStore(cfg.AttestationConfig.NonceTTL)
+
+		mux.HandleFunc("GET /nounce", restnounce.GetNounce(nounceStore, rateLimiter))
+		mux.HandleFunc("POST /report", restreport.PostReport(nounceStore, cfg))
+		mux.HandleFunc("GET /report/{ip}/trust", resttrust.GetTrust(cfg))
+
+		return nil
+	}
+}

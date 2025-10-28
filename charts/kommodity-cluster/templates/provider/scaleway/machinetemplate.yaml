@@ -5,6 +5,8 @@ kind: ScalewayMachineTemplate
 metadata:
   name: {{ .Release.Name }}-controlplane
   namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: kommodity
 spec:
   template:
     spec:
@@ -26,6 +28,8 @@ kind: ScalewayMachineTemplate
 metadata:
   name: {{ $.Release.Name }}-worker-{{ $name }}
   namespace: {{ $.Release.Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: kommodity
 spec:
   template:
     spec:

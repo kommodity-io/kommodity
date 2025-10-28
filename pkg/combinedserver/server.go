@@ -27,9 +27,9 @@ type GRPCServerFactory func(*grpc.Server) error
 
 // ServerConfig holds the configuration for the combined server.
 type ServerConfig struct {
-	GRPCFactory GRPCServerFactory
-	HTTPFactory HTTPMuxFactory
-	Port        int
+	GRPCFactory   GRPCServerFactory
+	HTTPFactories []HTTPMuxFactory
+	Port          int
 }
 
 type server struct {
@@ -153,12 +153,14 @@ func (s *server) serveHTTP(_ context.Context) error {
 		ReadHeaderTimeout: 1 * time.Second,
 	}
 
-	err := s.HTTPFactory(httpMux)
-	if err != nil {
-		return fmt.Errorf("failed to create HTTP mux: %w", err)
+	for _, factory := range s.HTTPFactories {
+		err := factory(httpMux)
+		if err != nil {
+			return fmt.Errorf("failed to create HTTP mux: %w", err)
+		}
 	}
 
-	err = s.httpServer.Serve(s.httpListener)
+	err := s.httpServer.Serve(s.httpListener)
 	if err != nil {
 		if errors.Is(err, http.ErrServerClosed) {
 			// This is expected when the server is shut down gracefully.

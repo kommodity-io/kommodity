@@ -7,12 +7,13 @@ import (
 	"os/signal"
 	"syscall"
 
+	attestationserver "github.com/kommodity-io/kommodity/pkg/attestation"
 	"github.com/kommodity-io/kommodity/pkg/combinedserver"
 	"github.com/kommodity-io/kommodity/pkg/config"
 	"github.com/kommodity-io/kommodity/pkg/kine"
 	"github.com/kommodity-io/kommodity/pkg/kms"
 	"github.com/kommodity-io/kommodity/pkg/logging"
-	"github.com/kommodity-io/kommodity/pkg/server"
+	k8sserver "github.com/kommodity-io/kommodity/pkg/server"
 	"go.uber.org/zap"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 
@@ -70,8 +71,11 @@ func main() {
 		logger.Info("Kine server started successfully")
 
 		server, err := combinedserver.New(combinedserver.ServerConfig{
-			Port:        cfg.ServerPort,
-			HTTPFactory: server.NewHTTPMuxFactory(rootCtx, cfg),
+			Port: cfg.ServerPort,
+			HTTPFactories: []combinedserver.HTTPMuxFactory{
+				attestationserver.NewHTTPMuxFactory(cfg),
+				k8sserver.NewHTTPMuxFactory(rootCtx, cfg),
+			},
 			GRPCFactory: kms.NewGRPCServerFactory(cfg),
 		})
 		if err != nil {
