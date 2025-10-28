@@ -28,7 +28,6 @@ func main() {
 	triggers := []os.Signal{
 		os.Interrupt,
 		syscall.SIGINT,
-		syscall.SIGPIPE,
 		syscall.SIGTERM,
 	}
 	signals := make(chan os.Signal, 1)
