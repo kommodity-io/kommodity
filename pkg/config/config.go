@@ -35,7 +35,7 @@ const (
 	envDatabaseURI         = "KOMMODITY_DB_URI"
 	envAttestationNonceTTL = "KOMMODITY_ATTESTATION_NONCE_TTL"
 	envDevelopmentMode     = "KOMMODITY_DEVELOPMENT_MODE"
-  envKineURI             = "KOMMODITY_KINE_URI"
+	envKineURI             = "KOMMODITY_KINE_URI"
 )
 
 const (
