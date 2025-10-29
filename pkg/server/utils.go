@@ -168,3 +168,23 @@ func getSupportedGroupKindVersions() []schema.GroupVersion {
 		storageapiv1.SchemeGroupVersion,
 	}
 }
+
+// ContainsAll checks if all elements in 'need' are present in 'have'.
+func ContainsAll[T comparable](have, need []T) bool {
+	if len(need) == 0 {
+		return true
+	}
+
+	set := make(map[T]struct{}, len(have))
+	for _, x := range have {
+		set[x] = struct{}{}
+	}
+
+	for _, y := range need {
+		if _, ok := set[y]; !ok {
+			return false
+		}
+	}
+
+	return true
+}
