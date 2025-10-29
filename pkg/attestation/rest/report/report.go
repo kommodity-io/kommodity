@@ -9,6 +9,7 @@ import (
 
 	restutils "github.com/kommodity-io/kommodity/pkg/attestation/rest"
 	"github.com/kommodity-io/kommodity/pkg/config"
+	"github.com/kommodity-io/kommodity/pkg/net"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientgoclientset "k8s.io/client-go/kubernetes"
@@ -84,7 +85,7 @@ func saveAttestationReport(ctx context.Context,
 		return fmt.Errorf("failed to create controller client: %w", err)
 	}
 
-	machine, err := restutils.FindManagedMachineByIP(ctx, &ctrlClient, node.IP)
+	machine, err := net.FindManagedMachineByIP(ctx, &ctrlClient, node.IP)
 	if err != nil {
 		return fmt.Errorf("failed to find managed machine by IP %s: %w", node.IP, err)
 	}

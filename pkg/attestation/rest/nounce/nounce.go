@@ -20,7 +20,12 @@ func GetNounce(nounceStore *restutils.NounceStore,
 	rateLimiter *net.RateLimiter) func(http.ResponseWriter, *http.Request) {
 	return func(response http.ResponseWriter, request *http.Request) {
 		//nolint:varnamelen // Variable name ip is appropriate for the context.
-		ip := request.RemoteAddr
+		ip, err := net.GetOriginalIPFromRequest(request)
+		if err != nil {
+			http.Error(response, err.Error(), http.StatusBadRequest)
+
+			return
+		}
 
 		if request.Method != http.MethodGet {
 			http.Error(response, "Method not allowed", http.StatusMethodNotAllowed)
