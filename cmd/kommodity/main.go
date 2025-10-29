@@ -13,6 +13,7 @@ import (
 	"github.com/kommodity-io/kommodity/pkg/kine"
 	"github.com/kommodity-io/kommodity/pkg/kms"
 	"github.com/kommodity-io/kommodity/pkg/logging"
+	metadataserver "github.com/kommodity-io/kommodity/pkg/metadata"
 	k8sserver "github.com/kommodity-io/kommodity/pkg/server"
 	"go.uber.org/zap"
 	genericapiserver "k8s.io/apiserver/pkg/server"
@@ -74,6 +75,7 @@ func main() {
 			Port: cfg.ServerPort,
 			HTTPFactories: []combinedserver.HTTPMuxFactory{
 				attestationserver.NewHTTPMuxFactory(cfg),
+				metadataserver.NewHTTPMuxFactory(cfg),
 				k8sserver.NewHTTPMuxFactory(rootCtx, cfg),
 			},
 			GRPCFactory: kms.NewGRPCServerFactory(cfg),
