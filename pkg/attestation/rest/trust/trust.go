@@ -3,6 +3,7 @@ package trust
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -63,7 +64,11 @@ func GetTrust(cfg *config.KommodityConfig) func(http.ResponseWriter, *http.Reque
 
 		machine, err := net.FindManagedMachineByIP(request.Context(), &ctrlClient, ip)
 		if err != nil {
-			http.Error(response, "Failed to find machine by IP: "+err.Error(), http.StatusInternalServerError)
+			if errors.Is(err, net.ErrNoMachineFound) {
+				http.Error(response, "Machine not found", http.StatusNotFound)
+			} else {
+				http.Error(response, "Failed to find machine by IP", http.StatusInternalServerError)
+			}
 
 			return
 		}
