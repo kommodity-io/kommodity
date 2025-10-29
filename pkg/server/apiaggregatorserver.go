@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"time"
@@ -34,6 +35,43 @@ import (
 const (
 	defaultWaitTime = 500 * time.Millisecond
 )
+
+type validatingResources struct {
+	providerGroupResources map[string][]string
+	providerGroups         []string
+}
+
+func (v *validatingResources) hasSameAPIGroups(apiGroupNames []string) bool {
+	return ContainsAll(apiGroupNames, v.providerGroups)
+}
+
+func (v *validatingResources) hasSameAPIGroupResources(apiGroupResources []*metav1.APIResourceList) bool {
+	apiGroupResourcesMap := make(map[string][]string)
+
+	for _, group := range apiGroupResources {
+		groupVersion, err := schema.ParseGroupVersion(group.GroupVersion)
+		if err != nil {
+			return false
+		}
+
+		resourceKinds := make([]string, len(group.APIResources))
+		for i, resource := range group.APIResources {
+			resourceKinds[i] = resource.Kind
+		}
+
+		apiGroupResourcesMap[groupVersion.Group] = append(apiGroupResourcesMap[groupVersion.Group], resourceKinds...)
+	}
+
+	for group, resources := range v.providerGroupResources {
+		apiGroupResources := apiGroupResourcesMap[group]
+
+		if !ContainsAll(apiGroupResources, resources) {
+			return false
+		}
+	}
+
+	return true
+}
 
 //nolint:funlen
 func newAPIAggregatorServer(cfg *config.KommodityConfig,
@@ -184,9 +222,6 @@ func startControllerManagersHook(cfg *config.KommodityConfig,
 			return fmt.Errorf("failed to create discovery client: %w", err)
 		}
 
-		providerAPIGroups := providerCache.GetProviderGroups()
-		logger.Info("Waiting for CRD discovery", zap.Strings("apiGroups", providerAPIGroups))
-
 		err = waitForProviderCRDsAreEstablished(ctx, discoveryClient, providerCache)
 		if err != nil {
 			return fmt.Errorf("failed to waiting for provider CRDs are established: %w", err)
@@ -218,46 +253,66 @@ func waitForProviderCRDsAreEstablished(ctx context.Context,
 	providerCache *provider.Cache) error {
 	logger := logging.FromContext(ctx)
 
-	providerAPIGroups := providerCache.GetProviderGroups()
-	logger.Info("Waiting for CRD discovery", zap.Strings("apiGroups", providerAPIGroups))
+	validator := validatingResources{
+		providerGroupResources: providerCache.GetProviderGroupResources(),
+		providerGroups:         slices.Collect(maps.Keys(providerCache.GetProviderGroupResources())),
+	}
+
+	logger.Info("Waiting for CRD discovery", zap.Strings("apiGroups", validator.providerGroups))
 
 	for {
-		apiGroups, err := discoveryClient.ServerGroups()
+		apiResources, err := discoveryClient.ServerPreferredResources()
 		if err != nil {
 			return fmt.Errorf("failed to discover server groups: %w", err)
 		}
 
-		apiGroupNames := make([]string, 0)
-
-		for _, group := range apiGroups.Groups {
-			if group.Name != "" {
-				apiGroupNames = append(apiGroupNames, group.Name)
-			}
+		apiGroupNames, err := getAPIGroupNamesFromAPIResourceLists(apiResources)
+		if err != nil {
+			return fmt.Errorf("failed to get API group names from API resource lists: %w", err)
 		}
 
 		logger.Info("Discovered API groups", zap.Any("groups", apiGroupNames))
 
-		hasSameAmountAPIGroups := len(apiGroupNames) >= len(providerAPIGroups)
-		hasSameAPIGroups := slices.ContainsFunc(providerAPIGroups, func(group string) bool {
-			return slices.Contains(apiGroupNames, group)
-		})
-
-		if hasSameAPIGroups && hasSameAmountAPIGroups {
+		if validator.hasSameAPIGroups(apiGroupNames) && validator.hasSameAPIGroupResources(apiResources) {
 			logger.Info("All provider CRDs are available",
-				zap.Strings("expectedGroups", providerAPIGroups),
+				zap.Strings("expectedGroups", validator.providerGroups),
 				zap.Any("discoveredGroups", apiGroupNames))
 
 			break
 		}
 
 		logger.Info("Not all provider CRDs are available yet, waiting...",
-			zap.Int("expectedCount", len(providerAPIGroups)),
-			zap.Strings("expectedGroups", providerAPIGroups),
+			zap.Int("expectedCount", len(validator.providerGroups)),
+			zap.Strings("expectedGroups", validator.providerGroups),
 			zap.Any("discoveredGroups", apiGroupNames))
 		time.Sleep(defaultWaitTime)
 	}
 
 	return nil
+}
+
+func getAPIGroupNamesFromAPIResourceLists(apiGroupResourcesList []*metav1.APIResourceList) ([]string, error) {
+	apiGroupNames := make([]string, 0)
+
+	for _, group := range apiGroupResourcesList {
+		if group == nil {
+			continue
+		}
+
+		groupVersion, err := schema.ParseGroupVersion(group.GroupVersion)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse group version %q: %w", group.GroupVersion, err)
+		}
+
+		if slices.Contains(apiGroupNames, groupVersion.Group) {
+			// We could have multiple versions for the same group, skip duplicates
+			continue
+		}
+
+		apiGroupNames = append(apiGroupNames, groupVersion.Group)
+	}
+
+	return apiGroupNames, nil
 }
 
 func registerAPIServicesAndVersions(delegationTarget genericapiserver.DelegationTarget,

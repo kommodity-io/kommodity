@@ -51,12 +51,18 @@ func AddAllProvidersToScheme(scheme *runtime.Scheme) error {
 	return addAllProvidersToScheme(scheme)
 }
 
-// GetProviderGroups returns the groups of all cached providers.
-func (pc *Cache) GetProviderGroups() []string {
-	groups := make([]string, 0, len(pc.providerCRDs))
+// GetProviderGroupResources returns a map of provider groups to their resource kinds.
+func (pc *Cache) GetProviderGroupResources() map[string][]string {
+	groups := make(map[string][]string)
 
-	for group := range pc.providerCRDs {
-		groups = append(groups, group)
+	for group, objs := range pc.providerCRDs {
+		kinds := make([]string, len(objs))
+		for i, obj := range objs {
+			kind, _, _ := unstructured.NestedString(obj.Object, "spec", "names", "kind")
+			kinds[i] = kind
+		}
+
+		groups[group] = kinds
 	}
 
 	return groups
