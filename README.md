@@ -12,6 +12,9 @@ Kommodity is an open-source infrastructure platform to commoditize compute, stor
 
 > 🚧 EXPERIMENTAL 🚧: This project is in an early stage of development and is not yet ready for production use. APIs may break between minor releases, and the project is not yet feature-complete. The project does however adhere to [semantic versioning][semver], so patch releases will never break the API.
 
+## Architecture
+![Kommodity Architecture](images/kommodity-architecture.excalidraw.png)
+
 ## Development
 
 Make sure to have a recent version of Go installed. We recommend using [gvm][gvm] to install Go.
