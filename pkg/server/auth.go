@@ -122,7 +122,9 @@ func applyAuth(ctx context.Context, cfg *config.KommodityConfig, config *generic
 
 	bearerOIDC := bearertoken.New(oidcAuth)
 
-	config.Authorization.Authorizer = &adminAuthorizer{}
+	config.Authorization.Authorizer = &adminAuthorizer{
+		cfg: cfg,
+	}
 
 	config.Authentication.APIAudiences = authenticator.Audiences(jwtAuthenticator.Issuer.Audiences)
 	config.Authentication.Authenticator = authunion.New(bearerOIDC, anonymousReqAuth{})
