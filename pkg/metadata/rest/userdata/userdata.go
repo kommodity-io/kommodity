@@ -110,7 +110,10 @@ func isTrusted(ctx context.Context, ip string, cfg *config.KommodityConfig) (boo
 	if err != nil {
 		return false, fmt.Errorf("failed to call trust endpoint: %w", err)
 	}
-	defer resp.Body.Close()
+
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	switch resp.StatusCode {
 	case http.StatusOK:
