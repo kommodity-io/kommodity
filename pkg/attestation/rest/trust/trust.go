@@ -3,12 +3,14 @@ package trust
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
 
 	restutils "github.com/kommodity-io/kommodity/pkg/attestation/rest"
 	"github.com/kommodity-io/kommodity/pkg/config"
+	"github.com/kommodity-io/kommodity/pkg/net"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientgoclientset "k8s.io/client-go/kubernetes"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
@@ -39,9 +41,9 @@ func GetTrust(cfg *config.KommodityConfig) func(http.ResponseWriter, *http.Reque
 		}
 
 		//nolint:varnamelen // Variable name ip is appropriate for the context.
-		ip := request.PathValue("ip")
-		if ip == "" {
-			http.Error(response, "IP address is required", http.StatusBadRequest)
+		ip, err := net.GetOriginalIPFromRequest(request)
+		if err != nil {
+			http.Error(response, err.Error(), http.StatusBadRequest)
 
 			return
 		}
@@ -60,9 +62,13 @@ func GetTrust(cfg *config.KommodityConfig) func(http.ResponseWriter, *http.Reque
 			return
 		}
 
-		machine, err := restutils.FindManagedMachineByIP(request.Context(), &ctrlClient, ip)
+		machine, err := net.FindManagedMachineByIP(request.Context(), &ctrlClient, ip)
 		if err != nil {
-			http.Error(response, "Failed to find machine by IP: "+err.Error(), http.StatusInternalServerError)
+			if errors.Is(err, net.ErrNoMachineFound) {
+				http.Error(response, "Machine not found", http.StatusNotFound)
+			} else {
+				http.Error(response, "Failed to find machine by IP", http.StatusInternalServerError)
+			}
 
 			return
 		}

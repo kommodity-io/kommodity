@@ -13,15 +13,26 @@ import (
 	"github.com/kommodity-io/kommodity/pkg/net"
 )
 
+const (
+	// AttestationNounceEndpoint is the endpoint for obtaining a nonce.
+	AttestationNounceEndpoint = "/nounce"
+
+	// AttestationReportEndpoint is the endpoint for submitting an attestation report.
+	AttestationReportEndpoint = "/report"
+
+	// AttestationTrustEndpoint is the endpoint for checking trust status based on an attestation report.
+	AttestationTrustEndpoint = "/report/{ip}/trust"
+)
+
 // NewHTTPMuxFactory creates a new HTTP mux factory for the attestation server.
 func NewHTTPMuxFactory(cfg *config.KommodityConfig) combinedserver.HTTPMuxFactory {
 	return func(mux *http.ServeMux) error {
 		rateLimiter := net.NewRateLimiter()
 		nounceStore := restutils.NewNounceStore(cfg.AttestationConfig.NonceTTL)
 
-		mux.HandleFunc("GET /nounce", restnounce.GetNounce(nounceStore, rateLimiter))
-		mux.HandleFunc("POST /report", restreport.PostReport(nounceStore, cfg))
-		mux.HandleFunc("GET /report/{ip}/trust", resttrust.GetTrust(cfg))
+		mux.HandleFunc("GET "+AttestationNounceEndpoint, restnounce.GetNounce(nounceStore, rateLimiter))
+		mux.HandleFunc("POST "+AttestationReportEndpoint, restreport.PostReport(nounceStore, cfg))
+		mux.HandleFunc("GET "+AttestationTrustEndpoint, resttrust.GetTrust(cfg))
 
 		return nil
 	}
