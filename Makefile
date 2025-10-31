@@ -73,10 +73,7 @@ fetch-providers:
 	./scripts/fetch-providers.sh
 	./scripts/add-to-scheme-providers.sh
 
-build: build-ui bin/kommodity ## Build the application.
-
-build-ui:
-	npm run build --prefix pkg/ui/web/kommodity-ui
+build: bin/kommodity ## Build the application.
 
 bin/kommodity: $(SOURCES) ## Build the application.
 	go build $(GO_FLAGS) -o bin/kommodity cmd/kommodity/main.go
