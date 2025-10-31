@@ -15,6 +15,7 @@ import (
 	"github.com/kommodity-io/kommodity/pkg/logging"
 	metadataserver "github.com/kommodity-io/kommodity/pkg/metadata"
 	k8sserver "github.com/kommodity-io/kommodity/pkg/server"
+	uiserver "github.com/kommodity-io/kommodity/pkg/ui"
 	"go.uber.org/zap"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 
@@ -73,6 +74,7 @@ func main() {
 		server, err := combinedserver.New(combinedserver.ServerConfig{
 			Port: cfg.ServerPort,
 			HTTPFactories: []combinedserver.HTTPMuxFactory{
+				uiserver.NewHTTPMuxFactory(cfg),
 				attestationserver.NewHTTPMuxFactory(cfg),
 				metadataserver.NewHTTPMuxFactory(cfg),
 				k8sserver.NewHTTPMuxFactory(rootCtx, cfg),

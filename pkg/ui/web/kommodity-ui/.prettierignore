@@ -1,0 +1,13 @@
+cache
+.cache
+public
+CHANGELOG.md
+dist
+node_modules
+build
+.contentlayer
+.vscode
+.git
+.github
+.husky
+.vscode

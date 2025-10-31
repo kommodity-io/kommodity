@@ -97,6 +97,11 @@ kubectl --kubeconfig <kommodity kubeconfig file> get secrets <cluster name>-talo
 talosctl --talosconfig talosconfig kubeconfig -n <controlplane node ip>
 ```
 
+### Kommodity UI
+The Kommodity UI is a web-based interface for fetching kubeconfigs of your Kommodity managed clusters. URL is `http://localhost:8000/ui/<clusterName>`.
+
+![Kommodity UI](images/kommodity-ui.png)
+
 ## Features
 
 ### 🔒 OIDC Authentication
