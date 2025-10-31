@@ -91,6 +91,15 @@ jobs:
       - name: Install dependencies
         run: go mod download
 
+      - name: Setup NPM
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24.2.0"
+          cache: "npm"
+
+      - name: Install UI dependencies
+        run: npm install --prefix pkg/ui/web/kommodity-ui
+
       - name: Detect semantic release
         uses: docker://ghcr.io/codfish/semantic-release-action:v3
         id: semantic
