@@ -4,13 +4,14 @@ package namespaces
 import (
 	"context"
 	"fmt"
-	"log"
 	"path"
 
 	corev1 "k8s.io/api/core/v1"
 
+	"github.com/kommodity-io/kommodity/pkg/logging"
 	storageerr "github.com/kommodity-io/kommodity/pkg/storage"
 
+	"go.uber.org/zap"
 	"k8s.io/apimachinery/pkg/api/validation"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
@@ -135,17 +136,23 @@ func (namespaceStrategy) WarningsOnCreate(_ context.Context, _ runtime.Object) [
 }
 
 // PrepareForUpdate sets defaults for updated objects.
-func (namespaceStrategy) PrepareForUpdate(_ context.Context, obj, old runtime.Object) {
+func (namespaceStrategy) PrepareForUpdate(ctx context.Context, obj, old runtime.Object) {
+	logger := logging.FromContext(ctx).With(zap.String("component", "namespace-storage"))
+
 	newNamespace, success := obj.(*corev1.Namespace)
 	if !success {
-		log.Printf("expected *corev1.Namespace, got %T", obj)
+		logger.Error("Received unexpected type",
+			zap.String("expected", "*corev1.Namespace"),
+			zap.String("received", fmt.Sprintf("%T", obj)))
 
 		return
 	}
 
 	oldNamespace, success := old.(*corev1.Namespace)
 	if !success {
-		log.Printf("expected *corev1.Namespace, got %T", obj)
+		logger.Error("Received unexpected type",
+			zap.String("expected", "*corev1.Namespace"),
+			zap.String("received", fmt.Sprintf("%T", old)))
 
 		return
 	}
