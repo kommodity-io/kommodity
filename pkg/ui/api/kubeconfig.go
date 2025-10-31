@@ -89,7 +89,7 @@ func getKubeContext(ctx context.Context, clusterName string, talosConfig *talosc
 
 	talosClusterContext, success := talosConfig.Contexts[clusterName]
 	if !success {
-		return nil, fmt.Errorf("failed to find context for cluster: %s", clusterName)
+		return nil, ErrFailedToFindContext
 	}
 
 	kubeconfig, err := talosClient.Kubeconfig(talosclient.WithNode(ctx, talosClusterContext.Endpoints[0]))
