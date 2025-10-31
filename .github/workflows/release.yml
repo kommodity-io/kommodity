@@ -96,6 +96,7 @@ jobs:
         with:
           node-version: "24.2.0"
           cache: "npm"
+          cache-dependency-path: pkg/ui/web/kommodity-ui/package-lock.json
 
       - name: Install UI dependencies
         run: npm install --prefix pkg/ui/web/kommodity-ui
