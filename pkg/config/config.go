@@ -25,7 +25,7 @@ const (
 	defaultKineURI             = "unix://bin/kine.sock"
 	defaultAttestationNonceTTL = 5 * time.Minute
 
-	// Environment variable for Kommodity base URL.
+	// EnvBaseURL environment variable for Kommodity base URL.
 	EnvBaseURL = "KOMMODITY_BASE_URL"
 
 	envServerPort          = "KOMMODITY_PORT"
