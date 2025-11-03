@@ -82,7 +82,7 @@ ifneq ($(UPX_FLAGS),)
 endif
 
 build-ui: ## Build the UI.
-	npm run build --prefix web/kommodity-ui
+	npm run build --prefix pkg/ui/web/kommodity-ui
 
 .PHONY: clean
 clean: ## Clean the build artifacts.
