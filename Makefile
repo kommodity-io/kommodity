@@ -83,7 +83,7 @@ ifneq ($(UPX_FLAGS),)
 	upx $(UPX_FLAGS) bin/kommodity
 endif
 
-build-ui: ## Build the UI.
+build-ui: ## Build the UI. Remember to load the .env file before executing.
 	VITE_KOMMODITY_BASE_URL=$(KOMMODITY_BASE_URL) npm run build --prefix pkg/ui/web/kommodity-ui
 
 .PHONY: clean
