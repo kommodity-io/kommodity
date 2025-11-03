@@ -45,6 +45,10 @@ If you want to run Kommodity with authentication using OpenID Connect (OIDC), yo
 kubectl krew install oidc-login
 ```
 
+Kommodity uses Caddy as a reverse proxy to handle TLS termination and routing, it is bootstrapped as part of Docker compose. Make sure to have Caddy installed on your system. You can find installation instructions on the [Caddy website](https://caddyserver.com/docs/install). 
+
+Make sure to override the `KOMMODITY_BASE_URL` environment variable in the `.env` file to match your Caddy setup, e.g., `https://localhost:5443`.
+
 Example of `kommodity.yaml` kubeconfig file with OIDC authentication:
 
 ```yaml
@@ -53,7 +57,8 @@ kind: Config
 clusters:
   - name: kommodity
     cluster:
-      server: http://localhost:8000
+      server: https://localhost:5443
+      insecure-skip-tls-verify: true
 users:
   - name: oidc
     user:
@@ -67,6 +72,7 @@ users:
           - --oidc-client-id=YOUR_CLIENT_ID
           - --oidc-extra-scope=email
           - --oidc-extra-scope=profile
+        interactiveMode: Always
 contexts:
   - name: kommodity-context
     context:
@@ -161,7 +167,8 @@ Several environment variables can be set to configure Kommodity:
 
 | Environment Variable        | Description                                              | Default Value        |
 |-----------------------------|----------------------------------------------------------|----------------------|
-| `KOMMODITY_PORT`            | Port for the Kommodity server                            | `8000`               |
+| `KOMMODITY_PORT`            | Port for the Kommodity server                            | `5000`               |
+| `KOMMODITY_BASE_URL`        | Base URL for the Kommodity server                            | `https://localhost:5443`               |
 | `KOMMODITY_ADMIN_GROUP`     | Name of the admin group for privileged access            | (none)               |
 | `KOMMODITY_INSECURE_DISABLE_AUTHENTICATION` | Disable authentication for local development         | `false`  |
 | `KOMMODITY_OIDC_ISSUER_URL` | OIDC issuer URL for authentication                       | (none)               |

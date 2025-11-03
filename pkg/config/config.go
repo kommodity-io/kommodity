@@ -16,7 +16,8 @@ import (
 )
 
 const (
-	defaultServerPort          = 8000
+	defaultServerPort          = 5000
+	defaultSecureServerPort    = 5443
 	defaultAPIServerPort       = 8443
 	defaultDisableAuth         = false
 	defaultOIDCUsernameClaim   = "email"
@@ -26,6 +27,7 @@ const (
 	defaultAttestationNonceTTL = 5 * time.Minute
 
 	envServerPort          = "KOMMODITY_PORT"
+	envBaseURL             = "KOMMODITY_BASE_URL"
 	envAdminGroup          = "KOMMODITY_ADMIN_GROUP"
 	envDisableAuth         = "KOMMODITY_INSECURE_DISABLE_AUTHENTICATION"
 	envOIDCIssuerURL       = "KOMMODITY_OIDC_ISSUER_URL"
@@ -44,6 +46,7 @@ const (
 
 // KommodityConfig holds the configuration settings for the Kommodity API server.
 type KommodityConfig struct {
+	BaseURL           string
 	ServerPort        int
 	APIServerPort     int
 	WebhookPort       int
@@ -83,6 +86,7 @@ type OIDCConfig struct {
 
 // LoadConfig loads the configuration settings from environment variables and returns a KommodityConfig instance.
 func LoadConfig(ctx context.Context) (*KommodityConfig, error) {
+	baseURL := getBaseURL(ctx)
 	serverPort := getServerPort(ctx)
 	apply := getApplyAuth(ctx)
 	oidcConfig := getOIDCConfig(ctx)
@@ -100,6 +104,7 @@ func LoadConfig(ctx context.Context) (*KommodityConfig, error) {
 	}
 
 	return &KommodityConfig{
+		BaseURL:           baseURL,
 		ServerPort:        serverPort,
 		APIServerPort:     defaultAPIServerPort,
 		WebhookPort:       ctrlwebhook.DefaultPort,
@@ -114,6 +119,21 @@ func LoadConfig(ctx context.Context) (*KommodityConfig, error) {
 		ClientConfig:    &ClientConfig{},
 		DevelopmentMode: developmentMode,
 	}, nil
+}
+
+func getBaseURL(ctx context.Context) string {
+	logger := logging.FromContext(ctx)
+
+	baseURL := os.Getenv(envBaseURL)
+	if baseURL == "" {
+		logger.Info(configurationNotSpecified,
+			zap.String("envVar", envBaseURL),
+			zap.String("default", fmt.Sprintf("http://localhost:%d", defaultSecureServerPort)))
+
+		return fmt.Sprintf("http://localhost:%d", defaultSecureServerPort)
+	}
+
+	return baseURL
 }
 
 func getServerPort(ctx context.Context) int {
