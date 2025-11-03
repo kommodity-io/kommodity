@@ -9,6 +9,7 @@ replace github.com/google/cel-go => github.com/google/cel-go v0.22.0
 replace github.com/scaleway/cluster-api-provider-scaleway => github.com/kommodity-io/cluster-api-provider-scaleway v0.1.4-0.20250923063851-b9a37ed6100d
 
 require (
+	github.com/Masterminds/sprig/v3 v3.3.0
 	github.com/go-logr/logr v1.4.3
 	github.com/go-logr/zapr v1.3.0
 	github.com/google/uuid v1.6.0
@@ -18,12 +19,14 @@ require (
 	github.com/siderolabs/cluster-api-bootstrap-provider-talos v0.6.10
 	github.com/siderolabs/cluster-api-control-plane-provider-talos v0.5.10
 	github.com/siderolabs/kms-client v0.1.0
+	github.com/siderolabs/talos/pkg/machinery v1.11.0
 	github.com/soheilhy/cmux v0.1.5
 	github.com/stretchr/testify v1.11.1
 	go.etcd.io/etcd/client/v3 v3.6.4
 	go.uber.org/zap v1.27.0
 	go.yaml.in/yaml/v3 v3.0.4
 	golang.org/x/net v0.43.0
+	golang.org/x/time v0.12.0
 	google.golang.org/grpc v1.75.1
 	k8s.io/api v0.32.6
 	k8s.io/apiextensions-apiserver v0.32.6
@@ -78,7 +81,6 @@ require (
 	github.com/MakeNowJust/heredoc v1.0.0 // indirect
 	github.com/Masterminds/goutils v1.1.1 // indirect
 	github.com/Masterminds/semver/v3 v3.3.0 // indirect
-	github.com/Masterminds/sprig/v3 v3.3.0 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/NYTimes/gziphandler v1.1.1 // indirect
 	github.com/ProtonMail/go-crypto v1.2.0 // indirect
@@ -211,7 +213,6 @@ require (
 	github.com/siderolabs/go-pointer v1.0.1 // indirect
 	github.com/siderolabs/net v0.4.0 // indirect
 	github.com/siderolabs/protoenc v0.2.2 // indirect
-	github.com/siderolabs/talos/pkg/machinery v1.11.0 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/spf13/cast v1.7.1 // indirect
 	github.com/spf13/cobra v1.9.1 // indirect
@@ -254,7 +255,6 @@ require (
 	golang.org/x/sys v0.35.0 // indirect
 	golang.org/x/term v0.34.0 // indirect
 	golang.org/x/text v0.28.0 // indirect
-	golang.org/x/time v0.12.0 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.5.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250715232539-7130f93afb79 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250715232539-7130f93afb79 // indirect
