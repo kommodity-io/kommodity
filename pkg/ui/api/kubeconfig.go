@@ -3,17 +3,50 @@ package api
 
 import (
 	"context"
+	"embed"
+	"encoding/base64"
 	"fmt"
+	"html/template"
 	"net/http"
 
-	"github.com/ghodss/yaml"
+	"github.com/Masterminds/sprig/v3"
 	"github.com/kommodity-io/kommodity/pkg/config"
 	talosclient "github.com/siderolabs/talos/pkg/machinery/client"
 	talosconfig "github.com/siderolabs/talos/pkg/machinery/client/config"
+	"go.yaml.in/yaml/v3"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientgoclientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/tools/clientcmd/api"
 )
+
+//go:embed oidcaccess.tmpl
+var tmplFS embed.FS
+
+type oidcKubeConfig struct {
+	*api.Config
+	config.OIDCConfig
+}
+
+func (o *oidcKubeConfig) writeResponse(response http.ResponseWriter) {
+	response.Header().Set("Content-Type", "application/x-yaml")
+	response.WriteHeader(http.StatusOK)
+
+	funcs := sprig.FuncMap()
+	funcs["b64encBytes"] = func(b []byte) string {
+		return base64.StdEncoding.EncodeToString(b)
+	}
+
+	tpl := template.Must(template.New("kubeconfig").Funcs(funcs).ParseFS(tmplFS, "oidcaccess.tmpl"))
+
+	err := tpl.ExecuteTemplate(response, "oidcaccess.tmpl", o)
+	if err != nil {
+		http.Error(response, fmt.Sprintf("Failed to execute kubeconfig template: %v", err), http.StatusInternalServerError)
+
+		return
+	}
+}
 
 // GetKubeConfig handles requests for retrieving the kubeconfig for a given cluster.
 func GetKubeConfig(cfg *config.KommodityConfig) func(http.ResponseWriter, *http.Request) {
@@ -34,7 +67,7 @@ func GetKubeConfig(cfg *config.KommodityConfig) func(http.ResponseWriter, *http.
 			return
 		}
 
-		kubeconfig, err := getKubeContext(request.Context(), clusterName, talosConfig)
+		kubeConfigBytes, err := getKubeContext(request.Context(), clusterName, talosConfig)
 		if err != nil {
 			http.Error(response, fmt.Sprintf("Failed to get kubeconfig: %v", err),
 				http.StatusInternalServerError)
@@ -42,16 +75,44 @@ func GetKubeConfig(cfg *config.KommodityConfig) func(http.ResponseWriter, *http.
 			return
 		}
 
-		response.Header().Set("Content-Type", "application/x-yaml")
-		response.WriteHeader(http.StatusOK)
+		if cfg.DevelopmentMode {
+			// No need to mask anything in development mode.
+			writeResponse(response, kubeConfigBytes)
 
-		_, err = response.Write(kubeconfig)
+			return
+		}
+
+		if !cfg.AuthConfig.Apply {
+			// If auth config application is disabled and not in development mode, do not return kubeconfig,
+			http.Error(response, "Auth config application is disabled", http.StatusForbidden)
+
+			return
+		}
+
+		config, err := clientcmd.Load(kubeConfigBytes)
 		if err != nil {
-			http.Error(response, fmt.Sprintf("Failed to write kubeconfig response: %v", err),
+			http.Error(response, fmt.Sprintf("Failed to load kubeconfig: %v", err),
 				http.StatusInternalServerError)
 
 			return
 		}
+
+		// Override admin user kubeconfig with OIDC settings.
+		(&oidcKubeConfig{
+			Config:     config,
+			OIDCConfig: *cfg.AuthConfig.OIDCConfig,
+		}).writeResponse(response)
+	}
+}
+
+func writeResponse(response http.ResponseWriter, data []byte) {
+	response.Header().Set("Content-Type", "application/x-yaml")
+	response.WriteHeader(http.StatusOK)
+
+	_, err := response.Write(data)
+	if err != nil {
+		http.Error(response, fmt.Sprintf("Failed to write kubeconfig response: %v", err),
+			http.StatusInternalServerError)
 	}
 }
 

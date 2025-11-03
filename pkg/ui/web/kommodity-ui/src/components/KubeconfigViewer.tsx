@@ -34,9 +34,12 @@ export const KubeconfigViewer = ({ clusterName }: { clusterName: string }) => {
         if (!res.ok) {
           if (res.status === 404 || res.status === 500) {
             toast.error(`The cluster name: ${clusterName} is not a valid Kommodity cluster`);
+          } else if (res.status === 403) {
+            toast.error(`Unsupported: ${clusterName}, cluster is not properly configured with OIDC`);
           } else {
             toast.error(`Failed to fetch kubeconfig (HTTP ${res.status})`);
           }
+          
           setKubeconfig("");
           return;
         }
