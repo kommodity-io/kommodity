@@ -24,7 +24,7 @@ services:
     environment:
       PGADMIN_DEFAULT_EMAIL: kommodity@corti.ai
       PGADMIN_DEFAULT_PASSWORD: kommodity
-      PGADMIN_CONFIG_SERVER_MODE: 'False' # Load preconfigured servers
+      PGADMIN_CONFIG_SERVER_MODE: "False" # Load preconfigured servers
     volumes:
       - ./pgadmin/servers.json:/pgadmin4/servers.json
     ports:
@@ -33,6 +33,18 @@ services:
       - postgres
     networks:
       - kommodity-net
+
+  caddy:
+    image: caddy:2
+    restart: always
+    ports:
+      - "5443:5443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+    networks:
+      - kommodity-net
+    depends_on:
+      - postgres
 
 volumes:
   pgdata:

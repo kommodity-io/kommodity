@@ -27,6 +27,8 @@ var tmplFS embed.FS
 type oidcKubeConfig struct {
 	*api.Config
 	config.OIDCConfig
+
+	BaseURL string
 }
 
 func (o *oidcKubeConfig) writeResponse(response http.ResponseWriter) {
@@ -99,6 +101,7 @@ func GetKubeConfig(cfg *config.KommodityConfig) func(http.ResponseWriter, *http.
 
 		// Override admin user kubeconfig with OIDC settings.
 		(&oidcKubeConfig{
+			BaseURL:    cfg.BaseURL,
 			Config:     config,
 			OIDCConfig: *cfg.AuthConfig.OIDCConfig,
 		}).writeResponse(response)

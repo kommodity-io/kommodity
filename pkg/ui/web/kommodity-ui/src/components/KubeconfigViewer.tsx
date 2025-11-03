@@ -9,14 +9,12 @@ export const KubeconfigViewer = ({ clusterName }: { clusterName: string }) => {
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const getKommodityPort = () => {
-    const raw = (import.meta as any)?.env?.VITE_KOMMODITY_PORT;
-    const n = typeof raw === "string" ? parseInt(raw, 10) : NaN;
-    return Number.isFinite(n) && n > 0 ? String(n) : "8000";
-  };
+  const getKommodityBaseUrl = () => {
+  return import.meta.env.VITE_KOMMODITY_BASE_URL || "http://localhost:5000";
+};
 
   const buildApiUrl = (name: string) =>
-    `http://localhost:${getKommodityPort()}/api/kubeconfig/${name}`;
+    `${getKommodityBaseUrl()}/api/kubeconfig/${name}`;
 
   useEffect(() => {
     if (!clusterName) {
@@ -39,7 +37,7 @@ export const KubeconfigViewer = ({ clusterName }: { clusterName: string }) => {
           } else {
             toast.error(`Failed to fetch kubeconfig (HTTP ${res.status})`);
           }
-          
+
           setKubeconfig("");
           return;
         }

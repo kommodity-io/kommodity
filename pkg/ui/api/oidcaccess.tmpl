@@ -4,7 +4,7 @@ clusters:
 {{- range $name, $c := .Clusters }}
   - name: {{ $name }}
     cluster:
-      server: {{ $c.Server }}
+      server: {{ $.BaseURL }}
       certificate-authority-data: {{ $c.CertificateAuthorityData | b64encBytes }}
 {{- end }}
 contexts:
