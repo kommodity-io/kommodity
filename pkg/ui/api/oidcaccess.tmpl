@@ -28,7 +28,7 @@ users:
           - get-token
           - --oidc-issuer-url={{ $.OIDCConfig.IssuerURL }}
           - --oidc-client-id={{ $.OIDCConfig.ClientID }}
-          - --oidc-username-claim={{ $.OIDCConfig.UsernameClaim }}
+          - --oidc-extra-scope={{ $.OIDCConfig.UsernameClaim }}
           {{- if $.OIDCConfig.ExtraScopes }}
           {{- range $.OIDCConfig.ExtraScopes }}
           - --oidc-extra-scope={{ . }}
