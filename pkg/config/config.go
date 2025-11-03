@@ -26,8 +26,10 @@ const (
 	defaultKineURI             = "unix://bin/kine.sock"
 	defaultAttestationNonceTTL = 5 * time.Minute
 
+	// Environment variable for Kommodity base URL.
+	EnvBaseURL = "KOMMODITY_BASE_URL"
+
 	envServerPort          = "KOMMODITY_PORT"
-	envBaseURL             = "KOMMODITY_BASE_URL"
 	envAdminGroup          = "KOMMODITY_ADMIN_GROUP"
 	envDisableAuth         = "KOMMODITY_INSECURE_DISABLE_AUTHENTICATION"
 	envOIDCIssuerURL       = "KOMMODITY_OIDC_ISSUER_URL"
@@ -124,10 +126,10 @@ func LoadConfig(ctx context.Context) (*KommodityConfig, error) {
 func getBaseURL(ctx context.Context) string {
 	logger := logging.FromContext(ctx)
 
-	baseURL := os.Getenv(envBaseURL)
+	baseURL := os.Getenv(EnvBaseURL)
 	if baseURL == "" {
 		logger.Info(configurationNotSpecified,
-			zap.String("envVar", envBaseURL),
+			zap.String("envVar", EnvBaseURL),
 			zap.String("default", fmt.Sprintf("http://localhost:%d", defaultSecureServerPort)))
 
 		return fmt.Sprintf("http://localhost:%d", defaultSecureServerPort)

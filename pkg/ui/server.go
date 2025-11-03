@@ -31,6 +31,10 @@ func NewHTTPMuxFactory(cfg *config.KommodityConfig) combinedserver.HTTPMuxFactor
 		}
 
 		handler := spaHandler(sub)
+
+		mux.Handle("/env.js", api.EnvJSHandler([]string{
+			config.EnvBaseURL,
+		}))
 		mux.Handle("/ui/{clusterName}", handler)
 		mux.Handle("/assets/", handler)
 		mux.Handle("/public/", handler)
