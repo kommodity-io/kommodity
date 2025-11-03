@@ -165,19 +165,19 @@ grpcurl -plaintext -d "{\"data\": \"$(echo -n "$SEALED" | base64)\"}" \
 
 Several environment variables can be set to configure Kommodity:
 
-| Environment Variable        | Description                                              | Default Value        |
-|-----------------------------|----------------------------------------------------------|----------------------|
-| `KOMMODITY_PORT`            | Port for the Kommodity server                            | `5000`               |
-| `KOMMODITY_BASE_URL`        | Base URL for the Kommodity server                            | `https://localhost:5443`               |
-| `KOMMODITY_ADMIN_GROUP`     | Name of the admin group for privileged access            | (none)               |
-| `KOMMODITY_INSECURE_DISABLE_AUTHENTICATION` | Disable authentication for local development         | `false`  |
-| `KOMMODITY_OIDC_ISSUER_URL` | OIDC issuer URL for authentication                       | (none)               |
-| `KOMMODITY_OIDC_CLIENT_ID`  | OIDC client ID for authentication                        | (none)               |
-| `KOMMODITY_OIDC_USERNAME_CLAIM` | OIDC claim used for username                         | `email`              |
-| `KOMMODITY_OIDC_GROUPS_CLAIM`  | OIDC claim used for groups                            | `groups`             |
-| `KOMMODITY_ATTESTATION_NONCE_TTL` | TTL for attestation nonces (e.g., `5m`, `1h`)      | `5m`                |
-| `KOMMODITY_DB_URI`          | URI of the PostgreSQL database                           | (none)               |
-| `KOMMODITY_DEVELOPMENT_MODE` | Enable development mode (installs development CRDs for Docker)      | `false`              |
+| Environment Variable                        | Description                                                    | Default Value           |
+|---------------------------------------------|----------------------------------------------------------------|-------------------------|
+| `KOMMODITY_PORT`                            | Port for the Kommodity server                                  | `5000`                  |
+| `KOMMODITY_BASE_URL`                        | Base URL for the Kommodity server                              | `http://localhost:5000` |
+| `KOMMODITY_ADMIN_GROUP`                     | Name of the admin group for privileged access                  | (none)                  |
+| `KOMMODITY_INSECURE_DISABLE_AUTHENTICATION` | Disable authentication for local development                   | `false`                 |
+| `KOMMODITY_OIDC_ISSUER_URL`                 | OIDC issuer URL for authentication                             | (none)                  |
+| `KOMMODITY_OIDC_CLIENT_ID`                  | OIDC client ID for authentication                              | (none)                  |
+| `KOMMODITY_OIDC_USERNAME_CLAIM`             | OIDC claim used for username                                   | `email`                 |
+| `KOMMODITY_OIDC_GROUPS_CLAIM`               | OIDC claim used for groups                                     | `groups`                |
+| `KOMMODITY_ATTESTATION_NONCE_TTL`           | TTL for attestation nonces (e.g., `5m`, `1h`)                  | `5m`                    |
+| `KOMMODITY_DB_URI`                          | URI of the PostgreSQL database                                 | (none)                  |
+| `KOMMODITY_DEVELOPMENT_MODE`                | Enable development mode (installs development CRDs for Docker) | `false`                 |
 
 ## Limitations
 - Helm [`hooks`](https://helm.sh/docs/topics/charts_hooks/) are not supported.

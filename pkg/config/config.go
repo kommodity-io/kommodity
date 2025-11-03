@@ -17,7 +17,6 @@ import (
 
 const (
 	defaultServerPort          = 5000
-	defaultSecureServerPort    = 5443
 	defaultAPIServerPort       = 8443
 	defaultDisableAuth         = false
 	defaultOIDCUsernameClaim   = "email"
@@ -130,9 +129,9 @@ func getBaseURL(ctx context.Context) string {
 	if baseURL == "" {
 		logger.Info(configurationNotSpecified,
 			zap.String("envVar", EnvBaseURL),
-			zap.String("default", fmt.Sprintf("http://localhost:%d", defaultSecureServerPort)))
+			zap.String("default", fmt.Sprintf("http://localhost:%d", defaultServerPort)))
 
-		return fmt.Sprintf("http://localhost:%d", defaultSecureServerPort)
+		return fmt.Sprintf("http://localhost:%d", defaultServerPort)
 	}
 
 	return baseURL
