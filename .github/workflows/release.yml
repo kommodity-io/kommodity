@@ -41,8 +41,8 @@ jobs:
       - name: Install UI dependencies
         run: npm install --prefix pkg/ui/web/kommodity-ui
 
-      - name: Generate code
-        run: make generate
+      - name: Build UI
+        run: make build-ui
 
       - name: Lint
         run: make lint
@@ -79,8 +79,8 @@ jobs:
       - name: Install UI dependencies
         run: npm install --prefix pkg/ui/web/kommodity-ui
 
-      - name: Generate code
-        run: make generate
+      - name: Build UI
+        run: make build-ui
 
       - name: Calculate test coverage
         uses: gwatts/go-coverage-action@v2
@@ -127,8 +127,8 @@ jobs:
       - name: Install UI dependencies
         run: npm install --prefix pkg/ui/web/kommodity-ui
 
-      - name: Generate code
-        run: make generate
+      - name: Build UI
+        run: make build-ui
 
       - name: Detect semantic release
         uses: docker://ghcr.io/codfish/semantic-release-action:v3

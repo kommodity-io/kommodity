@@ -19,7 +19,6 @@ import (
 	api "github.com/kommodity-io/kommodity/pkg/ui/api"
 )
 
-//go:generate npm run build --prefix web/kommodity-ui
 //go:embed web/kommodity-ui/dist
 var webDist embed.FS
 
