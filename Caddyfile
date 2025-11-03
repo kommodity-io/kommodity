@@ -1,0 +1,4 @@
+https://localhost:5443 {
+  reverse_proxy host.docker.internal:5000
+  tls internal
+}

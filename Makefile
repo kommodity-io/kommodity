@@ -43,9 +43,11 @@ $(LINTER):
 .env: ## Create a .env file from the template. Use sed to only add if it does not already exist.
 	touch .env
 	grep -q '^KOMMODITY_DB_URI=' .env || echo 'KOMMODITY_DB_URI=postgres://kommodity:kommodity@localhost:5432/kommodity?sslmode=disable' >> .env
-	grep -q '^KOMMODITY_PORT=' .env || echo 'KOMMODITY_PORT=8000' >> .env
+	grep -q '^KOMMODITY_PORT=' .env || echo 'KOMMODITY_PORT=5000' >> .env
 	grep -q '^KOMMODITY_INSECURE_DISABLE_AUTHENTICATION=' .env || echo 'KOMMODITY_INSECURE_DISABLE_AUTHENTICATION=true' >> .env
 	grep -q '^KOMMODITY_DEVELOPMENT_MODE=' .env || echo 'KOMMODITY_DEVELOPMENT_MODE=true' >> .env
+	touch pkg/ui/web/kommodity-ui/.env
+	grep -q '^VITE_KOMMODITY_BASE_URL=' pkg/ui/web/kommodity-ui/.env || echo 'VITE_KOMMODITY_BASE_URL=https://localhost:5443' >> pkg/ui/web/kommodity-ui/.env
 
 .PHONY: compose-up
 compose-up:
@@ -81,8 +83,8 @@ ifneq ($(UPX_FLAGS),)
 	upx $(UPX_FLAGS) bin/kommodity
 endif
 
-build-ui: ## Build the UI.
-	npm run build --prefix pkg/ui/web/kommodity-ui
+build-ui: ## Build the UI. Remember to load the .env file before executing.
+	VITE_KOMMODITY_BASE_URL=$(KOMMODITY_BASE_URL) npm run build --prefix pkg/ui/web/kommodity-ui
 
 .PHONY: clean
 clean: ## Clean the build artifacts.
