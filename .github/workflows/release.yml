@@ -4,9 +4,15 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - "**/*.md"
+      - "images/*.png"
   pull_request:
     branches:
       - main
+    paths-ignore:
+      - "**/*.md"
+      - "images/*.png"
 
 jobs:
   lint:
