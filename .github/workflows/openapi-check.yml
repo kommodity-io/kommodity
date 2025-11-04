@@ -8,10 +8,16 @@ on:
       - ".github/workflows/openapi-check.yml"
       - "go.mod"
       - "go.sum"
+  push:
+    branches:
+      - main
+    paths:
+      - openapi/**/*
 
 jobs:
   check-openapi-spec-consistency:
     name: Check OpenAPI Spec Consistency
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -49,8 +55,12 @@ jobs:
           echo "Error: One or more files in openapi/**/* have changed after running 'make generate'. Please commit the updated files."
           exit 1
 
+  openapi-spec-release:
+    name: Release OpenAPI Spec
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
       - name: Package and upload openapi YAMLs
-        if: ${{ steps.diff.outputs.diff_found == 'false' }}
         run: |
           for dir in openapi/*/; do
             folder=$(basename "$dir")
