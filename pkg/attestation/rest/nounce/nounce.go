@@ -10,11 +10,24 @@ import (
 	"github.com/kommodity-io/kommodity/pkg/net"
 )
 
-type nounceResponse struct {
-	Nounce    string    `json:"nounce"`
-	ExpiresAt time.Time `json:"expiresAt"`
+// NounceResponse represents the response structure for the nounce endpoint.
+//
+//nolint:revive // Struct name is appropriate for the context as its exposed via OpenAPI.
+type NounceResponse struct {
+	Nounce    string    `example:"884f2638c74645b859f87e76560748cc" json:"nounce"`
+	ExpiresAt time.Time `format:"date-time"                         json:"expiresAt"`
 }
 
+// GetNounce godoc
+// @Summary  Obtain an attestation nounce
+// @Tags     Attestation
+// @Success  200  {object}  NounceResponse
+// @Failure  400  {object}  string   "If the request is invalid"
+// @Failure  405  {object}  string   "If the method is not allowed"
+// @Failure  429  {object}  string   "If the rate limit is exceeded"
+// @Failure  500  {object}  string   "If there is a server error"
+// @Router   /nounce [get]
+//
 // GetNounce handles the GET /nounce endpoint.
 func GetNounce(nounceStore *restutils.NounceStore,
 	rateLimiter *net.RateLimiter) func(http.ResponseWriter, *http.Request) {
@@ -46,7 +59,7 @@ func GetNounce(nounceStore *restutils.NounceStore,
 			return
 		}
 
-		nounceResponse := nounceResponse{
+		nounceResponse := NounceResponse{
 			Nounce:    nounce,
 			ExpiresAt: ttl,
 		}

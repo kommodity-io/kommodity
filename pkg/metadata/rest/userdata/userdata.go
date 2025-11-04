@@ -20,6 +20,15 @@ import (
 	ctrlclint "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+// GetUserData godoc
+// @Summary  Get user-data for Talos machine config
+// @Tags     Metadata
+// @Produce  application/x-yaml
+// @Success  200  {string}  string   "YAML config for Talos machine config"
+// @Failure  404  {object}  string   "If the machine is not found"
+// @Failure  500  {object}  string   "If there is a server error"
+// @Router   /configs/user-data [get]
+//
 // GetUserData handles requests for user data metadata.
 //
 //nolint:funlen,cyclop // Complexity is only apparent due to multiple error checks.
