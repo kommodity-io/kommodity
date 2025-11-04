@@ -3,18 +3,15 @@ import { Download, Copy, Check } from "lucide-react";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { toast } from "sonner";
+import { KOMMODITY_BASE_URL } from "@/config";
 
 export const KubeconfigViewer = ({ clusterName }: { clusterName: string }) => {
   const [kubeconfig, setKubeconfig] = useState<string>("");
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const getKommodityBaseUrl = () => {
-  return import.meta.env.VITE_KOMMODITY_BASE_URL || "http://localhost:5000";
-};
-
   const buildApiUrl = (name: string) =>
-    `${getKommodityBaseUrl()}/api/kubeconfig/${name}`;
+    `${KOMMODITY_BASE_URL}/api/kubeconfig/${name}`;
 
   useEffect(() => {
     if (!clusterName) {
