@@ -1,0 +1,74 @@
+name: OpenAPI Spec Check
+
+on:
+  pull_request:
+    paths:
+      - "pkg/metadata/**/*"
+      - "pkg/attestation/**/*"
+      - ".github/workflows/openapi-check.yml"
+      - "go.mod"
+      - "go.sum"
+  push:
+    branches:
+      - main
+    paths:
+      - openapi/**/*
+
+jobs:
+  check-openapi-spec-consistency:
+    name: Check OpenAPI Spec Consistency
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.24.0"
+
+      - name: Run make generate
+        run: make generate
+
+      - name: Check for changes in openapi folder
+        id: diff
+        env:
+          BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
+        run: |
+          openapi_changed=false
+          if ! git diff --exit-code origin/$BRANCH_NAME -- "openapi/**/*"; then
+            openapi_changed=true
+          fi
+
+          if [ "$openapi_changed" = "true" ]; then
+            echo "diff_found=true" >> $GITHUB_OUTPUT
+          else
+            echo "diff_found=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Fail if openapi spec has changed
+        if: ${{ steps.diff.outputs.diff_found == 'true' }}
+        run: |
+          echo "Error: One or more files in openapi/**/* have changed after running 'make generate'. Please commit the updated files."
+          exit 1
+
+  openapi-spec-release:
+    name: Release OpenAPI Spec
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Package and upload openapi YAMLs
+        run: |
+          for dir in openapi/*/; do
+            folder=$(basename "$dir")
+            yaml_file="${dir}swagger.yaml"
+            if [ -f "$yaml_file" ]; then
+              # Create a release for this folder
+              gh release create "${folder}-openapi" "$yaml_file" --title "OpenAPI Spec: ${folder}" --notes "OpenAPI spec for ${folder}"
+            fi
+          done
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
