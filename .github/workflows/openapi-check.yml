@@ -60,14 +60,23 @@ jobs:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
+      - name: Setup ORAS
+        uses: oras-project/setup-oras@v1
+
       - name: Package and upload openapi YAMLs
         run: |
+          set -eou pipefail
+
+          echo "${{ secrets.GITHUB_TOKEN }}" | oras login ghcr.io --username ${{ github.actor }} --password-stdin
+
           for dir in openapi/*/; do
             folder=$(basename "$dir")
             yaml_file="${dir}swagger.yaml"
             if [ -f "$yaml_file" ]; then
-              # Create a release for this folder
-              gh release create "${folder}-openapi" "$yaml_file" --title "OpenAPI Spec: ${folder}" --notes "OpenAPI spec for ${folder}"
+              oras push ghcr.io/kommodity-io/openapi/${folder}:latest \
+                --artifact-type application/openapi+yaml \
+                --annotation "org.opencontainers.image.source=https://github.com/kommodity-io/kommodity" \
+                ./$yaml_file:application/openapi+yaml
             fi
           done
         env:
