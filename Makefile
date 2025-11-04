@@ -49,13 +49,18 @@ $(LINTER):
 	touch pkg/ui/web/kommodity-ui/.env
 	grep -q '^VITE_KOMMODITY_BASE_URL=' pkg/ui/web/kommodity-ui/.env || echo 'VITE_KOMMODITY_BASE_URL=https://localhost:5443' >> pkg/ui/web/kommodity-ui/.env
 
+generate-caddyfile: # Generate a Caddyfile for local development. Make sure to source the .env file first.
+	touch Caddyfile
+	echo "$(KOMMODITY_BASE_URL) {\n  reverse_proxy host.docker.internal:$(KOMMODITY_PORT)\n  tls internal\n}" > Caddyfile
+
 .PHONY: compose-up
-compose-up:
+compose-up: generate-caddyfile
 	docker compose up -d --build --force-recreate
 
 .PHONY: compose-down
 compose-down: # Shuts down docker containers and removes volumes
 	docker compose down --remove-orphans -v
+	rm -f Caddyfile
 
 .PHONY: select-in-local-db
 select-in-local-db:
@@ -75,7 +80,9 @@ fetch-providers:
 	./scripts/fetch-providers.sh
 	./scripts/add-to-scheme-providers.sh
 
-build: build-ui bin/kommodity ## Build the application.
+build: build-ui bin/kommodity ## Build all components (api and UI).
+
+build-api: bin/kommodity ## Build the api
 
 bin/kommodity: $(SOURCES) ## Build the application.
 	go build $(GO_FLAGS) -o bin/kommodity cmd/kommodity/main.go
@@ -83,7 +90,10 @@ ifneq ($(UPX_FLAGS),)
 	upx $(UPX_FLAGS) bin/kommodity
 endif
 
-build-ui: ## Build the UI. Remember to load the .env file before executing.
+install-npm-deps:
+	npm install --prefix pkg/ui/web/kommodity-ui
+
+build-ui: install-npm-deps ## Build the UI
 	VITE_KOMMODITY_BASE_URL=$(KOMMODITY_BASE_URL) npm run build --prefix pkg/ui/web/kommodity-ui
 
 .PHONY: clean
@@ -118,7 +128,7 @@ build-image: ## Build the Docker image.
 .PHONY: run-container
 run-container: build-image
 	docker run --rm \
-		-p 8000:8000 \
+		-p $(KOMMODITY_PORT):$(KOMMODITY_PORT) \
 		--env-file .env \
 		--network kommodity_kommodity-net \
 		kommodity:latest
