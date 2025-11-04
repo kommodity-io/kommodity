@@ -1,0 +1,30 @@
+basePath: /
+info:
+  contact: {}
+  description: Metadata service endpoints for Kommodity.
+  title: Kommodity Metadata API
+  version: 0.1.0
+paths:
+  /configs/user-data:
+    get:
+      produces:
+      - application/x-yaml
+      responses:
+        "200":
+          description: YAML config for Talos machine config
+          schema:
+            type: string
+        "404":
+          description: If the machine is not found
+          schema:
+            type: string
+        "500":
+          description: If there is a server error
+          schema:
+            type: string
+      summary: Get user-data for Talos machine config
+      tags:
+      - Metadata
+schemes:
+- http
+swagger: "2.0"

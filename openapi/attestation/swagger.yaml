@@ -1,0 +1,138 @@
+basePath: /
+definitions:
+  nounce.NounceResponse:
+    properties:
+      expiresAt:
+        format: date-time
+        type: string
+      nounce:
+        example: 884f2638c74645b859f87e76560748cc
+        type: string
+    type: object
+  report.AttestationReportRequest:
+    properties:
+      node:
+        $ref: '#/definitions/report.NodeInfo'
+      nounce:
+        example: 884f2638c74645b859f87e76560748cc
+        type: string
+      report:
+        items:
+          type: integer
+        type: array
+    type: object
+  report.NodeInfo:
+    properties:
+      ip:
+        type: string
+      uuid:
+        type: string
+    type: object
+info:
+  contact: {}
+  description: Attestation endpoints for Talos machines.
+  title: Kommodity Attestation API
+  version: 0.1.0
+paths:
+  /nounce:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/nounce.NounceResponse'
+        "400":
+          description: If the request is invalid
+          schema:
+            type: string
+        "405":
+          description: If the method is not allowed
+          schema:
+            type: string
+        "429":
+          description: If the rate limit is exceeded
+          schema:
+            type: string
+        "500":
+          description: If there is a server error
+          schema:
+            type: string
+      summary: Obtain an attestation nounce
+      tags:
+      - Attestation
+  /report:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Report
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/report.AttestationReportRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: No content
+          schema:
+            type: string
+        "400":
+          description: If the request is invalid
+          schema:
+            type: string
+        "401":
+          description: If the nounce is invalid
+          schema:
+            type: string
+        "405":
+          description: If the method is not allowed
+          schema:
+            type: string
+        "500":
+          description: If there is a server error
+          schema:
+            type: string
+      summary: Submit attestation report
+      tags:
+      - Attestation
+  /report/{ip}/trust:
+    get:
+      parameters:
+      - description: IPv4 or IPv6
+        in: path
+        name: ip
+        required: true
+        type: string
+      responses:
+        "200":
+          description: No content
+          schema:
+            type: string
+        "400":
+          description: If the request is invalid
+          schema:
+            type: string
+        "401":
+          description: No content
+          schema:
+            type: string
+        "404":
+          description: If the machine is not found
+          schema:
+            type: string
+        "405":
+          description: If the method is not allowed
+          schema:
+            type: string
+        "500":
+          description: If there is a server error
+          schema:
+            type: string
+      summary: Check trust status for a machine
+      tags:
+      - Attestation
+schemes:
+- http
+swagger: "2.0"

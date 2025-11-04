@@ -30,8 +30,19 @@ type attestationPolicy struct {
 	ImageSignature      bool `json:"imageSignature"`
 }
 
+// GetTrust godoc
+// @Summary  Check trust status for a machine
+// @Tags     Attestation
+// @Param    ip   path  string  true  "IPv4 or IPv6"
+// @Success  200  {string}  string  "No content"
+// @Failure  400  {object}  string  "If the request is invalid"
+// @Failure  401  {string}  string  "No content"
+// @Failure  404  {object}  string  "If the machine is not found"
+// @Failure  405  {object}  string  "If the method is not allowed"
+// @Failure  500  {object}  string  "If there is a server error"
+// @Router   /report/{ip}/trust [get]
+//
 // GetTrust handles the trust status retrieval for a given attestation report.
-// 200 OK if trusted, 401 Unauthorized if not trusted.
 func GetTrust(cfg *config.KommodityConfig) func(http.ResponseWriter, *http.Request) {
 	return func(response http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodGet {

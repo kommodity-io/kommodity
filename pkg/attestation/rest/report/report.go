@@ -16,17 +16,32 @@ import (
 	ctrlclint "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-type reportRequest struct {
-	Nounce string          `json:"nounce"`
-	Node   nodeInfo        `json:"node"`
+// AttestationReportRequest represents the request structure for the attestation report endpoint.
+type AttestationReportRequest struct {
+	Nounce string          `example:"884f2638c74645b859f87e76560748cc" json:"nounce"`
+	Node   NodeInfo        `json:"node"`
 	Report json.RawMessage `json:"report"`
 }
 
-type nodeInfo struct {
+// NodeInfo represents information about the node submitting the attestation report.
+type NodeInfo struct {
 	UUID string `json:"uuid"`
 	IP   string `json:"ip"`
 }
 
+// PostReport godoc
+// @Summary  Submit attestation report
+// @Tags     Attestation
+// @Accept   json
+// @Produce  json
+// @Param    payload  body  AttestationReportRequest  true  "Report"
+// @Success  200  {string}  string   "No content"
+// @Failure  400  {object}  string   "If the request is invalid"
+// @Failure  401  {object}  string   "If the nounce is invalid"
+// @Failure  405  {object}  string   "If the method is not allowed"
+// @Failure  500  {object}  string   "If there is a server error"
+// @Router   /report [post]
+//
 // PostReport handles the POST /report endpoint.
 func PostReport(nounceStore *restutils.NounceStore,
 	cfg *config.KommodityConfig) func(http.ResponseWriter, *http.Request) {
@@ -37,7 +52,7 @@ func PostReport(nounceStore *restutils.NounceStore,
 			return
 		}
 
-		var req reportRequest
+		var req AttestationReportRequest
 
 		err := json.NewDecoder(request.Body).Decode(&req)
 		if err != nil {
@@ -72,7 +87,7 @@ func PostReport(nounceStore *restutils.NounceStore,
 
 func saveAttestationReport(ctx context.Context,
 	cfg *config.KommodityConfig,
-	node nodeInfo,
+	node NodeInfo,
 	report json.RawMessage,
 ) error {
 	kubeClient, err := clientgoclientset.NewForConfig(cfg.ClientConfig.LoopbackClientConfig)
