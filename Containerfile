@@ -1,4 +1,4 @@
-FROM --platform=$BUILDPLATFORM golang:1.24-alpine AS build
+FROM --platform=$BUILDPLATFORM golang:1.24-alpine AS build-api
 
 # This is set automatically by buildx
 ARG TARGETARCH
@@ -15,14 +15,23 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-RUN --mount=type=cache,target=/gomod-cache --mount=type=cache,target=/go-cache GOOS=${TARGETOS} GOARCH=${TARGETARCH} make build
+RUN --mount=type=cache,target=/gomod-cache --mount=type=cache,target=/go-cache GOOS=${TARGETOS} GOARCH=${TARGETARCH} make build-api
+
+FROM node:22-bullseye AS build-ui
+
+WORKDIR /app
+COPY Makefile ./
+COPY ./pkg/ui/web/kommodity-ui ./pkg/ui/web/kommodity-ui
+
+RUN make build-ui
 
 FROM gcr.io/distroless/static-debian12 AS runtime
 
 ARG WORKDIR=/app
-COPY --from=build /app/bin/kommodity ${WORKDIR}/kommodity
+COPY --from=build-api /app/bin/kommodity ${WORKDIR}/kommodity
+COPY --from=build-ui /app/pkg/ui/web/kommodity-ui/dist ${WORKDIR}/pkg/ui/web/kommodity-ui/dist
 
 WORKDIR ${WORKDIR}
 
-EXPOSE 8000
+EXPOSE 5000
 ENTRYPOINT ["/app/kommodity"]
