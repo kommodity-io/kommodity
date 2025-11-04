@@ -258,6 +258,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
+      - name: Setup NPM
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24.2.0"
+          cache: "npm"
+          cache-dependency-path: pkg/ui/web/kommodity-ui/package-lock.json
+
+      - name: Install UI dependencies
+        run: npm install --prefix pkg/ui/web/kommodity-ui
+
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
         with:
