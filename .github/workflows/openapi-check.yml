@@ -64,10 +64,10 @@ jobs:
         run: |
           for dir in openapi/*/; do
             folder=$(basename "$dir")
-            yaml_file="${dir}${folder}.yaml"
+            yaml_file="${dir}swagger.yaml"
             if [ -f "$yaml_file" ]; then
               # Create a release for this folder
-              gh release create "${folder}-openapi" "$yaml_file" --title "${folder} OpenAPI Spec" --notes "OpenAPI spec for ${folder}"
+              gh release create "${folder}-openapi" "$yaml_file" --title "OpenAPI Spec: ${folder}" --notes "OpenAPI spec for ${folder}"
             fi
           done
         env:
