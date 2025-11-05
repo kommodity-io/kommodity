@@ -301,6 +301,8 @@ jobs:
           file: Containerfile
           push: true
           platforms: linux/amd64,linux/arm64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
           tags: |
             ghcr.io/${{ github.repository }}/kommodity:latest
             ghcr.io/${{ github.repository }}/kommodity:${{ steps.extract_version.outputs.version }}
