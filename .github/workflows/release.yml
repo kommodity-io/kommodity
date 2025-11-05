@@ -7,6 +7,9 @@ on:
     paths-ignore:
       - "**/*.md"
       - "images/*.png"
+      - charts/**/*.yaml
+      - charts/**/*.tpl
+      - scripts/**/*.sh
   pull_request:
     branches:
       - main
@@ -14,6 +17,9 @@ on:
       - "**/*.md"
       - "images/*.png"
       - "**/*.tf"
+      - charts/**/*.yaml
+      - charts/**/*.tpl
+      - scripts/**/*.sh
 
 jobs:
   lint:
