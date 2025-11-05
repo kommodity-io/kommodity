@@ -71,7 +71,6 @@ users:
           - --oidc-issuer-url=ISSUER_URL
           - --oidc-client-id=YOUR_CLIENT_ID
           - --oidc-extra-scope=email
-          - --oidc-extra-scope=profile
         interactiveMode: Always
 contexts:
   - name: kommodity-context

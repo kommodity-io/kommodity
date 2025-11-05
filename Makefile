@@ -126,7 +126,7 @@ build-image: ## Build the Docker image.
 # Make sure KOMMODITY_DB_URI targets 'postgres' not 'localhost'
 # kommodity_kommodity-net network created by 'make compose-up'
 .PHONY: run-container
-run-container: build-image
+run-container:
 	docker run --rm \
 		-p $(KOMMODITY_PORT):$(KOMMODITY_PORT) \
 		--env-file .env \
