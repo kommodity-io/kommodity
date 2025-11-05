@@ -105,7 +105,7 @@ func PostReport(nounceStore *restutils.NounceStore,
 func saveAttestationReport(ctx context.Context,
 	cfg *config.KommodityConfig,
 	node NodeInfo,
-	report json.RawMessage,
+	report Report,
 ) error {
 	kubeClient, err := clientgoclientset.NewForConfig(cfg.ClientConfig.LoopbackClientConfig)
 	if err != nil {
@@ -122,6 +122,11 @@ func saveAttestationReport(ctx context.Context,
 		return fmt.Errorf("failed to find managed machine by IP %s: %w", node.IP, err)
 	}
 
+	jsonReport, err := json.Marshal(report)
+	if err != nil {
+		return fmt.Errorf("failed to marshal report: %w", err)
+	}
+
 	_, err = restutils.GetConfigMapAPI(kubeClient).Create(ctx, &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      restutils.GetConfigMapReportName(machine),
@@ -129,7 +134,7 @@ func saveAttestationReport(ctx context.Context,
 			Labels:    config.GetKommodityLabels(node.UUID, node.IP),
 		},
 		Data: map[string]string{
-			"report": string(report),
+			"report": string(jsonReport),
 		},
 	}, metav1.CreateOptions{})
 	if err != nil {
