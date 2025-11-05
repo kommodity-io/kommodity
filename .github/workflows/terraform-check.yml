@@ -9,7 +9,7 @@ on:
 
 jobs:
   terraform:
-    name: Format & Validate Terraform Modules
+    name: Check Formatting & Validate Terraform Modules
     runs-on: ubuntu-latest
 
     steps:
