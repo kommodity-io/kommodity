@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/kommodity-io/kommodity/pkg/logging"
@@ -16,29 +17,31 @@ import (
 )
 
 const (
-	defaultServerPort          = 5000
-	defaultAPIServerPort       = 8443
-	defaultDisableAuth         = false
-	defaultOIDCUsernameClaim   = "email"
-	defaultOIDCGroupsClaim     = "groups"
-	defaultDevelopmentMode     = false
-	defaultKineURI             = "unix://bin/kine.sock"
-	defaultAttestationNonceTTL = 5 * time.Minute
+	defaultServerPort              = 5000
+	defaultAPIServerPort           = 8443
+	defaultDisableAuth             = false
+	defaultOIDCUsernameClaim       = "email"
+	defaultOIDCGroupsClaim         = "groups"
+	defaultDevelopmentMode         = false
+	defaultKineURI                 = "unix://bin/kine.sock"
+	defaultAttestationNonceTTL     = 5 * time.Minute
+	defaultInfrastructureProviders = "azure,scaleway"
 
 	// EnvBaseURL environment variable for Kommodity base URL.
 	EnvBaseURL = "KOMMODITY_BASE_URL"
 
-	envServerPort          = "KOMMODITY_PORT"
-	envAdminGroup          = "KOMMODITY_ADMIN_GROUP"
-	envDisableAuth         = "KOMMODITY_INSECURE_DISABLE_AUTHENTICATION"
-	envOIDCIssuerURL       = "KOMMODITY_OIDC_ISSUER_URL"
-	envOIDCClientID        = "KOMMODITY_OIDC_CLIENT_ID"
-	envOIDCUsernameClaim   = "KOMMODITY_OIDC_USERNAME_CLAIM"
-	envOIDCGroupsClaim     = "KOMMODITY_OIDC_GROUPS_CLAIM"
-	envDatabaseURI         = "KOMMODITY_DB_URI"
-	envAttestationNonceTTL = "KOMMODITY_ATTESTATION_NONCE_TTL"
-	envDevelopmentMode     = "KOMMODITY_DEVELOPMENT_MODE"
-	envKineURI             = "KOMMODITY_KINE_URI"
+	envServerPort              = "KOMMODITY_PORT"
+	envAdminGroup              = "KOMMODITY_ADMIN_GROUP"
+	envDisableAuth             = "KOMMODITY_INSECURE_DISABLE_AUTHENTICATION"
+	envOIDCIssuerURL           = "KOMMODITY_OIDC_ISSUER_URL"
+	envOIDCClientID            = "KOMMODITY_OIDC_CLIENT_ID"
+	envOIDCUsernameClaim       = "KOMMODITY_OIDC_USERNAME_CLAIM"
+	envOIDCGroupsClaim         = "KOMMODITY_OIDC_GROUPS_CLAIM"
+	envDatabaseURI             = "KOMMODITY_DB_URI"
+	envAttestationNonceTTL     = "KOMMODITY_ATTESTATION_NONCE_TTL"
+	envDevelopmentMode         = "KOMMODITY_DEVELOPMENT_MODE"
+	envKineURI                 = "KOMMODITY_KINE_URI"
+	envInfrastructureProviders = "KOMMODITY_INFRASTRUCTURE_PROVIDERS"
 )
 
 const (
@@ -47,16 +50,17 @@ const (
 
 // KommodityConfig holds the configuration settings for the Kommodity API server.
 type KommodityConfig struct {
-	BaseURL           string
-	ServerPort        int
-	APIServerPort     int
-	WebhookPort       int
-	DBURI             *url.URL
-	KineURI           string
-	AttestationConfig *AttestationConfig
-	AuthConfig        *AuthConfig
-	ClientConfig      *ClientConfig
-	DevelopmentMode   bool
+	BaseURL                 string
+	ServerPort              int
+	APIServerPort           int
+	WebhookPort             int
+	DBURI                   *url.URL
+	KineURI                 string
+	AttestationConfig       *AttestationConfig
+	AuthConfig              *AuthConfig
+	ClientConfig            *ClientConfig
+	DevelopmentMode         bool
+	InfrastructureProviders []string
 }
 
 // AuthConfig holds the authentication configuration settings for the Kommodity API server.
@@ -93,6 +97,7 @@ func LoadConfig(ctx context.Context) (*KommodityConfig, error) {
 	oidcConfig := getOIDCConfig(ctx)
 	developmentMode := getDevelopmentMode(ctx)
 	kineURI := getKineURI(ctx)
+	infrastructureProviders := getInfrastructureProviders(ctx)
 
 	adminGroup, err := getAdminGroup()
 	if apply && err != nil {
@@ -117,8 +122,9 @@ func LoadConfig(ctx context.Context) (*KommodityConfig, error) {
 			OIDCConfig: oidcConfig,
 			AdminGroup: adminGroup,
 		},
-		ClientConfig:    &ClientConfig{},
-		DevelopmentMode: developmentMode,
+		ClientConfig:            &ClientConfig{},
+		DevelopmentMode:         developmentMode,
+		InfrastructureProviders: infrastructureProviders,
 	}, nil
 }
 
@@ -317,4 +323,21 @@ func getKineURI(ctx context.Context) string {
 	}
 
 	return kineURI
+}
+
+func getInfrastructureProviders(ctx context.Context) []string {
+	logger := logging.FromContext(ctx)
+
+	providersEnv := os.Getenv(envInfrastructureProviders)
+	if providersEnv == "" {
+		logger.Info(configurationNotSpecified,
+			zap.String("envVar", envInfrastructureProviders),
+			zap.String("default", defaultInfrastructureProviders))
+
+		providersEnv = defaultInfrastructureProviders
+	}
+
+	var providers []string
+	providers = append(providers, strings.Split(providersEnv, ",")...)
+	return providers
 }
