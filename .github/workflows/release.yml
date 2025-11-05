@@ -7,12 +7,15 @@ on:
     paths-ignore:
       - "**/*.md"
       - "images/*.png"
+      - ".github/workflows/*.yml"
   pull_request:
     branches:
       - main
     paths-ignore:
       - "**/*.md"
       - "images/*.png"
+      - "**/*.tf"
+      - ".github/workflows/*.yml"
 
 jobs:
   lint:
