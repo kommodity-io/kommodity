@@ -170,10 +170,6 @@ resource "azurerm_container_app" "kommodity-app" {
         name  = "KOMMODITY_ADMIN_GROUP"
         value = var.oidc_configuration.admin_group
       }
-      env {
-        name  = "TEST"
-        value = "test"
-      }
     }
   }
 }

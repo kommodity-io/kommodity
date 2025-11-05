@@ -1,7 +1,5 @@
 # Azure AD Application (App Registration)
 
-data "azuread_client_config" "current" {}
-
 resource "azuread_application" "kommodity_oidc_app" {
   display_name                   = var.azure_ad_application.name
   sign_in_audience               = var.azure_ad_application.sign_in_audience
