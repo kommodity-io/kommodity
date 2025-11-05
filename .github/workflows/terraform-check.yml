@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths:
-      - 'terraform/**'
+      - 'terraform/modules/**'
 
 jobs:
   terraform:
@@ -25,7 +25,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          modules=$(find terraform/ -type f -name '*.tf' -exec dirname {} \; | sort -u)
+          modules=$(find terraform/modules/ -type f -name '*.tf' -exec dirname {} \; | sort -u)
           for dir in $modules; do
             echo "🔍 Checking Terraform module: $dir"
             cd "$dir"
