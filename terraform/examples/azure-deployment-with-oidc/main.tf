@@ -9,7 +9,7 @@ module "kommodity_oidc_auth" {
 module "kommodity_azure_deployment" {
   source = "github.com/kommodity-io/kommodity//terraform/modules/kommodity_azure_deployment?ref=<tag>"
 
-  resource_group = "my-resource-group"
+  resource_group = "my-kommodity"
   oidc_configuration = {
     issuer_url  = "https://login.microsoftonline.com/<my-tenant-id>/v2.0"
     client_id   = module.kommodity_oidc_auth.application_client_id
