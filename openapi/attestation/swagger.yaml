@@ -17,15 +17,44 @@ definitions:
         example: 884f2638c74645b859f87e76560748cc
         type: string
       report:
-        items:
-          type: integer
-        type: array
+        $ref: '#/definitions/report.Report'
+    type: object
+  report.ComponentReport:
+    properties:
+      evidence:
+        additionalProperties:
+          type: string
+        type: object
+      measurement:
+        description: SHA256 of the component
+        type: string
+      name:
+        type: string
+      pcrs:
+        additionalProperties:
+          type: string
+        type: object
+      quote:
+        description: SHA256 TPM quote (includes nonce)
+        type: string
+      signature:
+        description: SHA256 TPM signature over quote
+        type: string
     type: object
   report.NodeInfo:
     properties:
       ip:
         type: string
       uuid:
+        type: string
+    type: object
+  report.Report:
+    properties:
+      components:
+        items:
+          $ref: '#/definitions/report.ComponentReport'
+        type: array
+      timestamp:
         type: string
     type: object
 info:

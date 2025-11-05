@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	restutils "github.com/kommodity-io/kommodity/pkg/attestation/rest"
 	"github.com/kommodity-io/kommodity/pkg/config"
@@ -18,15 +19,31 @@ import (
 
 // AttestationReportRequest represents the request structure for the attestation report endpoint.
 type AttestationReportRequest struct {
-	Nounce string          `example:"884f2638c74645b859f87e76560748cc" json:"nounce"`
-	Node   NodeInfo        `json:"node"`
-	Report json.RawMessage `json:"report"`
+	Nounce string   `example:"884f2638c74645b859f87e76560748cc" json:"nounce"`
+	Node   NodeInfo `json:"node"`
+	Report Report   `json:"report"`
 }
 
 // NodeInfo represents information about the node submitting the attestation report.
 type NodeInfo struct {
 	UUID string `json:"uuid"`
 	IP   string `json:"ip"`
+}
+
+// Report represents the attestation report structure.
+type Report struct {
+	Components []ComponentReport `json:"components"`
+	Timestamp  time.Time         `json:"timestamp"`
+}
+
+// ComponentReport represents the attestation report for a specific component.
+type ComponentReport struct {
+	Name        string            `json:"name"`
+	PCRs        map[int]string    `json:"pcrs"`
+	Measurement string            `json:"measurement"` // SHA256 of the component
+	Quote       string            `json:"quote"`       // SHA256 TPM quote (includes nonce)
+	Signature   string            `json:"signature"`   // SHA256 TPM signature over quote
+	Evidence    map[string]string `json:"evidence"`
 }
 
 // PostReport godoc
