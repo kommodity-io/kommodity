@@ -67,7 +67,7 @@ func SetupReconcilers(ctx context.Context,
 		case "scaleway":
 			err = setupScaleway(ctx, *manager)
 		default:
-			err = fmt.Errorf("infrastructure provider %s is not supported", provider)
+			err = ErrUnsupportedProvider
 		}
 
 		if err != nil {

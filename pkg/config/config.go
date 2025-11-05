@@ -338,6 +338,8 @@ func getInfrastructureProviders(ctx context.Context) []string {
 	}
 
 	var providers []string
+
 	providers = append(providers, strings.Split(providersEnv, ",")...)
+
 	return providers
 }
