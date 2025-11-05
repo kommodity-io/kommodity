@@ -13,6 +13,7 @@ Kommodity is an open-source infrastructure platform to commoditize compute, stor
 > 🚧 EXPERIMENTAL 🚧: This project is in an early stage of development and is not yet ready for production use. APIs may break between minor releases, and the project is not yet feature-complete. The project does however adhere to [semantic versioning][semver], so patch releases will never break the API.
 
 ## Architecture
+
 ![Kommodity Architecture](images/kommodity-architecture.excalidraw.png)
 
 ## Development
@@ -103,6 +104,7 @@ talosctl --talosconfig talosconfig kubeconfig -n <controlplane node ip>
 ```
 
 ### Kommodity UI
+
 The Kommodity UI is a web-based interface for fetching kubeconfigs of your Kommodity managed clusters. URL is `http://localhost:8000/ui/<clusterName>`.
 
 ![Kommodity UI](images/kommodity-ui.png)
@@ -178,10 +180,19 @@ Several environment variables can be set to configure Kommodity:
 | `KOMMODITY_DB_URI`                          | URI of the PostgreSQL database                                 | (none)                  |
 | `KOMMODITY_DEVELOPMENT_MODE`                | Enable development mode (installs development CRDs for Docker) | `false`                 |
 
-## Limitations
+## 🚀 Deployment
+
+As Kommodity is a single binary, it can easily be deployed on any infrastructure.
+
+The Terraform modules in [terraform/modules](terraform/modules) can be used to deploy Kommodity on some of the major hyperscalers (Azure for now, more to come).
+
+See examples in [terraform/examples](terraform/examples) for specific deployment examples.
+
+## ⛔ Limitations
+
 - Helm [`hooks`](https://helm.sh/docs/topics/charts_hooks/) are not supported.
 
-## License
+## 📜 License
 
 Kommodity is licensed under the [Apache License 2.0](LICENSE).
 

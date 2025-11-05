@@ -1,0 +1,43 @@
+name: Terraform Lint & Validate
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'terraform/modules/**'
+
+jobs:
+  terraform:
+    name: Check Formatting & Validate Terraform Modules
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.10.0
+
+      - name: Format and Validate each module
+        run: |
+          set -euo pipefail
+
+          modules=$(find terraform/modules/ -type f -name '*.tf' -exec dirname {} \; | sort -u)
+          for dir in $modules; do
+            echo "🔍 Checking Terraform module: $dir"
+            cd "$dir"
+
+            echo "🧹 Running terraform fmt check..."
+            terraform fmt -check -recursive
+
+            echo "🚀 Initializing module..."
+            terraform init -backend=false > /dev/null
+
+            echo "✅ Running terraform validate..."
+            terraform validate
+
+            cd - > /dev/null
+          done
