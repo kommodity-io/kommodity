@@ -8,6 +8,7 @@ import (
 
 	"github.com/kommodity-io/kommodity/pkg/config"
 	"github.com/kommodity-io/kommodity/pkg/logging"
+	"go.uber.org/zap"
 	"sigs.k8s.io/cluster-api/controllers/clustercache"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -53,22 +54,25 @@ func SetupReconcilers(ctx context.Context,
 		return fmt.Errorf("failed to setup Talos controllers: %w", err)
 	}
 
-	// Azure controllers
+	// Infrastructure controllers
 
-	logger.Info("Setting up Azure controllers")
+	infrastructureProviders := kommodityConfig.InfrastructureProviders
 
-	err = setupAzure(ctx, *manager, controllerOpts)
-	if err != nil {
-		return fmt.Errorf("failed to setup Azure controllers: %w", err)
-	}
+	for _, provider := range infrastructureProviders {
+		logger.Info("Setting up infrastructure controllers", zap.String("provider", provider))
 
-	// Scaleway controllers
+		switch provider {
+		case "azure":
+			err = setupAzure(ctx, *manager, controllerOpts)
+		case "scaleway":
+			err = setupScaleway(ctx, *manager)
+		default:
+			err = ErrUnsupportedProvider
+		}
 
-	logger.Info("Setting up Scaleway controllers")
-
-	err = setupScaleway(ctx, *manager)
-	if err != nil {
-		return fmt.Errorf("failed to setup Scaleway controllers: %w", err)
+		if err != nil {
+			return fmt.Errorf("failed to setup infrastructure controllers for %s: %w", provider, err)
+		}
 	}
 
 	return nil

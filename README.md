@@ -179,6 +179,7 @@ Several environment variables can be set to configure Kommodity:
 | `KOMMODITY_ATTESTATION_NONCE_TTL`           | TTL for attestation nonces (e.g., `5m`, `1h`)                  | `5m`                    |
 | `KOMMODITY_DB_URI`                          | URI of the PostgreSQL database                                 | (none)                  |
 | `KOMMODITY_DEVELOPMENT_MODE`                | Enable development mode (installs development CRDs for Docker) | `false`                 |
+| `KOMMODITY_INFRASTRUCTURE_PROVIDERS`        | Comma-separated list of infrastructure providers to enable     | `scaleway,azure`        |
 
 ## 🚀 Deployment
 

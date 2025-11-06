@@ -170,6 +170,10 @@ resource "azurerm_container_app" "kommodity-app" {
         name  = "KOMMODITY_ADMIN_GROUP"
         value = var.oidc_configuration.admin_group
       }
+      env {
+        name  = "KOMMODITY_INFRASTRUCTURE_PROVIDERS"
+        value = var.kommodity_container.infrastructure_providers
+      }
     }
   }
 }
