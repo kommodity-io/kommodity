@@ -26,7 +26,7 @@ func NewCoreModule(remoteGrace time.Duration) Module {
 
 // Name returns the name of the module.
 func (m *coreModule) Name() config.Provider {
-	return config.ProviderCapiCore
+	return config.ProviderCapi
 }
 
 // Setup sets up the core CAPI controllers.

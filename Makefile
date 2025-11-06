@@ -79,6 +79,7 @@ run: ## Run the application locally.
 fetch-providers: 
 	./scripts/fetch-providers.sh
 	./scripts/add-to-scheme-providers.sh
+	./scripts/generate-provider-consts.sh
 
 build: build-ui bin/kommodity ## Build all components (api and UI).
 

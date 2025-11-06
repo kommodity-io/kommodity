@@ -352,8 +352,8 @@ func getInfrastructureProviders(ctx context.Context, developmentMode bool) []Pro
 	}
 
 	// Ensure core CAPI provider are always included
-	if !slices.Contains(providers, ProviderCapiCore) {
-		providers = append(providers, ProviderCapiCore)
+	if !slices.Contains(providers, ProviderCapi) {
+		providers = append(providers, ProviderCapi)
 	}
 
 	// Ensure Talos provider is always included

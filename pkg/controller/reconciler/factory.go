@@ -11,7 +11,7 @@ type FactoryImpl struct {
 func NewReconcilerFactory() *FactoryImpl {
 	return &FactoryImpl{
 		providerMap: map[config.Provider]Module{
-			config.ProviderCapiCore: NewCoreModule(RemoteConnectionGracePeriod),
+			config.ProviderCapi:     NewCoreModule(RemoteConnectionGracePeriod),
 			config.ProviderAzure:    NewAzureModule(),
 			config.ProviderTalos:    NewTalosModule(),
 			config.ProviderDocker:   NewDockerModule(),
