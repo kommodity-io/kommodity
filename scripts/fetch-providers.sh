@@ -8,6 +8,7 @@ rm -f pkg/provider/webhooks/*.yaml
 count=$(yq '.providers | length' "$yq_path")
 for i in $(seq 0 $((count - 1))); do
   name=$(yq -r ".providers[$i].name" "$yq_path")
+  provider=$(yq -r ".providers[$i].provider" "$yq_path")
   repo=$(yq ".providers[$i].repository" "$yq_path")
   go_module=$(yq -r ".providers[$i].go_module" "$yq_path")
   file=$(yq ".providers[$i].file_name" "$yq_path")
@@ -32,12 +33,19 @@ for i in $(seq 0 $((count - 1))); do
 
   curl -sL "$url" -o "pkg/provider/${name}.yaml"
   
+
   if [ -n "$filter" ]; then
     yq eval "$filter" "pkg/provider/${name}.yaml" | yq -s '"pkg/provider/crds/\(.spec.names.kind).yaml"'
   fi
 
   for kind in $(yq -r ".providers[$i].deny_list[]" "$yq_path"); do
     rm -f "pkg/provider/crds/${kind}.yaml"
+  done
+
+  mkdir -p "pkg/provider/crds/${provider}"
+  for crdfile in pkg/provider/crds/*.yaml; do
+    [ -e "$crdfile" ] || continue
+    mv "$crdfile" "pkg/provider/crds/${provider}/"
   done
 
   rm -f "pkg/provider/${name}.yaml"

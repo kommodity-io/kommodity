@@ -1,6 +1,7 @@
 providers:
   # Only used for development and testing purposes with KOMMODITY_DEVELOPMENT_MODE=true
-  - name: docker-docker
+  - name: local
+    provider: docker
     development_mode: true
     repository: kubernetes-sigs/cluster-api
     go_module: sigs.k8s.io/cluster-api
@@ -14,6 +15,7 @@ providers:
       - DevMachine
       - DevMachineTemplate
   - name: capi
+    provider: capi
     repository: kubernetes-sigs/cluster-api
     go_module: sigs.k8s.io/cluster-api
     file_name: core-components.yaml
@@ -26,6 +28,7 @@ providers:
     webhooks:
       - config/webhook/manifests.yaml
   - name: cabpt
+    provider: talos
     repository: siderolabs/cluster-api-bootstrap-provider-talos
     file_name: bootstrap-components.yaml
     filter: select(.kind == "CustomResourceDefinition")
@@ -35,6 +38,7 @@ providers:
     webhooks:
       - config/webhook/manifests.yaml
   - name: cacppt
+    provider: talos
     repository: siderolabs/cluster-api-control-plane-provider-talos
     file_name: control-plane-components.yaml
     filter: select(.kind == "CustomResourceDefinition")
@@ -43,6 +47,7 @@ providers:
     webhooks:
       - config/webhook/manifests.yaml
   - name: scw
+    provider: scaleway
     repository: scaleway/cluster-api-provider-scaleway
     file_name: infrastructure-components.yaml
     filter: select(.kind == "CustomResourceDefinition")
@@ -53,6 +58,7 @@ providers:
     scheme_locations:
       - api/v1alpha1
   - name: capz
+    provider: azure
     repository: kubernetes-sigs/cluster-api-provider-azure
     go_module: sigs.k8s.io/cluster-api-provider-azure
     file_name: infrastructure-components.yaml
