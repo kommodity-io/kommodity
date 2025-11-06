@@ -63,7 +63,7 @@ func New(ctx context.Context, cfg *config.KommodityConfig) (*aggregatorapiserver
 		return nil, fmt.Errorf("failed to create provider cache: %w", err)
 	}
 
-	err = providerCache.LoadCache(ctx)
+	err = providerCache.LoadCache(ctx, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load provider cache: %w", err)
 	}
