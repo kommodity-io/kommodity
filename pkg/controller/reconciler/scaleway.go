@@ -4,10 +4,28 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/kommodity-io/kommodity/pkg/config"
 	"github.com/kommodity-io/kommodity/pkg/logging"
 	scaleway_capi_controller "github.com/scaleway/cluster-api-provider-scaleway/pkg/controller"
 	ctrl "sigs.k8s.io/controller-runtime"
 )
+
+type scalewayModule struct{}
+
+// NewScalewayModule creates a new module for Scaleway CAPI.
+func NewScalewayModule() Module {
+	return &scalewayModule{}
+}
+
+// Name returns the name of the module.
+func (m *scalewayModule) Name() config.Provider {
+	return config.ProviderScaleway
+}
+
+// Setup sets up the Scaleway CAPI controllers.
+func (m *scalewayModule) Setup(ctx context.Context, deps SetupDeps) error {
+	return setupScaleway(ctx, deps.Manager)
+}
 
 func setupScaleway(ctx context.Context, manager ctrl.Manager) error {
 	logger := logging.FromContext(ctx)

@@ -5,7 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 
+	"github.com/kommodity-io/kommodity/pkg/config"
 	"github.com/kommodity-io/kommodity/pkg/logging"
 	"go.uber.org/zap"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
@@ -21,7 +23,7 @@ import (
 	"embed"
 )
 
-//go:embed crds/*.yaml
+//go:embed crds/**/*.yaml
 var crds embed.FS
 
 //go:embed webhooks/*.yaml
@@ -69,8 +71,8 @@ func (pc *Cache) GetProviderGroupResources() map[string][]string {
 }
 
 // LoadCache loads all provider CRDs into the cache.
-func (pc *Cache) LoadCache(ctx context.Context) error {
-	err := pc.loadCRDCache(ctx)
+func (pc *Cache) LoadCache(ctx context.Context, cfg *config.KommodityConfig) error {
+	err := pc.loadCRDCache(ctx, cfg)
 	if err != nil {
 		return fmt.Errorf("failed to load CRD cache: %w", err)
 	}
@@ -235,7 +237,7 @@ func (pc *Cache) updateWebhookWithClientData(webhook map[string]any, webhookURL 
 	return nil
 }
 
-func (pc *Cache) loadCRDCache(ctx context.Context) error {
+func (pc *Cache) loadCRDCache(ctx context.Context, cfg *config.KommodityConfig) error {
 	logger := logging.FromContext(ctx)
 
 	entries, err := crds.ReadDir("crds")
@@ -243,23 +245,39 @@ func (pc *Cache) loadCRDCache(ctx context.Context) error {
 		return fmt.Errorf("failed to read CRD directory: %w", err)
 	}
 
-	for _, entry := range entries {
-		logger.Info("Loading CRD", zap.String("file", entry.Name()))
+	for _, provider := range entries {
+		providerName := config.Provider(provider.Name())
 
-		crd, err := crds.ReadFile("crds/" + entry.Name())
-		if err != nil {
-			return fmt.Errorf("failed to read CRD file %s: %w", entry.Name(), err)
+		if !slices.Contains(cfg.InfrastructureProviders, providerName) {
+			logger.Info("Skipping CRD, provider not in enabled providers",
+				zap.String("provider", provider.Name()))
+
+			continue
 		}
 
-		group, obj, err := pc.decodeCRD(crd)
+		providerEntries, err := crds.ReadDir("crds/" + provider.Name())
 		if err != nil {
-			return fmt.Errorf("failed to decode CRD: %w", err)
+			return fmt.Errorf("failed to read CRD provider directory %s: %w", provider.Name(), err)
 		}
 
-		pc.loadCRDInScheme(group, obj)
+		for _, entry := range providerEntries {
+			logger.Info("Loading CRD", zap.String("file", entry.Name()), zap.String("provider", provider.Name()))
 
-		pc.providerCRDs[group] = append(pc.providerCRDs[group], *obj)
-		logger.Info("Cached CRD", zap.String("group", group))
+			crd, err := crds.ReadFile("crds/" + provider.Name() + "/" + entry.Name())
+			if err != nil {
+				return fmt.Errorf("failed to read CRD file %s: %w", entry.Name(), err)
+			}
+
+			group, obj, err := pc.decodeCRD(crd)
+			if err != nil {
+				return fmt.Errorf("failed to decode CRD: %w", err)
+			}
+
+			pc.loadCRDInScheme(group, obj)
+
+			pc.providerCRDs[group] = append(pc.providerCRDs[group], *obj)
+			logger.Info("Cached CRD", zap.String("group", group))
+		}
 	}
 
 	return nil

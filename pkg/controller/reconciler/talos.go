@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/go-logr/zapr"
+	"github.com/kommodity-io/kommodity/pkg/config"
 	"github.com/kommodity-io/kommodity/pkg/logging"
 	bootstrap_controller "github.com/siderolabs/cluster-api-bootstrap-provider-talos/controllers"
 	control_plane_controller "github.com/siderolabs/cluster-api-control-plane-provider-talos/controllers"
@@ -15,6 +16,23 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 )
+
+type talosModule struct{}
+
+// NewTalosModule creates a new module for Talos CAPI.
+func NewTalosModule() Module {
+	return &talosModule{}
+}
+
+// Name returns the name of the module.
+func (m *talosModule) Name() config.Provider {
+	return config.ProviderTalos
+}
+
+// Setup sets up the Talos CAPI controllers.
+func (m *talosModule) Setup(ctx context.Context, deps SetupDeps) error {
+	return setupTalos(ctx, deps.Manager, deps.Options)
+}
 
 func setupTalos(ctx context.Context, manager ctrl.Manager,
 	opt controller.Options) error {
