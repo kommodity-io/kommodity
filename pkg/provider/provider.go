@@ -249,7 +249,7 @@ func (pc *Cache) loadCRDCache(ctx context.Context, cfg *config.KommodityConfig) 
 		providerName := config.Provider(provider.Name())
 
 		if !slices.Contains(cfg.InfrastructureProviders, providerName) {
-			logger.Info("Skipping CRD provider not in enabled providers",
+			logger.Info("Skipping CRD, provider not in enabled providers",
 				zap.String("provider", provider.Name()))
 
 			continue
