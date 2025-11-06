@@ -9,9 +9,27 @@ import (
 	docker_capi_controller "sigs.k8s.io/cluster-api/test/infrastructure/docker/controllers"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 
+	"github.com/kommodity-io/kommodity/pkg/config"
 	"github.com/kommodity-io/kommodity/pkg/logging"
 	ctrl "sigs.k8s.io/controller-runtime"
 )
+
+type dockerModule struct{}
+
+// NewDockerModule creates a new module for Docker CAPI.
+func NewDockerModule() Module {
+	return &dockerModule{}
+}
+
+// Name returns the name of the module.
+func (m *dockerModule) Name() config.Provider {
+	return config.ProviderDocker
+}
+
+// Setup sets up the Docker CAPI controllers.
+func (m *dockerModule) Setup(ctx context.Context, deps SetupDeps) error {
+	return setupDocker(ctx, deps.Manager, deps.ClusterCache, deps.Options)
+}
 
 func setupDocker(ctx context.Context, manager ctrl.Manager,
 	clusterCache clustercache.ClusterCache, opt controller.Options) error {

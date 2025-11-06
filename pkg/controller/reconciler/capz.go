@@ -4,12 +4,30 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/kommodity-io/kommodity/pkg/config"
 	"github.com/kommodity-io/kommodity/pkg/logging"
 	"sigs.k8s.io/cluster-api-provider-azure/controllers"
 	capz_capi_controller "sigs.k8s.io/cluster-api-provider-azure/exp/controllers"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 )
+
+type azureModule struct{}
+
+// NewAzureModule creates a new module for Azure CAPI.
+func NewAzureModule() Module {
+	return &azureModule{}
+}
+
+// Name returns the name of the module.
+func (m *azureModule) Name() config.Provider {
+	return config.ProviderAzure
+}
+
+// Setup sets up the Azure CAPI controllers.
+func (m *azureModule) Setup(ctx context.Context, deps SetupDeps) error {
+	return setupAzure(ctx, deps.Manager, deps.Options)
+}
 
 func setupAzure(ctx context.Context, manager ctrl.Manager, opt controller.Options) error {
 	logger := logging.FromContext(ctx)

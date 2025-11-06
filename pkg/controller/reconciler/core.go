@@ -5,12 +5,34 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/kommodity-io/kommodity/pkg/config"
 	"github.com/kommodity-io/kommodity/pkg/logging"
 	capi_controllers "sigs.k8s.io/cluster-api/controllers"
 	"sigs.k8s.io/cluster-api/controllers/clustercache"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 )
+
+type coreModule struct {
+	remoteGrace time.Duration
+}
+
+// NewCoreModule creates a new module for core capi.
+func NewCoreModule(remoteGrace time.Duration) Module {
+	return &coreModule{
+		remoteGrace: remoteGrace,
+	}
+}
+
+// Name returns the name of the module.
+func (m *coreModule) Name() config.Provider {
+	return config.ProviderCapiCore
+}
+
+// Setup sets up the core CAPI controllers.
+func (m *coreModule) Setup(ctx context.Context, deps SetupDeps) error {
+	return setupCAPI(ctx, deps.Manager, deps.ClusterCache, deps.Options, m.remoteGrace)
+}
 
 //nolint:funlen // Too long due to many error checks and setup steps, no real complexity here
 func setupCAPI(ctx context.Context, manager ctrl.Manager,

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -17,15 +18,14 @@ import (
 )
 
 const (
-	defaultServerPort              = 5000
-	defaultAPIServerPort           = 8443
-	defaultDisableAuth             = false
-	defaultOIDCUsernameClaim       = "email"
-	defaultOIDCGroupsClaim         = "groups"
-	defaultDevelopmentMode         = false
-	defaultKineURI                 = "unix://bin/kine.sock"
-	defaultAttestationNonceTTL     = 5 * time.Minute
-	defaultInfrastructureProviders = "azure,scaleway"
+	defaultServerPort          = 5000
+	defaultAPIServerPort       = 8443
+	defaultDisableAuth         = false
+	defaultOIDCUsernameClaim   = "email"
+	defaultOIDCGroupsClaim     = "groups"
+	defaultDevelopmentMode     = false
+	defaultKineURI             = "unix://bin/kine.sock"
+	defaultAttestationNonceTTL = 5 * time.Minute
 
 	// EnvBaseURL environment variable for Kommodity base URL.
 	EnvBaseURL = "KOMMODITY_BASE_URL"
@@ -60,7 +60,7 @@ type KommodityConfig struct {
 	AuthConfig              *AuthConfig
 	ClientConfig            *ClientConfig
 	DevelopmentMode         bool
-	InfrastructureProviders []string
+	InfrastructureProviders []Provider
 }
 
 // AuthConfig holds the authentication configuration settings for the Kommodity API server.
@@ -97,7 +97,7 @@ func LoadConfig(ctx context.Context) (*KommodityConfig, error) {
 	oidcConfig := getOIDCConfig(ctx)
 	developmentMode := getDevelopmentMode(ctx)
 	kineURI := getKineURI(ctx)
-	infrastructureProviders := getInfrastructureProviders(ctx)
+	infrastructureProviders := getInfrastructureProviders(ctx, developmentMode)
 
 	adminGroup, err := getAdminGroup()
 	if apply && err != nil {
@@ -325,21 +325,41 @@ func getKineURI(ctx context.Context) string {
 	return kineURI
 }
 
-func getInfrastructureProviders(ctx context.Context) []string {
+func getInfrastructureProviders(ctx context.Context, developmentMode bool) []Provider {
 	logger := logging.FromContext(ctx)
+
+	var providers []Provider
+
+	defaultProviders := GetAllProviders()
 
 	providersEnv := os.Getenv(envInfrastructureProviders)
 	if providersEnv == "" {
 		logger.Info(configurationNotSpecified,
 			zap.String("envVar", envInfrastructureProviders),
-			zap.String("default", defaultInfrastructureProviders))
+			zap.Any("default", defaultProviders))
 
-		providersEnv = defaultInfrastructureProviders
+		providers = defaultProviders
+	} else {
+		providerStrings := strings.Split(providersEnv, ",")
+		for _, p := range providerStrings {
+			provider := Provider(strings.TrimSpace(p))
+			providers = append(providers, provider)
+		}
 	}
 
-	var providers []string
+	if developmentMode {
+		providers = append(providers, ProviderDocker)
+	}
 
-	providers = append(providers, strings.Split(providersEnv, ",")...)
+	// Ensure core CAPI provider are always included
+	if !slices.Contains(providers, ProviderCapiCore) {
+		providers = append(providers, ProviderCapiCore)
+	}
+
+	// Ensure Talos provider is always included
+	if !slices.Contains(providers, ProviderTalos) {
+		providers = append(providers, ProviderTalos)
+	}
 
 	return providers
 }
