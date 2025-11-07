@@ -40,9 +40,9 @@ type Report struct {
 type ComponentReport struct {
 	Name        string            `json:"name"`
 	PCRs        map[int]string    `json:"pcrs"`
-	Measurement string            `json:"measurement"` // SHA256 of the component
-	Quote       string            `json:"quote"`       // SHA256 TPM quote (includes nonce)
-	Signature   string            `json:"signature"`   // SHA256 TPM signature over quote
+	Measurement string            `json:"measurement"` // SHA512 of the component
+	Quote       string            `json:"quote"`       // Hex encoded TPM quote (includes nonce)
+	Signature   string            `json:"signature"`   // Hex encoded TPM signature over quote
 	Evidence    map[string]string `json:"evidence"`
 }
 

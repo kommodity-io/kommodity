@@ -26,7 +26,7 @@ definitions:
           type: string
         type: object
       measurement:
-        description: SHA256 of the component
+        description: SHA512 of the component
         type: string
       name:
         type: string
@@ -35,10 +35,10 @@ definitions:
           type: string
         type: object
       quote:
-        description: SHA256 TPM quote (includes nonce)
+        description: Hex encoded TPM quote (includes nonce)
         type: string
       signature:
-        description: SHA256 TPM signature over quote
+        description: Hex encoded TPM signature over quote
         type: string
     type: object
   report.NodeInfo:
