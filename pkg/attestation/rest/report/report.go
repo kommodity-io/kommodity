@@ -19,7 +19,7 @@ import (
 
 // AttestationReportRequest represents the request structure for the attestation report endpoint.
 type AttestationReportRequest struct {
-	Nounce string   `example:"884f2638c74645b859f87e76560748cc" json:"nounce"`
+	Nonce  string   `example:"884f2638c74645b859f87e76560748cc" json:"nonce"`
 	Node   NodeInfo `json:"node"`
 	Report Report   `json:"report"`
 }
@@ -54,13 +54,13 @@ type ComponentReport struct {
 // @Param    payload  body  AttestationReportRequest  true  "Report"
 // @Success  200  {string}  string   "No content"
 // @Failure  400  {object}  string   "If the request is invalid"
-// @Failure  401  {object}  string   "If the nounce is invalid"
+// @Failure  401  {object}  string   "If the nonce is invalid"
 // @Failure  405  {object}  string   "If the method is not allowed"
 // @Failure  500  {object}  string   "If there is a server error"
 // @Router   /report [post]
 //
 // PostReport handles the POST /report endpoint.
-func PostReport(nounceStore *restutils.NounceStore,
+func PostReport(nonceStore *restutils.NonceStore,
 	cfg *config.KommodityConfig) func(http.ResponseWriter, *http.Request) {
 	return func(response http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodPost {
@@ -78,7 +78,7 @@ func PostReport(nounceStore *restutils.NounceStore,
 			return
 		}
 
-		valid, err := nounceStore.Use(request.RemoteAddr, req.Nounce)
+		valid, err := nonceStore.Use(request.RemoteAddr, req.Nonce)
 		if err != nil {
 			http.Error(response, err.Error(), http.StatusBadRequest)
 
@@ -86,7 +86,7 @@ func PostReport(nounceStore *restutils.NounceStore,
 		}
 
 		if !valid {
-			http.Error(response, "Invalid nounce", http.StatusUnauthorized)
+			http.Error(response, "Invalid nonce", http.StatusUnauthorized)
 
 			return
 		}

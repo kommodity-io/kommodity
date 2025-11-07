@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	restutils "github.com/kommodity-io/kommodity/pkg/attestation/rest"
-	restnounce "github.com/kommodity-io/kommodity/pkg/attestation/rest/nounce"
+	restnonce "github.com/kommodity-io/kommodity/pkg/attestation/rest/nonce"
 	restreport "github.com/kommodity-io/kommodity/pkg/attestation/rest/report"
 	resttrust "github.com/kommodity-io/kommodity/pkg/attestation/rest/trust"
 	"github.com/kommodity-io/kommodity/pkg/combinedserver"
@@ -14,8 +14,8 @@ import (
 )
 
 const (
-	// AttestationNounceEndpoint is the endpoint for obtaining a nonce.
-	AttestationNounceEndpoint = "/nounce"
+	// AttestationNonceEndpoint is the endpoint for obtaining a nonce.
+	AttestationNonceEndpoint = "/nonce"
 
 	// AttestationReportEndpoint is the endpoint for submitting an attestation report.
 	AttestationReportEndpoint = "/report"
@@ -28,10 +28,10 @@ const (
 func NewHTTPMuxFactory(cfg *config.KommodityConfig) combinedserver.HTTPMuxFactory {
 	return func(mux *http.ServeMux) error {
 		rateLimiter := net.NewRateLimiter()
-		nounceStore := restutils.NewNounceStore(cfg.AttestationConfig.NonceTTL)
+		nonceStore := restutils.NewNonceStore(cfg.AttestationConfig.NonceTTL)
 
-		mux.HandleFunc("GET "+AttestationNounceEndpoint, restnounce.GetNounce(nounceStore, rateLimiter))
-		mux.HandleFunc("POST "+AttestationReportEndpoint, restreport.PostReport(nounceStore, cfg))
+		mux.HandleFunc("GET "+AttestationNonceEndpoint, restnonce.GetNonce(nonceStore, rateLimiter))
+		mux.HandleFunc("POST "+AttestationReportEndpoint, restreport.PostReport(nonceStore, cfg))
 		mux.HandleFunc("GET "+AttestationTrustEndpoint, resttrust.GetTrust(cfg))
 
 		return nil

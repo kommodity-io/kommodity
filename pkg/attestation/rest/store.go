@@ -11,28 +11,28 @@ import (
 )
 
 const (
-	nounceSize = 32 // 256-bit
+	nonceSize = 32 // 256-bit
 )
 
-// NounceStore is a thread-safe store for nounces with expiration.
-type NounceStore struct {
+// NonceStore is a thread-safe store for nonces with expiration.
+type NonceStore struct {
 	mu   sync.Mutex
 	ttl  time.Duration
-	data map[string]nounceRecord
+	data map[string]nonceRecord
 }
 
-type nounceRecord struct {
+type nonceRecord struct {
 	expiresAt time.Time
 	ip        string
 }
 
-// NewNounceStore creates a new NounceStore with the specified TTL for nounces.
-func NewNounceStore(ttl time.Duration) *NounceStore {
-	store := &NounceStore{
+// NewNonceStore creates a new NonceStore with the specified TTL for nonces.
+func NewNonceStore(ttl time.Duration) *NonceStore {
+	store := &NonceStore{
 		ttl:  ttl,
-		data: make(map[string]nounceRecord),
+		data: make(map[string]nonceRecord),
 	}
-	// Background reaper for expired nounces
+	// Background reaper for expired nonces
 	go func() {
 		t := time.NewTicker(time.Minute)
 		defer t.Stop()
@@ -55,43 +55,43 @@ func NewNounceStore(ttl time.Duration) *NounceStore {
 	return store
 }
 
-// Generate creates a new nounce, stores it with an expiration time, and returns it.
-func (s *NounceStore) Generate(ip string) (string, time.Time, error) {
+// Generate creates a new nonce, stores it with an expiration time, and returns it.
+func (s *NonceStore) Generate(ip string) (string, time.Time, error) {
 	canonical, err := canonicalIP(ip)
 	if err != nil {
 		return "", time.Time{}, fmt.Errorf("failed to canonicalize IP: %w", err)
 	}
 
-	reservation := make([]byte, nounceSize)
+	reservation := make([]byte, nonceSize)
 
 	_, err = rand.Read(reservation)
 	if err != nil {
-		return "", time.Time{}, fmt.Errorf("failed to generate nounce: %w", err)
+		return "", time.Time{}, fmt.Errorf("failed to generate nonce: %w", err)
 	}
 
-	nounce := hex.EncodeToString(reservation)
+	nonce := hex.EncodeToString(reservation)
 	exp := time.Now().Add(s.ttl)
 
 	s.mu.Lock()
-	s.data[nounce] = nounceRecord{
+	s.data[nonce] = nonceRecord{
 		expiresAt: exp,
 		ip:        canonical,
 	}
 	s.mu.Unlock()
 
-	return nounce, exp, nil
+	return nonce, exp, nil
 }
 
-// Use validates and consumes a nounce. It returns true if the nounce is valid and not expired.
+// Use validates and consumes a nonce. It returns true if the nonce is valid and not expired.
 //
 //nolint:varnamelen // Variable name ip is appropriate for the context.
-func (s *NounceStore) Use(ip, nounce string) (bool, error) {
+func (s *NonceStore) Use(ip, nonce string) (bool, error) {
 	now := time.Now()
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	record, exists := s.data[nounce]
+	record, exists := s.data[nonce]
 	if !exists {
 		return false, ErrInvalidNonce
 	}
@@ -101,13 +101,13 @@ func (s *NounceStore) Use(ip, nounce string) (bool, error) {
 	}
 
 	if now.After(record.expiresAt) {
-		delete(s.data, nounce)
+		delete(s.data, nonce)
 
 		return false, ErrExpiredNonce
 	}
 
 	// single-use
-	delete(s.data, nounce)
+	delete(s.data, nonce)
 
 	return true, nil
 }
