@@ -40,6 +40,11 @@ func SetupReconcilers(ctx context.Context,
 	for provider, providerFunc := range providers {
 		logger.Info("Setting up reconciler for provider", zap.String("provider", string(provider)))
 
+		if provider == config.ProviderDocker && !cfg.DevelopmentMode {
+			logger.Info("Skipping Docker provider setup since development mode is disabled")
+			continue
+		}
+
 		err := providerFunc.Setup(ctx, SetupDeps{
 			Manager:      *manager,
 			ClusterCache: clusterCache,

@@ -80,3 +80,11 @@ providers:
       - api/v1alpha1
       - api/v1beta1
       - exp/api/v1beta1
+  - name: kubevirt
+    provider: kubevirt
+    repository: kubernetes-sigs/cluster-api-provider-kubevirt
+    go_module: sigs.k8s.io/cluster-api-provider-kubevirt
+    file_name: infrastructure-components.yaml
+    filter: select(.kind == "CustomResourceDefinition")
+    scheme_locations:
+      - api/v1alpha1
