@@ -1,11 +1,11 @@
 basePath: /
 definitions:
-  nounce.NounceResponse:
+  nonce.NonceResponse:
     properties:
       expiresAt:
         format: date-time
         type: string
-      nounce:
+      nonce:
         example: 884f2638c74645b859f87e76560748cc
         type: string
     type: object
@@ -13,7 +13,7 @@ definitions:
     properties:
       node:
         $ref: '#/definitions/report.NodeInfo'
-      nounce:
+      nonce:
         example: 884f2638c74645b859f87e76560748cc
         type: string
       report:
@@ -63,13 +63,13 @@ info:
   title: Kommodity Attestation API
   version: 0.1.0
 paths:
-  /nounce:
+  /nonce:
     get:
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/nounce.NounceResponse'
+            $ref: '#/definitions/nonce.NonceResponse'
         "400":
           description: If the request is invalid
           schema:
@@ -86,7 +86,7 @@ paths:
           description: If there is a server error
           schema:
             type: string
-      summary: Obtain an attestation nounce
+      summary: Obtain an attestation nonce
       tags:
       - Attestation
   /report:
@@ -112,7 +112,7 @@ paths:
           schema:
             type: string
         "401":
-          description: If the nounce is invalid
+          description: If the nonce is invalid
           schema:
             type: string
         "405":
