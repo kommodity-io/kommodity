@@ -42,6 +42,7 @@ func SetupReconcilers(ctx context.Context,
 
 		if provider == config.ProviderDocker && !cfg.DevelopmentMode {
 			logger.Info("Skipping Docker provider setup since development mode is disabled")
+
 			continue
 		}
 
