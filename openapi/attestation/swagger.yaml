@@ -17,9 +17,16 @@ definitions:
         example: 884f2638c74645b859f87e76560748cc
         type: string
       report:
-        $ref: '#/definitions/report.Report'
+        $ref: '#/definitions/rest.Report'
     type: object
-  report.ComponentReport:
+  report.NodeInfo:
+    properties:
+      ip:
+        type: string
+      uuid:
+        type: string
+    type: object
+  rest.ComponentReport:
     properties:
       evidence:
         additionalProperties:
@@ -41,18 +48,11 @@ definitions:
         description: Hex encoded TPM signature over quote
         type: string
     type: object
-  report.NodeInfo:
-    properties:
-      ip:
-        type: string
-      uuid:
-        type: string
-    type: object
-  report.Report:
+  rest.Report:
     properties:
       components:
         items:
-          $ref: '#/definitions/report.ComponentReport'
+          $ref: '#/definitions/rest.ComponentReport'
         type: array
       timestamp:
         type: string

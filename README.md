@@ -46,7 +46,7 @@ If you want to run Kommodity with authentication using OpenID Connect (OIDC), yo
 kubectl krew install oidc-login
 ```
 
-Kommodity uses Caddy as a reverse proxy to handle TLS termination and routing, it is bootstrapped as part of Docker compose. Make sure to have Caddy installed on your system. You can find installation instructions on the [Caddy website](https://caddyserver.com/docs/install). 
+Kommodity uses Caddy as a reverse proxy to handle TLS termination and routing, it is bootstrapped as part of Docker compose. Make sure to have Caddy installed on your system. You can find installation instructions on the [Caddy website](https://caddyserver.com/docs/install).
 
 Make sure to override the `KOMMODITY_BASE_URL` environment variable in the `.env` file to match your Caddy setup, e.g., `https://localhost:5443`.
 
@@ -178,8 +178,8 @@ Several environment variables can be set to configure Kommodity:
 | `KOMMODITY_OIDC_GROUPS_CLAIM`               | OIDC claim used for groups                                     | `groups`                |
 | `KOMMODITY_ATTESTATION_NONCE_TTL`           | TTL for attestation nonces (e.g., `5m`, `1h`)                  | `5m`                    |
 | `KOMMODITY_DB_URI`                          | URI of the PostgreSQL database                                 | (none)                  |
-| `KOMMODITY_DEVELOPMENT_MODE`                | Enable development mode (installs development CRDs for Docker) | `false`                 |
-| `KOMMODITY_INFRASTRUCTURE_PROVIDERS`        | Comma-separated list of infrastructure providers to enable     | `scaleway,azure`        |
+| `KOMMODITY_DEVELOPMENT_MODE`                | Enable development mode                                        | `false`                 |
+| `KOMMODITY_INFRASTRUCTURE_PROVIDERS`        | Comma-separated list of infrastructure providers to enable     | All                     |
 
 ## 🚀 Deployment
 
