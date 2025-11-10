@@ -4,13 +4,14 @@ package services
 import (
 	"context"
 	"fmt"
-	"log"
 	"path"
 
 	corev1 "k8s.io/api/core/v1"
 
+	"github.com/kommodity-io/kommodity/pkg/logging"
 	storageerr "github.com/kommodity-io/kommodity/pkg/storage"
 
+	"go.uber.org/zap"
 	"k8s.io/apimachinery/pkg/api/validation"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
@@ -131,10 +132,14 @@ func (serviceStrategy) NamespaceScoped() bool {
 }
 
 // PrepareForCreate sets defaults for new objects.
-func (serviceStrategy) PrepareForCreate(_ context.Context, obj runtime.Object) {
+func (serviceStrategy) PrepareForCreate(ctx context.Context, obj runtime.Object) {
+	logger := logging.FromContext(ctx).With(zap.String("component", "service-storage"))
+
 	service, success := obj.(*corev1.Service)
 	if !success {
-		log.Printf("expected *corev1.Service, got %T", obj)
+		logger.Error("Received unexpected type",
+			zap.String("expected", "*corev1.Service"),
+			zap.String("received", fmt.Sprintf("%T", obj)))
 
 		return
 	}
@@ -148,17 +153,23 @@ func (serviceStrategy) WarningsOnCreate(_ context.Context, _ runtime.Object) []s
 }
 
 // PrepareForUpdate sets defaults for updated objects.
-func (serviceStrategy) PrepareForUpdate(_ context.Context, obj, old runtime.Object) {
+func (serviceStrategy) PrepareForUpdate(ctx context.Context, obj, old runtime.Object) {
+	logger := logging.FromContext(ctx).With(zap.String("component", "service-storage"))
+
 	newService, success := obj.(*corev1.Service)
 	if !success {
-		log.Printf("expected *corev1.Service, got %T", obj)
+		logger.Error("Received unexpected type",
+			zap.String("expected", "*corev1.Service"),
+			zap.String("received", fmt.Sprintf("%T", obj)))
 
 		return
 	}
 
 	oldService, success := old.(*corev1.Service)
 	if !success {
-		log.Printf("expected *corev1.Service, got %T", old)
+		logger.Error("Received unexpected type",
+			zap.String("expected", "*corev1.Service"),
+			zap.String("received", fmt.Sprintf("%T", old)))
 
 		return
 	}
