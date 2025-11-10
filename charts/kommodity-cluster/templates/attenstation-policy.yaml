@@ -8,7 +8,6 @@ metadata:
     cluster.x-k8s.io/cluster-name: {{ .Release.Name }}
     app.kubernetes.io/managed-by: kommodity
 data:
-  confidentialCompute: "{{ .Values.kommodity.security.attestationPolicy.confidentialCompute }}"
-  secureBoot: "{{ .Values.kommodity.security.attestationPolicy.secureBoot }}"
-  imageSignature: "{{ .Values.kommodity.security.attestationPolicy.imageSignature }}"
+  report: |
+{{ toYaml .Values.kommodity.security.attestationPolicy | indent 4 }}
 {{- end }}

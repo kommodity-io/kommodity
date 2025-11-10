@@ -3,10 +3,10 @@ package trust
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
-	"strconv"
 
 	restutils "github.com/kommodity-io/kommodity/pkg/attestation/rest"
 	"github.com/kommodity-io/kommodity/pkg/config"
@@ -21,15 +21,6 @@ const (
 	configMapPolicyPrefix = "attestation-policy"
 )
 
-type attestationReport struct {
-}
-
-type attestationPolicy struct {
-	ConfidentialCompute bool `json:"confidentialCompute"`
-	SecureBoot          bool `json:"secureBoot"`
-	ImageSignature      bool `json:"imageSignature"`
-}
-
 // GetTrust godoc
 // @Summary  Check trust status for a machine
 // @Tags     Attestation
@@ -43,6 +34,8 @@ type attestationPolicy struct {
 // @Router   /report/{ip}/trust [get]
 //
 // GetTrust handles the trust status retrieval for a given attestation report.
+//
+//nolint:funlen // Complexity is only apparent due to multiple error checks.
 func GetTrust(cfg *config.KommodityConfig) func(http.ResponseWriter, *http.Request) {
 	return func(response http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodGet {
@@ -98,11 +91,11 @@ func GetTrust(cfg *config.KommodityConfig) func(http.ResponseWriter, *http.Reque
 			return
 		}
 
-		_ = report
-		_ = policy
+		if !report.CompliantWith(policy) {
+			http.Error(response, "Machine is not trusted", http.StatusUnauthorized)
 
-		// Compare report with policy to determine trust status.
-		// For now, we return Not Implemented.
+			return
+		}
 
 		response.WriteHeader(http.StatusNotImplemented)
 	}
@@ -110,52 +103,45 @@ func GetTrust(cfg *config.KommodityConfig) func(http.ResponseWriter, *http.Reque
 
 func getMachineAttestationReport(ctx context.Context,
 	kubeClient *clientgoclientset.Clientset,
-	machine *clusterv1.Machine) (*attestationReport, error) {
+	machine *clusterv1.Machine) (*restutils.Report, error) {
 	configMapName := restutils.GetConfigMapReportName(machine)
 
-	attestationConfigMap, err := restutils.GetConfigMapAPI(kubeClient).
-		Get(ctx, configMapName, metav1.GetOptions{})
+	report, err := getReportConfigMap(ctx, kubeClient, configMapName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get attestation report config map: %w", err)
+		return nil, fmt.Errorf("failed to get attestation report: %w", err)
 	}
 
-	// Define attestationReport structure and populate it from attestationConfigMap.Data
-	_ = attestationConfigMap
-
-	return &attestationReport{}, nil
+	return report, nil
 }
 
 func getAttestationPolicy(ctx context.Context,
 	kubeClient *clientgoclientset.Clientset,
-	clusterName string) (*attestationPolicy, error) {
+	clusterName string) (*restutils.Report, error) {
 	configMapName := fmt.Sprintf("%s-%s", configMapPolicyPrefix, clusterName)
 
+	policy, err := getReportConfigMap(ctx, kubeClient, configMapName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get attestation policy: %w", err)
+	}
+
+	return policy, nil
+}
+
+func getReportConfigMap(ctx context.Context,
+	kubeClient *clientgoclientset.Clientset,
+	configMapName string) (*restutils.Report, error) {
 	attestationConfigMap, err := restutils.GetConfigMapAPI(kubeClient).
 		Get(ctx, configMapName, metav1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get attestation policy config map: %w", err)
 	}
 
-	policy := &attestationPolicy{}
+	report := &restutils.Report{}
 
-	confidentialCompute, err := strconv.ParseBool(attestationConfigMap.Data["confidentialCompute"])
+	err = json.Unmarshal([]byte(attestationConfigMap.Data["report"]), &report)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse confidentialCompute: %w", err)
+		return nil, fmt.Errorf("failed to unmarshal attestation report: %w", err)
 	}
 
-	secureBoot, err := strconv.ParseBool(attestationConfigMap.Data["secureBoot"])
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse secureBoot: %w", err)
-	}
-
-	imageSignature, err := strconv.ParseBool(attestationConfigMap.Data["imageSignature"])
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse imageSignature: %w", err)
-	}
-
-	policy.ConfidentialCompute = confidentialCompute
-	policy.SecureBoot = secureBoot
-	policy.ImageSignature = imageSignature
-
-	return policy, nil
+	return report, nil
 }
