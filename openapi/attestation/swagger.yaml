@@ -37,16 +37,6 @@ definitions:
         type: string
       name:
         type: string
-      pcrs:
-        additionalProperties:
-          type: string
-        type: object
-      quote:
-        description: Hex encoded TPM quote (includes nonce)
-        type: string
-      signature:
-        description: Hex encoded TPM signature over quote
-        type: string
     type: object
   rest.Report:
     properties:
@@ -54,7 +44,20 @@ definitions:
         items:
           $ref: '#/definitions/rest.ComponentReport'
         type: array
+      pcrs:
+        additionalProperties:
+          type: string
+        type: object
+      quote:
+        description: Hex encoded TPM quote over the PCRs, with nonce
+        type: string
+      signature:
+        description: Hex encoded TPM signature over quote
+        type: string
       timestamp:
+        type: string
+      tpmPublicKey:
+        description: Hex encoded TPM public key
         type: string
     type: object
 info:
