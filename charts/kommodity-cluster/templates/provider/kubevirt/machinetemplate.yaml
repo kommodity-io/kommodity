@@ -1,0 +1,82 @@
+{{- if eq .Values.kommodity.provider.name "Kubevirt" }}
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: KubevirtMachineTemplate
+metadata:
+  name: {{ .Release.Name }}-controlplane
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: kommodity
+spec:
+  template:
+    spec:
+      virtualMachineBootstrapCheck:
+        checkStrategy: ssh # probably doesn't work on talos
+      virtualMachineTemplate:
+        metadata:
+          namespace: {{ $.Release.Namespace }}
+        spec:
+          runStrategy: Always
+          template:
+            spec:
+              domain:
+                cpu:
+                  cores: {{ .Values.kommodity.controlplane.cores }}
+                memory:
+                  guest: {{ .Values.kommodity.controlplane.memory }}
+                devices:
+                  {{- if .Values.kommodity.controlplane.gpus }}
+                  gpus:
+                    - name: {{ .Values.kommodity.controlplane.gpus.name }}
+                      deviceName: {{ .Values.kommodity.controlplane.gpus.deviceName }}
+                  {{- end }}
+                  networkInterfaceMultiqueue: true
+                  disks:
+                    - disk:
+                        bus: virtio
+                      name: containervolume
+              evictionStrategy: External
+              volumes:
+                - containerDisk:
+                    image: {{ .Values.talos.containerImage }}
+                  name: containervolume
+
+{{- range $name, $np := .Values.kommodity.nodepools }}
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: KubevirtMachineTemplate
+metadata:
+  name: {{ $.Release.Name }}-worker-{{ $name }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: kommodity
+spec:
+  template:
+    spec:
+      virtualMachineBootstrapCheck:
+        checkStrategy: ssh
+      virtualMachineTemplate:
+        metadata:
+          namespace: {{ $.Release.Namespace }}
+        spec:
+          runStrategy: Always
+          template:
+            spec:
+              domain:
+                cpu:
+                  cores: {{ $np.cores }}
+                memory:
+                  guest: {{ $np.memory }}
+                devices:
+                  networkInterfaceMultiqueue: true
+                  disks:
+                    - disk:
+                        bus: virtio
+                      name: containervolume
+              evictionStrategy: External
+              volumes:
+                - containerDisk:
+                    image: {{ $.Values.talos.containerImage }}
+                  name: containervolume
+{{- end }}
+{{- end }}
