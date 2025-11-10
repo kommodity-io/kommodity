@@ -13,10 +13,6 @@ kommodity:
 
   security:
     enabled: false
-    attestationPolicy:
-      confidentialCompute: false
-      secureBoot: false
-      imageSignature: false
 
   controlplane: {}
 
