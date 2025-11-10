@@ -347,8 +347,10 @@ func getInfrastructureProviders(ctx context.Context, developmentMode bool) []Pro
 		}
 	}
 
-	if developmentMode {
-		providers = append(providers, ProviderDocker)
+	if !developmentMode {
+		// Docker is by default added in generated code, so if its not development mode, remove it from the list
+		dockerIndex := slices.Index(providers, ProviderDocker)
+		providers = append(providers[:dockerIndex], providers[dockerIndex+1:]...)
 	}
 
 	// Ensure core CAPI provider are always included
