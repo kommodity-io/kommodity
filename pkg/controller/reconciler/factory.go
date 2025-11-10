@@ -16,6 +16,7 @@ func NewReconcilerFactory() *FactoryImpl {
 			config.ProviderTalos:    NewTalosModule(),
 			config.ProviderDocker:   NewDockerModule(),
 			config.ProviderScaleway: NewScalewayModule(),
+			config.ProviderKubevirt: NewKubevirtModule(),
 		},
 	}
 }
