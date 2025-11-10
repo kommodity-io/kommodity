@@ -164,7 +164,7 @@ resource "azurerm_container_app" "kommodity-app" {
       }
       env {
         name  = "KOMMODITY_BASE_URL"
-        value = "https://localhost:5443" //TODO: Set this dynamically
+        value = var.kommodity_container.base_url
       }
       env {
         name  = "KOMMODITY_ADMIN_GROUP"

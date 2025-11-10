@@ -75,7 +75,8 @@ variable "kommodity_container" {
     kine_uri                        = optional(string, "unix:///tmp/kine.sock")
     log_format                      = optional(string, "console")
     log_level                       = optional(string, "info")
-    infrastructure_providers        = optional(string, "scaleway,azure")
+    infrastructure_providers        = optional(string, "") # If env var is empty, Kommodity uses default providers
+    base_url                        = optional(string, "")
   })
   description = "Kommodity container configuration"
   default     = {}
