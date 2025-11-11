@@ -16,7 +16,6 @@ spec:
         metadata:
           namespace: {{ .Values.kommodity.provider.kubevirtClusterNamespace }}
         spec:
-          # instanceType: {{ .Values.kommodity.controlplane.instanceType }}
           runStrategy: Always
           template:
             spec:
@@ -60,7 +59,6 @@ spec:
         metadata:
           namespace: {{ $.Values.kommodity.provider.kubevirtClusterNamespace }}
         spec:
-          # instanceType: {{ $np.instanceType }}
           runStrategy: Always
           template:
             spec:

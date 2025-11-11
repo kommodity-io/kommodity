@@ -14,6 +14,7 @@ kommodity:
       # data:
       #   kubeconfig: <base64-encoded-kubeconfig>
       # type: Opaque
+
     # Existing namespace in the Kubevirt cluster where the VMs will be deployed
     kubevirtClusterNamespace: kubevirt-cluster-namespace
     
@@ -31,21 +32,16 @@ kommodity:
 
   controlplane:
     replicas: 2
-    ## Choose a VM instance type
-    # instanceType: "s1.medium"
-    ## OR specify resources directly
     cores: 2
     memory: "4Gi"
 
   nodepools:
     default:  
       replicas: 1
-      ## Choose a VM instance type
-      # instanceType: "s1.medium"
-      ## OR specify resources directly
       cores: 2
       memory: "4Gi"
-      ## Optional: specify GPU resources
+      
+      # Optional: specify GPU resources
       # gpus:
       #   name: "nvidia.com/AD102GL_L40S"
       #   deviceName: "GPU1-L40S"

@@ -29,7 +29,7 @@ spec:
     {{- fail "infrastructure provider is not supported" -}}
     {{- end }}
     name: {{ $.Release.Name }}-controlplane
-    namespace: {{ .Release.Namespace }}
+    namespace: {{ $.Release.Namespace }}
   controlPlaneConfig:
     controlplane:
       generateType: controlplane
