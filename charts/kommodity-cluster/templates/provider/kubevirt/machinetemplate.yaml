@@ -25,11 +25,6 @@ spec:
                 memory:
                   guest: {{ .Values.kommodity.controlplane.memory }}
                 devices:
-                  {{- if .Values.kommodity.controlplane.gpus }}
-                  gpus:
-                    - name: {{ .Values.kommodity.controlplane.gpus.name }}
-                      deviceName: {{ .Values.kommodity.controlplane.gpus.deviceName }}
-                  {{- end }}
                   networkInterfaceMultiqueue: true
                   disks:
                     - disk:
@@ -68,6 +63,11 @@ spec:
                 memory:
                   guest: {{ $np.memory }}
                 devices:
+                  {{- if $np.gpus }}
+                  gpus:
+                    - name: {{ $np.gpus.name }}
+                      deviceName: {{ $np.gpus.deviceName }}
+                  {{- end }}
                   networkInterfaceMultiqueue: true
                   disks:
                     - disk:
