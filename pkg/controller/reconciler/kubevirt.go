@@ -73,9 +73,9 @@ func setupKubevirtClusterWithManager(ctx context.Context, manager ctrl.Manager, 
 }
 
 func setupKubevirtMachineWithManager(
-	ctx context.Context, 
-	manager ctrl.Manager, 
-	options controller.Options, 
+	ctx context.Context,
+	manager ctrl.Manager,
+	options controller.Options,
 	noCachedClient k8sclient.Client) error {
 	err := (&kubevirt_capi_controller.KubevirtMachineReconciler{
 		Client:          manager.GetClient(),
