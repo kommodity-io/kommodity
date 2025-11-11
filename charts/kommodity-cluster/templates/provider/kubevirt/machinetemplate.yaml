@@ -4,7 +4,7 @@ apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
 kind: KubevirtMachineTemplate
 metadata:
   name: {{ .Release.Name }}-controlplane
-  namespace: {{ .Values.kommodity.provider.kubevirtClusterNamespace }}
+  namespace: {{ .Release.Namespace }}
   labels:
     app.kubernetes.io/managed-by: kommodity
 spec:
@@ -48,7 +48,7 @@ apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
 kind: KubevirtMachineTemplate
 metadata:
   name: {{ $.Release.Name }}-worker-{{ $name }}
-  namespace: {{ $.Values.kommodity.provider.kubevirtClusterNamespace }}
+  namespace: {{ $.Release.Namespace }}
   labels:
     app.kubernetes.io/managed-by: kommodity
 spec:

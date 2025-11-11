@@ -56,8 +56,8 @@ kommodity:
 # Configurations related to Talos
 # Follow this documentation to generate a Talos image for Scaleway: https://www.talos.dev/v1.11/talos-guides/install/cloud-platforms/scaleway/
 talos:
-  version: v1.11.0
-  imageName: talos-v1.11.0
+  version: v1.11.3
+  imageName: talos-base-v1.11.3
 
 # Configurations related to Kubernetes
 kubernetes:

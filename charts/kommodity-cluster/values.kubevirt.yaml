@@ -14,7 +14,8 @@ kommodity:
       # data:
       #   kubeconfig: <base64-encoded-kubeconfig>
       # type: Opaque
-    kubevirtClusterNamespace: tenant-cortiai
+    # Existing namespace in the Kubevirt cluster where the VMs will be deployed
+    kubevirtClusterNamespace: kubevirt-cluster-namespace
     
   security:
     enabled: true
@@ -30,22 +31,26 @@ kommodity:
 
   controlplane:
     replicas: 2
+    ## Choose a VM instance type
     # instanceType: "s1.medium"
+    ## OR specify resources directly
     cores: 2
     memory: "4Gi"
-    # gpus:
-    #   name: "nvidia.com/AD102GL_L40S"
-    #   deviceName: "GPU1-L40S"
 
   nodepools:
     default:  
-      replicas: 2
+      replicas: 1
+      ## Choose a VM instance type
       # instanceType: "s1.medium"
+      ## OR specify resources directly
       cores: 2
       memory: "4Gi"
+      ## Optional: specify GPU resources
+      # gpus:
+      #   name: "nvidia.com/AD102GL_L40S"
+      #   deviceName: "GPU1-L40S"
 
 # Configurations related to Talos
-# Follow this documentation to generate a Talos image for Scaleway: https://www.talos.dev/v1.11/talos-guides/install/cloud-platforms/scaleway/
 talos:
   version: v1.11.5
   containerImage: factory.talos.dev/openstack-installer/376567988ad370138ad8b2698212367b8edcb69b5fd68c80be1f2ec7d603b4ba:v1.11.5

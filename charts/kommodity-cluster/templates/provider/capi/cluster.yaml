@@ -33,8 +33,4 @@ spec:
     {{- fail "infrastructure provider is not supported" -}}
     {{- end }}
     name: {{ .Release.Name }}
-    {{- if eq .Values.kommodity.provider.name "Kubevirt" }}
-    namespace: {{ .Values.kommodity.provider.kubevirtClusterNamespace }}
-    {{- else }}
     namespace: {{ .Release.Namespace }}
-    {{- end }}
