@@ -1,10 +1,10 @@
-package test
+package test_test
 
 import (
-	"bytes"
 	"context"
-	"fmt"
+	"encoding/json"
 	"io"
+	"net"
 	"net/http"
 	"testing"
 	"time"
@@ -13,31 +13,75 @@ import (
 	tc "github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/network"
 	"github.com/testcontainers/testcontainers-go/wait"
-
-	"go.uber.org/zap"
 )
 
 const (
 	postgresDefaultPort = "5432"
 )
 
+//nolint:paralleltest // This test uses shared Docker resources; cannot run in parallel.
 func TestAPIIntegration(t *testing.T) {
-	logger, _ := zap.NewDevelopment()
-	defer logger.Sync()
 	ctx := context.Background()
 
 	// Create network
-	networkName := "kommodity-test-net"
-
 	newNetwork, err := network.New(ctx)
 	require.NoError(t, err)
 	tc.CleanupNetwork(t, newNetwork)
 
-	networkName = newNetwork.Name
+	networkName := newNetwork.Name
 
 	// Start Postgres
-	logger.Info("Starting Postgres test container...")
-	pg, err := tc.GenericContainer(ctx, tc.GenericContainerRequest{
+	postgres := startPostgresContainer(ctx, t, networkName)
+	tc.CleanupContainer(t, postgres)
+
+	// Start Kommodityt API server
+	kommodity := startKommodityContainer(ctx, t, networkName)
+	tc.CleanupContainer(t, kommodity)
+
+	appHost, _ := kommodity.Host(ctx)
+	appPort, _ := kommodity.MappedPort(ctx, "5000")
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
+		"http://"+net.JoinHostPort(appHost, appPort.Port())+"/api", nil)
+	require.NoError(t, err)
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	require.Equal(t, 200, resp.StatusCode, "unexpected HTTP status code")
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	// Parse JSON response
+	var got map[string]interface{}
+
+	err = json.Unmarshal(body, &got)
+	require.NoError(t, err, "response is not valid JSON")
+
+	expected := map[string]interface{}{
+		"kind":     "APIVersions",
+		"versions": []interface{}{"v1"},
+		"serverAddressByClientCIDRs": []interface{}{
+			map[string]interface{}{
+				"clientCIDR":    "0.0.0.0/0",
+				"serverAddress": ":8443",
+			},
+		},
+	}
+
+	require.Equal(t, expected, got, "unexpected API response body")
+}
+
+func startPostgresContainer(ctx context.Context, t *testing.T, networkName string) tc.Container {
+	t.Helper()
+
+	postgres, err := tc.GenericContainer(ctx, tc.GenericContainerRequest{
 		ContainerRequest: tc.ContainerRequest{
 			Image:    "postgres:16",
 			Networks: []string{networkName},
@@ -55,72 +99,30 @@ func TestAPIIntegration(t *testing.T) {
 		},
 		Started: true,
 	})
-	tc.CleanupContainer(t, pg)
 	require.NoError(t, err)
 
-	pgHost, _ := pg.Host(ctx)
-	pgPort, _ := pg.MappedPort(ctx, postgresDefaultPort)
-	logger.Info("Postgres container started", zap.String("host", pgHost), zap.String("port", pgPort.Port()))
+	return postgres
+}
 
-	// Start your API server (built into a container)
-	logger.Info("Starting Kommodity API test container...")
+func startKommodityContainer(ctx context.Context, t *testing.T, networkName string) tc.Container {
+	t.Helper()
+
 	kommodity, err := tc.GenericContainer(ctx, tc.GenericContainerRequest{
 		ContainerRequest: tc.ContainerRequest{
 			Image:        "kommodity:latest",
 			Networks:     []string{networkName},
-			ExposedPorts: []string{"5123/tcp"},
+			ExposedPorts: []string{"5000/tcp"},
 			Env: map[string]string{
 				"KOMMODITY_DB_URI": "postgres://kommodity:kommodity@postgres:" + postgresDefaultPort + "/kommodity?sslmode=disable",
-				"KOMMODITY_PORT":   "5123",
 				"KOMMODITY_INSECURE_DISABLE_AUTHENTICATION": "true",
-				"KOMMODITY_DEVELOPMENT_MODE":                "true",
-				"KOMMODITY_INFRASTRUCTURE_PROVIDERS":        "kubevirt,scaleway",
+				"KOMMODITY_INFRASTRUCTURE_PROVIDERS":        "kubevirt,scaleway,azure",
 				"KOMMODITY_KINE_URI":                        "unix:///tmp/kine.sock",
 			},
-			WaitingFor: wait.ForHTTP("/healthz").WithPort("5123/tcp").WithStartupTimeout(20 * time.Second),
+			WaitingFor: wait.ForHTTP("/healthz").WithPort("5000/tcp").WithStartupTimeout(10 * time.Second),
 		},
 		Started: true,
 	})
 	require.NoError(t, err)
-	tc.CleanupContainer(t, kommodity)
 
-	if err != nil {
-		logger.Error("Failed to start Kommodity API container", zap.Error(err))
-
-		// Try to read container logs
-		if logs, logErr := kommodity.Logs(ctx); logErr == nil {
-			defer logs.Close()
-			logger.Info("Dumping Kommodity container logs:")
-			buf := new(bytes.Buffer)
-			_, _ = io.Copy(buf, logs)
-			fmt.Println(buf.String())
-		} else {
-			logger.Error("Failed to fetch container logs", zap.Error(logErr))
-		}
-
-		t.Fatal(err)
-	}
-
-	appHost, _ := kommodity.Host(ctx)
-	appPort, _ := kommodity.MappedPort(ctx, "5123")
-	logger.Info("Kommodity API container started", zap.String("host", appHost), zap.String("port", appPort.Port()))
-
-	// Now query your API automatically
-	logger.Info("Querying Kommodity API endpoint...")
-	resp, err := http.Get(fmt.Sprintf("http://%s:%s/api", appHost, appPort.Port()))
-	if err != nil {
-		logger.Error("Failed to reach Kommodity API", zap.Error(err))
-		t.Fatalf("failed to reach API: %v", err)
-	}
-	defer resp.Body.Close()
-
-	logger.Info("Received response from Kommodity API", zap.Int("status", resp.StatusCode))
-	if resp.StatusCode != 200 {
-		logger.Error("Unexpected status code", zap.Int("status", resp.StatusCode))
-		t.Fatalf("expected 200, got %d", resp.StatusCode)
-	}
-	if resp.Body == nil {
-		logger.Error("Response body is nil")
-		t.Fatal("expected non-nil response body")
-	}
+	return kommodity
 }
