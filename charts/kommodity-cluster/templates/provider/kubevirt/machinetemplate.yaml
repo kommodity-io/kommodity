@@ -16,14 +16,11 @@ spec:
         metadata:
           namespace: {{ .Values.kommodity.provider.kubevirtClusterNamespace }}
         spec:
+          instanceType: {{ .Values.kommodity.controlplane.sku }}
           runStrategy: Always
           template:
             spec:
               domain:
-                cpu:
-                  cores: {{ .Values.kommodity.controlplane.cores }}
-                memory:
-                  guest: {{ .Values.kommodity.controlplane.memory }}
                 devices:
                   networkInterfaceMultiqueue: true
                   disks:
@@ -54,19 +51,18 @@ spec:
         metadata:
           namespace: {{ $.Values.kommodity.provider.kubevirtClusterNamespace }}
         spec:
+          instanceType: {{ $np.sku }}
           runStrategy: Always
           template:
             spec:
               domain:
-                cpu:
-                  cores: {{ $np.cores }}
-                memory:
-                  guest: {{ $np.memory }}
                 devices:
                   {{- if $np.gpus }}
                   gpus:
-                    - name: {{ $np.gpus.name }}
-                      deviceName: {{ $np.gpus.deviceName }}
+                  {{- range $np.gpus }}
+                    - name: {{ .name }}
+                      deviceName: {{ .deviceName }}
+                  {{- end }}
                   {{- end }}
                   networkInterfaceMultiqueue: true
                   disks:

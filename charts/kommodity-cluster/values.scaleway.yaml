@@ -20,11 +20,7 @@ kommodity:
       projectID: <YOUR_PROJECT_ID_HERE>
 
   security:
-    enabled: true
-    attestationPolicy:
-      confidentialCompute: true
-      secureBoot: true
-      imageSignature: true
+    enabled: false
 
   region: fr-par
 

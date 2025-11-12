@@ -19,11 +19,7 @@ kommodity:
     kubevirtClusterNamespace: kubevirt-cluster-namespace
 
   security:
-    enabled: true
-    attestationPolicy:
-      confidentialCompute: true
-      secureBoot: true
-      imageSignature: true
+    enabled: false
 
   network:
     cluster:
@@ -32,19 +28,17 @@ kommodity:
 
   controlplane:
     replicas: 2
-    cores: 2
-    memory: "4Gi"
+    sku: s1.medium
 
   nodepools:
     default:
       replicas: 1
-      cores: 2
-      memory: "4Gi"
+      sku: s1.medium
 
       # Optional: specify GPU resources
       # gpus:
-      #   name: "GPU1-L40S" # name to identify the device in the VM
-      #   deviceName: "nvidia.com/AD102GL_L40S" # resource name representing the device
+      #   - name: "GPU1-L40S" # name to identify the device in the VM
+      #     deviceName: "nvidia.com/AD102GL_L40S" # resource name representing the device
 
 # Configurations related to Talos
 talos:
