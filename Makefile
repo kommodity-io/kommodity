@@ -140,6 +140,6 @@ setup-kind-management-cluster:
 delete-kind-management-cluster:
 	kind delete cluster --name kind-management
 
-.PHONY: test
-test: 
+.PHONY: integration-test
+integration-test: 
 	go test -v ./pkg/test
