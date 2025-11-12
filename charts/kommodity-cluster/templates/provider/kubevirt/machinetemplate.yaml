@@ -59,9 +59,9 @@ spec:
                 devices:
                   {{- if $np.gpus }}
                   gpus:
-                  {{- range $np.gpus }}
-                    - name: {{ .name }}
-                      deviceName: {{ .deviceName }}
+                  {{- range $name, $gpu := $np.gpus }}
+                    - name: {{ $name }}
+                      deviceName: {{ $gpu.deviceName }}
                   {{- end }}
                   {{- end }}
                   networkInterfaceMultiqueue: true
