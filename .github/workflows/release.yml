@@ -22,6 +22,37 @@ on:
       - scripts/**/*.sh
 
 jobs:
+  semantic-release:
+    name: Get Semantic Release Version
+    runs-on: ubuntu-latest
+    outputs:
+      release_tag: ${{ steps.set_output.outputs.release_tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Detect semantic release
+        uses: docker://ghcr.io/codfish/semantic-release-action:v3
+        id: semantic
+        with:
+          repository-url: https://github.com/${{ github.repository }}
+          branches: |
+            [
+              "main"
+            ]
+          plugins: |
+            [
+              "@semantic-release/commit-analyzer",
+              "@semantic-release/release-notes-generator",
+              "@semantic-release/github"
+            ]
+          dry-run: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Expose release tag as output
+        id: set_output
+        run: echo "release_tag=${RELEASE_GIT_TAG}" >> "$GITHUB_OUTPUT"
   lint:
     name: Lint
     runs-on: ubuntu-latest
@@ -89,6 +120,7 @@ jobs:
     name: Test
     runs-on: ubuntu-latest
     needs:
+      - semantic-release
       - build-container-image
     permissions:
       pull-requests: write
@@ -131,6 +163,8 @@ jobs:
 
       - name: Run tests
         run: make test
+        env:
+          VERSION: "v1.0.0" # Dummy version for tests
 
       # - name: Calculate test coverage
       #   uses: gwatts/go-coverage-action@v2
@@ -142,8 +176,9 @@ jobs:
       #     cover-pkg: ./...
 
   build:
-    name: Build
+    name: Build binary
     runs-on: ubuntu-latest
+    needs: semantic-release
     permissions:
       id-token: write
       pages: write
@@ -180,31 +215,12 @@ jobs:
       - name: Build UI
         run: make build-ui
 
-      - name: Detect semantic release
-        uses: docker://ghcr.io/codfish/semantic-release-action:v3
-        id: semantic
-        with:
-          repository-url: https://github.com/${{ github.repository }}
-          branches: |
-            [
-              "main"
-            ]
-          plugins: |
-            [
-              "@semantic-release/commit-analyzer",
-              "@semantic-release/release-notes-generator",
-              "@semantic-release/github"
-            ]
-          dry-run: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Compute version and compression
         id: version
         run: |
           set -eou pipefail
 
-          version="${{ steps.semantic.outputs.git-tag }}"
+          version="${{ needs.semantic-release.outputs.release_tag }}"
           compression="--ultra-brute -9"
           if [[ -z "$version" ]]; then
             version="$(git describe --tags --always)"
