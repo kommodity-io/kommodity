@@ -88,3 +88,9 @@ providers:
     filter: select(.kind == "CustomResourceDefinition")
     scheme_locations:
       - api/v1alpha1
+  - name: kubevirt-core
+    provider: kubevirt
+    repository: kubevirt/api
+    go_module: kubevirt.io/api
+    scheme_locations:
+      - core/v1

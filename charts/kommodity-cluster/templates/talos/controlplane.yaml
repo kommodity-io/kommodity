@@ -22,6 +22,9 @@ spec:
     {{- else if eq $.Values.kommodity.provider.name "Scaleway" }}
     apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
     kind: ScalewayMachineTemplate
+    {{- else if eq $.Values.kommodity.provider.name "Kubevirt" }}
+    apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+    kind: KubevirtMachineTemplate
     {{- else }}
     {{- fail "infrastructure provider is not supported" -}}
     {{- end }}

@@ -1,0 +1,49 @@
+# Default values for kommodity-cluster in Scaleway.
+kommodity:
+  provider:
+    name: Kubevirt
+    secret:
+      name: kind-credentials
+      # Kubevirt secret example (contains a kubeconfig used to connect to the Kubevirt cluster):
+      #
+      # apiVersion: v1
+      # kind: Secret
+      # metadata:
+      #   name: kubevirt-credentials
+      #   namespace: <release-namespace>
+      # data:
+      #   kubeconfig: <base64-encoded-kubeconfig>
+      # type: Opaque
+
+    # Existing namespace in the Kubevirt cluster where the VMs will be deployed
+    kubevirtClusterNamespace: kubevirt-cluster-namespace
+
+  security:
+    enabled: false
+
+  network:
+    cluster:
+      podCIDR:
+        - 10.244.0.0/16
+
+  controlplane:
+    replicas: 2
+    sku: s1.medium
+
+  nodepools:
+    default:
+      replicas: 1
+      sku: s1.medium
+
+      # Optional: specify GPU resources
+      # gpus:
+      #   default: # name to identify the device in the VM
+      #     deviceName: "nvidia.com/AD102GL_L40S" # resource name representing the device
+
+# Configurations related to Talos
+talos:
+  version: v1.11.5
+  containerImage: factory.talos.dev/openstack-installer/376567988ad370138ad8b2698212367b8edcb69b5fd68c80be1f2ec7d603b4ba:v1.11.5
+# Configurations related to Kubernetes
+kubernetes:
+  version: v1.33.4
