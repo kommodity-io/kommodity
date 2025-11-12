@@ -143,3 +143,6 @@ delete-kind-management-cluster:
 .PHONY: integration-test
 integration-test: 
 	go test -v ./pkg/test
+
+test:
+	go test $(GO_FLAGS) -cover -v ./...
