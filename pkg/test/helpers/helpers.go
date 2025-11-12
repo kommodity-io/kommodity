@@ -3,10 +3,7 @@ package helpers
 
 import (
 	"context"
-	"testing"
 	"time"
-
-	"github.com/stretchr/testify/require"
 
 	tc "github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/network"
@@ -15,54 +12,51 @@ import (
 
 const (
 	postgresDefaultPort = "5432"
-	startupTimeout     = 10 * time.Second
+	startupTimeout      = 10 * time.Second
 )
 
 // TestEnvironment holds the containers and connection info for the test setup.
 type TestEnvironment struct {
-	Postgres tc.Container
-	App      tc.Container
-	AppHost  string
-	AppPort  string
+	Postgres  tc.Container
+	Kommodity tc.Container
+	AppHost   string
+	AppPort   string
+	Network   *tc.DockerNetwork
 }
 
 // SetupContainers initializes and starts the necessary containers for testing.
-func SetupContainers(t *testing.T) TestEnvironment {
-	t.Helper()
-
+func SetupContainers() TestEnvironment {
 	ctx := context.Background()
 
 	// Create network
 	newNetwork, err := network.New(ctx)
-	require.NoError(t, err)
-	tc.CleanupNetwork(t, newNetwork)
+	if err != nil {
+		panic(err)
+	}
 
 	networkName := newNetwork.Name
 
 	// Start Postgres
-	postgres := startPostgresContainer(ctx, t, networkName)
-	tc.CleanupContainer(t, postgres)
+	postgres := startPostgresContainer(ctx, networkName)
 
 	// Start Kommodityt API server
-	kommodity := startKommodityContainer(ctx, t, networkName)
-	tc.CleanupContainer(t, kommodity)
+	kommodity := startKommodityContainer(ctx, networkName)
 
 	kommodityHost, _ := kommodity.Host(ctx)
 	kommodityPort, _ := kommodity.MappedPort(ctx, "5000")
 
 	env := TestEnvironment{
-		Postgres: postgres,
-		App:      kommodity,
-		AppHost:  kommodityHost,
-		AppPort:  kommodityPort.Port(),
+		Postgres:  postgres,
+		Kommodity: kommodity,
+		AppHost:   kommodityHost,
+		AppPort:   kommodityPort.Port(),
+		Network:   newNetwork,
 	}
-	
+
 	return env
 }
 
-func startPostgresContainer(ctx context.Context, t *testing.T, networkName string) tc.Container {
-	t.Helper()
-
+func startPostgresContainer(ctx context.Context, networkName string) tc.Container {
 	postgres, err := tc.GenericContainer(ctx, tc.GenericContainerRequest{
 		ContainerRequest: tc.ContainerRequest{
 			Image:    "postgres:16",
@@ -81,14 +75,14 @@ func startPostgresContainer(ctx context.Context, t *testing.T, networkName strin
 		},
 		Started: true,
 	})
-	require.NoError(t, err)
+	if err != nil {
+		panic(err)
+	}
 
 	return postgres
 }
 
-func startKommodityContainer(ctx context.Context, t *testing.T, networkName string) tc.Container {
-	t.Helper()
-
+func startKommodityContainer(ctx context.Context, networkName string) tc.Container {
 	kommodity, err := tc.GenericContainer(ctx, tc.GenericContainerRequest{
 		ContainerRequest: tc.ContainerRequest{
 			Image:        "kommodity:latest",
@@ -104,7 +98,17 @@ func startKommodityContainer(ctx context.Context, t *testing.T, networkName stri
 		},
 		Started: true,
 	})
-	require.NoError(t, err)
+	if err != nil {
+		panic(err)
+	}
 
 	return kommodity
+}
+
+func (e TestEnvironment) Teardown() {
+	ctx := context.Background()
+
+	_ = e.Postgres.Terminate(ctx)
+	_ = e.Kommodity.Terminate(ctx)
+	_ = e.Network.Remove(ctx)
 }

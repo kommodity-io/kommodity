@@ -8,16 +8,19 @@ import (
 	"github.com/kommodity-io/kommodity/pkg/test/helpers"
 )
 
+var env helpers.TestEnvironment
+
 func TestMain(m *testing.M) {
-    // --- Setup ---
-    env := helpers.SetupContainers(m)
+	// --- Setup ---
+	env = helpers.SetupContainers()
 
-    // Run tests
-    code := m.Run()
+	// Run tests
+	code := m.Run()
 
-    // --- Teardown ---
+	// --- Teardown ---
+	env.Teardown()
 
-    os.Exit(code)
+	os.Exit(code)
 }
 
 func TestAPIIntegration(t *testing.T) {
