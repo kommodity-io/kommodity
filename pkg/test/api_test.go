@@ -8,6 +8,7 @@ import (
 	"github.com/kommodity-io/kommodity/pkg/test/helpers"
 )
 
+//nolint:gochecknoglobals // Test environment needs to be reused by all tests.
 var env helpers.TestEnvironment
 
 func TestMain(m *testing.M) {
@@ -25,6 +26,7 @@ func TestMain(m *testing.M) {
 
 func TestAPIIntegration(t *testing.T) {
 	t.Parallel()
+
 	newRequest := apirequests.APIRequest{
 		TestEnvironment:    env,
 		Endpoint:           "/api",

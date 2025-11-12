@@ -89,7 +89,8 @@ func startKommodityContainer(ctx context.Context, networkName string) tc.Contain
 			Networks:     []string{networkName},
 			ExposedPorts: []string{"5000/tcp"},
 			Env: map[string]string{
-				"KOMMODITY_DB_URI":                          "postgres://kommodity:kommodity@postgres:" + postgresDefaultPort + "/kommodity?sslmode=disable",
+				"KOMMODITY_DB_URI":                          
+					"postgres://kommodity:kommodity@postgres:" + postgresDefaultPort + "/kommodity?sslmode=disable",
 				"KOMMODITY_INSECURE_DISABLE_AUTHENTICATION": "true",
 				"KOMMODITY_INFRASTRUCTURE_PROVIDERS":        "kubevirt,scaleway,azure",
 				"KOMMODITY_KINE_URI":                        "unix:///tmp/kine.sock",
@@ -105,6 +106,7 @@ func startKommodityContainer(ctx context.Context, networkName string) tc.Contain
 	return kommodity
 }
 
+// Teardown stops and removes the containers and network used in the test environment.
 func (e TestEnvironment) Teardown() {
 	ctx := context.Background()
 
