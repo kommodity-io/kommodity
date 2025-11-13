@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"time"
 
 	restutils "github.com/kommodity-io/kommodity/pkg/attestation/rest"
 	"github.com/kommodity-io/kommodity/pkg/config"
@@ -19,31 +18,15 @@ import (
 
 // AttestationReportRequest represents the request structure for the attestation report endpoint.
 type AttestationReportRequest struct {
-	Nounce string   `example:"884f2638c74645b859f87e76560748cc" json:"nounce"`
-	Node   NodeInfo `json:"node"`
-	Report Report   `json:"report"`
+	Nonce  string           `example:"884f2638c74645b859f87e76560748cc" json:"nonce"`
+	Node   NodeInfo         `json:"node"`
+	Report restutils.Report `json:"report"`
 }
 
 // NodeInfo represents information about the node submitting the attestation report.
 type NodeInfo struct {
 	UUID string `json:"uuid"`
 	IP   string `json:"ip"`
-}
-
-// Report represents the attestation report structure.
-type Report struct {
-	Components []ComponentReport `json:"components"`
-	Timestamp  time.Time         `json:"timestamp"`
-}
-
-// ComponentReport represents the attestation report for a specific component.
-type ComponentReport struct {
-	Name        string            `json:"name"`
-	PCRs        map[int]string    `json:"pcrs"`
-	Measurement string            `json:"measurement"` // SHA256 of the component
-	Quote       string            `json:"quote"`       // SHA256 TPM quote (includes nonce)
-	Signature   string            `json:"signature"`   // SHA256 TPM signature over quote
-	Evidence    map[string]string `json:"evidence"`
 }
 
 // PostReport godoc
@@ -54,13 +37,13 @@ type ComponentReport struct {
 // @Param    payload  body  AttestationReportRequest  true  "Report"
 // @Success  200  {string}  string   "No content"
 // @Failure  400  {object}  string   "If the request is invalid"
-// @Failure  401  {object}  string   "If the nounce is invalid"
+// @Failure  401  {object}  string   "If the nonce is invalid"
 // @Failure  405  {object}  string   "If the method is not allowed"
 // @Failure  500  {object}  string   "If there is a server error"
 // @Router   /report [post]
 //
 // PostReport handles the POST /report endpoint.
-func PostReport(nounceStore *restutils.NounceStore,
+func PostReport(nonceStore *restutils.NonceStore,
 	cfg *config.KommodityConfig) func(http.ResponseWriter, *http.Request) {
 	return func(response http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodPost {
@@ -78,7 +61,7 @@ func PostReport(nounceStore *restutils.NounceStore,
 			return
 		}
 
-		valid, err := nounceStore.Use(request.RemoteAddr, req.Nounce)
+		valid, err := nonceStore.Use(request.RemoteAddr, req.Nonce)
 		if err != nil {
 			http.Error(response, err.Error(), http.StatusBadRequest)
 
@@ -86,12 +69,12 @@ func PostReport(nounceStore *restutils.NounceStore,
 		}
 
 		if !valid {
-			http.Error(response, "Invalid nounce", http.StatusUnauthorized)
+			http.Error(response, "Invalid nonce", http.StatusUnauthorized)
 
 			return
 		}
 
-		err = saveAttestationReport(request.Context(), cfg, req.Node, req.Report)
+		err = saveAttestationReport(request.Context(), cfg, req)
 		if err != nil {
 			http.Error(response, "Failed to save attestation report", http.StatusInternalServerError)
 
@@ -102,11 +85,7 @@ func PostReport(nounceStore *restutils.NounceStore,
 	}
 }
 
-func saveAttestationReport(ctx context.Context,
-	cfg *config.KommodityConfig,
-	node NodeInfo,
-	report Report,
-) error {
+func saveAttestationReport(ctx context.Context, cfg *config.KommodityConfig, request AttestationReportRequest) error {
 	kubeClient, err := clientgoclientset.NewForConfig(cfg.ClientConfig.LoopbackClientConfig)
 	if err != nil {
 		return fmt.Errorf("failed to create kube client: %w", err)
@@ -117,28 +96,45 @@ func saveAttestationReport(ctx context.Context,
 		return fmt.Errorf("failed to create controller client: %w", err)
 	}
 
-	machine, err := net.FindManagedMachineByIP(ctx, &ctrlClient, node.IP)
+	machine, err := net.FindManagedMachineByIP(ctx, &ctrlClient, request.Node.IP)
 	if err != nil {
-		return fmt.Errorf("failed to find managed machine by IP %s: %w", node.IP, err)
+		return fmt.Errorf("failed to find managed machine by IP %s: %w", request.Node.IP, err)
 	}
 
-	jsonReport, err := json.Marshal(report)
+	jsonReport, err := json.Marshal(request.Report)
 	if err != nil {
 		return fmt.Errorf("failed to marshal report: %w", err)
 	}
 
+	labels := config.GetKommodityLabels(request.Node.UUID, request.Node.IP)
+	resourceName := restutils.GetConfigMapReportName(machine)
+
 	_, err = restutils.GetConfigMapAPI(kubeClient).Create(ctx, &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      restutils.GetConfigMapReportName(machine),
+			Name:      resourceName,
 			Namespace: config.KommodityNamespace,
-			Labels:    config.GetKommodityLabels(node.UUID, node.IP),
+			Labels:    labels,
 		},
 		Data: map[string]string{
 			"report": string(jsonReport),
 		},
 	}, metav1.CreateOptions{})
 	if err != nil {
-		return fmt.Errorf("failed to save attestation report for node %s: %w", node.IP, err)
+		return fmt.Errorf("failed to save attestation report for node %s: %w", request.Node.IP, err)
+	}
+
+	_, err = restutils.GetSecretAPI(kubeClient).Create(ctx, &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      resourceName,
+			Namespace: config.KommodityNamespace,
+			Labels:    labels,
+		},
+		StringData: map[string]string{
+			"nonce": request.Nonce,
+		},
+	}, metav1.CreateOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to save node secret for node %s: %w", request.Node.IP, err)
 	}
 
 	return nil

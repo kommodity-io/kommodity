@@ -26,3 +26,8 @@ func GetConfigMapReportName(machine *clusterv1.Machine) string {
 func GetConfigMapAPI(kubeClient *clientgoclientset.Clientset) v1.ConfigMapInterface {
 	return kubeClient.CoreV1().ConfigMaps(config.KommodityNamespace)
 }
+
+// GetSecretAPI returns the Secret API interface for the Kommodity namespace.
+func GetSecretAPI(kubeClient *clientgoclientset.Clientset) v1.SecretInterface {
+	return kubeClient.CoreV1().Secrets(config.KommodityNamespace)
+}

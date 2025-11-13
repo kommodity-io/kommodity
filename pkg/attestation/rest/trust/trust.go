@@ -3,14 +3,15 @@ package trust
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
-	"strconv"
 
 	restutils "github.com/kommodity-io/kommodity/pkg/attestation/rest"
 	"github.com/kommodity-io/kommodity/pkg/config"
 	"github.com/kommodity-io/kommodity/pkg/net"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientgoclientset "k8s.io/client-go/kubernetes"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
@@ -20,15 +21,6 @@ import (
 const (
 	configMapPolicyPrefix = "attestation-policy"
 )
-
-type attestationReport struct {
-}
-
-type attestationPolicy struct {
-	ConfidentialCompute bool `json:"confidentialCompute"`
-	SecureBoot          bool `json:"secureBoot"`
-	ImageSignature      bool `json:"imageSignature"`
-}
 
 // GetTrust godoc
 // @Summary  Check trust status for a machine
@@ -43,6 +35,8 @@ type attestationPolicy struct {
 // @Router   /report/{ip}/trust [get]
 //
 // GetTrust handles the trust status retrieval for a given attestation report.
+//
+//nolint:funlen,cyclop // Complexity is only apparent due to multiple error checks.
 func GetTrust(cfg *config.KommodityConfig) func(http.ResponseWriter, *http.Request) {
 	return func(response http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodGet {
@@ -91,71 +85,90 @@ func GetTrust(cfg *config.KommodityConfig) func(http.ResponseWriter, *http.Reque
 			return
 		}
 
-		report, err := getMachineAttestationReport(request.Context(), kubeClient, machine)
+		report, nonce, err := getMachineAttestationReport(request.Context(), kubeClient, machine)
 		if err != nil {
 			http.Error(response, "Failed to get attestation report: "+err.Error(), http.StatusInternalServerError)
 
 			return
 		}
 
-		_ = report
-		_ = policy
+		compliant, err := report.CompliantWith(nonce, policy)
+		if err != nil {
+			http.Error(response, "Failed to evaluate attestation report: "+err.Error(), http.StatusInternalServerError)
 
-		// Compare report with policy to determine trust status.
-		// For now, we return Not Implemented.
+			return
+		}
 
-		response.WriteHeader(http.StatusNotImplemented)
+		if !compliant {
+			http.Error(response, "Machine is not trusted", http.StatusUnauthorized)
+
+			return
+		}
+
+		response.WriteHeader(http.StatusOK)
 	}
 }
 
 func getMachineAttestationReport(ctx context.Context,
 	kubeClient *clientgoclientset.Clientset,
-	machine *clusterv1.Machine) (*attestationReport, error) {
-	configMapName := restutils.GetConfigMapReportName(machine)
+	machine *clusterv1.Machine) (*restutils.Report, string, error) {
+	resourceName := restutils.GetConfigMapReportName(machine)
 
-	attestationConfigMap, err := restutils.GetConfigMapAPI(kubeClient).
-		Get(ctx, configMapName, metav1.GetOptions{})
+	configMap, err := getConfigMap(ctx, kubeClient, resourceName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get attestation report config map: %w", err)
+		return nil, "", fmt.Errorf("failed to get attestation report: %w", err)
 	}
 
-	// Define attestationReport structure and populate it from attestationConfigMap.Data
-	_ = attestationConfigMap
+	report, err := transformConfigMapToReport(configMap)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to transform config map to report: %w", err)
+	}
 
-	return &attestationReport{}, nil
+	secret, err := restutils.GetSecretAPI(kubeClient).Get(ctx, resourceName, metav1.GetOptions{})
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to get attestation nonce secret: %w", err)
+	}
+
+	return report, secret.StringData["nonce"], nil
 }
 
 func getAttestationPolicy(ctx context.Context,
 	kubeClient *clientgoclientset.Clientset,
-	clusterName string) (*attestationPolicy, error) {
+	clusterName string) (*restutils.Report, error) {
 	configMapName := fmt.Sprintf("%s-%s", configMapPolicyPrefix, clusterName)
 
+	configMap, err := getConfigMap(ctx, kubeClient, configMapName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get attestation report: %w", err)
+	}
+
+	policy, err := transformConfigMapToReport(configMap)
+	if err != nil {
+		return nil, fmt.Errorf("failed to transform config map to report: %w", err)
+	}
+
+	return policy, nil
+}
+
+func getConfigMap(ctx context.Context,
+	kubeClient *clientgoclientset.Clientset,
+	configMapName string) (*v1.ConfigMap, error) {
 	attestationConfigMap, err := restutils.GetConfigMapAPI(kubeClient).
 		Get(ctx, configMapName, metav1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get attestation policy config map: %w", err)
 	}
 
-	policy := &attestationPolicy{}
+	return attestationConfigMap, nil
+}
 
-	confidentialCompute, err := strconv.ParseBool(attestationConfigMap.Data["confidentialCompute"])
+func transformConfigMapToReport(configMap *v1.ConfigMap) (*restutils.Report, error) {
+	report := &restutils.Report{}
+
+	err := json.Unmarshal([]byte(configMap.Data["report"]), &report)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse confidentialCompute: %w", err)
+		return nil, fmt.Errorf("failed to unmarshal attestation report: %w", err)
 	}
 
-	secureBoot, err := strconv.ParseBool(attestationConfigMap.Data["secureBoot"])
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse secureBoot: %w", err)
-	}
-
-	imageSignature, err := strconv.ParseBool(attestationConfigMap.Data["imageSignature"])
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse imageSignature: %w", err)
-	}
-
-	policy.ConfidentialCompute = confidentialCompute
-	policy.SecureBoot = secureBoot
-	policy.ImageSignature = imageSignature
-
-	return policy, nil
+	return report, nil
 }

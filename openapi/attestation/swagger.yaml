@@ -1,11 +1,11 @@
 basePath: /
 definitions:
-  nounce.NounceResponse:
+  nonce.NonceResponse:
     properties:
       expiresAt:
         format: date-time
         type: string
-      nounce:
+      nonce:
         example: 884f2638c74645b859f87e76560748cc
         type: string
     type: object
@@ -13,33 +13,11 @@ definitions:
     properties:
       node:
         $ref: '#/definitions/report.NodeInfo'
-      nounce:
+      nonce:
         example: 884f2638c74645b859f87e76560748cc
         type: string
       report:
-        $ref: '#/definitions/report.Report'
-    type: object
-  report.ComponentReport:
-    properties:
-      evidence:
-        additionalProperties:
-          type: string
-        type: object
-      measurement:
-        description: SHA256 of the component
-        type: string
-      name:
-        type: string
-      pcrs:
-        additionalProperties:
-          type: string
-        type: object
-      quote:
-        description: SHA256 TPM quote (includes nonce)
-        type: string
-      signature:
-        description: SHA256 TPM signature over quote
-        type: string
+        $ref: '#/definitions/rest.Report'
     type: object
   report.NodeInfo:
     properties:
@@ -48,13 +26,38 @@ definitions:
       uuid:
         type: string
     type: object
-  report.Report:
+  rest.ComponentReport:
+    properties:
+      evidence:
+        additionalProperties:
+          type: string
+        type: object
+      measurement:
+        description: SHA512 of the component
+        type: string
+      name:
+        type: string
+    type: object
+  rest.Report:
     properties:
       components:
         items:
-          $ref: '#/definitions/report.ComponentReport'
+          $ref: '#/definitions/rest.ComponentReport'
         type: array
+      pcrs:
+        additionalProperties:
+          type: string
+        type: object
+      quote:
+        description: Hex encoded TPM quote over the PCRs, with nonce
+        type: string
+      signature:
+        description: Hex encoded TPM signature over quote
+        type: string
       timestamp:
+        type: string
+      tpmPublicKey:
+        description: Hex encoded TPM public key
         type: string
     type: object
 info:
@@ -63,13 +66,13 @@ info:
   title: Kommodity Attestation API
   version: 0.1.0
 paths:
-  /nounce:
+  /nonce:
     get:
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/nounce.NounceResponse'
+            $ref: '#/definitions/nonce.NonceResponse'
         "400":
           description: If the request is invalid
           schema:
@@ -86,7 +89,7 @@ paths:
           description: If there is a server error
           schema:
             type: string
-      summary: Obtain an attestation nounce
+      summary: Obtain an attestation nonce
       tags:
       - Attestation
   /report:
@@ -112,7 +115,7 @@ paths:
           schema:
             type: string
         "401":
-          description: If the nounce is invalid
+          description: If the nonce is invalid
           schema:
             type: string
         "405":

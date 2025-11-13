@@ -97,7 +97,7 @@ func LoadConfig(ctx context.Context) (*KommodityConfig, error) {
 	oidcConfig := getOIDCConfig(ctx)
 	developmentMode := getDevelopmentMode(ctx)
 	kineURI := getKineURI(ctx)
-	infrastructureProviders := getInfrastructureProviders(ctx, developmentMode)
+	infrastructureProviders := getInfrastructureProviders(ctx)
 
 	adminGroup, err := getAdminGroup()
 	if apply && err != nil {
@@ -325,7 +325,7 @@ func getKineURI(ctx context.Context) string {
 	return kineURI
 }
 
-func getInfrastructureProviders(ctx context.Context, developmentMode bool) []Provider {
+func getInfrastructureProviders(ctx context.Context) []Provider {
 	logger := logging.FromContext(ctx)
 
 	var providers []Provider
@@ -345,10 +345,6 @@ func getInfrastructureProviders(ctx context.Context, developmentMode bool) []Pro
 			provider := Provider(strings.TrimSpace(p))
 			providers = append(providers, provider)
 		}
-	}
-
-	if developmentMode {
-		providers = append(providers, ProviderDocker)
 	}
 
 	// Ensure core CAPI provider are always included

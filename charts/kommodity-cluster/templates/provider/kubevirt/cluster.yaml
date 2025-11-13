@@ -1,0 +1,13 @@
+{{- if eq .Values.kommodity.provider.name "Kubevirt" }}
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: KubevirtCluster
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: kommodity
+spec:
+  infraClusterSecretRef:
+    name: {{ .Values.kommodity.provider.secret.name }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}
