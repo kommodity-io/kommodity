@@ -13,6 +13,7 @@ FROM --platform=$BUILDPLATFORM golang:1.24-alpine AS build-api
 # This is set automatically by buildx
 ARG TARGETARCH
 ARG TARGETOS
+ARG VERSION
 
 WORKDIR /app
 
@@ -26,7 +27,7 @@ RUN go mod download
 
 COPY . .
 COPY --from=build-ui /app/pkg/ui/web/kommodity-ui/dist ./pkg/ui/web/kommodity-ui/dist
-RUN --mount=type=cache,target=/gomod-cache --mount=type=cache,target=/go-cache GOOS=${TARGETOS} GOARCH=${TARGETARCH} make build-api
+RUN --mount=type=cache,target=/gomod-cache --mount=type=cache,target=/go-cache GOOS=${TARGETOS} GOARCH=${TARGETARCH} VERSION=${VERSION} make build-api
 
 FROM gcr.io/distroless/static-debian12 AS runtime
 
