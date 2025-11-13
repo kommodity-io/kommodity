@@ -1,3 +1,30 @@
+{{- $anyAddonEnabled := false }}
+{{- if .Values.kommodity.addons -}}
+{{- range $name, $addon := .Values.kommodity.addons }}
+  {{- if $addon.enabled }}
+    {{- $anyAddonEnabled = true }}
+  {{- end }}
+{{- end }}
+{{- end }}
+
+{{- define "kommodity.addonsInlineManifests" -}}
+{{- $root := . -}}
+{{- range $name, $addon := $root.Values.kommodity.addons }}
+{{- if $addon.enabled }}
+  {{- $contents := "" }}
+  {{- if $addon.manifest }}
+    {{- /* Use the inline manifest from values.yaml (tpl so you can template it if you want) */}}
+    {{- $contents = tpl $addon.manifest $root }}
+  {{- else }}
+    {{- /* Fallback to the existing addon template */}}
+    {{- $contents = include (printf "kommodity.addon.%s" $name) $root }}
+  {{- end }}
+- name: {{ $name }}
+  contents: |
+{{ $contents | indent 4 }}
+{{- end }}
+{{- end }}
+{{- end }}
 ---
 apiVersion: controlplane.cluster.x-k8s.io/v1alpha3
 kind: TalosControlPlane
@@ -35,6 +62,13 @@ spec:
       generateType: controlplane
       talosVersion: {{ include "kommodity.talosVersion" $ }}
       hostname: {}
+      {{- if $anyAddonEnabled }}
+      configPatches:
+        - op: add
+          path: /cluster/inlineManifests
+          value:
+{{- include "kommodity.addonsInlineManifests" . | trim | nindent 12 }}
+      {{- end }}
     init:
       generateType: init
       hostname: {}
