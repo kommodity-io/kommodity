@@ -26,7 +26,7 @@ jobs:
     name: Get Semantic Release Version
     runs-on: ubuntu-latest
     outputs:
-      release_tag: ${{ steps.set_output.outputs.release_tag }}
+      release_tag: ${{ steps.semantic.outputs.git-tag }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -52,7 +52,8 @@ jobs:
 
       - name: Expose release tag as output
         id: set_output
-        run: echo "release_tag=${RELEASE_GIT_TAG}" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "release_tag=${{ steps.semantic.outputs.git-tag }}"
   lint:
     name: Lint
     runs-on: ubuntu-latest
@@ -94,6 +95,7 @@ jobs:
   build-container-image:
     name: Build Container Image
     runs-on: ubuntu-latest
+    needs: semantic-release
     steps:
       - uses: actions/checkout@v5
       - uses: docker/setup-qemu-action@v3
@@ -110,7 +112,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
-            VERSION=v1.0.0
+            VERSION="${{ needs.semantic-release.outputs.release_tag }}"
       - name: Save Docker image
         run: docker save kommodity:latest -o kommodity-image.tar
       - uses: actions/upload-artifact@v4
@@ -121,9 +123,7 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
-    needs:
-      - semantic-release
-      - build-container-image
+    needs: build-container-image
     permissions:
       pull-requests: write
       issues: write
@@ -165,8 +165,6 @@ jobs:
 
       - name: Run tests
         run: make test
-        env:
-          VERSION: "v1.0.0" # Dummy version for tests
 
       # - name: Calculate test coverage
       #   uses: gwatts/go-coverage-action@v2
