@@ -5,8 +5,8 @@ kommodity:
 
   network:
     ipv4:
-      enabled: true
-      public: true
+      enabled: false
+      public: false
     cluster:
       podCIDR:
         - 10.244.0.0/16

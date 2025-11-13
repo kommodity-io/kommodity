@@ -19,6 +19,11 @@ kommodity:
     config:
       projectID: <YOUR_PROJECT_ID_HERE>
 
+  network:
+    ipv4:
+      enabled: true
+      public: true
+
   region: fr-par
 
   controlplane:
