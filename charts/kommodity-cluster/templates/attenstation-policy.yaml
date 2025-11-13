@@ -1,4 +1,61 @@
 {{- if .Values.kommodity.security.enabled }}
+{{- $att := .Values.kommodity.security.attestationPolicy -}}
+
+{{- /* Build components list */ -}}
+{{- $components := list -}}
+
+{{- if $att.lms.apparmor.enabled }}
+{{- $digest := required "lms.apparmor.digest must be set when lms.apparmor.enabled is true" $att.lms.apparmor.digest }}
+{{- $components = append $components (dict "name" "apparmor" "measurement" $digest) -}}
+{{- end }}
+
+{{- if $att.lms.selinux.enabled }}
+{{- $digest := required "lms.selinux.digest must be set when lms.selinux.enabled is true" $att.lms.selinux.digest }}
+{{- $components = append $components (dict "name" "selinux" "measurement" $digest) -}}
+{{- end }}
+
+{{- if $att.talos.extensions.enabled }}
+{{- $digest := required "talos.extensions.digest must be set when talos.extensions.enabled is true" $att.talos.extensions.digest }}
+{{- $components = append $components (dict "name" "extensions" "measurement" $digest) -}}
+{{- end }}
+
+{{- if $att.talos.version.enabled }}
+{{- $digest := required "talos.version.digest must be set when talos.version.enabled is true" $att.talos.version.digest }}
+{{- $components = append $components (dict "name" "talos-version" "measurement" $digest) -}}
+{{- end }}
+
+{{- if $att.talos.image.enabled }}
+{{- $digest := required "talos.image.digest must be set when talos.image.enabled is true" $att.talos.image.digest }}
+{{- $components = append $components (dict "name" "image" "measurement" $digest) -}}
+{{- end }}
+
+{{- if $att.kernel.lockdown.enabled }}
+{{- $digest := required "kernel.lockdown.digest must be set when kernel.lockdown.enabled is true" $att.kernel.lockdown.digest }}
+{{- $components = append $components (dict "name" "lockdown" "measurement" $digest) -}}
+{{- end }}
+
+{{- if $att.kernel.secureboot.enabled }}
+{{- $digest := required "kernel.secureboot.digest must be set when kernel.secureboot.enabled is true" $att.kernel.secureboot.digest }}
+{{- $components = append $components (dict "name" "secure-boot" "measurement" $digest) -}}
+{{- end }}
+
+{{- if $att.filesystem.squashfs.enabled }}
+{{- $digest := required "filesystem.squashfs.digest must be set when filesystem.squashfs.enabled is true" $att.filesystem.squashfs.digest }}
+{{- $components = append $components (dict "name" "squashfs" "measurement" $digest) -}}
+{{- end }}
+
+{{- /* Build PCRs map */ -}}
+{{- $pcrs := dict -}}
+{{- if $att.kernel.pcrs.enabled }}
+{{- $values := required "kernel.pcrs.values must be set when kernel.pcrs.enabled is true" $att.kernel.pcrs.values }}
+{{- range $k, $v := $values }}
+{{- $_ := set $pcrs $k $v -}}
+{{- end }}
+{{- end }}
+
+{{- /* Final report object */ -}}
+{{- $report := dict "components" $components "pcrs" $pcrs -}}
+
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -9,5 +66,5 @@ metadata:
     app.kubernetes.io/managed-by: kommodity
 data:
   report: |
-{{ toYaml .Values.kommodity.security.attestationPolicy | indent 4 }}
+{{- toJson $report | nindent 4 }}
 {{- end }}

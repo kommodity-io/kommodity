@@ -13,6 +13,29 @@ kommodity:
 
   security:
     enabled: false
+    attestationPolicy:
+      lms:
+        apparmor:
+          enabled: false
+        selinux:
+          enabled: false
+      talos:
+        extensions:
+          enabled: false
+        version:
+          enabled: false
+        image:
+          enabled: false
+      kernel:
+        pcrs:
+          enabled: false
+        lockdown:
+          enabled: false
+        secureboot:
+          enabled: false
+      filesystem:
+        squashfs:
+          enabled: false
 
   controlplane: {}
 

@@ -12,6 +12,7 @@ require (
 	github.com/Masterminds/sprig/v3 v3.3.0
 	github.com/go-logr/logr v1.4.3
 	github.com/go-logr/zapr v1.3.0
+	github.com/google/go-tpm v0.9.5
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
 	github.com/k3s-io/kine v1.14.2
@@ -143,7 +144,6 @@ require (
 	github.com/google/cel-go v0.26.0 // indirect
 	github.com/google/gnostic-models v0.6.9 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
-	github.com/google/go-tpm v0.9.5 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674 // indirect
@@ -269,7 +269,6 @@ require (
 	golang.org/x/sys v0.35.0 // indirect
 	golang.org/x/term v0.34.0 // indirect
 	golang.org/x/text v0.28.0 // indirect
-	golang.org/x/tools v0.35.0 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.5.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250715232539-7130f93afb79 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250715232539-7130f93afb79 // indirect
@@ -284,7 +283,6 @@ require (
 	k8s.io/cloud-provider v0.32.2 // indirect
 	k8s.io/cluster-bootstrap v0.32.3 // indirect
 	k8s.io/component-helpers v0.32.3 // indirect
-	k8s.io/gengo/v2 v2.0.0-20250207200755-1244d31929d7 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
 	k8s.io/kms v0.32.6 // indirect
 	k8s.io/kubectl v0.32.3 // indirect

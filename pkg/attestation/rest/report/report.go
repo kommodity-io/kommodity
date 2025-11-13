@@ -74,7 +74,7 @@ func PostReport(nonceStore *restutils.NonceStore,
 			return
 		}
 
-		err = saveAttestationReport(request.Context(), cfg, req.Node, req.Report)
+		err = saveAttestationReport(request.Context(), cfg, req)
 		if err != nil {
 			http.Error(response, "Failed to save attestation report", http.StatusInternalServerError)
 
@@ -85,11 +85,7 @@ func PostReport(nonceStore *restutils.NonceStore,
 	}
 }
 
-func saveAttestationReport(ctx context.Context,
-	cfg *config.KommodityConfig,
-	node NodeInfo,
-	report restutils.Report,
-) error {
+func saveAttestationReport(ctx context.Context, cfg *config.KommodityConfig, request AttestationReportRequest) error {
 	kubeClient, err := clientgoclientset.NewForConfig(cfg.ClientConfig.LoopbackClientConfig)
 	if err != nil {
 		return fmt.Errorf("failed to create kube client: %w", err)
@@ -100,28 +96,31 @@ func saveAttestationReport(ctx context.Context,
 		return fmt.Errorf("failed to create controller client: %w", err)
 	}
 
-	machine, err := net.FindManagedMachineByIP(ctx, &ctrlClient, node.IP)
+	machine, err := net.FindManagedMachineByIP(ctx, &ctrlClient, request.Node.IP)
 	if err != nil {
-		return fmt.Errorf("failed to find managed machine by IP %s: %w", node.IP, err)
+		return fmt.Errorf("failed to find managed machine by IP %s: %w", request.Node.IP, err)
 	}
 
-	jsonReport, err := json.Marshal(report)
+	jsonReport, err := json.Marshal(request.Report)
 	if err != nil {
 		return fmt.Errorf("failed to marshal report: %w", err)
 	}
+
+	labels := config.GetKommodityLabels(request.Node.UUID, request.Node.IP)
+	labels[config.KommodityNonceLabel] = request.Nonce
 
 	_, err = restutils.GetConfigMapAPI(kubeClient).Create(ctx, &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      restutils.GetConfigMapReportName(machine),
 			Namespace: config.KommodityNamespace,
-			Labels:    config.GetKommodityLabels(node.UUID, node.IP),
+			Labels:    labels,
 		},
 		Data: map[string]string{
 			"report": string(jsonReport),
 		},
 	}, metav1.CreateOptions{})
 	if err != nil {
-		return fmt.Errorf("failed to save attestation report for node %s: %w", node.IP, err)
+		return fmt.Errorf("failed to save attestation report for node %s: %w", request.Node.IP, err)
 	}
 
 	return nil
