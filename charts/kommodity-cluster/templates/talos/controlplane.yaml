@@ -18,6 +18,9 @@
   {{- else }}
     {{- /* Fallback to the existing addon template */}}
     {{- $contents = include (printf "kommodity.addon.%s" $name) $root }}
+- name: {{ $name }}-installer
+  contents: |
+{{ include "kommodity.addon.installer" (dict "addon" $name "chart" $addon.chart "version" $addon.version) | indent 4 }}
   {{- end }}
 - name: {{ $name }}
   contents: |
