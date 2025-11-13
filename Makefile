@@ -120,7 +120,12 @@ teardown: compose-down ## Tear down the local development environment.
 
 .PHONY: build-image
 build-image: ## Build the Docker image.
-	docker buildx build -f Containerfile -t kommodity:latest .
+	docker buildx build \
+	-f Containerfile \
+	-t kommodity:latest \
+	. \
+	--build-arg VERSION=$(VERSION) \
+	--load
 
 # Run the container image
 # .env file created by 'make .env'
@@ -139,3 +144,7 @@ setup-kind-management-cluster:
 
 delete-kind-management-cluster:
 	kind delete cluster --name kind-management
+
+.PHONY: integration-test
+integration-test: 
+	go test -v ./pkg/test
