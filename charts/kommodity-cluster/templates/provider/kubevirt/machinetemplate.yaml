@@ -16,7 +16,9 @@ spec:
         metadata:
           namespace: {{ .Values.kommodity.provider.kubevirtClusterNamespace }}
         spec:
-          instanceType: {{ .Values.kommodity.controlplane.sku }}
+          instancetype:
+            name: {{ .Values.kommodity.controlplane.sku }}
+            kind: VirtualMachineClusterInstancetype
           runStrategy: Always
           template:
             spec:
@@ -51,7 +53,9 @@ spec:
         metadata:
           namespace: {{ $.Values.kommodity.provider.kubevirtClusterNamespace }}
         spec:
-          instanceType: {{ $np.sku }}
+          instancetype: 
+            name: {{ $np.sku }}
+            kind: VirtualMachineClusterInstancetype
           runStrategy: Always
           template:
             spec:

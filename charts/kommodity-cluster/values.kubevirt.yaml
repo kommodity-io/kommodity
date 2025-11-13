@@ -3,7 +3,7 @@ kommodity:
   provider:
     name: Kubevirt
     secret:
-      name: kind-credentials
+      name: kubevirt-credentials
       # Kubevirt secret example (contains a kubeconfig used to connect to the Kubevirt cluster):
       #
       # apiVersion: v1
