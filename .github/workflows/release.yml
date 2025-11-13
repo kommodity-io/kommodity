@@ -249,6 +249,7 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs:
       - build
+      - test
     permissions:
       contents: write
       pull-requests: write
