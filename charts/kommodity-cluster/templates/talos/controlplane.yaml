@@ -18,6 +18,9 @@
   {{- else }}
     {{- /* Fallback to the existing addon template */}}
     {{- $contents = include (printf "kommodity.addon.%s" $name) $root }}
+- name: {{ $name }}-installer
+  contents: |
+{{ include "kommodity.addon.installer" (dict "addon" $name "chart" $addon.chart "version" $addon.version) | indent 4 }}
   {{- end }}
 - name: {{ $name }}
   contents: |
@@ -64,6 +67,13 @@ spec:
       hostname: {}
       {{- if $anyAddonEnabled }}
       configPatches:
+        - op: add
+          path: /cluster/inlineManifests
+          value: |
+            apiVersion: v1
+            kind: Namespace
+            metadata:
+              name: kommodity-system
         - op: add
           path: /cluster/inlineManifests
           value:
