@@ -7,8 +7,6 @@ const (
 	ManagedByLabel = "app.kubernetes.io/managed-by"
 	// DeploymentNameLabel is the label key used to indicate the deployment name.
 	DeploymentNameLabel = "cluster.x-k8s.io/deployment-name"
-	// KommodityNonceLabel is the label key used to store the nonce for attestation.
-	KommodityNonceLabel = "kommodity.io/nonce"
 )
 
 // GetKommodityLabels returns the standard labels for Kommodity-managed resources.

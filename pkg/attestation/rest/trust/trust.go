@@ -112,9 +112,9 @@ func GetTrust(cfg *config.KommodityConfig) func(http.ResponseWriter, *http.Reque
 func getMachineAttestationReport(ctx context.Context,
 	kubeClient *clientgoclientset.Clientset,
 	machine *clusterv1.Machine) (*restutils.Report, string, error) {
-	configMapName := restutils.GetConfigMapReportName(machine)
+	resourceName := restutils.GetConfigMapReportName(machine)
 
-	configMap, err := getConfigMap(ctx, kubeClient, configMapName)
+	configMap, err := getConfigMap(ctx, kubeClient, resourceName)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to get attestation report: %w", err)
 	}
@@ -124,12 +124,12 @@ func getMachineAttestationReport(ctx context.Context,
 		return nil, "", fmt.Errorf("failed to transform config map to report: %w", err)
 	}
 
-	nonce, ok := configMap.Labels[config.KommodityNonceLabel]
-	if !ok {
-		return nil, "", restutils.ErrNonceNotFound
+	secret, err := restutils.GetSecretAPI(kubeClient).Get(ctx, resourceName, metav1.GetOptions{})
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to get attestation nonce secret: %w", err)
 	}
 
-	return report, nonce, nil
+	return report, secret.StringData["nonce"], nil
 }
 
 func getAttestationPolicy(ctx context.Context,

@@ -107,11 +107,11 @@ func saveAttestationReport(ctx context.Context, cfg *config.KommodityConfig, req
 	}
 
 	labels := config.GetKommodityLabels(request.Node.UUID, request.Node.IP)
-	labels[config.KommodityNonceLabel] = request.Nonce
+	resourceName := restutils.GetConfigMapReportName(machine)
 
 	_, err = restutils.GetConfigMapAPI(kubeClient).Create(ctx, &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      restutils.GetConfigMapReportName(machine),
+			Name:      resourceName,
 			Namespace: config.KommodityNamespace,
 			Labels:    labels,
 		},
@@ -121,6 +121,20 @@ func saveAttestationReport(ctx context.Context, cfg *config.KommodityConfig, req
 	}, metav1.CreateOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to save attestation report for node %s: %w", request.Node.IP, err)
+	}
+
+	_, err = restutils.GetSecretAPI(kubeClient).Create(ctx, &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      resourceName,
+			Namespace: config.KommodityNamespace,
+			Labels:    labels,
+		},
+		StringData: map[string]string{
+			"nonce": request.Nonce,
+		},
+	}, metav1.CreateOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to save node secret for node %s: %w", request.Node.IP, err)
 	}
 
 	return nil
