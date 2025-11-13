@@ -120,7 +120,11 @@ teardown: compose-down ## Tear down the local development environment.
 
 .PHONY: build-image
 build-image: ## Build the Docker image.
-	docker buildx build -f Containerfile -t kommodity:latest .
+	docker buildx build \
+	-f Containerfile \
+	-t kommodity:latest \
+	. \
+	--build-arg VERSION=$(VERSION)
 
 # Run the container image
 # .env file created by 'make .env'
