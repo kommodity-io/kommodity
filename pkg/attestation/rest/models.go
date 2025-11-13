@@ -191,7 +191,12 @@ func parseTPMAttest(hexQuote string, nonce string) (*tpm2.TPMSQuoteInfo, []byte,
 	}
 
 	hash := sha256.New()
-	_, _ = hash.Write(quoteBytes)
+
+	_, err = hash.Write(quoteBytes)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to write hash: %w", err)
+	}
+
 	digest := hash.Sum(nil)
 
 	return quoteInfo, digest, nil
@@ -261,7 +266,10 @@ func pcrDigest(pcrs map[int]string, indices []int) ([]byte, error) {
 			return nil, fmt.Errorf("PCR %d hex decode: %w", idx, err)
 		}
 
-		_, _ = hash.Write(raw)
+		_, err = hash.Write(raw)
+		if err != nil {
+			return nil, fmt.Errorf("failed to write hash: %w", err)
+		}
 	}
 
 	return hash.Sum(nil), nil
