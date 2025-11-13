@@ -1,0 +1,78 @@
+{{- if eq .Values.kommodity.provider.name "Kubevirt" }}
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: KubevirtMachineTemplate
+metadata:
+  name: {{ .Release.Name }}-controlplane
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: kommodity
+spec:
+  template:
+    spec:
+      virtualMachineBootstrapCheck:
+        checkStrategy: none
+      virtualMachineTemplate:
+        metadata:
+          namespace: {{ .Values.kommodity.provider.kubevirtClusterNamespace }}
+        spec:
+          instanceType: {{ .Values.kommodity.controlplane.sku }}
+          runStrategy: Always
+          template:
+            spec:
+              domain:
+                devices:
+                  networkInterfaceMultiqueue: true
+                  disks:
+                    - disk:
+                        bus: virtio
+                      name: containervolume
+              evictionStrategy: External
+              volumes:
+                - containerDisk:
+                    image: {{ .Values.talos.containerImage }}
+                  name: containervolume
+
+{{- range $name, $np := .Values.kommodity.nodepools }}
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: KubevirtMachineTemplate
+metadata:
+  name: {{ $.Release.Name }}-worker-{{ $name }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: kommodity
+spec:
+  template:
+    spec:
+      virtualMachineBootstrapCheck:
+        checkStrategy: none
+      virtualMachineTemplate:
+        metadata:
+          namespace: {{ $.Values.kommodity.provider.kubevirtClusterNamespace }}
+        spec:
+          instanceType: {{ $np.sku }}
+          runStrategy: Always
+          template:
+            spec:
+              domain:
+                devices:
+                  {{- if $np.gpus }}
+                  gpus:
+                  {{- range $name, $gpu := $np.gpus }}
+                    - name: {{ $name }}
+                      deviceName: {{ $gpu.deviceName }}
+                  {{- end }}
+                  {{- end }}
+                  networkInterfaceMultiqueue: true
+                  disks:
+                    - disk:
+                        bus: virtio
+                      name: containervolume
+              evictionStrategy: External
+              volumes:
+                - containerDisk:
+                    image: {{ $.Values.talos.containerImage }}
+                  name: containervolume
+{{- end }}
+{{- end }}

@@ -27,6 +27,10 @@ for i in $(seq 0 $((count - 1))); do
   fi
   
   # Fetch CRD manifests
+  if [ "$file" == "null" ]; then
+    echo "'file' field is null. Skipping CRD manifests for $name."
+    continue
+  fi
   url="https://github.com/${repo}/releases/download/${version}/$file"
   
   echo "Fetching from $url with filter $filter"
