@@ -124,8 +124,14 @@ jobs:
       - name: Load Docker image
         run: docker load -i kommodity-image.tar
 
-      - name: Run tests
-        run: make test
+      - name: Calculate test coverage
+        uses: gwatts/go-coverage-action@v2
+        id: coverage
+        with:
+          # Disable coverage threshold.
+          coverage-threshold: 0
+          # Include side-effect coverage.
+          cover-pkg: ./...
 
   build:
     name: Build binary

@@ -124,7 +124,8 @@ build-image: ## Build the Docker image.
 	-f Containerfile \
 	-t kommodity:latest \
 	. \
-	--build-arg VERSION=$(VERSION)
+	--build-arg VERSION=$(VERSION) \
+	--load
 
 # Run the container image
 # .env file created by 'make .env'
