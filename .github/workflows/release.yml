@@ -45,7 +45,7 @@ jobs:
         run: go mod download
 
       - name: Setup NPM
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: "24.2.0"
           cache: "npm"
@@ -76,7 +76,7 @@ jobs:
       - name: Save Docker image
         run: docker save kommodity:latest -o kommodity-image.tar
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: kommodity-image
           path: kommodity-image.tar
@@ -105,7 +105,7 @@ jobs:
         run: go mod download
 
       - name: Setup NPM
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: "24.2.0"
           cache: "npm"
@@ -117,7 +117,7 @@ jobs:
       - name: Build UI
         run: make build-ui
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v6
         with:
           name: kommodity-image
 
@@ -160,7 +160,7 @@ jobs:
         run: go mod download
 
       - name: Setup NPM
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: "24.2.0"
           cache: "npm"
