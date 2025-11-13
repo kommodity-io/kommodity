@@ -69,6 +69,13 @@ spec:
       configPatches:
         - op: add
           path: /cluster/inlineManifests
+          value: |
+            apiVersion: v1
+            kind: Namespace
+            metadata:
+              name: kommodity-system
+        - op: add
+          path: /cluster/inlineManifests
           value:
 {{- include "kommodity.addonsInlineManifests" . | trim | nindent 12 }}
       {{- end }}

@@ -11,21 +11,22 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: {{ .addon }}-install
-  namespace: kube-system
+  namespace: kommodity-system
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: {{ .addon }}-install
-  namespace: kube-system
+  namespace: kommodity-system
 ---
 apiVersion: batch/v1
 kind: Job
 metadata:
   name: {{ .addon }}-install
-  namespace: kube-system
+  namespace: kommodity-system
 spec:
   backoffLimit: 10
+  ttlSecondsAfterFinished: 3600
   template:
     metadata:
       labels:
@@ -74,5 +75,5 @@ spec:
           command:
             - /bin/sh
             - -c
-            - helm upgrade --install {{ .addon }} {{ .chart }} --namespace kube-system --version {{ .version }}
+            - helm upgrade --install {{ .addon }} {{ .chart }} --namespace kommodity-system --version {{ .version }}
 {{- end }}
