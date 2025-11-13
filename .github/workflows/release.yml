@@ -22,38 +22,6 @@ on:
       - scripts/**/*.sh
 
 jobs:
-  semantic-release:
-    name: Get Semantic Release Version
-    runs-on: ubuntu-latest
-    outputs:
-      release_tag: ${{ steps.semantic.outputs.git-tag }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Detect semantic release
-        uses: docker://ghcr.io/codfish/semantic-release-action:v3
-        id: semantic
-        with:
-          repository-url: https://github.com/${{ github.repository }}
-          branches: |
-            [
-              "main"
-            ]
-          plugins: |
-            [
-              "@semantic-release/commit-analyzer",
-              "@semantic-release/release-notes-generator",
-              "@semantic-release/github"
-            ]
-          dry-run: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Expose release tag as output
-        id: set_output
-        run: |
-          echo "release_tag=${{ steps.semantic.outputs.git-tag }}"
   lint:
     name: Lint
     runs-on: ubuntu-latest
@@ -95,7 +63,6 @@ jobs:
   build-container-image:
     name: Build Container Image
     runs-on: ubuntu-latest
-    needs: semantic-release
     steps:
       - uses: actions/checkout@v5
       - uses: docker/setup-qemu-action@v3
@@ -111,8 +78,8 @@ jobs:
           tags: kommodity:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          build-args: |
-            VERSION="${{ needs.semantic-release.outputs.release_tag }}"
+          build-args: | # Use a static version for testing
+            VERSION=v1.0.0
       - name: Save Docker image
         run: docker save kommodity:latest -o kommodity-image.tar
       - uses: actions/upload-artifact@v4
@@ -166,19 +133,9 @@ jobs:
       - name: Run tests
         run: make test
 
-      # - name: Calculate test coverage
-      #   uses: gwatts/go-coverage-action@v2
-      #   id: coverage
-      #   with:
-      #     # Disable coverage threshold.
-      #     coverage-threshold: 0
-      #     # Include side-effect coverage.
-      #     cover-pkg: ./...
-
   build:
     name: Build binary
     runs-on: ubuntu-latest
-    needs: semantic-release
     permissions:
       id-token: write
       pages: write
@@ -215,12 +172,31 @@ jobs:
       - name: Build UI
         run: make build-ui
 
+      - name: Detect semantic release
+        uses: docker://ghcr.io/codfish/semantic-release-action:v3
+        id: semantic
+        with:
+          repository-url: https://github.com/${{ github.repository }}
+          branches: |
+            [
+              "main"
+            ]
+          plugins: |
+            [
+              "@semantic-release/commit-analyzer",
+              "@semantic-release/release-notes-generator",
+              "@semantic-release/github"
+            ]
+          dry-run: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Compute version and compression
         id: version
         run: |
           set -eou pipefail
 
-          version="${{ needs.semantic-release.outputs.release_tag }}"
+          version="${{ steps.semantic.outputs.git-tag }}"
           compression="--ultra-brute -9"
           if [[ -z "$version" ]]; then
             version="$(git describe --tags --always)"
@@ -363,6 +339,8 @@ jobs:
           platforms: linux/amd64,linux/arm64
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          build-args: |
+            VERSION="${{ steps.extract_version.outputs.version }}"
           tags: |
             ghcr.io/${{ github.repository }}/kommodity:latest
             ghcr.io/${{ github.repository }}/kommodity:${{ steps.extract_version.outputs.version }}
