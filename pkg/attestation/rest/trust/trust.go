@@ -105,7 +105,7 @@ func GetTrust(cfg *config.KommodityConfig) func(http.ResponseWriter, *http.Reque
 			return
 		}
 
-		response.WriteHeader(http.StatusNotImplemented)
+		response.WriteHeader(http.StatusOK)
 	}
 }
 
