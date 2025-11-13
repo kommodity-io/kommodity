@@ -14,28 +14,24 @@ kommodity:
   security:
     enabled: false
     attestationPolicy:
-      lsm:
-        apparmor:
-          enabled: false
-        selinux:
-          enabled: false
-      talos:
-        extensions:
-          enabled: false
-        version:
-          enabled: false
-        image:
-          enabled: false
-      kernel:
-        pcrs:
-          enabled: false
-        lockdown:
-          enabled: false
-        secureboot:
-          enabled: false
-      filesystem:
-        squashfs:
-          enabled: false
+      apparmor:
+        enabled: false
+      selinux:
+        enabled: false
+      talosExtensions:
+        enabled: false
+      talosVersion:
+        enabled: false
+      talosImage:
+        enabled: false
+      pcrs:
+        enabled: false
+      kernelLockdown:
+        enabled: false
+      secureboot:
+        enabled: false
+      squashfs:
+        enabled: false
 
   controlplane: {}
 
