@@ -4,13 +4,13 @@
 {{- /* Build components list */ -}}
 {{- $components := list -}}
 
-{{- if $att.lms.apparmor.enabled }}
-{{- $digest := required "lms.apparmor.digest must be set when lms.apparmor.enabled is true" $att.lms.apparmor.digest }}
+{{- if $att.lsm.apparmor.enabled }}
+{{- $digest := required "lsm.apparmor.digest must be set when lsm.apparmor.enabled is true" $att.lsm.apparmor.digest }}
 {{- $components = append $components (dict "name" "apparmor" "measurement" $digest) -}}
 {{- end }}
 
-{{- if $att.lms.selinux.enabled }}
-{{- $digest := required "lms.selinux.digest must be set when lms.selinux.enabled is true" $att.lms.selinux.digest }}
+{{- if $att.lsm.selinux.enabled }}
+{{- $digest := required "lsm.selinux.digest must be set when lsm.selinux.enabled is true" $att.lsm.selinux.digest }}
 {{- $components = append $components (dict "name" "selinux" "measurement" $digest) -}}
 {{- end }}
 

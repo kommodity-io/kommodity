@@ -14,7 +14,7 @@ kommodity:
   security:
     enabled: false
     attestationPolicy:
-      lms:
+      lsm:
         apparmor:
           enabled: false
         selinux:
