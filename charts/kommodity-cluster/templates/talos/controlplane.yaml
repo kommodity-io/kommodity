@@ -1,12 +1,16 @@
 {{- $anyAddonEnabled := false }}
+{{- if .Values.kommodity.addons -}}
+{{- range $name, $addon := .Values.kommodity.addons }}
+  {{- if $addon.enabled }}
+    {{- $anyAddonEnabled = true }}
+  {{- end }}
+{{- end }}
+{{- end }}
 
 {{- define "kommodity.addonsInlineManifests" -}}
 {{- $root := . -}}
-{{- if .Values.kommodity.addons -}}
 {{- range $name, $addon := $root.Values.kommodity.addons }}
 {{- if $addon.enabled }}
-  {{- $anyAddonEnabled = true }}
-  {{- /* Determine contents */}}
   {{- $contents := "" }}
   {{- if $addon.manifest }}
     {{- /* Use the inline manifest from values.yaml (tpl so you can template it if you want) */}}
@@ -29,7 +33,6 @@
 - name: {{ $name }}
   contents: |
 {{ $contents | indent 4 }}
-{{- end }}
 {{- end }}
 {{- end }}
 {{- end }}
