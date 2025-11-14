@@ -21,6 +21,7 @@ import (
 	scheme_12 "sigs.k8s.io/cluster-api-provider-azure/exp/api/v1beta1"
 	scheme_13 "sigs.k8s.io/cluster-api-provider-kubevirt/api/v1alpha1"
 	scheme_14 "kubevirt.io/api/core/v1"
+	scheme_15 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 )
 
 func addAllProvidersToScheme(scheme *runtime.Scheme) error {
@@ -39,6 +40,7 @@ func addAllProvidersToScheme(scheme *runtime.Scheme) error {
 	if err = scheme_12.AddToScheme(scheme); err != nil { return err }
 	if err = scheme_13.AddToScheme(scheme); err != nil { return err }
 	if err = scheme_14.AddToScheme(scheme); err != nil { return err }
+	if err = scheme_15.AddToScheme(scheme); err != nil { return err }
     return nil
 }
 
@@ -58,5 +60,6 @@ func GetProviderGroupKindVersions() []schema.GroupVersion {
 		scheme_12.GroupVersion,
 		scheme_13.GroupVersion,
 		scheme_14.GroupVersion,
+		// scheme_15.GroupVersion,
   }
 }
