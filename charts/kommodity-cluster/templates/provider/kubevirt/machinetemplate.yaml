@@ -16,6 +16,21 @@ spec:
         metadata:
           namespace: {{ .Values.kommodity.provider.kubevirtClusterNamespace }}
         spec:
+          dataVolumeTemplates:
+            - metadata:
+                name: boot-volume
+                namespace: {{ $.Values.kommodity.provider.kubevirtClusterNamespace }}
+              spec:
+                pvc:
+                  resources:
+                    requests:
+                      storage: 20Gi
+                  accessModes:
+                    - ReadWriteOnce
+                source:
+                  registry:
+                    pullMethod: node
+                    url: docker://{{ $.Values.talos.containerImage }}
           instancetype:
             name: {{ .Values.kommodity.controlplane.sku }}
             kind: VirtualMachineClusterInstancetype
@@ -28,12 +43,12 @@ spec:
                   disks:
                     - disk:
                         bus: virtio
-                      name: containervolume
+                      name: dv-volume
               evictionStrategy: External
               volumes:
-                - containerDisk:
-                    image: {{ .Values.talos.containerImage }}
-                  name: containervolume
+                - dataVolume:
+                    name: boot-volume
+                  name: dv-volume
 
 {{- range $name, $np := .Values.kommodity.nodepools }}
 ---
@@ -53,6 +68,21 @@ spec:
         metadata:
           namespace: {{ $.Values.kommodity.provider.kubevirtClusterNamespace }}
         spec:
+          dataVolumeTemplates:
+            - metadata:
+                name: boot-volume
+                namespace: {{ $.Values.kommodity.provider.kubevirtClusterNamespace }}
+              spec:
+                pvc:
+                  resources:
+                    requests:
+                      storage: 20Gi
+                  accessModes:
+                    - ReadWriteOnce
+                source:
+                  registry:
+                    pullMethod: node
+                    url: docker://{{ $.Values.talos.containerImage }}
           instancetype: 
             name: {{ $np.sku }}
             kind: VirtualMachineClusterInstancetype
@@ -72,11 +102,11 @@ spec:
                   disks:
                     - disk:
                         bus: virtio
-                      name: containervolume
+                      name: dv-volume
               evictionStrategy: External
               volumes:
-                - containerDisk:
-                    image: {{ $.Values.talos.containerImage }}
-                  name: containervolume
+                - dataVolume:
+                    name: boot-volume
+                  name: dv-volume
 {{- end }}
 {{- end }}

@@ -94,3 +94,9 @@ providers:
     go_module: kubevirt.io/api
     scheme_locations:
       - core/v1
+  - name: kubevirt-containerized-data-importer
+    provider: kubevirt
+    repository: kubevirt/containerized-data-importer
+    go_module: kubevirt.io/containerized-data-importer-api/pkg/apis
+    scheme_locations:
+      - core/v1beta1
