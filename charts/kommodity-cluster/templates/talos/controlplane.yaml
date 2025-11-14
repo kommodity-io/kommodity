@@ -18,9 +18,17 @@
   {{- else }}
     {{- /* Fallback to the existing addon template */}}
     {{- $contents = include (printf "kommodity.addon.%s" $name) $root }}
+
+    {{- /* Only create installer if chart is defined and chart.install is true */}}
+    {{- if and $addon.chart $addon.chart.install }}
 - name: {{ $name }}-installer
   contents: |
-{{ include "kommodity.addon.installer" (dict "addon" $name "chart" $addon.chart "version" $addon.version) | indent 4 }}
+{{ include "kommodity.addon.installer" (dict
+      "addon"   $name
+      "chart"   $addon.chart.name
+      "version" $addon.chart.version
+    ) | indent 4 }}
+    {{- end }}
   {{- end }}
 - name: {{ $name }}
   contents: |
