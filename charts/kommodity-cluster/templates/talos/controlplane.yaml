@@ -2,6 +2,7 @@
 
 {{- define "kommodity.addonsInlineManifests" -}}
 {{- $root := . -}}
+{{- if .Values.kommodity.addons -}}
 {{- range $name, $addon := $root.Values.kommodity.addons }}
 {{- if $addon.enabled }}
   {{- $anyAddonEnabled = true }}
@@ -28,6 +29,7 @@
 - name: {{ $name }}
   contents: |
 {{ $contents | indent 4 }}
+{{- end }}
 {{- end }}
 {{- end }}
 {{- end }}
