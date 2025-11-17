@@ -60,6 +60,6 @@ func GetProviderGroupKindVersions() []schema.GroupVersion {
 		scheme_12.GroupVersion,
 		scheme_13.GroupVersion,
 		scheme_14.GroupVersion,
-		// scheme_15.GroupVersion,
+		scheme_15.GroupVersion,
   }
 }

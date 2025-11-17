@@ -28,9 +28,11 @@ spec:
                   accessModes:
                     - ReadWriteOnce
                 source:
-                  registry:
-                    pullMethod: node
-                    url: docker://{{ $.Values.talos.containerImage }}
+                  http:
+                    url: https://factory.talos.dev/image/ce4c980550dd2ab1b17bbf2b08801c7eb59418eafe8f279833297925d67c7515/v1.11.5/openstack-amd64.raw.xz
+                  # registry:
+                  #   pullMethod: node
+                  #   url: docker://{{ $.Values.talos.containerImage }}
           instancetype:
             name: {{ .Values.kommodity.controlplane.sku }}
             kind: VirtualMachineClusterInstancetype
@@ -80,9 +82,11 @@ spec:
                   accessModes:
                     - ReadWriteOnce
                 source:
-                  registry:
-                    pullMethod: node
-                    url: docker://{{ $.Values.talos.containerImage }}
+                  http:
+                    url: https://factory.talos.dev/image/ce4c980550dd2ab1b17bbf2b08801c7eb59418eafe8f279833297925d67c7515/v1.11.5/openstack-amd64.raw.xz
+                  # registry:
+                  #   pullMethod: node
+                  #   url: docker://{{ $.Values.talos.containerImage }}
           instancetype: 
             name: {{ $np.sku }}
             kind: VirtualMachineClusterInstancetype
