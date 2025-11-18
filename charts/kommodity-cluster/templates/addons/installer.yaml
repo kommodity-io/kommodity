@@ -85,6 +85,9 @@ spec:
               INSTALL_MODE="{{ default "HelmInstall" .addon.lifecycle.install.mode }}"
               UPGRADE_DISABLE="{{ default true .addon.lifecycle.upgrade.disable }}"
               NAMESPACE="{{ default .name .addon.namespace }}"
+              CONDITION_DEFINED="{{ if .addon.lifecycle.install.condition }}true{{ else }}false{{ end }}"
+              CONDITION_KIND="{{ default "Deployment" .addon.lifecycle.install.condition.kind }}"
+              CONDITION_LABELS="{{ range $key, $value := .addon.lifecycle.install.condition.matchLabels }}-l {{$key}}={{$value}} {{end}}"
 
               echo "Addon: ${RELEASE}"
               echo "Install Mode: ${INSTALL_MODE}"
@@ -93,14 +96,28 @@ spec:
               echo "Version: ${VERSION}"
               echo "Upgrade Disable: ${UPGRADE_DISABLE}"
 
-              if [ "${UPGRADE_DISABLE}" = "true" ] || [ "${UPGRADE_DISABLE}" = "True" ] || [ "${UPGRADE_DISABLE}" = "TRUE" ]; then
-                # Check if the addon is already installed
-                if helm ls -n "${NAMESPACE}" | grep -q "^${RELEASE} "; then
+              # When upgrade.disable=true, decide early if we should skip
+              if [ "${UPGRADE_DISABLE}" = "true" ]; then
+                # For KubectlApply + upgrade.disable=true we *require* a condition
+                if [ "${INSTALL_MODE}" = "KubectlApply" ] && [ "${CONDITION_DEFINED}" != "true" ]; then
+                  echo "Error: condition must be defined for KubectlApply install mode when upgrade.disable=true"
+                  exit 1
+                fi
+
+                # If a condition is defined, use it to detect an existing installation
+                if [ "${CONDITION_DEFINED}" = "true" ] && [ kubectl -n "${NAMESPACE}" get "${CONDITION_KIND}" -l ${CONDITION_LABELS} --no-headers | grep -q . ]; then
+                  echo "Skipping installation of addon ${RELEASE} due to upgrade.disable=true and existing installation"
+                  exit 0
+                fi
+
+                # Check if a Helm release already exists
+                if [ "${INSTALL_MODE}" = "HelmInstall" ] && [ helm ls -n "${NAMESPACE}" | grep -q "^${RELEASE} "]; then
                   echo "Addon ${RELEASE} is already installed, skipping installation due to upgrade.disable=true"
                   exit 0
                 fi
               fi
 
+              # Actually install, depending on mode and OCI/non-OCI
               if [ "${INSTALL_MODE}" = "KubectlApply" ]; then
                 # Render manifests with Helm, apply with kubectl
                 if echo "${REPOSITORY}" | grep -q '^oci://'; then
