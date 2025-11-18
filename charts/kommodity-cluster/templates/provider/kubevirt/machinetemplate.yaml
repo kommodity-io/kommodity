@@ -30,9 +30,6 @@ spec:
                 source:
                   http:
                     url: {{ $.Values.talos.imageName }}
-                  # registry:
-                  #   pullMethod: node
-                  #   url: docker://{{ $.Values.talos.containerImage }}
           instancetype:
             name: {{ .Values.kommodity.controlplane.sku }}
             kind: VirtualMachineClusterInstancetype
@@ -84,9 +81,6 @@ spec:
                 source:
                   http:
                     url: {{ $.Values.talos.imageName }}
-                  # registry:
-                  #   pullMethod: node
-                  #   url: docker://{{ $.Values.talos.containerImage }}
           instancetype: 
             name: {{ $np.sku }}
             kind: VirtualMachineClusterInstancetype
