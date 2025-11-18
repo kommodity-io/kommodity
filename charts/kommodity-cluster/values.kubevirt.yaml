@@ -34,4 +34,7 @@ kommodity:
 
 talos:
   version: v1.11.5
-  containerImage: factory.talos.dev/openstack-installer/376567988ad370138ad8b2698212367b8edcb69b5fd68c80be1f2ec7d603b4ba:v1.11.5
+  imageName: https://factory.talos.dev/image/ce4c980550dd2ab1b17bbf2b08801c7eb59418eafe8f279833297925d67c7515/v1.11.5/openstack-amd64.raw.xz
+# Configurations related to Kubernetes
+kubernetes:
+  version: v1.33.4
