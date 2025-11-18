@@ -1,4 +1,4 @@
-# Default values for kommodity-cluster in Scaleway.
+# Default values for kommodity-cluster in Kubevirt.
 kommodity:
   provider:
     name: Kubevirt
@@ -15,13 +15,13 @@ kommodity:
       #   kubeconfig: <base64-encoded-kubeconfig>
       # type: Opaque
 
-    # Existing namespace in the Kubevirt cluster where the VMs will be deployed
+    # Namespace in the external Kubevirt cluster where the VMs will be deployed
     kubevirtClusterNamespace: kubevirt-cluster-namespace
 
   network:
     cluster:
       podCIDR:
-        - 10.245.0.0/16 # Needs to be different from the Kubevirt cluster pod CIDR
+        - 10.245.0.0/16 # Needs to be different from the Kubevirt cluster pod CIDR (usually 10.244.0.0/16)
 
   controlplane:
     replicas: 2
