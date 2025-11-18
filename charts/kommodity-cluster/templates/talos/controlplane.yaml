@@ -13,26 +13,26 @@
 {{- if $addon.enabled }}
   {{- $contents := "" }}
   {{- if $addon.manifest }}
-    {{- /* Use the inline manifest from values.yaml (tpl so you can template it if you want) */}}
     {{- $contents = tpl $addon.manifest $root }}
   {{- else }}
-    {{- /* Fallback to the existing addon template */}}
     {{- $contents = include (printf "kommodity.addon.%s" $name) $root }}
-
-    {{- /* Only create installer if chart is defined and chart.install is true */}}
-    {{- if and $addon.chart $addon.chart.install }}
-- name: {{ $name }}-installer
+    {{- if $addon.namespace }}
+- name: {{ $name }}-namespace
   contents: |
-{{ include "kommodity.addon.installer" (dict
-      "addon"   $name
-      "chart"   $addon.chart.name
-      "version" $addon.chart.version
-    ) | indent 4 }}
+{{ include "kommodity.addon.namespace" (dict
+  "namespace"  $addon.namespace
+) | indent 4 }}
     {{- end }}
-  {{- end }}
 - name: {{ $name }}
   contents: |
 {{ $contents | indent 4 }}
+- name: {{ $name }}-installer
+  contents: |
+{{ include "kommodity.addon.installer" (dict
+  "name"  $name
+  "addon" $addon
+) | indent 4 }}
+  {{- end }}
 {{- end }}
 {{- end }}
 {{- end }}
@@ -77,14 +77,17 @@ spec:
       configPatches:
         - op: add
           path: /cluster/inlineManifests
-          value: |
-            apiVersion: v1
-            kind: Namespace
-            metadata:
-              name: kommodity-system
-        - op: add
-          path: /cluster/inlineManifests
           value:
+            - name: kommodity-system
+              contents: |
+                apiVersion: v1
+                kind: Namespace
+                metadata:
+                  name: kommodity-system
+                  labels:
+                    pod-security.kubernetes.io/enforce: privileged
+                    pod-security.kubernetes.io/enforce-version: latest
+                ---
 {{- include "kommodity.addonsInlineManifests" . | trim | nindent 12 }}
       {{- end }}
     init:
