@@ -18,6 +18,11 @@ kommodity:
     # Existing namespace in the Kubevirt cluster where the VMs will be deployed
     kubevirtClusterNamespace: kubevirt-cluster-namespace
 
+  network:
+    cluster:
+      podCIDR:
+        - 10.245.0.0/16 # Needs to be different from the Kubevirt cluster pod CIDR
+
   controlplane:
     replicas: 2
     sku: s1.medium
@@ -34,7 +39,7 @@ kommodity:
 
 talos:
   version: v1.11.5
-  imageName: https://factory.talos.dev/image/ce4c980550dd2ab1b17bbf2b08801c7eb59418eafe8f279833297925d67c7515/v1.11.5/openstack-amd64.raw.xz
+  imageName: https://factory.talos.dev/image/ce4c980550dd2ab1b17bbf2b08801c7eb59418eafe8f279833297925d67c7515/v1.11.5/openstack-amd64.raw.xz # OpenStack image with 'siderolabs/qemu-guest-agent' extension
 # Configurations related to Kubernetes
 kubernetes:
   version: v1.33.4

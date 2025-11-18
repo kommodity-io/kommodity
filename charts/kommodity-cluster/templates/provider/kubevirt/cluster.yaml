@@ -14,5 +14,5 @@ spec:
     metadata:
       namespace: {{ .Values.kommodity.provider.kubevirtClusterNamespace }}
     spec:
-      type: ClusterIP
+      type: LoadBalancer
 {{- end }}
