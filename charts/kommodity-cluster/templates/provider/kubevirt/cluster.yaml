@@ -12,7 +12,7 @@ spec:
     namespace: {{ .Release.Namespace }}
   controlPlaneServiceTemplate:
     metadata:
-      namespace: {{ .Values.kommodity.provider.kubevirtClusterNamespace }}
+      namespace: {{ .Values.kommodity.provider.config.infraClusterNamespace }}
     spec:
       type: LoadBalancer
 {{- end }}

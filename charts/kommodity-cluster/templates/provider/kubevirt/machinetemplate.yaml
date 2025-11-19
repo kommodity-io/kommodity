@@ -14,12 +14,12 @@ spec:
         checkStrategy: none
       virtualMachineTemplate:
         metadata:
-          namespace: {{ .Values.kommodity.provider.kubevirtClusterNamespace }}
+          namespace: {{ .Values.kommodity.provider.config.infraClusterNamespace }}
         spec:
           dataVolumeTemplates:
             - metadata:
                 name: boot-volume
-                namespace: {{ $.Values.kommodity.provider.kubevirtClusterNamespace }}
+                namespace: {{ $.Values.kommodity.provider.config.infraClusterNamespace }}
               spec:
                 pvc:
                   resources:
@@ -65,12 +65,12 @@ spec:
         checkStrategy: none
       virtualMachineTemplate:
         metadata:
-          namespace: {{ $.Values.kommodity.provider.kubevirtClusterNamespace }}
+          namespace: {{ $.Values.kommodity.provider.config.infraClusterNamespace }}
         spec:
           dataVolumeTemplates:
             - metadata:
                 name: boot-volume
-                namespace: {{ $.Values.kommodity.provider.kubevirtClusterNamespace }}
+                namespace: {{ $.Values.kommodity.provider.config.infraClusterNamespace }}
               spec:
                 pvc:
                   resources:
