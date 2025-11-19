@@ -3,7 +3,6 @@ kommodity:
   provider:
     name: Kubevirt
     secret:
-      name: kubevirt-credentials
       # Kubevirt secret example (contains a kubeconfig used to connect to the Kubevirt cluster):
       #
       # apiVersion: v1
@@ -14,7 +13,7 @@ kommodity:
       # data:
       #   kubeconfig: <base64-encoded-kubeconfig>
       # type: Opaque
-
+      name: kubevirt-credentials
     config:
       # Namespace in the external Kubevirt cluster where the VMs will be deployed
       infraClusterNamespace: kubevirt-cluster-namespace
@@ -39,5 +38,4 @@ kommodity:
       #     deviceName: "nvidia.com/AD102GL_L40S" # resource name representing the device
 
 talos:
-  version: v1.11.3
   imageName: https://factory.talos.dev/image/ce4c980550dd2ab1b17bbf2b08801c7eb59418eafe8f279833297925d67c7515/v1.11.3/openstack-amd64.raw.xz # OpenStack image with 'siderolabs/qemu-guest-agent' extension
