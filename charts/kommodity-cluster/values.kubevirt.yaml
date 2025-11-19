@@ -1,9 +1,8 @@
-# Default values for kommodity-cluster in Scaleway.
+# Default values for kommodity-cluster in Kubevirt.
 kommodity:
   provider:
     name: Kubevirt
     secret:
-      name: kind-credentials
       # Kubevirt secret example (contains a kubeconfig used to connect to the Kubevirt cluster):
       #
       # apiVersion: v1
@@ -14,9 +13,15 @@ kommodity:
       # data:
       #   kubeconfig: <base64-encoded-kubeconfig>
       # type: Opaque
+      name: kubevirt-credentials
+    config:
+      # Namespace in the external Kubevirt cluster where the VMs will be deployed
+      infraClusterNamespace: kubevirt-cluster-namespace
 
-    # Existing namespace in the Kubevirt cluster where the VMs will be deployed
-    kubevirtClusterNamespace: kubevirt-cluster-namespace
+  network:
+    cluster:
+      podCIDR:
+        - 10.245.0.0/16 # Needs to be different from the Kubevirt cluster pod CIDR (usually 10.244.0.0/16)
 
   controlplane:
     replicas: 2
@@ -33,5 +38,4 @@ kommodity:
       #     deviceName: "nvidia.com/AD102GL_L40S" # resource name representing the device
 
 talos:
-  version: v1.11.5
-  containerImage: factory.talos.dev/openstack-installer/376567988ad370138ad8b2698212367b8edcb69b5fd68c80be1f2ec7d603b4ba:v1.11.5
+  imageName: https://factory.talos.dev/image/ce4c980550dd2ab1b17bbf2b08801c7eb59418eafe8f279833297925d67c7515/v1.11.3/openstack-amd64.raw.xz # OpenStack image with 'siderolabs/qemu-guest-agent' extension

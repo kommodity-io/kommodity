@@ -10,4 +10,9 @@ spec:
   infraClusterSecretRef:
     name: {{ .Values.kommodity.provider.secret.name }}
     namespace: {{ .Release.Namespace }}
+  controlPlaneServiceTemplate:
+    metadata:
+      namespace: {{ .Values.kommodity.provider.config.infraClusterNamespace }}
+    spec:
+      type: LoadBalancer
 {{- end }}

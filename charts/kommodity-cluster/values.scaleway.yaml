@@ -15,7 +15,6 @@ kommodity:
       #   SCW_SECRET_KEY: <YOUR_BASE64_ENCODED_SECRET_KEY>
       # type: Opaque
       name: my-cluster-scaleway-secret
-      namespace: default
     config:
       projectID: <YOUR_PROJECT_ID_HERE>
 
