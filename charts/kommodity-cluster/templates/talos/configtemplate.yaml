@@ -16,3 +16,4 @@ spec:
       configPatches:
 {{- toYaml $np.configPatches | nindent 8 }}
       {{- end }}
+{{- end }}
