@@ -1,0 +1,11 @@
+{{- define "kommodity.addon.extra-values" -}}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ .name }}-extra-values
+  namespace: kommodity-system
+stringData:
+  values.yaml: |
+{{- toYaml .extraValues | nindent 4 }}
+{{- end }}

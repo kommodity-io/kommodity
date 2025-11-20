@@ -16,6 +16,14 @@
     {{- $contents = tpl $addon.manifest $root }}
   {{- else }}
     {{- $contents = include (printf "kommodity.addon.%s" $name) $root }}
+    {{- if $addon.extraValues }}
+- name: {{ $name }}-extra-values
+  contents: |
+{{ include "kommodity.addon.extra-values" (dict
+  "name"        $name
+  "extraValues" $addon.extraValues
+) | indent 4 }}
+    {{- end }}
     {{- if $addon.namespace }}
 - name: {{ $name }}-namespace
   contents: |
