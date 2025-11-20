@@ -98,6 +98,13 @@ spec:
                 ---
 {{- include "kommodity.addonsInlineManifests" . | trim | nindent 12 }}
       {{- end }}
+      {{- $cpPatches := $.Values.kommodity.controlplane.configPatches }}
+      {{- if and $cpPatches (gt (len $cpPatches) 0) }}
+      {{- if not $anyAddonEnabled }}
+      configPatches:
+      {{- end }}
+{{ toYaml $cpPatches | nindent 8 }}
+      {{- end }}
     init:
       generateType: init
       hostname: {}

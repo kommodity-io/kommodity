@@ -12,4 +12,8 @@ spec:
     spec:
       generateType: worker
       talosVersion: {{ include "kommodity.talosVersion" $ }}
+      {{- if and $np.configPatches (gt (len $np.configPatches) 0) }}
+      configPatches:
+{{- toYaml $np.configPatches | nindent 8 }}
+      {{- end }}
 {{- end }}
