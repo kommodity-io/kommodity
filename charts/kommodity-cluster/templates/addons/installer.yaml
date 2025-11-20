@@ -72,7 +72,7 @@ spec:
           image: alpine/k8s:1.34.1
           volumeMounts:
             - name: extra-values
-              mountPath: /etc/addon-extra-values
+              mountPath: /etc/{{ $addonFullName }}
           env:
             - name: KUBERNETES_SERVICE_HOST
               valueFrom:
@@ -98,10 +98,10 @@ spec:
               CONDITION_KIND="{{ default "Deployment" .addon.lifecycle.install.condition.kind }}"
               CONDITION_LABELS="{{ range $key, $value := .addon.lifecycle.install.condition.matchLabels }}-l {{$key}}={{$value}} {{end}}"
               
-              HELM_EXTRA_VALUES_FILE="-f /etc/addon-extra-values/values.yaml"
+              HELM_EXTRA_VALUES_FILE="/etc/{{ $addonFullName }}/values.yaml"
               HELM_EXTRA_VALUES=""
-              if [ -f "$HELM_EXTRA_VALUES_FILE" ]; then
-                HELM_EXTRA_VALUES="-f $HELM_EXTRA_VALUES_FILE"
+              if [ -f "${HELM_EXTRA_VALUES_FILE}" ]; then
+                HELM_EXTRA_VALUES="-f ${HELM_EXTRA_VALUES_FILE}"
               fi
 
               echo "Addon: ${RELEASE}"
