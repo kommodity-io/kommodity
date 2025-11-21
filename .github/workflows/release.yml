@@ -296,6 +296,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
+      - name: Free disk space
+        shell: bash
+        run: |
+          # Optional step, but useful to avoid disk space issues on GitHub runners
+          # Default runners guarantee 10 GB of free space
+          sudo swapoff -a
+          sudo rm -f /swapfile
+          sudo rm -rf /usr/local/lib/android >/dev/null 2>&1
+          docker system prune -af
+          df -h
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: kommodity-image
+
+      - name: Load Docker image
+        run: docker load -i kommodity-image.tar
+
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
         with:
