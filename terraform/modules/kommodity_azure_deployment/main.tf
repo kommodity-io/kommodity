@@ -58,13 +58,36 @@ resource "azurerm_postgresql_flexible_server" "kommodity-db" {
   public_network_access_enabled = var.database.public_network_access_enabled
   administrator_login           = "kommodity"
   administrator_password        = random_password.database-password.result
-  zone                          = var.database.zone
 
   storage_mb   = var.database.storage_mb
   storage_tier = var.database.storage_tier
 
   sku_name   = var.database.sku_name
   depends_on = [azurerm_private_dns_zone_virtual_network_link.kommodity-dns-vnet-link]
+
+  geo_redundant_backup_enabled = var.database.storage_georedundant_enabled
+
+  dynamic "high_availability" {
+    for_each = var.database.ha_enabled ? [""] : []
+
+    content {
+      mode = "ZoneRedundant"
+    }
+  }
+
+  lifecycle {
+    ignore_changes = [
+      zone,
+      high_availability.0.standby_availability_zone
+    ]
+  }
+}
+
+resource "azurerm_postgresql_flexible_server_database" "this" {
+  name      = "kommodity"
+  server_id = azurerm_postgresql_flexible_server.kommodity-db.id
+  charset   = "UTF8"
+  collation = var.database.collation
 
   lifecycle {
     prevent_destroy = true
