@@ -37,12 +37,15 @@ variable "database_password" {
 # Database
 variable "database" {
   type = object({
-    zone                          = optional(string, "1")
     storage_tier                  = optional(string, "P4")
     sku_name                      = optional(string, "B_Standard_B1ms")
     storage_mb                    = optional(number, 32768)
     version                       = optional(string, "15")
     public_network_access_enabled = optional(bool, false)
+    ha_enabled                    = optional(bool, false)
+    storage_georedundant_enabled  = optional(bool, false)
+    collation                     = optional(string, "en_US.utf8")
+    add_lock                      = optional(bool, false)
   })
   description = "Database configuration"
   default     = {}
