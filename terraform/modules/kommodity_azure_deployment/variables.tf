@@ -45,6 +45,7 @@ variable "database" {
     ha_enabled                    = optional(bool, false)
     storage_georedundant_enabled  = optional(bool, false)
     collation                     = optional(string, "en_US.utf8")
+    add_lock                      = optional(bool, false)
   })
   description = "Database configuration"
   default     = {}

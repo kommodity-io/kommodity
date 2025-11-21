@@ -48,6 +48,15 @@ resource "random_password" "database-password" {
   special = var.database_password.special
 }
 
+resource "azurerm_management_lock" "this" {
+  count = var.database.add_lock ? 1 : 0
+
+  name       = "${azurerm_postgresql_flexible_server.kommodity-db.name}-lock"
+  scope      = azurerm_postgresql_flexible_server.kommodity-db.id
+  lock_level = "CanNotDelete"
+  notes      = "Protect accidental deletion of PostgreSQL database resources"
+}
+
 resource "azurerm_postgresql_flexible_server" "kommodity-db" {
   name                          = "${var.resource_group.name}-db"
   resource_group_name           = azurerm_resource_group.kommodity-resource-group.name
