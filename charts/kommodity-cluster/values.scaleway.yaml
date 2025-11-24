@@ -8,15 +8,21 @@ kommodity:
       # apiVersion: v1
       # kind: Secret
       # metadata:
-      #   name: my-cluster-scaleway-secret
+      #   name: scaleway-secret
       #   namespace: default
       # data:
       #   SCW_ACCESS_KEY: <YOUR_BASE64_ENCODED_ACCESS_KEY>
       #   SCW_SECRET_KEY: <YOUR_BASE64_ENCODED_SECRET_KEY>
+      #   SCW_DEFAULT_REGION: <YOUR_BASE64_ENCODED_REGION>
+      #   SCW_DEFAULT_PROJECT_ID: <YOUR_BASE64_ENCODED_PROJECT_ID>
       # type: Opaque
-      name: my-cluster-scaleway-secret
+      name: scaleway-secret
     config:
       projectID: <YOUR_PROJECT_ID_HERE>
+    
+    cloudControllerManager:
+      enabled: true
+      manifest: https://raw.githubusercontent.com/scaleway/scaleway-cloud-controller-manager/master/examples/k8s-scaleway-ccm-latest.yml
 
   network:
     ipv4:

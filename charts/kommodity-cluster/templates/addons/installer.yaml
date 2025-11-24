@@ -64,15 +64,20 @@ spec:
       serviceAccount: {{ $addonFullName }}-install
       serviceAccountName: {{ $addonFullName }}-install
       hostNetwork: true
+      {{- if .addon.extraValues }}
       volumes:
         - name: extra-values
-          secretName: {{ $addonFullName }}-extra-values
+          secret:
+            secretName: {{ .name }}-extra-values
+      {{- end }}
       containers:
         - name: {{ $addonFullName }}-install
           image: alpine/k8s:1.34.1
+          {{- if .addon.extraValues }}
           volumeMounts:
             - name: extra-values
               mountPath: /etc/{{ $addonFullName }}
+          {{- end }}
           env:
             - name: KUBERNETES_SERVICE_HOST
               valueFrom:

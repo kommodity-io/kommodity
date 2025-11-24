@@ -3,6 +3,9 @@ kommodity:
   provider:
     name: Docker
 
+    cloudControllerManager:
+      enabled: false
+
   network:
     ipv4:
       enabled: false
@@ -10,6 +13,93 @@ kommodity:
     cluster:
       podCIDR:
         - 10.244.0.0/16
+
+  addons:
+    cilium:
+      enabled: true
+      # Namespace for where the addon will be installed, default is the name of the addon
+      namespace: kube-system
+      lifecycle:
+        install:
+          # Install mode can be either: HelmInstall or KubectlApply, default is HelmInstall
+          mode: HelmInstall
+          # Optional condition to check if the addon is already installed
+          # Required for KubectlApply mode to avoid re-applying manifests
+          # Optional for HelmInstall mode, default to use `helm ls` to check if the release is installed
+          condition: {}
+        # Avoid overriding the addon after the initial install, default is true.
+        # This is often useful when "adopting" addons with a GitOps tools, such as ArgoCD or Flux.
+        upgrade:
+          disable: true
+      chart:
+        repository: https://helm.cilium.io/
+        name: cilium
+        version: 1.18.4
+      # Defined the values to be passed to the downstream Helm chart
+      extraValues:
+        enabled: true
+        k8sServiceHost: localhost
+        k8sServicePort: 7445
+        ipam:
+          mode: kubernetes
+        kubeProxyReplacement: true
+        bpf:
+          hostLegacyRouting: true
+        cgroup:
+          autoMount:
+            enabled: false
+          hostRoot: /sys/fs/cgroup
+        securityContext:
+          privileged: true
+          capabilities:
+            ciliumAgent:
+              # Use to set socket permission
+              - CHOWN
+              # Used to terminate envoy child process
+              - KILL
+              # Used since cilium creates raw sockets, etc...
+              - NET_RAW
+              # Used since cilium monitor uses mmap
+              - IPC_LOCK
+              # Used in iptables. Consider removing once we are iptables-free
+              - SYS_MODULE
+              # Could be an alternative for the SYS_ADMIN for the RLIMIT_NPROC
+              - SYS_RESOURCE
+              # Both PERFMON and BPF requires kernel 5.8, container runtime
+              # cri-o >= v1.22.0 or containerd >= v1.5.0.
+              # If available, SYS_ADMIN can be removed.
+              - PERFMON
+              - BPF
+              # Allow discretionary access control (e.g. required for package installation)
+              - DAC_OVERRIDE
+              # Allow to set Access Control Lists (ACLs) on arbitrary files (e.g. required for package installation)
+              - FOWNER
+              # Allow to execute program that changes GID (e.g. required for package installation)
+              - SETGID
+              # Allow to execute program that changes UID (e.g. required for package installation)
+              - SETUID
+            cleanCiliumState:
+              # Most of the capabilities here are the same ones used in the
+              # cilium-agent's container because this container can be used to
+              # uninstall all Cilium resources, and therefore it is likely that
+              # will need the same capabilities.
+              # Used since cilium modifies routing tables, etc...
+              - NET_ADMIN
+              # Could be an alternative for the SYS_ADMIN for the RLIMIT_NPROC
+              - SYS_RESOURCE
+              # Both PERFMON and BPF requires kernel 5.8, container runtime
+              # cri-o >= v1.22.0 or containerd >= v1.5.0.
+              # If available, SYS_ADMIN can be removed.
+              - PERFMON
+              - BPF
+        bgpControlPlane:
+          enabled: true
+        hubble:
+          enabled: true
+          relay:
+            enabled: true
+          ui:
+            enabled: true
 
   security:
     enabled: false
@@ -48,6 +138,10 @@ kommodity:
 # Follow this documentation to generate a Talos image for Scaleway: https://www.talos.dev/v1.11/talos-guides/install/cloud-platforms/scaleway/
 talos:
   version: v1.11.3
+  # If true, the Talos CNI will be disabled. Useful when using a different CNI such as Cilium.
+  disableCNI: true
+  # If true, the Talos built-in kube-proxy will be disabled. Useful when using a different CNI such as Cilium.
+  disableKubeProxy: true
 
 # Configurations related to Kubernetes
 kubernetes:
