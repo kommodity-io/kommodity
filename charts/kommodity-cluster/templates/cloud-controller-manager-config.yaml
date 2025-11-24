@@ -1,0 +1,13 @@
+{{- if .Values.kommodity.provider.cloudControllerManager.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.kommodity.provider.name | lower }}-cloud-controller-manager-config
+  labels:
+    cluster.x-k8s.io/cluster-name: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: kommodity
+    cluster.x-k8s.io/watch-filter: kommodity-ccm-controller
+data:
+  manifest: {{ .Values.kommodity.provider.cloudControllerManager.manifest }}
+  secretName: {{ .Values.kommodity.provider.secret.name }}
+{{- end }}

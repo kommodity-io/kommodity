@@ -15,7 +15,12 @@
   {{- if $addon.manifest }}
     {{- $contents = tpl $addon.manifest $root }}
   {{- else }}
-    {{- $contents = include (printf "kommodity.addon.%s" $name) $root }}
+    {{- $addonTemplateName := printf "kommodity.addon.%s" $name }}
+    {{- if hasKey $.Template $addonTemplateName }}
+      {{- $contents = include $addonTemplateName $root }}
+    {{- else }}
+      {{- $contents = "" }}
+    {{- end }}
     {{- if $addon.extraValues }}
 - name: {{ $name }}-extra-values
   contents: |
@@ -31,9 +36,11 @@
   "namespace"  $addon.namespace
 ) | indent 4 }}
     {{- end }}
+{{- if $contents }}
 - name: {{ $name }}
   contents: |
 {{ $contents | indent 4 }}
+{{- end }}
 - name: {{ $name }}-installer
   contents: |
 {{ include "kommodity.addon.installer" (dict
@@ -98,13 +105,28 @@ spec:
                 ---
 {{- include "kommodity.addonsInlineManifests" . | trim | nindent 12 }}
       {{- end }}
+
       {{- $cpPatches := $.Values.kommodity.controlplane.configPatches }}
-      {{- if and $cpPatches (gt (len $cpPatches) 0) }}
+      {{- $hasConfigPatches := and $cpPatches (gt (len $cpPatches) 0) }}
+      {{- if $hasConfigPatches }}
       {{- if not $anyAddonEnabled }}
       configPatches:
       {{- end }}
 {{ toYaml $cpPatches | nindent 8 }}
       {{- end }}
-    init:
-      generateType: init
-      hostname: {}
+
+      {{- if and (and (not $anyAddonEnabled) (not $hasConfigPatches)) (or $.Values.talos.disableCNI $.Values.talos.disableKubeProxy) }}
+      configPatches:
+      {{- end -}}
+
+      {{- if $.Values.talos.disableCNI }}
+      {{- include "kommodity.talos.cni.disable" . | nindent 8 }}
+      {{- end }}      
+      
+      {{- if $.Values.talos.disableKubeProxy }}
+      {{- include "kommodity.talos.proxy.disable" . | nindent 8 }}
+      {{- end }}
+
+      {{- if $.Values.kommodity.provider.cloudControllerManager.enabled }}
+      {{- include "kommodity.talos.ccm" (dict "manifest" $.Values.kommodity.provider.cloudControllerManager.manifest) | nindent 8 }}
+      {{- end }}
