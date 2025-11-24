@@ -1,13 +1,11 @@
 variable "azure_ad_application" {
   type = object({
-    name             = string
-    sign_in_audience = string
+    name                    = optional(string, "kommodity-oidc-app")
+    sign_in_audience        = optional(string, "AzureADMyOrg")
+    group_membership_claims = optional(list(string), ["SecurityGroup"])
   })
   description = "Azure AD application configuration"
-  default = {
-    name             = "kommodity-oidc-app"
-    sign_in_audience = "AzureADMyOrg"
-  }
+  default     = {}
 }
 
 variable "resource_access_list" {
@@ -38,8 +36,3 @@ variable "owners" {
   default     = []
 }
 
-variable "group_membership_claims" {
-  description = "Group membership claims configuration for the Azure AD application"
-  type        = list(string)
-  default     = ["SecurityGroup"]
-}
