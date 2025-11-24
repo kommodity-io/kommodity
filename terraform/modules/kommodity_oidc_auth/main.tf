@@ -3,7 +3,7 @@
 resource "azuread_application" "kommodity_oidc_app" {
   display_name                   = var.azure_ad_application.name
   sign_in_audience               = var.azure_ad_application.sign_in_audience
-  group_membership_claims        = var.group_membership_claims
+  group_membership_claims        = var.azure_ad_application.group_membership_claims
   fallback_public_client_enabled = true
   owners                         = var.owners
 
