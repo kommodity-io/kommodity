@@ -100,6 +100,35 @@ kommodity:
             enabled: true
           ui:
             enabled: true
+    argocd:
+      enabled: false
+      # Namespace for where the addon will be installed, default is the name of the addon
+      namespace: argocd
+      lifecycle:
+        install:
+          # Install mode can be either: HelmInstall or KubectlApply, default is HelmInstall
+          mode: KubectlApply
+          # Optional condition to check if the addon is already installed
+          # Required for KubectlApply mode to avoid re-applying manifests
+          # Optional for HelmInstall mode, default to use `helm ls` to check if the release is installed
+          condition:
+            # Default kind is Deployment
+            kind: Deployment
+            matchLabels:
+              app.kubernetes.io/name: argocd-server
+        # Avoid overriding the addon after the initial install, default is true.
+        # This is often useful when "adopting" addons with a GitOps tools, such as ArgoCD or Flux.
+        upgrade:
+          disable: true
+      chart:
+        repository: oci://ghcr.io/argoproj/argo-helm
+        name: argo-cd
+        version: 9.1.2
+      # Defined the values to be passed to the downstream Helm chart
+      extraValues:
+        enabled: true
+        cm:
+          admin.enabled: false
 
   security:
     enabled: false
