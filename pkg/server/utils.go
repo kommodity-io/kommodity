@@ -15,7 +15,7 @@ import (
 	authorizationapiv1 "k8s.io/api/authorization/v1"
 	autoscalingapiv1 "k8s.io/api/autoscaling/v1"
 	autoscalingapiv2 "k8s.io/api/autoscaling/v2"
-	batchapiv1 "k8s.io/api/batch/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	certificatesapiv1 "k8s.io/api/certificates/v1"
 	coordinationapiv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -61,6 +61,7 @@ func enhanceScheme(scheme *runtime.Scheme) error {
 		{"eventsv1.AddToScheme", eventsv1.AddToScheme},
 		{"metav1.AddMetaToScheme", metav1.AddMetaToScheme},
 		{"rbacv1.AddToScheme", rbacv1.AddToScheme},
+		{"batchv1.AddToScheme", batchv1.AddToScheme},
 	}
 
 	for _, add := range addFuncs {
@@ -155,7 +156,7 @@ func getSupportedGroupKindVersions() []schema.GroupVersion {
 		authorizationapiv1.SchemeGroupVersion,
 		autoscalingapiv1.SchemeGroupVersion,
 		autoscalingapiv2.SchemeGroupVersion,
-		batchapiv1.SchemeGroupVersion,
+		batchv1.SchemeGroupVersion,
 		certificatesapiv1.SchemeGroupVersion,
 		coordinationapiv1.SchemeGroupVersion,
 		discoveryv1.SchemeGroupVersion,

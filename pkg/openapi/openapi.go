@@ -1,6 +1,7 @@
 // Package openapi is a wrapper around
 // - core/v1,
 // - meta/v1,
+// - batch/v1,
 // - apimachinery/pkg/runtime
 // - apimachinery/pkg/version
 // - apiextensions-apiserver/apiextensions/v1
@@ -16,6 +17,7 @@ package openapi
 //go:generate go run k8s.io/kube-openapi/cmd/openapi-gen --output-dir=./admissionregistration --output-pkg=github.com/kommodity-io/kommodity/pkg/openapi/admissionregistration --output-file=zz_generated.openapi.go --logtostderr k8s.io/api/admissionregistration/v1
 //go:generate go run k8s.io/kube-openapi/cmd/openapi-gen --output-dir=./intstr --output-pkg=github.com/kommodity-io/kommodity/pkg/openapi/intstr --output-file=zz_generated.openapi.go --logtostderr k8s.io/apimachinery/pkg/util/intstr
 //go:generate go run k8s.io/kube-openapi/cmd/openapi-gen --output-dir=./authorization --output-pkg=github.com/kommodity-io/kommodity/pkg/openapi/authorization --output-file=zz_generated.openapi.go --logtostderr k8s.io/api/authorization/v1
+//go:generate go run k8s.io/kube-openapi/cmd/openapi-gen --output-dir=./batch --output-pkg=github.com/kommodity-io/kommodity/pkg/openapi/batch --output-file=zz_generated.openapi.go --logtostderr k8s.io/api/batch/v1
 
 import (
 	"fmt"
@@ -23,6 +25,7 @@ import (
 	"github.com/kommodity-io/kommodity/pkg/openapi/admissionregistration"
 	"github.com/kommodity-io/kommodity/pkg/openapi/apiextensions"
 	"github.com/kommodity-io/kommodity/pkg/openapi/authorization"
+	"github.com/kommodity-io/kommodity/pkg/openapi/batch"
 	"github.com/kommodity-io/kommodity/pkg/openapi/core"
 	"github.com/kommodity-io/kommodity/pkg/openapi/intstr"
 	"github.com/kommodity-io/kommodity/pkg/openapi/meta"
@@ -70,6 +73,7 @@ func (o *Spec) GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]co
 		"intstr":                intstr.GetOpenAPIDefinitions(ref),
 		"authorization":         authorization.GetOpenAPIDefinitions(ref),
 		"admissionregistration": admissionregistration.GetOpenAPIDefinitions(ref),
+		"batch":                 batch.GetOpenAPIDefinitions(ref),
 	}
 
 	openAPIDefinition := make(map[string]common.OpenAPIDefinition)

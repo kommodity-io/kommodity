@@ -31,6 +31,8 @@ var (
 	ErrObjectIsNotASelfSubjectAccessReview = errors.New("object is not a SelfSubjectAccessReview")
 	// ErrObjectIsNotASubjectAccessReview indicates that the object is not a SubjectAccessReview.
 	ErrObjectIsNotASubjectAccessReview = errors.New("object is not a SubjectAccessReview")
+	// ErrObjectIsNotAJob indicates that the object is not a Job.
+	ErrObjectIsNotAJob = errors.New("object is not a Job")
 	// ErrFieldIsNull indicates that the field is null.
 	ErrFieldIsNull = errors.New("field must not be null")
 )

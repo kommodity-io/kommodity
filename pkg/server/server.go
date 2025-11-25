@@ -13,6 +13,7 @@ import (
 	"github.com/kommodity-io/kommodity/pkg/storage/configmaps"
 	"github.com/kommodity-io/kommodity/pkg/storage/endpoints"
 	"github.com/kommodity-io/kommodity/pkg/storage/events"
+	"github.com/kommodity-io/kommodity/pkg/storage/jobs"
 	"github.com/kommodity-io/kommodity/pkg/storage/namespaces"
 	"github.com/kommodity-io/kommodity/pkg/storage/secrets"
 	"github.com/kommodity-io/kommodity/pkg/storage/serviceaccount"
@@ -21,6 +22,7 @@ import (
 	"go.uber.org/zap"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	authorizationapiv1 "k8s.io/api/authorization/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -110,6 +112,8 @@ func New(ctx context.Context, cfg *config.KommodityConfig) (*aggregatorapiserver
 		return nil, fmt.Errorf("failed to install authorization API group into the generic API server: %w", err)
 	}
 
+	logger.Info("Installing Admission Registration API group")
+
 	admissionRegistrationAPI, err := setupAdmissionRegistrationAPIGroupInfo(cfg, scheme, codecs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup admissionregistration API group info: %w", err)
@@ -118,6 +122,18 @@ func New(ctx context.Context, cfg *config.KommodityConfig) (*aggregatorapiserver
 	err = genericServer.InstallAPIGroup(admissionRegistrationAPI)
 	if err != nil {
 		return nil, fmt.Errorf("failed to install admissionregistration API group into the generic API server: %w", err)
+	}
+
+	logger.Info("Installing batch v1 API group")
+
+	batchAPI, err := setupBatchAPIGroupInfo(cfg, scheme, codecs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to setup batch API group info: %w", err)
+	}
+
+	err = genericServer.InstallAPIGroup(batchAPI)
+	if err != nil {
+		return nil, fmt.Errorf("failed to install batch API group into the generic API server: %w", err)
 	}
 
 	logger.Info("Creating new API aggregator server")
@@ -293,6 +309,38 @@ func setupAdmissionRegistrationAPIGroupInfo(cfg *config.KommodityConfig,
 	apiGroupInfo.VersionedResourcesStorageMap["v1"] = map[string]rest.Storage{
 		"mutatingwebhookconfigurations":   mutatingWebhookConfigStorage,
 		"validatingwebhookconfigurations": validatingWebhookConfigStorage,
+	}
+
+	return &apiGroupInfo, nil
+}
+
+func setupBatchAPIGroupInfo(cfg *config.KommodityConfig,
+	scheme *runtime.Scheme,
+	codecs serializer.CodecFactory) (*genericapiserver.APIGroupInfo, error) {
+	noConv := serializer.WithoutConversionCodecFactory{CodecFactory: codecs}
+
+	kineStorageConfig, err := kine.NewKineStorageConfig(cfg,
+		noConv.LegacyCodec(batchv1.SchemeGroupVersion))
+	if err != nil {
+		return nil, fmt.Errorf("unable to create Kine legacy storage config: %w", err)
+	}
+
+	apiGroupInfo := genericapiserver.NewDefaultAPIGroupInfo(
+		batchv1.GroupName,
+		scheme,
+		runtime.NewParameterCodec(scheme),
+		codecs,
+	)
+	apiGroupInfo.PrioritizedVersions = []schema.GroupVersion{batchv1.SchemeGroupVersion}
+
+	jobsStorage, err := jobs.NewJobsREST(
+		*kineStorageConfig, *scheme)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create jobs REST storage: %w", err)
+	}
+
+	apiGroupInfo.VersionedResourcesStorageMap["v1"] = map[string]rest.Storage{
+		"jobs": jobsStorage,
 	}
 
 	return &apiGroupInfo, nil
