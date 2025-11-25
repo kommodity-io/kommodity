@@ -19,6 +19,9 @@ types:
     - k8s.io/api/core/v1.ServiceStatus
     - k8s.io/api/core/v1.ServicePort
     - k8s.io/api/core/v1.SessionAffinityConfig
+    - k8s.io/api/core/v1.ServiceAccount
+    - k8s.io/api/core/v1.ServiceAccountList
+    - k8s.io/api/core/v1.LocalObjectReference
     - k8s.io/api/core/v1.ClientIPConfig
     - k8s.io/api/core/v1.LoadBalancerStatus
     - k8s.io/api/core/v1.LoadBalancerIngress

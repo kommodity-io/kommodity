@@ -15,6 +15,7 @@ import (
 	"github.com/kommodity-io/kommodity/pkg/storage/events"
 	"github.com/kommodity-io/kommodity/pkg/storage/namespaces"
 	"github.com/kommodity-io/kommodity/pkg/storage/secrets"
+	"github.com/kommodity-io/kommodity/pkg/storage/serviceaccount"
 	"github.com/kommodity-io/kommodity/pkg/storage/services"
 	"github.com/kommodity-io/kommodity/pkg/storage/webhookconfigurations"
 	"go.uber.org/zap"
@@ -221,13 +222,21 @@ func setupLegacyAPI(
 		return nil, fmt.Errorf("unable to create REST storage service for core v1 events: %w", err)
 	}
 
+	logger.Info("Creating REST storage service for core v1 serviceaccounts")
+
+	serviceAccountStorage, err := serviceaccount.NewServiceAccountREST(*kineStorageConfig, *scheme)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create REST storage service for core v1 serviceaccounts: %w", err)
+	}
+
 	coreAPIGroupInfo.VersionedResourcesStorageMap["v1"] = map[string]rest.Storage{
-		"endpoints":  endpointsStorage,
-		"namespaces": namespacesStorage,
-		"services":   servicesStorage,
-		"secrets":    secretsStorage,
-		"configmaps": configmapsStorage,
-		"events":     eventsStorage,
+		"endpoints":       endpointsStorage,
+		"namespaces":      namespacesStorage,
+		"services":        servicesStorage,
+		"secrets":         secretsStorage,
+		"configmaps":      configmapsStorage,
+		"events":          eventsStorage,
+		"serviceaccounts": serviceAccountStorage,
 	}
 
 	return &coreAPIGroupInfo, nil
