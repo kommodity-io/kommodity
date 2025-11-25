@@ -21,6 +21,8 @@ var (
 	ErrObjectIsNotAnEndpoint = errors.New("object is not an Endpoint")
 	// ErrObjectIsNotAnEvent indicates that the object is not an event.
 	ErrObjectIsNotAnEvent = errors.New("object is not an Event")
+	// ErrObjectIsNotAServiceAccount indicates that the object is not a ServiceAccount.
+	ErrObjectIsNotAServiceAccount = errors.New("object is not a ServiceAccount")
 	// ErrObjectIsNotAnMutatingWebhookConfiguration indicates that the object is not a MutatingWebhookConfiguration.
 	ErrObjectIsNotAnMutatingWebhookConfiguration = errors.New("object is not a MutatingWebhookConfiguration")
 	// ErrObjectIsNotAValidatingWebhookConfiguration indicates that the object is not a ValidatingWebhookConfiguration.
