@@ -292,7 +292,7 @@ func (secretStrategy) AllowCreateOnUpdate() bool {
 
 // AllowUnconditionalUpdate determines if update can ignore resource version.
 func (secretStrategy) AllowUnconditionalUpdate() bool {
-	return false
+	return true
 }
 
 // GenerateName generates a name using the given base string.
