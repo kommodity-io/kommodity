@@ -24,6 +24,13 @@ resource "azuread_application" "kommodity_oidc_app" {
       }
     }
   }
+
+  dynamic "api" {
+    for_each = var.azure_ad_application.requested_access_token_version != null ? [1] : []
+    content {
+      requested_access_token_version = var.azure_ad_application.requested_access_token_version
+    }
+  }
 }
 
 # Service principal (enterprise app)
