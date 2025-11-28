@@ -87,9 +87,10 @@ variable "kommodity_container" {
 
 variable "oidc_configuration" {
   type = object({
-    issuer_url  = string
-    client_id   = string
-    admin_group = string
+    issuer_url     = string
+    client_id      = string
+    admin_group    = string
+    username_claim = optional(string, "")
   })
   description = "OIDC configuration"
 }

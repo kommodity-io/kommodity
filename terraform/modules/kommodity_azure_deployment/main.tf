@@ -191,6 +191,10 @@ resource "azurerm_container_app" "kommodity-app" {
         value = var.oidc_configuration.issuer_url
       }
       env {
+        name  = "KOMMODITY_OIDC_USERNAME_CLAIM"
+        value = var.oidc_configuration.username_claim
+      }
+      env {
         name  = "KOMMODITY_OIDC_CLIENT_ID"
         value = var.oidc_configuration.client_id
       }
