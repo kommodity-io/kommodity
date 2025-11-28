@@ -1,8 +1,9 @@
 variable "azure_ad_application" {
   type = object({
-    name                    = optional(string, "kommodity-oidc-app")
-    sign_in_audience        = optional(string, "AzureADMyOrg")
-    group_membership_claims = optional(list(string), ["SecurityGroup"])
+    name                           = optional(string, "kommodity-oidc-app")
+    sign_in_audience               = optional(string, "AzureADMyOrg")
+    group_membership_claims        = optional(list(string), ["SecurityGroup"])
+    requested_access_token_version = optional(number)
   })
   description = "Azure AD application configuration"
   default     = {}
