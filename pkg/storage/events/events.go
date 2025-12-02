@@ -12,7 +12,7 @@ import (
 	eventsv1beta1 "k8s.io/api/events/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	storageerr "github.com/kommodity-io/kommodity/pkg/storage"
+	storage "github.com/kommodity-io/kommodity/pkg/storage"
 
 	"k8s.io/apimachinery/pkg/api/validation"
 	"k8s.io/apimachinery/pkg/fields"
@@ -25,7 +25,6 @@ import (
 	"k8s.io/apiserver/pkg/registry/generic"
 	genericregistry "k8s.io/apiserver/pkg/registry/generic/registry"
 	"k8s.io/apiserver/pkg/registry/rest"
-	"k8s.io/apiserver/pkg/storage"
 	"k8s.io/apiserver/pkg/storage/names"
 	"k8s.io/apiserver/pkg/storage/storagebackend"
 	"k8s.io/apiserver/pkg/storage/storagebackend/factory"
@@ -72,13 +71,14 @@ func NewEventsREST(storageConfig storagebackend.Config, scheme runtime.Scheme) (
 	}
 
 	eventStrategy := eventStrategy{
-		scheme: scheme,
+		ObjectTyper:   &scheme,
+		NameGenerator: names.SimpleNameGenerator,
 	}
 
 	restStore := &genericregistry.Store{
 		NewFunc:       func() runtime.Object { return &corev1.Event{} },
 		NewListFunc:   func() runtime.Object { return &corev1.EventList{} },
-		PredicateFunc: EventPredicateFunc,
+		PredicateFunc: storage.PredicateFunc(GetAttrs),
 		KeyRootFunc:   func(_ context.Context) string { return "/" + eventResource },
 		KeyFunc: func(_ context.Context, name string) (string, error) {
 			return path.Join("/"+eventResource, name), nil
@@ -93,20 +93,11 @@ func NewEventsREST(storageConfig storagebackend.Config, scheme runtime.Scheme) (
 	return &REST{restStore}, nil
 }
 
-// EventPredicateFunc returns a selection predicate for filtering Event objects.
-func EventPredicateFunc(label labels.Selector, field fields.Selector) storage.SelectionPredicate {
-	return storage.SelectionPredicate{
-		Label:    label,
-		Field:    field,
-		GetAttrs: GetAttrs,
-	}
-}
-
 // GetAttrs returns labels and fields for a Event object.
 func GetAttrs(obj runtime.Object) (labels.Set, fields.Set, error) {
 	event, ok := obj.(*corev1.Event)
 	if !ok {
-		return nil, nil, storageerr.ErrObjectIsNotAnEvent
+		return nil, nil, storage.ErrObjectIsNotAnEvent
 	}
 
 	objectMetaFieldsSet := generic.ObjectMetaFieldsSet(&event.ObjectMeta, true)
@@ -139,7 +130,7 @@ func GetAttrs(obj runtime.Object) (labels.Set, fields.Set, error) {
 func ObjectNameFunc(obj runtime.Object) (string, error) {
 	event, ok := obj.(*corev1.Event)
 	if !ok {
-		return "", storageerr.ErrObjectIsNotAnEvent
+		return "", storage.ErrObjectIsNotAnEvent
 	}
 
 	return event.Name, nil
@@ -147,7 +138,8 @@ func ObjectNameFunc(obj runtime.Object) (string, error) {
 
 // eventStrategy implements RESTCreateStrategy, RESTUpdateStrategy, RESTDeleteStrategy.
 type eventStrategy struct {
-	scheme runtime.Scheme
+	runtime.ObjectTyper
+	names.NameGenerator
 }
 
 var _ rest.RESTCreateStrategy = eventStrategy{}
@@ -187,7 +179,7 @@ func (eventStrategy) Validate(ctx context.Context, obj runtime.Object) field.Err
 	if !ok {
 		return field.ErrorList{field.Invalid(
 			field.NewPath("object"), obj,
-			storageerr.ErrObjectIsNotAnEvent.Error())}
+			storage.ErrObjectIsNotAnEvent.Error())}
 	}
 
 	return validateEventCreate(event, groupVersion)
@@ -201,14 +193,14 @@ func (eventStrategy) ValidateUpdate(ctx context.Context, obj, old runtime.Object
 	if !success {
 		return field.ErrorList{field.Invalid(
 			field.NewPath("object"), obj,
-			storageerr.ErrObjectIsNotAnEvent.Error())}
+			storage.ErrObjectIsNotAnEvent.Error())}
 	}
 
 	oldEvent, success := old.(*corev1.Event)
 	if !success {
 		return field.ErrorList{field.Invalid(
 			field.NewPath("object"), old,
-			storageerr.ErrObjectIsNotAnEvent.Error())}
+			storage.ErrObjectIsNotAnEvent.Error())}
 	}
 
 	return validateEventUpdate(event, oldEvent, groupVersion)
@@ -225,26 +217,6 @@ func (eventStrategy) AllowCreateOnUpdate() bool {
 // AllowUnconditionalUpdate determines if update can ignore resource version.
 func (eventStrategy) AllowUnconditionalUpdate() bool {
 	return true
-}
-
-// GenerateName generates a name using the given base string.
-func (eventStrategy) GenerateName(base string) string {
-	return names.SimpleNameGenerator.GenerateName(base)
-}
-
-// ObjectKinds returns the GroupVersionKind for the object.
-func (es eventStrategy) ObjectKinds(obj runtime.Object) ([]schema.GroupVersionKind, bool, error) {
-	gvks, unversioned, err := es.scheme.ObjectKinds(obj)
-	if err != nil {
-		return nil, unversioned, fmt.Errorf("failed to get object kinds for %T: %w", obj, err)
-	}
-
-	return gvks, unversioned, nil
-}
-
-// Recognizes returns true if this strategy handles the given GroupVersionKind.
-func (es eventStrategy) Recognizes(gvk schema.GroupVersionKind) bool {
-	return es.scheme.Recognizes(gvk)
 }
 
 // requestGroupVersion returns the group/version associated with the given context, or a zero-value group/version.

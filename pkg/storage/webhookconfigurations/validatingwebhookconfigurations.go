@@ -21,7 +21,6 @@ import (
 	"k8s.io/apiserver/pkg/registry/generic"
 	genericregistry "k8s.io/apiserver/pkg/registry/generic/registry"
 	"k8s.io/apiserver/pkg/registry/rest"
-	apistorage "k8s.io/apiserver/pkg/storage"
 	"k8s.io/apiserver/pkg/storage/names"
 	"k8s.io/apiserver/pkg/storage/storagebackend"
 	"k8s.io/apiserver/pkg/storage/storagebackend/factory"
@@ -48,14 +47,14 @@ func NewValidatingWebhookConfigurationREST(storageConfig storagebackend.Config,
 	}
 
 	validatingWebhookConfigurationStrategy := validatingWebhookConfigurationStrategy{
-		&scheme,
-		names.SimpleNameGenerator,
+		ObjectTyper:   &scheme,
+		NameGenerator: names.SimpleNameGenerator,
 	}
 
 	return &genericregistry.Store{
 		NewFunc:       func() runtime.Object { return &admissionregistrationv1.ValidatingWebhookConfiguration{} },
 		NewListFunc:   func() runtime.Object { return &admissionregistrationv1.ValidatingWebhookConfigurationList{} },
-		PredicateFunc: VWCObjectPredicateFunc,
+		PredicateFunc: storage.PredicateFunc(VWCGetAttrs),
 		KeyRootFunc:   func(_ context.Context) string { return "/" + validatingWebhookConfigurationResource },
 		KeyFunc: func(_ context.Context, name string) (string, error) {
 			return path.Join("/"+validatingWebhookConfigurationResource, name), nil
@@ -76,15 +75,6 @@ func VWCObjectNameFunc(obj runtime.Object) (string, error) {
 	}
 
 	return vwc.Name, nil
-}
-
-// VWCObjectPredicateFunc returns a selection predicate for filtering ValidatingWebhookConfiguration objects.
-func VWCObjectPredicateFunc(label labels.Selector, field fields.Selector) apistorage.SelectionPredicate {
-	return apistorage.SelectionPredicate{
-		Label:    label,
-		Field:    field,
-		GetAttrs: VWCGetAttrs,
-	}
 }
 
 // VWCGetAttrs returns labels and fields for a ValidatingWebhookConfiguration object.
