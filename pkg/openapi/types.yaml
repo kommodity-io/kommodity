@@ -116,3 +116,11 @@ types:
     - k8s.io/api/admissionregistration/v1.RuleWithOperations
     - k8s.io/api/admissionregistration/v1.WebhookClientConfig
     - k8s.io/api/admissionregistration/v1.ServiceReference
+  rbac:
+    - k8s.io/api/rbac/v1.Role
+    - k8s.io/api/rbac/v1.RoleList
+    - k8s.io/api/rbac/v1.RoleBinding
+    - k8s.io/api/rbac/v1.RoleBindingList
+    - k8s.io/api/rbac/v1.PolicyRule
+    - k8s.io/api/rbac/v1.RoleRef
+    - k8s.io/api/rbac/v1.Subject

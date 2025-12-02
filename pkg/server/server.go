@@ -14,6 +14,7 @@ import (
 	"github.com/kommodity-io/kommodity/pkg/storage/endpoints"
 	"github.com/kommodity-io/kommodity/pkg/storage/events"
 	"github.com/kommodity-io/kommodity/pkg/storage/namespaces"
+	"github.com/kommodity-io/kommodity/pkg/storage/rbac"
 	"github.com/kommodity-io/kommodity/pkg/storage/secrets"
 	"github.com/kommodity-io/kommodity/pkg/storage/serviceaccount"
 	"github.com/kommodity-io/kommodity/pkg/storage/services"
@@ -22,6 +23,7 @@ import (
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	authorizationapiv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
@@ -108,6 +110,18 @@ func New(ctx context.Context, cfg *config.KommodityConfig) (*aggregatorapiserver
 	err = genericServer.InstallAPIGroup(authorizationAPI)
 	if err != nil {
 		return nil, fmt.Errorf("failed to install authorization API group into the generic API server: %w", err)
+	}
+
+	logger.Info("Installing rbac API group")
+
+	rbacAPI, err := setupRBACAPIGroupInfo(cfg, scheme, codecs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to setup rbac API group info: %w", err)
+	}
+
+	err = genericServer.InstallAPIGroup(rbacAPI)
+	if err != nil {
+		return nil, fmt.Errorf("failed to install rbac API group into the generic API server: %w", err)
 	}
 
 	admissionRegistrationAPI, err := setupAdmissionRegistrationAPIGroupInfo(cfg, scheme, codecs)
@@ -257,6 +271,40 @@ func setupAuthorizationAPIGroupInfo(cfg *config.KommodityConfig,
 	}
 
 	return &apiGroupInfo
+}
+
+func setupRBACAPIGroupInfo(cfg *config.KommodityConfig,
+	scheme *runtime.Scheme,
+	codecs serializer.CodecFactory) (*genericapiserver.APIGroupInfo, error) {
+	apiGroupInfo := genericapiserver.NewDefaultAPIGroupInfo(
+		rbacv1.GroupName,
+		scheme,
+		runtime.NewParameterCodec(scheme),
+		codecs,
+	)
+	noConv := serializer.WithoutConversionCodecFactory{CodecFactory: codecs}
+
+	kineStorageConfig, err := kine.NewKineStorageConfig(cfg, noConv.LegacyCodec(rbacv1.SchemeGroupVersion))
+	if err != nil {
+		return nil, fmt.Errorf("unable to create Kine legacy storage config: %w", err)
+	}
+
+	rolesStorage, err := rbac.NewRoleREST(*kineStorageConfig, *scheme)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create REST storage service for rbac v1 roles: %w", err)
+	}
+
+	roleBindingsStorage, err := rbac.NewRoleBindingREST(*kineStorageConfig, *scheme)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create REST storage service for rbac v1 rolebindings: %w", err)
+	}
+
+	apiGroupInfo.VersionedResourcesStorageMap["v1"] = map[string]rest.Storage{
+		"roles":        rolesStorage,
+		"rolebindings": roleBindingsStorage,
+	}
+
+	return &apiGroupInfo, nil
 }
 
 func setupAdmissionRegistrationAPIGroupInfo(cfg *config.KommodityConfig,
