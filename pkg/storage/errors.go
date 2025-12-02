@@ -31,6 +31,10 @@ var (
 	ErrObjectIsNotASelfSubjectAccessReview = errors.New("object is not a SelfSubjectAccessReview")
 	// ErrObjectIsNotASubjectAccessReview indicates that the object is not a SubjectAccessReview.
 	ErrObjectIsNotASubjectAccessReview = errors.New("object is not a SubjectAccessReview")
+	// ErrObjectIsNotARole indicates that the object is not a Role.
+	ErrObjectIsNotARole = errors.New("object is not a Role")
+	// ErrObjectIsNotARoleBinding indicates that the object is not a RoleBinding.
+	ErrObjectIsNotARoleBinding = errors.New("object is not a RoleBinding")
 	// ErrFieldIsNull indicates that the field is null.
 	ErrFieldIsNull = errors.New("field must not be null")
 )
