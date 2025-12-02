@@ -1,6 +1,9 @@
 package server
 
 import (
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"net"
 	"os"
@@ -150,6 +153,30 @@ func getServingCertAndKeyFromFiles(genericServerConfig *genericapiserver.Recomme
 	}
 
 	return crt, key, nil
+}
+
+func convertPEMToRSAKey(pemBytes []byte) (*rsa.PublicKey, error) {
+	block, _ := pem.Decode(pemBytes)
+	if block == nil {
+		return nil, ErrFailedToDecodePEMBlock
+	}
+
+	rsaKey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+	if err != nil {
+		parsedKey, err2 := x509.ParsePKCS8PrivateKey(block.Bytes)
+		if err2 != nil {
+			return nil, fmt.Errorf("%w: %w, %w", ErrFailedToParsePrivateKey, err, err2)
+		}
+
+		var success bool
+
+		rsaKey, success = parsedKey.(*rsa.PrivateKey)
+		if !success {
+			return nil, ErrPrivateKeyNotRSA
+		}
+	}
+
+	return &rsaKey.PublicKey, nil
 }
 
 func getSupportedGroupKindVersions() []schema.GroupVersion {
