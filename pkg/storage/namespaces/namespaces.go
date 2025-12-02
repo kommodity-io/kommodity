@@ -9,17 +9,15 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
-	storageerr "github.com/kommodity-io/kommodity/pkg/storage"
+	storage "github.com/kommodity-io/kommodity/pkg/storage"
 
 	"k8s.io/apimachinery/pkg/api/validation"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	genericregistry "k8s.io/apiserver/pkg/registry/generic/registry"
 	"k8s.io/apiserver/pkg/registry/rest"
-	"k8s.io/apiserver/pkg/storage"
 	"k8s.io/apiserver/pkg/storage/names"
 	"k8s.io/apiserver/pkg/storage/storagebackend"
 	"k8s.io/apiserver/pkg/storage/storagebackend/factory"
@@ -57,13 +55,14 @@ func NewNamespacesREST(storageConfig storagebackend.Config, scheme runtime.Schem
 	}
 
 	namespaceStrategy := namespaceStrategy{
-		scheme: scheme,
+		ObjectTyper:   &scheme,
+		NameGenerator: names.SimpleNameGenerator,
 	}
 
 	restStore := &genericregistry.Store{
 		NewFunc:       func() runtime.Object { return &corev1.Namespace{} },
 		NewListFunc:   func() runtime.Object { return &corev1.NamespaceList{} },
-		PredicateFunc: NamespacePredicateFunc,
+		PredicateFunc: storage.PredicateFunc(GetAttrs),
 		KeyRootFunc:   func(_ context.Context) string { return "/" + namespaceResource },
 		KeyFunc: func(_ context.Context, name string) (string, error) {
 			return path.Join("/"+namespaceResource, name), nil
@@ -78,20 +77,11 @@ func NewNamespacesREST(storageConfig storagebackend.Config, scheme runtime.Schem
 	return &REST{restStore}, nil
 }
 
-// NamespacePredicateFunc returns a selection predicate for filtering Namespace objects.
-func NamespacePredicateFunc(label labels.Selector, field fields.Selector) storage.SelectionPredicate {
-	return storage.SelectionPredicate{
-		Label:    label,
-		Field:    field,
-		GetAttrs: GetAttrs,
-	}
-}
-
 // GetAttrs returns labels and fields for a Namespace object.
 func GetAttrs(obj runtime.Object) (labels.Set, fields.Set, error) {
 	namespace, ok := obj.(*corev1.Namespace)
 	if !ok {
-		return nil, nil, storageerr.ErrObjectIsNotANamespace
+		return nil, nil, storage.ErrObjectIsNotANamespace
 	}
 
 	return labels.Set(namespace.Labels), fields.Set{
@@ -104,7 +94,7 @@ func GetAttrs(obj runtime.Object) (labels.Set, fields.Set, error) {
 func ObjectNameFunc(obj runtime.Object) (string, error) {
 	ns, ok := obj.(*corev1.Namespace)
 	if !ok {
-		return "", storageerr.ErrObjectIsNotANamespace
+		return "", storage.ErrObjectIsNotANamespace
 	}
 
 	return ns.Name, nil
@@ -113,7 +103,8 @@ func ObjectNameFunc(obj runtime.Object) (string, error) {
 // namespaceStrategy implements RESTCreateStrategy, RESTUpdateStrategy, RESTDeleteStrategy
 // Heavily inspired by: https://github.com/kubernetes/kubernetes/blob/master/pkg/registry/core/namespace/strategy.go
 type namespaceStrategy struct {
-	scheme runtime.Scheme
+	runtime.ObjectTyper
+	names.NameGenerator
 }
 
 var _ rest.RESTCreateStrategy = namespaceStrategy{}
@@ -168,7 +159,7 @@ func (namespaceStrategy) Validate(_ context.Context, obj runtime.Object) field.E
 	if !ok {
 		return field.ErrorList{field.Invalid(
 			field.NewPath("object"), obj,
-			storageerr.ErrObjectIsNotANamespace.Error())}
+			storage.ErrObjectIsNotANamespace.Error())}
 	}
 
 	return validation.ValidateObjectMeta(
@@ -184,14 +175,14 @@ func (namespaceStrategy) ValidateUpdate(_ context.Context, obj, old runtime.Obje
 	if !success {
 		return field.ErrorList{field.Invalid(
 			field.NewPath("object"), obj,
-			storageerr.ErrObjectIsNotANamespace.Error())}
+			storage.ErrObjectIsNotANamespace.Error())}
 	}
 
 	oldNamespaceObject, success := old.(*corev1.Namespace)
 	if !success {
 		return field.ErrorList{field.Invalid(
 			field.NewPath("object"), old,
-			storageerr.ErrObjectIsNotANamespace.Error())}
+			storage.ErrObjectIsNotANamespace.Error())}
 	}
 
 	return validation.ValidateObjectMetaUpdate(
@@ -212,24 +203,4 @@ func (namespaceStrategy) AllowCreateOnUpdate() bool {
 // AllowUnconditionalUpdate determines if update can ignore resource version.
 func (namespaceStrategy) AllowUnconditionalUpdate() bool {
 	return false
-}
-
-// GenerateName generates a name using the given base string.
-func (namespaceStrategy) GenerateName(base string) string {
-	return names.SimpleNameGenerator.GenerateName(base)
-}
-
-// ObjectKinds returns the GroupVersionKind for the object.
-func (ns namespaceStrategy) ObjectKinds(obj runtime.Object) ([]schema.GroupVersionKind, bool, error) {
-	gvks, unversioned, err := ns.scheme.ObjectKinds(obj)
-	if err != nil {
-		return nil, unversioned, fmt.Errorf("failed to get object kinds for %T: %w", obj, err)
-	}
-
-	return gvks, unversioned, nil
-}
-
-// Recognizes returns true if this strategy handles the given GroupVersionKind.
-func (ns namespaceStrategy) Recognizes(gvk schema.GroupVersionKind) bool {
-	return ns.scheme.Recognizes(gvk)
 }

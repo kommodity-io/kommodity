@@ -21,7 +21,6 @@ import (
 	"k8s.io/apiserver/pkg/registry/generic"
 	genericregistry "k8s.io/apiserver/pkg/registry/generic/registry"
 	"k8s.io/apiserver/pkg/registry/rest"
-	apistorage "k8s.io/apiserver/pkg/storage"
 	"k8s.io/apiserver/pkg/storage/names"
 	"k8s.io/apiserver/pkg/storage/storagebackend"
 	"k8s.io/apiserver/pkg/storage/storagebackend/factory"
@@ -48,14 +47,14 @@ func NewMutatingWebhookConfigurationREST(storageConfig storagebackend.Config,
 	}
 
 	mutatingWebhookConfigurationStrategy := mutatingWebhookConfigurationStrategy{
-		&scheme,
-		names.SimpleNameGenerator,
+		ObjectTyper:   &scheme,
+		NameGenerator: names.SimpleNameGenerator,
 	}
 
 	return &genericregistry.Store{
 		NewFunc:       func() runtime.Object { return &admissionregistrationv1.MutatingWebhookConfiguration{} },
 		NewListFunc:   func() runtime.Object { return &admissionregistrationv1.MutatingWebhookConfigurationList{} },
-		PredicateFunc: MWCObjectPredicateFunc,
+		PredicateFunc: storage.PredicateFunc(MWCGetAttrs),
 		KeyRootFunc:   func(_ context.Context) string { return "/" + mutatingWebhookConfigurationResource },
 		KeyFunc: func(_ context.Context, name string) (string, error) {
 			return path.Join("/"+mutatingWebhookConfigurationResource, name), nil
@@ -76,15 +75,6 @@ func MWCObjectNameFunc(obj runtime.Object) (string, error) {
 	}
 
 	return mwc.Name, nil
-}
-
-// MWCObjectPredicateFunc returns a selection predicate for filtering MutatingWebhookConfiguration objects.
-func MWCObjectPredicateFunc(label labels.Selector, field fields.Selector) apistorage.SelectionPredicate {
-	return apistorage.SelectionPredicate{
-		Label:    label,
-		Field:    field,
-		GetAttrs: MWCGetAttrs,
-	}
 }
 
 // MWCGetAttrs returns labels and fields for a MutatingWebhookConfiguration object.

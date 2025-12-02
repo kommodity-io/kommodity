@@ -9,18 +9,16 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
-	storageerr "github.com/kommodity-io/kommodity/pkg/storage"
+	storage "github.com/kommodity-io/kommodity/pkg/storage"
 
 	"k8s.io/apimachinery/pkg/api/validation"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/apiserver/pkg/registry/generic"
 	genericregistry "k8s.io/apiserver/pkg/registry/generic/registry"
 	"k8s.io/apiserver/pkg/registry/rest"
-	"k8s.io/apiserver/pkg/storage"
 	"k8s.io/apiserver/pkg/storage/names"
 	"k8s.io/apiserver/pkg/storage/storagebackend"
 	"k8s.io/apiserver/pkg/storage/storagebackend/factory"
@@ -58,13 +56,14 @@ func NewServicesREST(storageConfig storagebackend.Config, scheme runtime.Scheme)
 	}
 
 	serviceStrategy := serviceStrategy{
-		scheme: scheme,
+		ObjectTyper:   &scheme,
+		NameGenerator: names.SimpleNameGenerator,
 	}
 
 	restStore := &genericregistry.Store{
 		NewFunc:       func() runtime.Object { return &corev1.Service{} },
 		NewListFunc:   func() runtime.Object { return &corev1.ServiceList{} },
-		PredicateFunc: ServicePredicateFunc,
+		PredicateFunc: storage.PredicateFunc(GetAttrs),
 		KeyRootFunc:   func(_ context.Context) string { return "/" + serviceResource },
 		KeyFunc: func(_ context.Context, name string) (string, error) {
 			return path.Join("/"+serviceResource, name), nil
@@ -79,20 +78,11 @@ func NewServicesREST(storageConfig storagebackend.Config, scheme runtime.Scheme)
 	return &REST{restStore}, nil
 }
 
-// ServicePredicateFunc returns a selection predicate for filtering Service objects.
-func ServicePredicateFunc(label labels.Selector, field fields.Selector) storage.SelectionPredicate {
-	return storage.SelectionPredicate{
-		Label:    label,
-		Field:    field,
-		GetAttrs: GetAttrs,
-	}
-}
-
 // GetAttrs returns labels and fields for a Service object.
 func GetAttrs(obj runtime.Object) (labels.Set, fields.Set, error) {
 	service, ok := obj.(*corev1.Service)
 	if !ok {
-		return nil, nil, storageerr.ErrObjectIsNotAService
+		return nil, nil, storage.ErrObjectIsNotAService
 	}
 
 	objectMetaFieldsSet := generic.ObjectMetaFieldsSet(&service.ObjectMeta, true)
@@ -108,7 +98,7 @@ func GetAttrs(obj runtime.Object) (labels.Set, fields.Set, error) {
 func ObjectNameFunc(obj runtime.Object) (string, error) {
 	service, ok := obj.(*corev1.Service)
 	if !ok {
-		return "", storageerr.ErrObjectIsNotAService
+		return "", storage.ErrObjectIsNotAService
 	}
 
 	return service.Name, nil
@@ -117,7 +107,8 @@ func ObjectNameFunc(obj runtime.Object) (string, error) {
 // serviceStrategy implements RESTCreateStrategy, RESTUpdateStrategy, RESTDeleteStrategy
 // Heavily inspired by: https://github.com/kubernetes/kubernetes/blob/master/pkg/registry/core/service/strategy.go
 type serviceStrategy struct {
-	scheme runtime.Scheme
+	runtime.ObjectTyper
+	names.NameGenerator
 }
 
 var _ rest.RESTCreateStrategy = serviceStrategy{}
@@ -180,7 +171,7 @@ func (serviceStrategy) Validate(_ context.Context, obj runtime.Object) field.Err
 	if !ok {
 		return field.ErrorList{field.Invalid(
 			field.NewPath("object"), obj,
-			storageerr.ErrObjectIsNotAService.Error())}
+			storage.ErrObjectIsNotAService.Error())}
 	}
 
 	return validation.ValidateObjectMeta(
@@ -196,14 +187,14 @@ func (serviceStrategy) ValidateUpdate(_ context.Context, obj, old runtime.Object
 	if !success {
 		return field.ErrorList{field.Invalid(
 			field.NewPath("object"), obj,
-			storageerr.ErrObjectIsNotAService.Error())}
+			storage.ErrObjectIsNotAService.Error())}
 	}
 
 	oldService, success := old.(*corev1.Service)
 	if !success {
 		return field.ErrorList{field.Invalid(
 			field.NewPath("object"), old,
-			storageerr.ErrObjectIsNotAService.Error())}
+			storage.ErrObjectIsNotAService.Error())}
 	}
 
 	allErrs := validation.ValidateObjectMetaUpdate(&newService.ObjectMeta,
@@ -223,24 +214,4 @@ func (serviceStrategy) AllowCreateOnUpdate() bool {
 // AllowUnconditionalUpdate determines if update can ignore resource version.
 func (serviceStrategy) AllowUnconditionalUpdate() bool {
 	return true
-}
-
-// GenerateName generates a name using the given base string.
-func (serviceStrategy) GenerateName(base string) string {
-	return names.SimpleNameGenerator.GenerateName(base)
-}
-
-// ObjectKinds returns the GroupVersionKind for the object.
-func (ns serviceStrategy) ObjectKinds(obj runtime.Object) ([]schema.GroupVersionKind, bool, error) {
-	gvks, unversioned, err := ns.scheme.ObjectKinds(obj)
-	if err != nil {
-		return nil, unversioned, fmt.Errorf("failed to get object kinds for %T: %w", obj, err)
-	}
-
-	return gvks, unversioned, nil
-}
-
-// Recognizes returns true if this strategy handles the given GroupVersionKind.
-func (ns serviceStrategy) Recognizes(gvk schema.GroupVersionKind) bool {
-	return ns.scheme.Recognizes(gvk)
 }

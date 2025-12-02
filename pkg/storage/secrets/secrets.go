@@ -17,13 +17,11 @@ import (
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilvalidation "k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/apiserver/pkg/registry/generic"
 	genericregistry "k8s.io/apiserver/pkg/registry/generic/registry"
 	"k8s.io/apiserver/pkg/registry/rest"
-	apistorage "k8s.io/apiserver/pkg/storage"
 	"k8s.io/apiserver/pkg/storage/names"
 	"k8s.io/apiserver/pkg/storage/storagebackend"
 	"k8s.io/apiserver/pkg/storage/storagebackend/factory"
@@ -61,13 +59,14 @@ func NewSecretsREST(storageConfig storagebackend.Config, scheme runtime.Scheme) 
 	}
 
 	secretStrategy := secretStrategy{
-		scheme: scheme,
+		ObjectTyper:   &scheme,
+		NameGenerator: names.SimpleNameGenerator,
 	}
 
 	restStore := &genericregistry.Store{
 		NewFunc:       func() runtime.Object { return &corev1.Secret{} },
 		NewListFunc:   func() runtime.Object { return &corev1.SecretList{} },
-		PredicateFunc: SecretPredicateFunc,
+		PredicateFunc: storage.PredicateFunc(GetAttrs),
 		KeyRootFunc:   func(_ context.Context) string { return "/" + secretResource },
 		KeyFunc: func(_ context.Context, name string) (string, error) {
 			return path.Join("/"+secretResource, name), nil
@@ -80,15 +79,6 @@ func NewSecretsREST(storageConfig storagebackend.Config, scheme runtime.Scheme) 
 	}
 
 	return &REST{restStore}, nil
-}
-
-// SecretPredicateFunc returns a selection predicate for filtering Secret objects.
-func SecretPredicateFunc(label labels.Selector, field fields.Selector) apistorage.SelectionPredicate {
-	return apistorage.SelectionPredicate{
-		Label:    label,
-		Field:    field,
-		GetAttrs: GetAttrs,
-	}
 }
 
 // GetAttrs returns labels and fields for a Secret object.
@@ -124,7 +114,8 @@ func ObjectNameFunc(obj runtime.Object) (string, error) {
 // secretStrategy implements RESTCreateStrategy, RESTUpdateStrategy, RESTDeleteStrategy
 // Heavily inspired by: https://github.com/kubernetes/kubernetes/blob/master/pkg/registry/core/secret/strategy.go
 type secretStrategy struct {
-	scheme runtime.Scheme
+	runtime.ObjectTyper
+	names.NameGenerator
 }
 
 var _ rest.RESTCreateStrategy = secretStrategy{}
@@ -293,24 +284,4 @@ func (secretStrategy) AllowCreateOnUpdate() bool {
 // AllowUnconditionalUpdate determines if update can ignore resource version.
 func (secretStrategy) AllowUnconditionalUpdate() bool {
 	return true
-}
-
-// GenerateName generates a name using the given base string.
-func (secretStrategy) GenerateName(base string) string {
-	return names.SimpleNameGenerator.GenerateName(base)
-}
-
-// ObjectKinds returns the GroupVersionKind for the object.
-func (ss secretStrategy) ObjectKinds(obj runtime.Object) ([]schema.GroupVersionKind, bool, error) {
-	gvks, unversioned, err := ss.scheme.ObjectKinds(obj)
-	if err != nil {
-		return nil, unversioned, fmt.Errorf("failed to get object kinds for %T: %w", obj, err)
-	}
-
-	return gvks, unversioned, nil
-}
-
-// Recognizes returns true if this strategy handles the given GroupVersionKind.
-func (ss secretStrategy) Recognizes(gvk schema.GroupVersionKind) bool {
-	return ss.scheme.Recognizes(gvk)
 }

@@ -11,7 +11,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/validation"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	genericregistry "k8s.io/apiserver/pkg/registry/generic/registry"
 	"k8s.io/apiserver/pkg/registry/rest"
@@ -52,13 +51,15 @@ func NewServiceAccountREST(storageConfig storagebackend.Config, scheme runtime.S
 	}
 
 	serviceAccountStrategy := serviceAccountStrategy{
-		scheme: scheme,
+		ObjectTyper:   &scheme,
+		NameGenerator: names.SimpleNameGenerator,
 	}
 
 	restStore := &genericregistry.Store{
-		NewFunc:     func() runtime.Object { return &corev1.ServiceAccount{} },
-		NewListFunc: func() runtime.Object { return &corev1.ServiceAccountList{} },
-		KeyRootFunc: func(_ context.Context) string { return "/" + serviceAccountResource },
+		NewFunc:       func() runtime.Object { return &corev1.ServiceAccount{} },
+		NewListFunc:   func() runtime.Object { return &corev1.ServiceAccountList{} },
+		PredicateFunc: storage.NamespacedPredicateFunc(),
+		KeyRootFunc:   func(_ context.Context) string { return "/" + serviceAccountResource },
 		KeyFunc: func(_ context.Context, name string) (string, error) {
 			return path.Join("/"+serviceAccountResource, name), nil
 		},
@@ -87,7 +88,8 @@ func ObjectNameFunc(obj runtime.Object) (string, error) {
 //
 //nolint:lll
 type serviceAccountStrategy struct {
-	scheme runtime.Scheme
+	runtime.ObjectTyper
+	names.NameGenerator
 }
 
 var _ rest.RESTCreateStrategy = serviceAccountStrategy{}
@@ -143,11 +145,6 @@ func (serviceAccountStrategy) Canonicalize(_ runtime.Object) {}
 
 func (serviceAccountStrategy) AllowCreateOnUpdate() bool {
 	return false
-}
-
-// GenerateName generates a name using the given base string.
-func (serviceAccountStrategy) GenerateName(base string) string {
-	return names.SimpleNameGenerator.GenerateName(base)
 }
 
 func (serviceAccountStrategy) PrepareForUpdate(ctx context.Context, obj, _ runtime.Object) {
@@ -209,21 +206,6 @@ func (serviceAccountStrategy) WarningsOnUpdate(_ context.Context, obj, old runti
 
 func (serviceAccountStrategy) AllowUnconditionalUpdate() bool {
 	return true
-}
-
-// ObjectKinds returns the GroupVersionKind for the object.
-func (ss serviceAccountStrategy) ObjectKinds(obj runtime.Object) ([]schema.GroupVersionKind, bool, error) {
-	gvks, unversioned, err := ss.scheme.ObjectKinds(obj)
-	if err != nil {
-		return nil, unversioned, fmt.Errorf("failed to get object kinds for %T: %w", obj, err)
-	}
-
-	return gvks, unversioned, nil
-}
-
-// Recognizes returns true if this strategy handles the given GroupVersionKind.
-func (ss serviceAccountStrategy) Recognizes(gvk schema.GroupVersionKind) bool {
-	return ss.scheme.Recognizes(gvk)
 }
 
 func cleanSecretReferences(serviceAccount *corev1.ServiceAccount) {

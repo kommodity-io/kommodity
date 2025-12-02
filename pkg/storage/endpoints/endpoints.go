@@ -17,7 +17,6 @@ import (
 	"k8s.io/apiserver/pkg/registry/generic"
 	genericregistry "k8s.io/apiserver/pkg/registry/generic/registry"
 	"k8s.io/apiserver/pkg/registry/rest"
-	apistorage "k8s.io/apiserver/pkg/storage"
 	"k8s.io/apiserver/pkg/storage/names"
 	"k8s.io/apiserver/pkg/storage/storagebackend"
 	"k8s.io/apiserver/pkg/storage/storagebackend/factory"
@@ -60,14 +59,14 @@ func NewEndpointsREST(storageConfig storagebackend.Config, scheme runtime.Scheme
 	}
 
 	endpointsStrategy := endpointsStrategy{
-		&scheme,
-		names.SimpleNameGenerator,
+		ObjectTyper:   &scheme,
+		NameGenerator: names.SimpleNameGenerator,
 	}
 
 	restStore := &genericregistry.Store{
 		NewFunc:       func() runtime.Object { return &corev1.Endpoints{} },
 		NewListFunc:   func() runtime.Object { return &corev1.EndpointsList{} },
-		PredicateFunc: EndpointPredicateFunc,
+		PredicateFunc: storage.PredicateFunc(GetAttrs),
 		KeyRootFunc:   func(_ context.Context) string { return "/" + endpointResource },
 		KeyFunc: func(_ context.Context, name string) (string, error) {
 			return path.Join("/"+endpointResource, name), nil
@@ -80,15 +79,6 @@ func NewEndpointsREST(storageConfig storagebackend.Config, scheme runtime.Scheme
 	}
 
 	return &REST{restStore}, nil
-}
-
-// EndpointPredicateFunc returns a selection predicate for filtering Endpoint objects.
-func EndpointPredicateFunc(label labels.Selector, field fields.Selector) apistorage.SelectionPredicate {
-	return apistorage.SelectionPredicate{
-		Label:    label,
-		Field:    field,
-		GetAttrs: GetAttrs,
-	}
 }
 
 // GetAttrs returns labels and fields for a Endpoint object.
@@ -220,11 +210,6 @@ func (endpointsStrategy) AllowCreateOnUpdate() bool {
 // AllowUnconditionalUpdate determines if update can ignore resource version.
 func (endpointsStrategy) AllowUnconditionalUpdate() bool {
 	return true
-}
-
-// GenerateName generates a name using the given base string.
-func (endpointsStrategy) GenerateName(base string) string {
-	return names.SimpleNameGenerator.GenerateName(base)
 }
 
 func endpointsWarnings(endpoints *corev1.Endpoints) []string {

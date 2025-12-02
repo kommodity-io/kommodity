@@ -15,13 +15,11 @@ import (
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilvalidation "k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/apiserver/pkg/registry/generic"
 	genericregistry "k8s.io/apiserver/pkg/registry/generic/registry"
 	"k8s.io/apiserver/pkg/registry/rest"
-	apistorage "k8s.io/apiserver/pkg/storage"
 	"k8s.io/apiserver/pkg/storage/names"
 	"k8s.io/apiserver/pkg/storage/storagebackend"
 	"k8s.io/apiserver/pkg/storage/storagebackend/factory"
@@ -59,13 +57,14 @@ func NewConfigMapsREST(storageConfig storagebackend.Config, scheme runtime.Schem
 	}
 
 	configMapStrategy := configMapStrategy{
-		scheme: scheme,
+		ObjectTyper:   &scheme,
+		NameGenerator: names.SimpleNameGenerator,
 	}
 
 	restStore := &genericregistry.Store{
 		NewFunc:       func() runtime.Object { return &corev1.ConfigMap{} },
 		NewListFunc:   func() runtime.Object { return &corev1.ConfigMapList{} },
-		PredicateFunc: ConfigMapPredicateFunc,
+		PredicateFunc: storage.PredicateFunc(GetAttrs),
 		KeyRootFunc:   func(_ context.Context) string { return "/" + configMapResource },
 		KeyFunc: func(_ context.Context, name string) (string, error) {
 			return path.Join("/"+configMapResource, name), nil
@@ -78,15 +77,6 @@ func NewConfigMapsREST(storageConfig storagebackend.Config, scheme runtime.Schem
 	}
 
 	return &REST{restStore}, nil
-}
-
-// ConfigMapPredicateFunc returns a selection predicate for filtering ConfigMap objects.
-func ConfigMapPredicateFunc(label labels.Selector, field fields.Selector) apistorage.SelectionPredicate {
-	return apistorage.SelectionPredicate{
-		Label:    label,
-		Field:    field,
-		GetAttrs: GetAttrs,
-	}
 }
 
 // GetAttrs returns labels and fields for a ConfigMap object.
@@ -117,7 +107,8 @@ func ObjectNameFunc(obj runtime.Object) (string, error) {
 // configMapStrategy implements RESTCreateStrategy, RESTUpdateStrategy, RESTDeleteStrategy
 // Heavily inspired by: https://github.com/kubernetes/kubernetes/blob/master/pkg/registry/core/configmap/strategy.go
 type configMapStrategy struct {
-	scheme runtime.Scheme
+	runtime.ObjectTyper
+	names.NameGenerator
 }
 
 var _ rest.RESTCreateStrategy = configMapStrategy{}
@@ -252,24 +243,4 @@ func (configMapStrategy) AllowCreateOnUpdate() bool {
 // AllowUnconditionalUpdate determines if update can ignore resource version.
 func (configMapStrategy) AllowUnconditionalUpdate() bool {
 	return true
-}
-
-// GenerateName generates a name using the given base string.
-func (configMapStrategy) GenerateName(base string) string {
-	return names.SimpleNameGenerator.GenerateName(base)
-}
-
-// ObjectKinds returns the GroupVersionKind for the object.
-func (cms configMapStrategy) ObjectKinds(obj runtime.Object) ([]schema.GroupVersionKind, bool, error) {
-	gvks, unversioned, err := cms.scheme.ObjectKinds(obj)
-	if err != nil {
-		return nil, unversioned, fmt.Errorf("failed to get object kinds for %T: %w", obj, err)
-	}
-
-	return gvks, unversioned, nil
-}
-
-// Recognizes returns true if this strategy handles the given GroupVersionKind.
-func (cms configMapStrategy) Recognizes(gvk schema.GroupVersionKind) bool {
-	return cms.scheme.Recognizes(gvk)
 }
