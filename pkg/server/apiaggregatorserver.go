@@ -269,7 +269,7 @@ func startTokenControllerHook(genericServerConfig *genericapiserver.RecommendedC
 			return fmt.Errorf("failed to create kubernetes client for tokens controller: %w", err)
 		}
 
-		_, key, err := getServingCertAndKeyFromFiles(genericServerConfig)
+		cert, key, err := getServingCertAndKeyFromFiles(genericServerConfig)
 		if err != nil {
 			return fmt.Errorf("failed to get serving key from files: %w", err)
 		}
@@ -307,6 +307,7 @@ func startTokenControllerHook(genericServerConfig *genericapiserver.RecommendedC
 				ServiceAccountResync: retryInterval,
 				SecretResync:         retryInterval,
 				TokenGenerator:       tokenGenerator,
+				RootCA:               cert,
 			})
 		if err != nil {
 			return fmt.Errorf("failed to create tokens controller: %w", err)

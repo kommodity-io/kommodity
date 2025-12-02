@@ -1,0 +1,178 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ .Name }}-install
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+- kind: ServiceAccount
+  name: {{ getFullName }}-install
+  namespace: kommodity-system
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ getFullName }}-install
+  namespace: kommodity-system
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ getFullName }}-install
+  namespace: kommodity-system
+spec:
+  backoffLimit: 10
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        kommodity.io/addon-name: {{ .Name }}
+        kommodity.io/addon-version: {{ .Chart.Version }}
+        app.kubernetes.io/managed-by: kommodity
+        app.kubernetes.io/app: {{ getFullName }}-install
+    spec:
+      restartPolicy: OnFailure
+      tolerations:
+        - operator: Exists
+        - effect: NoSchedule
+          operator: Exists
+        - effect: NoExecute
+          operator: Exists
+        - effect: PreferNoSchedule
+          operator: Exists
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoExecute
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: PreferNoSchedule
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node-role.kubernetes.io/control-plane
+                    operator: Exists
+      serviceAccount: {{ getFullName }}-install
+      serviceAccountName: {{ getFullName }}-install
+      hostNetwork: true
+      {{- if .HasExtraValues }}
+      volumes:
+        - name: extra-values
+          secret:
+            secretName: {{ .Name }}-extra-values
+      {{- end }}
+      containers:
+        - name: {{ getFullName }}-install
+          image: alpine/k8s:1.34.1
+          {{- if .HasExtraValues }}
+          volumeMounts:
+            - name: extra-values
+              mountPath: /etc/{{ getFullName }}
+          {{- end }}
+          env:
+            - name: KUBERNETES_SERVICE_HOST
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: status.podIP
+            - name: KUBERNETES_SERVICE_PORT
+              value: "6443"
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -eu
+
+              REPOSITORY="{{ .Chart.Repository }}"
+              CHART="{{ .Chart.Name }}"
+              VERSION="{{ .Chart.Version }}"
+              RELEASE="{{ .Name }}"
+              INSTALL_MODE="{{ default "HelmInstall" .InstallMode }}"
+              UPGRADE_DISABLE="{{ default true .UpgradeDisabled }}"
+              NAMESPACE="{{ default .Name .Namespace }}"
+              CONDITION_DEFINED="{{ default false .Condition.Defined }}"
+              CONDITION_KIND="{{ default "Deployment" .Condition.Kind }}"
+              CONDITION_LABELS="{{ range $key, $value := .Condition.MatchLabels }}-l {{$key}}={{$value}} {{end}}"
+
+              HELM_EXTRA_VALUES_FILE="/etc/{{ getFullName }}/values.yaml"
+              HELM_EXTRA_VALUES=""
+              if [ -f "${HELM_EXTRA_VALUES_FILE}" ]; then
+                HELM_EXTRA_VALUES="-f ${HELM_EXTRA_VALUES_FILE}"
+              fi
+
+              echo "Addon: ${RELEASE}"
+              echo "Install Mode: ${INSTALL_MODE}"
+              echo "Repository: ${REPOSITORY}"
+              echo "Chart: ${CHART}"
+              echo "Version: ${VERSION}"
+              echo "Upgrade Disable: ${UPGRADE_DISABLE}"
+
+              # When upgrade.disable=true, decide early if we should skip
+              if [ "${UPGRADE_DISABLE}" = "true" ]; then
+                # For KubectlApply + upgrade.disable=true we *require* a condition
+                if [ "${INSTALL_MODE}" = "KubectlApply" ] && [ "${CONDITION_DEFINED}" != "true" ]; then
+                  echo "Error: condition must be defined for KubectlApply install mode when upgrade.disable=true"
+                  exit 1
+                fi
+
+                # If a condition is defined, use it to detect an existing installation
+                if [ "${CONDITION_DEFINED}" = "true" ] && [ kubectl -n "${NAMESPACE}" get "${CONDITION_KIND}" ${CONDITION_LABELS} --no-headers | grep -q . ]; then
+                  echo "Skipping installation of addon ${RELEASE} due to upgrade.disable=true and existing installation"
+                  exit 0
+                fi
+
+                # Check if a Helm release already exists
+                if [ "${INSTALL_MODE}" = "HelmInstall" ] && [ helm ls -n "${NAMESPACE}" | grep -q "^${RELEASE} "]; then
+                  echo "Addon ${RELEASE} is already installed, skipping installation due to upgrade.disable=true"
+                  exit 0
+                fi
+              fi
+
+              # Actually install, depending on mode and OCI/non-OCI
+              if [ "${INSTALL_MODE}" = "KubectlApply" ]; then
+                # Render manifests with Helm, apply with kubectl
+                if echo "${REPOSITORY}" | grep -q '^oci://'; then
+                  # OCI: full ref is repo + chart name
+                  CHART_REF="${REPOSITORY}/${CHART}"
+                  echo "Rendering OCI chart ${CHART_REF} and applying with kubectl"
+                  helm template "${RELEASE}" "${CHART_REF}" \
+                    --namespace "${NAMESPACE}" \
+                    --version "${VERSION}" \
+                    ${HELM_EXTRA_VALUES} \
+                  | kubectl apply -f -
+                else
+                  # Non-OCI: use --repo
+                  echo "Rendering chart ${CHART} from repo ${REPOSITORY} and applying with kubectl"
+                  helm template "${RELEASE}" "${CHART}" \
+                    --namespace "${NAMESPACE}" \
+                    --repo "${REPOSITORY}" \
+                    --version "${VERSION}" \
+                    ${HELM_EXTRA_VALUES} \
+                  | kubectl apply -f -
+                fi
+              else
+                # Default: HelmInstall (helm upgrade --install)
+                if echo "${REPOSITORY}" | grep -q '^oci://'; then
+                  # OCI: full ref is repo + chart name
+                  CHART_REF="${REPOSITORY}/${CHART}"
+                  echo "Installing OCI chart ${CHART_REF}"
+                  helm upgrade --install "${RELEASE}" "${CHART_REF}" \
+                    --namespace "${NAMESPACE}" \
+                    --version "${VERSION}" \
+                    ${HELM_EXTRA_VALUES}
+                else
+                  # Non-OCI: use --repo
+                  echo "Installing chart ${CHART} from repo ${REPOSITORY}"
+                  helm upgrade --install "${RELEASE}" "${CHART}" \
+                    --namespace "${NAMESPACE}" \
+                    --repo "${REPOSITORY}" \
+                    --version "${VERSION}" \
+                    ${HELM_EXTRA_VALUES}
+                fi
+              fi

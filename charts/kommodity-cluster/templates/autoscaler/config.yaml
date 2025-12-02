@@ -1,0 +1,45 @@
+{{- if .Values.kommodity.clusterAutoscaler.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-autoscaler-config
+  labels:
+    cluster.x-k8s.io/cluster-name: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: kommodity
+    cluster.x-k8s.io/watch-filter: kommodity-autoscaler-controller
+data:
+  namespace: {{ .Values.kommodity.clusterAutoscaler.namespace | default "kube-system" }}
+  repository: {{ .Values.kommodity.clusterAutoscaler.chart.repository }}
+  name: {{ .Values.kommodity.clusterAutoscaler.chart.name }}
+  version: {{ .Values.kommodity.clusterAutoscaler.chart.version }}
+---
+{{- if .Values.kommodity.clusterAutoscaler.extraValues }}
+{{- $override := merge (dict
+    "autoDiscovery" (dict
+      "clusterName" .Release.Name
+      "labels" (list (dict "cluster.x-k8s.io/cluster-name" .Release.Name))
+    )
+    "cloudProvider" "clusterapi"
+    "clusterAPIMode" "incluster-kubeconfig"
+    "extraArgs" (dict
+      "node-group-auto-discovery" (printf "clusterapi:clusterName=%s,cluster.x-k8s.io/cluster-name=%s" .Release.Name .Release.Name)
+    )
+    "clusterAPIKubeconfigSecret" "kommodiy-cluster-autoscaler-kubeconfig"
+    "clusterAPICloudConfigPath" "/etc/kubernetes/value"
+  )
+}}
+{{- $extraValues := deepCopy .Values.kommodity.clusterAutoscaler.extraValues | merge $override }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cluster-autoscaler-extra-values
+  labels:
+    cluster.x-k8s.io/cluster-name: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: kommodity
+    cluster.x-k8s.io/watch-filter: kommodity-autoscaler-controller
+stringData:
+  values.yaml: |
+{{- toYaml $extraValues | nindent 4 }}
+type: Opaque
+{{- end }}
+{{- end }}
