@@ -2,6 +2,9 @@ package server
 
 import (
 	"context"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"maps"
 	"slices"
@@ -23,17 +26,21 @@ import (
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	"k8s.io/client-go/discovery"
 	restclientdynamic "k8s.io/client-go/dynamic"
+	"k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	aggregatorapiserver "k8s.io/kube-aggregator/pkg/apiserver"
 	apiregistrationclient "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/typed/apiregistration/v1"
 	"k8s.io/kube-aggregator/pkg/controllers/autoregister"
+	controllersa "k8s.io/kubernetes/pkg/controller/serviceaccount"
 	"k8s.io/kubernetes/pkg/controlplane/controller/crdregistration"
+	"k8s.io/kubernetes/pkg/serviceaccount"
 )
 
 const (
 	defaultWaitTime = 500 * time.Millisecond
+	retryInterval   = 30 * time.Second
 )
 
 type validatingResources struct {
@@ -140,6 +147,12 @@ func newAPIAggregatorServer(cfg *config.KommodityConfig,
 		return nil, fmt.Errorf("failed to add post start hook for starting controller managers: %w", err)
 	}
 
+	err = aggregatorServer.GenericAPIServer.AddPostStartHook(
+		"start-token-controller", startTokenControllerHook(genericServerConfig))
+	if err != nil {
+		return nil, fmt.Errorf("failed to add post start hook for starting token controller: %w", err)
+	}
+
 	return aggregatorServer, nil
 }
 
@@ -159,7 +172,7 @@ func applyCRDsHook(cfg *config.KommodityConfig,
 		go func() {
 			webhookURL := fmt.Sprintf("https://localhost:%d", cfg.WebhookPort)
 
-			crt, err := getServingPEMFromFiles(genericServerConfig)
+			crt, _, err := getServingCertAndKeyFromFiles(genericServerConfig)
 			if err != nil {
 				errCh <- fmt.Errorf("failed to get serving PEM from files: %w", err)
 
@@ -242,6 +255,70 @@ func startControllerManagersHook(cfg *config.KommodityConfig,
 				logger.Error(errorMsg, zap.Error(err))
 				cancel(fmt.Errorf("%s %w", errorMsg, err))
 			}
+		}()
+
+		return nil
+	}
+}
+
+//nolint:lll // Not possible to shorten the signature
+func startTokenControllerHook(genericServerConfig *genericapiserver.RecommendedConfig) genericapiserver.PostStartHookFunc {
+	return func(ctx genericapiserver.PostStartHookContext) error {
+		kubeClient, err := kubernetes.NewForConfig(genericServerConfig.LoopbackClientConfig)
+		if err != nil {
+			return fmt.Errorf("failed to create kubernetes client for tokens controller: %w", err)
+		}
+
+		_, key, err := getServingCertAndKeyFromFiles(genericServerConfig)
+		if err != nil {
+			return fmt.Errorf("failed to get serving key from files: %w", err)
+		}
+
+		block, _ := pem.Decode(key)
+		if block == nil {
+			return ErrFailedToDecodePEMBlock
+		}
+
+		rsaKey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+		if err != nil {
+			parsedKey, err2 := x509.ParsePKCS8PrivateKey(block.Bytes)
+			if err2 != nil {
+				return fmt.Errorf("%w: %w, %w", ErrFailedToParsePrivateKey, err, err2)
+			}
+
+			var success bool
+
+			rsaKey, success = parsedKey.(*rsa.PrivateKey)
+			if !success {
+				return ErrPrivateKeyNotRSA
+			}
+		}
+
+		tokenGenerator, err := serviceaccount.JWTTokenGenerator(serviceaccount.LegacyIssuer, rsaKey)
+		if err != nil {
+			return fmt.Errorf("failed to build token generator: %w", err)
+		}
+
+		tokenController, err := controllersa.NewTokensController(
+			genericServerConfig.SharedInformerFactory.Core().V1().ServiceAccounts(),
+			genericServerConfig.SharedInformerFactory.Core().V1().Secrets(),
+			kubeClient,
+			controllersa.TokensControllerOptions{
+				ServiceAccountResync: retryInterval,
+				SecretResync:         retryInterval,
+				TokenGenerator:       tokenGenerator,
+			})
+		if err != nil {
+			return fmt.Errorf("failed to create tokens controller: %w", err)
+		}
+
+		genericServerConfig.SharedInformerFactory.Start(ctx.Done())
+
+		go func() {
+			runCtx, cancel := context.WithCancelCause(ctx)
+			defer cancel(nil)
+
+			tokenController.Run(runCtx, 1)
 		}()
 
 		return nil

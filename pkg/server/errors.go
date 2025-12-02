@@ -20,4 +20,10 @@ var (
 	ErrWebhookServerCertsNotConfigured = errors.New("webhook server requires a certificates to be configured")
 	// ErrWebhookServerCertKeyNotConfigured is returned when the webhook server certificate and key is not configured.
 	ErrWebhookServerCertKeyNotConfigured = errors.New("webhook server requires both certificate and key to be configured")
+	// ErrFailedToDecodePEMBlock indicates that decoding a PEM block failed.
+	ErrFailedToDecodePEMBlock = errors.New("failed to decode PEM block")
+	// ErrPrivateKeyNotRSA indicates that the private key is not RSA.
+	ErrPrivateKeyNotRSA = errors.New("private key is not RSA")
+	// ErrFailedToParsePrivateKey indicates that failed to parse private key as PKCS1 or PKCS8.
+	ErrFailedToParsePrivateKey = errors.New("failed to parse private key as PKCS1 or PKCS8")
 )
