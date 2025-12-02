@@ -13,7 +13,7 @@ import (
 	restutils "github.com/kommodity-io/kommodity/pkg/metadata/rest"
 	"github.com/kommodity-io/kommodity/pkg/net"
 	"github.com/siderolabs/talos/pkg/machinery/config/types/v1alpha1"
-	"go.yaml.in/yaml/v3"
+	"gopkg.in/yaml.v3"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientgoclientset "k8s.io/client-go/kubernetes"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"

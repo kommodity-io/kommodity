@@ -162,16 +162,6 @@ func New(ctx context.Context, cfg *config.KommodityConfig) (*aggregatorapiserver
 		return nil, fmt.Errorf("failed to setup API aggregator server: %w", err)
 	}
 
-	err = aggregatorServer.GenericAPIServer.AddPostStartHook("start-shared-informers-main",
-		func(ctx genericapiserver.PostStartHookContext) error {
-			genericServerConfig.SharedInformerFactory.Start(ctx.Done())
-
-			return nil
-		})
-	if err != nil {
-		return nil, fmt.Errorf("failed to add post start hook for starting shared informers: %w", err)
-	}
-
 	return aggregatorServer, nil
 }
 

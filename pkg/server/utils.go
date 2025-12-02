@@ -122,26 +122,34 @@ func setupSecureServingWithSelfSigned(cfg *config.KommodityConfig) (*options.Sec
 	return secureServing, nil
 }
 
-func getServingPEMFromFiles(genericServerConfig *genericapiserver.RecommendedConfig) ([]byte, error) {
+func getServingCertAndKeyFromFiles(genericServerConfig *genericapiserver.RecommendedConfig) ([]byte, []byte, error) {
 	combinedCertName := genericServerConfig.SecureServing.Cert.Name()
 	if combinedCertName == "" {
-		return nil, ErrWebhookServerCertsNotConfigured
+		return nil, nil, ErrWebhookServerCertsNotConfigured
 	}
 
 	certNames := strings.Split(combinedCertName, "::")
 	if len(certNames) != expectedCertSplitCount {
-		return nil, ErrWebhookServerCertKeyNotConfigured
+		return nil, nil, ErrWebhookServerCertKeyNotConfigured
 	}
 
 	certDir, certFile := filepath.Split(certNames[1])
 
 	//nolint:gosec // We know that the certFile is a file path.
-	pem, err := os.ReadFile(filepath.Join(certDir, certFile))
+	crt, err := os.ReadFile(filepath.Join(certDir, certFile))
 	if err != nil {
-		return nil, fmt.Errorf("read webhook serving cert: %w", err)
+		return nil, nil, fmt.Errorf("read webhook serving cert: %w", err)
 	}
 
-	return pem, nil
+	keyDir, keyFile := filepath.Split(certNames[2])
+
+	//nolint:gosec // We know that the certFile is a file path.
+	key, err := os.ReadFile(filepath.Join(keyDir, keyFile))
+	if err != nil {
+		return nil, nil, fmt.Errorf("read webhook serving key: %w", err)
+	}
+
+	return crt, key, nil
 }
 
 func getSupportedGroupKindVersions() []schema.GroupVersion {
