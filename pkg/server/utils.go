@@ -77,34 +77,40 @@ func enhanceScheme(scheme *runtime.Scheme) error {
 }
 
 func mapCoreInternalAliases(scheme *runtime.Scheme) {
-	gvInternal := schema.GroupVersion{Group: "", Version: runtime.APIVersionInternal}
-
-	add := func(kind string, obj runtime.Object) {
-		if _, exists := scheme.KnownTypes(gvInternal)[kind]; !exists {
-			scheme.AddKnownTypeWithName(gvInternal.WithKind(kind), obj)
+	add := func(kind string, groupVersion schema.GroupVersion, obj runtime.Object) {
+		if _, exists := scheme.KnownTypes(groupVersion)[kind]; !exists {
+			scheme.AddKnownTypeWithName(groupVersion.WithKind(kind), obj)
 		}
 	}
 
-	// Objects
-	add("ConfigMap", &corev1.ConfigMap{})
-	add("Secret", &corev1.Secret{})
-	add("Event", &corev1.Event{})
-	add("Namespace", &corev1.Namespace{})
-	add("Service", &corev1.Service{})
-	add("Endpoints", &corev1.Endpoints{})
-	add("ServiceAccount", &corev1.ServiceAccount{})
+	gvCoreInternal := schema.GroupVersion{Group: "", Version: runtime.APIVersionInternal}
 
-	// Lists (needed by watch/list paths)
-	add("ConfigMapList", &corev1.ConfigMapList{})
-	add("SecretList", &corev1.SecretList{})
-	add("EventList", &corev1.EventList{})
-	add("NamespaceList", &corev1.NamespaceList{})
-	add("ServiceList", &corev1.ServiceList{})
-	add("EndpointsList", &corev1.EndpointsList{})
-	add("ServiceAccountList", &corev1.ServiceAccountList{})
+	add("ConfigMap", gvCoreInternal, &corev1.ConfigMap{})
+	add("Secret", gvCoreInternal, &corev1.Secret{})
+	add("Event", gvCoreInternal, &corev1.Event{})
+	add("Namespace", gvCoreInternal, &corev1.Namespace{})
+	add("Service", gvCoreInternal, &corev1.Service{})
+	add("Endpoints", gvCoreInternal, &corev1.Endpoints{})
+	add("ServiceAccount", gvCoreInternal, &corev1.ServiceAccount{})
 
-	add("ValidatingWebhookConfiguration", &admissionregistrationv1.ValidatingWebhookConfiguration{})
-	add("MutatingWebhookConfiguration", &admissionregistrationv1.MutatingWebhookConfiguration{})
+	add("ConfigMapList", gvCoreInternal, &corev1.ConfigMapList{})
+	add("SecretList", gvCoreInternal, &corev1.SecretList{})
+	add("EventList", gvCoreInternal, &corev1.EventList{})
+	add("NamespaceList", gvCoreInternal, &corev1.NamespaceList{})
+	add("ServiceList", gvCoreInternal, &corev1.ServiceList{})
+	add("EndpointsList", gvCoreInternal, &corev1.EndpointsList{})
+	add("ServiceAccountList", gvCoreInternal, &corev1.ServiceAccountList{})
+
+	add("ValidatingWebhookConfiguration", gvCoreInternal, &admissionregistrationv1.ValidatingWebhookConfiguration{})
+	add("MutatingWebhookConfiguration", gvCoreInternal, &admissionregistrationv1.MutatingWebhookConfiguration{})
+
+	gvRbacInternal := schema.GroupVersion{Group: "rbac.authorization.k8s.io", Version: runtime.APIVersionInternal}
+
+	add("Role", gvRbacInternal, &rbacv1.Role{})
+	add("RoleBinding", gvRbacInternal, &rbacv1.RoleBinding{})
+
+	add("RoleList", gvRbacInternal, &rbacv1.RoleList{})
+	add("RoleBindingList", gvRbacInternal, &rbacv1.RoleBindingList{})
 }
 
 func setupSecureServingWithSelfSigned(cfg *config.KommodityConfig) (*options.SecureServingOptions, error) {
