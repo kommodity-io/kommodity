@@ -14,7 +14,7 @@ const (
 	NodeNameField = "spec.nodeName"
 )
 
-// NodeNameIndex is used to index Nodes by Name.
+// NodeNameIndex is used to index Pods by their assigned node name.
 //
 //nolint:gochecknoglobals // Index definitions are intended to be global.
 var NodeNameIndex = clustercache.CacheOptionsIndex{
