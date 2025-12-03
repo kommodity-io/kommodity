@@ -76,7 +76,7 @@ func enhanceScheme(scheme *runtime.Scheme) error {
 	return nil
 }
 
-func mapCoreInternalAliases(scheme *runtime.Scheme) {
+func mapInternalAliases(scheme *runtime.Scheme) {
 	add := func(kind string, groupVersion schema.GroupVersion, obj runtime.Object) {
 		if _, exists := scheme.KnownTypes(groupVersion)[kind]; !exists {
 			scheme.AddKnownTypeWithName(groupVersion.WithKind(kind), obj)
