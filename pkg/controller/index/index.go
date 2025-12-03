@@ -27,7 +27,7 @@ var NodeNameIndex = clustercache.CacheOptionsIndex{
 func NodeByName(o client.Object) []string {
 	pod, ok := o.(*corev1.Pod)
 	if !ok {
-		panic(fmt.Sprintf("Expected a Node but got a %T", o))
+		panic(fmt.Sprintf("Expected a Pod but got a %T", o))
 	}
 
 	if pod.Spec.NodeName == "" {
