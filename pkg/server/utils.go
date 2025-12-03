@@ -92,6 +92,7 @@ func mapCoreInternalAliases(scheme *runtime.Scheme) {
 	add("Namespace", &corev1.Namespace{})
 	add("Service", &corev1.Service{})
 	add("Endpoints", &corev1.Endpoints{})
+	add("ServiceAccount", &corev1.ServiceAccount{})
 
 	// Lists (needed by watch/list paths)
 	add("ConfigMapList", &corev1.ConfigMapList{})
@@ -100,6 +101,7 @@ func mapCoreInternalAliases(scheme *runtime.Scheme) {
 	add("NamespaceList", &corev1.NamespaceList{})
 	add("ServiceList", &corev1.ServiceList{})
 	add("EndpointsList", &corev1.EndpointsList{})
+	add("ServiceAccountList", &corev1.ServiceAccountList{})
 
 	add("ValidatingWebhookConfiguration", &admissionregistrationv1.ValidatingWebhookConfiguration{})
 	add("MutatingWebhookConfiguration", &admissionregistrationv1.MutatingWebhookConfiguration{})
