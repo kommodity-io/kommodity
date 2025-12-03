@@ -101,8 +101,10 @@ func mapCoreInternalAliases(scheme *runtime.Scheme) {
 	add("EndpointsList", gvCoreInternal, &corev1.EndpointsList{})
 	add("ServiceAccountList", gvCoreInternal, &corev1.ServiceAccountList{})
 
-	add("ValidatingWebhookConfiguration", gvCoreInternal, &admissionregistrationv1.ValidatingWebhookConfiguration{})
-	add("MutatingWebhookConfiguration", gvCoreInternal, &admissionregistrationv1.MutatingWebhookConfiguration{})
+	gvAdmissionRegistrationInternal := schema.GroupVersion{Group: "admissionregistration.k8s.io", Version: runtime.APIVersionInternal}
+
+	add("ValidatingWebhookConfiguration", gvAdmissionRegistrationInternal, &admissionregistrationv1.ValidatingWebhookConfiguration{})
+	add("MutatingWebhookConfiguration", gvAdmissionRegistrationInternal, &admissionregistrationv1.MutatingWebhookConfiguration{})
 
 	gvRbacInternal := schema.GroupVersion{Group: "rbac.authorization.k8s.io", Version: runtime.APIVersionInternal}
 
