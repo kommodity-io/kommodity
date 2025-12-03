@@ -59,7 +59,7 @@ func New(ctx context.Context, cfg *config.KommodityConfig) (*aggregatorapiserver
 		return nil, fmt.Errorf("failed to enhance local scheme: %w", err)
 	}
 
-	mapCoreInternalAliases(scheme)
+	mapInternalAliases(scheme)
 
 	providerCache, err := provider.NewProviderCache(scheme)
 	if err != nil {
