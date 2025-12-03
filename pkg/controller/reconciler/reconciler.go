@@ -57,5 +57,13 @@ func SetupReconcilers(ctx context.Context,
 		return fmt.Errorf("failed to setup CloudControllerManager reconciler: %w", err)
 	}
 
+	err = (&AutoscalerReconciler{
+		Client: (*manager).GetClient(),
+		cfg:    cfg,
+	}).SetupWithManager(ctx, *manager, controllerOpts)
+	if err != nil {
+		return fmt.Errorf("failed to setup Autoscaler reconciler: %w", err)
+	}
+
 	return nil
 }

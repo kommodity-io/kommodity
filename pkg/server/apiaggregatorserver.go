@@ -2,9 +2,6 @@ package server
 
 import (
 	"context"
-	"crypto/rsa"
-	"crypto/x509"
-	"encoding/pem"
 	"fmt"
 	"maps"
 	"slices"
@@ -269,29 +266,14 @@ func startTokenControllerHook(genericServerConfig *genericapiserver.RecommendedC
 			return fmt.Errorf("failed to create kubernetes client for tokens controller: %w", err)
 		}
 
-		_, key, err := getServingCertAndKeyFromFiles(genericServerConfig)
+		cert, key, err := getServingCertAndKeyFromFiles(genericServerConfig)
 		if err != nil {
 			return fmt.Errorf("failed to get serving key from files: %w", err)
 		}
 
-		block, _ := pem.Decode(key)
-		if block == nil {
-			return ErrFailedToDecodePEMBlock
-		}
-
-		rsaKey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+		rsaKey, err := convertPEMToRSAKey(key)
 		if err != nil {
-			parsedKey, err2 := x509.ParsePKCS8PrivateKey(block.Bytes)
-			if err2 != nil {
-				return fmt.Errorf("%w: %w, %w", ErrFailedToParsePrivateKey, err, err2)
-			}
-
-			var success bool
-
-			rsaKey, success = parsedKey.(*rsa.PrivateKey)
-			if !success {
-				return ErrPrivateKeyNotRSA
-			}
+			return fmt.Errorf("failed to convert PEM to RSA key: %w", err)
 		}
 
 		tokenGenerator, err := serviceaccount.JWTTokenGenerator(serviceaccount.LegacyIssuer, rsaKey)
@@ -307,6 +289,7 @@ func startTokenControllerHook(genericServerConfig *genericapiserver.RecommendedC
 				ServiceAccountResync: retryInterval,
 				SecretResync:         retryInterval,
 				TokenGenerator:       tokenGenerator,
+				RootCA:               cert,
 			})
 		if err != nil {
 			return fmt.Errorf("failed to create tokens controller: %w", err)

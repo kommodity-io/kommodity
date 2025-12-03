@@ -6,6 +6,17 @@ kommodity:
     cloudControllerManager:
       enabled: false
 
+  clusterAutoscaler:
+    enabled: true
+    namespace: kube-system
+    chart:
+      repository: https://kubernetes.github.io/autoscaler
+      name: cluster-autoscaler
+      version: 9.52.1
+    extraValues:
+      fullnameOverride: "cluster-autoscaler"
+      clusterScoped: true
+
   network:
     ipv4:
       enabled: false
@@ -159,6 +170,12 @@ kommodity:
 
   nodepools:
     default:
+      # Replicas for this nodepool, default is 1, disabled if autoscaling is enabled
+      replicas: 1
+      autoscaling:
+        enabled: true
+        minReplicas: 1
+        maxReplicas: 3
       # Configurations related the specific nodepool
       # Using RFC6902 JSON Patch format: https://docs.siderolabs.com/talos/v1.11/configure-your-talos-cluster/system-configuration/patching#rfc6902-json-patches
       configPatches: []
