@@ -162,11 +162,35 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  build-ui:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup NPM
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24.2.0"
+          cache: "npm"
+          cache-dependency-path: pkg/ui/web/kommodity-ui/package-lock.json
+
+      - name: Install UI dependencies
+        working-directory: pkg/ui/web/kommodity-ui
+        run: npm ci
+
+      - name: Build UI
+        run: make build-ui
+
+      - name: Upload UI artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: built-ui
+          path: pkg/ui/web/kommodity-ui/dist
 
   build:
     name: Build binary
     runs-on: ubuntu-latest
-    needs: prebuild
+    needs:
+      - prebuild
+      - build-ui
     permissions:
       id-token: write
       pages: write
@@ -188,20 +212,12 @@ jobs:
         with:
           go-version: stable
           check-latest: true
-
-      - name: Setup NPM
-        uses: actions/setup-node@v4
+      
+      - name: Download UI artifact
+        uses: actions/download-artifact@v5
         with:
-          node-version: "24.2.0"
-          cache: "npm"
-          cache-dependency-path: pkg/ui/web/kommodity-ui/package-lock.json
-
-      - name: Install UI dependencies
-        working-directory: pkg/ui/web/kommodity-ui
-        run: npm ci
-
-      - name: Build UI
-        run: make build-ui
+          name: built-ui
+          path: pkg/ui/web/kommodity-ui/dist
 
       - name: Compute version and compression
         id: version
