@@ -23,7 +23,7 @@ var NodeNameIndex = clustercache.CacheOptionsIndex{
 	ExtractValue: NodeByName,
 }
 
-// NodeByName contains the logic to index Nodes by Name.
+// NodeByName contains the logic to extract node names from Pods for indexing.
 func NodeByName(o client.Object) []string {
 	pod, ok := o.(*corev1.Pod)
 	if !ok {
