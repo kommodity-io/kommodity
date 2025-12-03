@@ -155,7 +155,7 @@ func getServingCertAndKeyFromFiles(genericServerConfig *genericapiserver.Recomme
 	return crt, key, nil
 }
 
-func convertPEMToRSAKey(pemBytes []byte) (*rsa.PublicKey, error) {
+func convertPEMToRSAKey(pemBytes []byte) (*rsa.PrivateKey, error) {
 	block, _ := pem.Decode(pemBytes)
 	if block == nil {
 		return nil, ErrFailedToDecodePEMBlock
@@ -176,7 +176,7 @@ func convertPEMToRSAKey(pemBytes []byte) (*rsa.PublicKey, error) {
 		}
 	}
 
-	return &rsaKey.PublicKey, nil
+	return rsaKey, nil
 }
 
 func getSupportedGroupKindVersions() []schema.GroupVersion {
