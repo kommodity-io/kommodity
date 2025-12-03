@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	// NodeNameField is used to index Nodes by Name.
+	// NodeNameField is used to index Pods by their assigned node name.
 	NodeNameField = "spec.nodeName"
 )
 
