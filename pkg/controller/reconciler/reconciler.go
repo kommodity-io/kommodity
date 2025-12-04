@@ -65,5 +65,12 @@ func SetupReconcilers(ctx context.Context,
 		return fmt.Errorf("failed to setup Autoscaler reconciler: %w", err)
 	}
 
+	err = (&ExtraSecretsManagerReconciler{
+		Client: (*manager).GetClient(),
+	}).SetupWithManager(ctx, *manager, controllerOpts)
+	if err != nil {
+		return fmt.Errorf("failed to setup ExtraSecretsManager reconciler: %w", err)
+	}
+
 	return nil
 }

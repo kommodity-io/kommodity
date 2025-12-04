@@ -25,6 +25,19 @@ kommodity:
       podCIDR:
         - 10.244.0.0/16
 
+  extraSecrets: {}
+    # Examples of extra secrets to be created in the downstream cluster, type default to Opaque
+    # my-namespace:
+    #   my-string-data-secret:
+    #     type: Opaque
+    #     stringData:
+    #       my-other-key: my-other-value
+    # my-other-namespace:
+    #   my-data-secret:
+    #     data:
+    #       username: admin
+    #       password: secret
+
   addons:
     cilium:
       enabled: true
