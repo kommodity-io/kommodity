@@ -19,7 +19,7 @@ spec:
   replicas: {{ $np.autoscaling.minReplicas }}
 {{- else }}
   replicas: {{ $np.replicas | default 1 }}
-{{- end }}  
+{{- end }}
   strategy:
     rollingUpdate:
       maxSurge: 1
