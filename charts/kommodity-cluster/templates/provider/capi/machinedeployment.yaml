@@ -6,7 +6,7 @@ metadata:
   namespace: {{ $.Release.Namespace }}
   labels:
     app.kubernetes.io/managed-by: kommodity
-{{- if and .Values.kommodity.clusterAutoscaler.enabled $np.autoscaling.enabled }}
+{{- if and $.Values.kommodity.clusterAutoscaler.enabled $np.autoscaling.enabled }}
   annotations:
     cluster.x-k8s.io/cluster-api-autoscaler-node-group-min-size: {{ $np.autoscaling.minReplicas | quote }}
     cluster.x-k8s.io/cluster-api-autoscaler-node-group-max-size: {{ $np.autoscaling.maxReplicas | quote }}
@@ -15,7 +15,7 @@ spec:
   clusterName: {{ $.Release.Name }}
   minReadySeconds: 0
   progressDeadlineSeconds: 600
-{{- if and .Values.kommodity.clusterAutoscaler.enabled $np.autoscaling.enabled }}
+{{- if and $.Values.kommodity.clusterAutoscaler.enabled $np.autoscaling.enabled }}
   replicas: {{ $np.autoscaling.minReplicas }}
 {{- else }}
   replicas: {{ $np.replicas | default 1 }}
