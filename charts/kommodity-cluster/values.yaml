@@ -32,6 +32,8 @@ kommodity:
     #     type: Opaque
     #     stringData:
     #       my-other-key: my-other-value
+    #     labels:
+    #       my-label: my-label-value
     # my-other-namespace:
     #   my-data-secret:
     #     data:
