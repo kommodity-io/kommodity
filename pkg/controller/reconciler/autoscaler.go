@@ -155,7 +155,11 @@ func (a *AutoscalerJob) applySecret(ctx context.Context) error {
 	}
 
 	yamlSecret.Name = a.config.Name + "-extra-values"
-	yamlSecret.Namespace = config.KommodityNamespace
+	if a.config.Namespace != "" {
+		yamlSecret.Namespace = a.config.Namespace
+	} else {
+		yamlSecret.Namespace = a.config.Name
+	}
 
 	err = ApplySecretToClient(ctx, a.downstreamClient, &yamlSecret)
 	if err != nil {

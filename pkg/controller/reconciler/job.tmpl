@@ -9,19 +9,19 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: {{ getFullName }}-install
-  namespace: kommodity-system
+  namespace: {{ default .Name .Namespace }}
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: {{ getFullName }}-install
-  namespace: kommodity-system
+  namespace: {{ default .Name .Namespace }}
 ---
 apiVersion: batch/v1
 kind: Job
 metadata:
   name: {{ getFullName }}-install
-  namespace: kommodity-system
+  namespace: {{ default .Name .Namespace }}
 spec:
   backoffLimit: 10
   ttlSecondsAfterFinished: 3600

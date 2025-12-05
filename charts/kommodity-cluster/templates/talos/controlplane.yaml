@@ -26,6 +26,7 @@
   contents: |
 {{ include "kommodity.addon.extra-values" (dict
   "name"        $name
+  "namespace"   (default .name $addon.namespace)
   "extraValues" $addon.extraValues
 ) | indent 4 }}
     {{- end }}
@@ -93,16 +94,6 @@ spec:
         - op: add
           path: /cluster/inlineManifests
           value:
-            - name: kommodity-system
-              contents: |
-                apiVersion: v1
-                kind: Namespace
-                metadata:
-                  name: kommodity-system
-                  labels:
-                    pod-security.kubernetes.io/enforce: privileged
-                    pod-security.kubernetes.io/enforce-version: latest
-                ---
 {{- include "kommodity.addonsInlineManifests" . | trim | nindent 12 }}
       {{- end }}
 
