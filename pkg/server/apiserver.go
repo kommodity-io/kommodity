@@ -24,6 +24,7 @@ import (
 	componentbaseversion "k8s.io/component-base/version"
 )
 
+//nolint:funlen // No complexity and readability is fine.
 func setupAPIServerConfig(ctx context.Context,
 	cfg *config.KommodityConfig,
 	openAPISpec *generatedopenapi.Spec,

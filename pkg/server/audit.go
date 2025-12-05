@@ -54,7 +54,7 @@ func getPolicyBackend(ctx context.Context) audit.Backend {
 		pluginlog.FormatJson,
 		auditv1.SchemeGroupVersion)
 
-	// Default configuration from upstream Kubernetes
+	//nolint:mnd // Default configuration from upstream Kubernetes
 	return pluginbuffered.NewBackend(logBackend, pluginbuffered.BatchConfig{
 		ThrottleEnable: false,
 		MaxBatchSize:   100,
