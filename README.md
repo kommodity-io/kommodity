@@ -180,6 +180,7 @@ Several environment variables can be set to configure Kommodity:
 | `KOMMODITY_DB_URI`                          | URI of the PostgreSQL database                                 | (none)                  |
 | `KOMMODITY_DEVELOPMENT_MODE`                | Enable development mode                                        | `false`                 |
 | `KOMMODITY_INFRASTRUCTURE_PROVIDERS`        | Comma-separated list of infrastructure providers to enable     | All                     |
+| `KOMMODITY_AUDIT_POLICY_FILE_PATH`          | File path to the audit policy file                             | (none)                  |
 
 ## 🚀 Deployment
 

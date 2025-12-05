@@ -88,6 +88,11 @@ func setupAPIExtensionConfig(cfg *config.KommodityConfig,
 	crdRecommended.SharedInformerFactory = genericServerConfig.SharedInformerFactory
 	crdRecommended.AdmissionControl = genericServerConfig.AdmissionControl
 
+	if genericServerConfig.AuditPolicyRuleEvaluator != nil {
+		crdRecommended.AuditPolicyRuleEvaluator = genericServerConfig.AuditPolicyRuleEvaluator
+		crdRecommended.AuditBackend = genericServerConfig.AuditBackend
+	}
+
 	return &apiextensionsapiserver.Config{
 		GenericConfig: crdRecommended,
 		ExtraConfig: apiextensionsapiserver.ExtraConfig{

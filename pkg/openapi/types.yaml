@@ -124,3 +124,11 @@ types:
     - k8s.io/api/rbac/v1.PolicyRule
     - k8s.io/api/rbac/v1.RoleRef
     - k8s.io/api/rbac/v1.Subject
+  audit:
+    - k8s.io/apiserver/pkg/apis/audit/v1.Policy
+    - k8s.io/apiserver/pkg/apis/audit/v1.PolicyList
+    - k8s.io/apiserver/pkg/apis/audit/v1.PolicyRule
+    - k8s.io/apiserver/pkg/apis/audit/v1.GroupResources
+    - k8s.io/apiserver/pkg/apis/audit/v1.ObjectReference
+    - k8s.io/apiserver/pkg/apis/audit/v1.Event
+    - k8s.io/apiserver/pkg/apis/audit/v1.EventList

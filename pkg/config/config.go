@@ -42,6 +42,7 @@ const (
 	envDevelopmentMode         = "KOMMODITY_DEVELOPMENT_MODE"
 	envKineURI                 = "KOMMODITY_KINE_URI"
 	envInfrastructureProviders = "KOMMODITY_INFRASTRUCTURE_PROVIDERS"
+	envAuditPolicyFilePath     = "KOMMODITY_AUDIT_POLICY_FILE_PATH"
 )
 
 const (
@@ -59,6 +60,7 @@ type KommodityConfig struct {
 	AttestationConfig       *AttestationConfig
 	AuthConfig              *AuthConfig
 	ClientConfig            *ClientConfig
+	AuditPolicyFilePath     string
 	DevelopmentMode         bool
 	InfrastructureProviders []Provider
 }
@@ -110,13 +112,14 @@ func LoadConfig(ctx context.Context) (*KommodityConfig, error) {
 	}
 
 	return &KommodityConfig{
-		BaseURL:           baseURL,
-		ServerPort:        serverPort,
-		APIServerPort:     defaultAPIServerPort,
-		WebhookPort:       ctrlwebhook.DefaultPort,
-		DBURI:             dbURI,
-		KineURI:           kineURI,
-		AttestationConfig: getAttestationConfig(ctx),
+		BaseURL:             baseURL,
+		ServerPort:          serverPort,
+		APIServerPort:       defaultAPIServerPort,
+		WebhookPort:         ctrlwebhook.DefaultPort,
+		DBURI:               dbURI,
+		KineURI:             kineURI,
+		AttestationConfig:   getAttestationConfig(ctx),
+		AuditPolicyFilePath: getAuditPolicyFilePath(ctx),
 		AuthConfig: &AuthConfig{
 			Apply:      apply,
 			OIDCConfig: oidcConfig,
@@ -358,4 +361,19 @@ func getInfrastructureProviders(ctx context.Context) []Provider {
 	}
 
 	return providers
+}
+
+func getAuditPolicyFilePath(ctx context.Context) string {
+	logger := logging.FromContext(ctx)
+
+	policyFilePath := os.Getenv(envAuditPolicyFilePath)
+	if policyFilePath == "" {
+		logger.Info(configurationNotSpecified,
+			zap.String("envVar", envAuditPolicyFilePath),
+			zap.String("default", ""))
+
+		return ""
+	}
+
+	return policyFilePath
 }

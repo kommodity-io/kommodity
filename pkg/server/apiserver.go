@@ -40,6 +40,16 @@ func setupAPIServerConfig(ctx context.Context,
 		openapi.NewDefinitionNamer(scheme),
 	)
 
+	policyEvaluator, err := loadPolicyRuleEvaluator(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load audit policy rule evaluator: %w", err)
+	}
+
+	if policyEvaluator != nil {
+		genericServerConfig.AuditBackend = getPolicyBackend(ctx)
+		genericServerConfig.AuditPolicyRuleEvaluator = policyEvaluator
+	}
+
 	secureServing, err := setupSecureServingWithSelfSigned(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup secure serving config: %w", err)
