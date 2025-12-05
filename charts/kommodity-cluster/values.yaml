@@ -130,6 +130,8 @@ kommodity:
       enabled: false
       # Namespace for where the addon will be installed, default is the name of the addon
       namespace: argocd
+      # By default, the installer job will run in the 'kommodity-system' namespace.
+      # installerJobNamespace: argocd
       lifecycle:
         install:
           # Install mode can be either: HelmInstall or KubectlApply, default is HelmInstall
@@ -162,7 +164,6 @@ kommodity:
       #     valueFrom:
       #       secretKeyRef:
       #         name: my-secret
-      #         namespace: my-namespace
       #         key: my-key
       #   MY_OTHER_EXTRA_ENV:
       #     value: my-value
