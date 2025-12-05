@@ -162,7 +162,6 @@ kommodity:
       #     valueFrom:
       #       secretKeyRef:
       #         name: my-secret
-      #         namespace: my-namespace
       #         key: my-key
       #   MY_OTHER_EXTRA_ENV:
       #     value: my-value
