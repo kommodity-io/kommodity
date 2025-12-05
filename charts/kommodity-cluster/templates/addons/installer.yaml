@@ -91,6 +91,8 @@ spec:
             {{- $hasValueFrom := $env.valueFrom }}
             {{- if and $hasValue $hasValueFrom }}
             {{- fail (printf "Environment variable '%s' cannot have both 'value' and 'valueFrom' defined" $envName) }}
+            {{ else if not (or $hasValue $hasValueFrom) }}
+            {{- fail (printf "Environment variable '%s' must have either 'value' or 'valueFrom' defined" $envName) }}
             {{- else }}
             - name: {{ $envName }}
             {{- if $hasValue }}
@@ -102,7 +104,6 @@ spec:
             {{- end }}
             {{- end }}
             {{- end }}
-
             - name: KUBERNETES_SERVICE_PORT
               value: "6443"
           command:
