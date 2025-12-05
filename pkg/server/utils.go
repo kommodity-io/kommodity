@@ -35,6 +35,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apiserver/pkg/apis/audit"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	"k8s.io/apiserver/pkg/server/options"
 	apiregistration "k8s.io/kube-aggregator/pkg/apis/apiregistration"
@@ -57,6 +58,7 @@ func enhanceScheme(scheme *runtime.Scheme) error {
 		{"apiregistration.AddToScheme", apiregistration.AddToScheme},
 		{"apiregistrationv1.AddToScheme", apiregistrationv1.AddToScheme},
 		{"appsv1.AddToScheme", appsv1.AddToScheme},
+		{"audit.AddToScheme", audit.AddToScheme},
 		{"authenticationv1.AddToScheme", authenticationv1.AddToScheme},
 		{"authorizationapiv1.AddToScheme", authorizationapiv1.AddToScheme},
 		{"corev1.AddToScheme", corev1.AddToScheme},
@@ -197,6 +199,7 @@ func convertPEMToRSAKey(pemBytes []byte) (*rsa.PrivateKey, error) {
 func getSupportedGroupKindVersions() []schema.GroupVersion {
 	return []schema.GroupVersion{
 		corev1.SchemeGroupVersion,
+		audit.SchemeGroupVersion,
 		apiextensionsv1.SchemeGroupVersion,
 		apiregistrationv1.SchemeGroupVersion,
 		admissionregistrationv1.SchemeGroupVersion,

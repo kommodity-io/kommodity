@@ -447,6 +447,11 @@ func setupAPIAggregatorConfig(
 	aggregatorGenericConfig.SkipOpenAPIInstallation = true
 	aggregatorGenericConfig.FeatureGate = genericServerConfig.FeatureGate
 
+	if genericServerConfig.AuditPolicyRuleEvaluator != nil {
+		aggregatorGenericConfig.AuditPolicyRuleEvaluator = genericServerConfig.AuditPolicyRuleEvaluator
+		aggregatorGenericConfig.AuditBackend = genericServerConfig.AuditBackend
+	}
+
 	return &aggregatorapiserver.Config{
 		GenericConfig: aggregatorGenericConfig,
 	}, nil

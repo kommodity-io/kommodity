@@ -135,6 +135,11 @@ This flexible configuration allows you to streamline your setup and avoid instal
 
 > **ℹ️ Note:** Providers need to be compatible with version `1.10.4` of Cluster API.
 
+### 👀 Audit Logging
+
+Kommodity supports audit logging to track and record API requests and responses. Audit logs can be configured to use a custom audit policy file, specified via the `KOMMODITY_AUDIT_POLICY_FILE_PATH` environment variable.
+Kommodity natively supports Kubernetes audit policy format documented here: https://kubernetes.io/docs/tasks/debug/debug-cluster/audit/
+
 ### Mock KMS Service
 
 The `kms` package provides a mock implementation of the [Talos Linux Key Management Service (KMS)][talos-kms-api]. This implementation:
@@ -180,6 +185,7 @@ Several environment variables can be set to configure Kommodity:
 | `KOMMODITY_DB_URI`                          | URI of the PostgreSQL database                                 | (none)                  |
 | `KOMMODITY_DEVELOPMENT_MODE`                | Enable development mode                                        | `false`                 |
 | `KOMMODITY_INFRASTRUCTURE_PROVIDERS`        | Comma-separated list of infrastructure providers to enable     | All                     |
+| `KOMMODITY_AUDIT_POLICY_FILE_PATH`          | File path to the audit policy file                             | (none)                  |
 
 ## 🚀 Deployment
 

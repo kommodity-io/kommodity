@@ -24,6 +24,7 @@ import (
 	componentbaseversion "k8s.io/component-base/version"
 )
 
+//nolint:funlen // No complexity and readability is fine.
 func setupAPIServerConfig(ctx context.Context,
 	cfg *config.KommodityConfig,
 	openAPISpec *generatedopenapi.Spec,
@@ -39,6 +40,16 @@ func setupAPIServerConfig(ctx context.Context,
 		openAPISpec.GetOpenAPIDefinitions,
 		openapi.NewDefinitionNamer(scheme),
 	)
+
+	policyEvaluator, err := loadPolicyRuleEvaluator(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load audit policy rule evaluator: %w", err)
+	}
+
+	if policyEvaluator != nil {
+		genericServerConfig.AuditBackend = getPolicyBackend(ctx)
+		genericServerConfig.AuditPolicyRuleEvaluator = policyEvaluator
+	}
 
 	secureServing, err := setupSecureServingWithSelfSigned(cfg)
 	if err != nil {
