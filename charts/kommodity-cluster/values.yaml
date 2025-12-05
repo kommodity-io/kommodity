@@ -150,11 +150,30 @@ kommodity:
         repository: oci://ghcr.io/argoproj/argo-helm
         name: argo-cd
         version: 9.1.2
-      # Defined the values to be passed to the downstream Helm chart
+      # Defines the values to be passed to the downstream Helm chart
       extraValues:
         enabled: true
         cm:
           admin.enabled: false
+
+      # Defines extra environment variables to be added to the installer job
+      # extraEnvs:
+      #   MY_FIRST_EXTRA_ENV:
+      #     valueFrom:
+      #       secretKeyRef:
+      #         name: my-secret
+      #         namespace: my-namespace
+      #         key: my-key
+      #   MY_OTHER_EXTRA_ENV:
+      #     value: my-value
+
+      # Defines a script to run before installing the addon
+      # preInstallationScript: |
+      #   echo "preInstallationScript running"
+
+      # Defines a script to run after installing the addon
+      # postInstallationScript: |
+      #   echo "postInstallationScript running"
 
   security:
     enabled: false

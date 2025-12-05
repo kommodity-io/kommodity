@@ -84,6 +84,25 @@ spec:
                 fieldRef:
                   apiVersion: v1
                   fieldPath: status.podIP
+            {{- $extraEnvs := .addon.extraEnvs }}
+            {{- if $extraEnvs }}
+            {{- range $envName, $env := $extraEnvs }}
+            {{- $hasValue := $env.value }}
+            {{- $hasValueFrom := $env.valueFrom }}
+            {{- if and $hasValue $hasValueFrom }}
+            {{- fail (printf "Environment variable '%s' cannot have both 'value' and 'valueFrom' defined" $envName) }}
+            {{- else }}
+            - name: {{ $envName }}
+            {{- if $hasValue }}
+              value: "{{ $env.value }}"
+            {{- else if $hasValueFrom }}
+              valueFrom:
+            {{- toYaml $env.valueFrom | nindent 16 }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
+
             - name: KUBERNETES_SERVICE_PORT
               value: "6443"
           command:
@@ -91,6 +110,10 @@ spec:
             - -c
             - |
               set -eu
+
+              {{- if .addon.preInstallationScript }}
+              {{ .addon.preInstallationScript | nindent 14 }}
+              {{- end }}
 
               REPOSITORY="{{ .addon.chart.repository }}"
               CHART="{{ .addon.chart.name }}"
@@ -179,4 +202,8 @@ spec:
                     ${HELM_EXTRA_VALUES}
                 fi
               fi
+
+              {{- if .addon.postInstallationScript }}
+              {{ .addon.postInstallationScript | nindent 14 }}
+              {{- end }}
 {{- end }}
