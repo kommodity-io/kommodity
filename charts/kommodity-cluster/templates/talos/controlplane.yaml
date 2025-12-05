@@ -26,6 +26,7 @@
   contents: |
 {{ include "kommodity.addon.extra-values" (dict
   "name"        $name
+  "namespace"   (default .name $addon.namespace)
   "extraValues" $addon.extraValues
 ) | indent 4 }}
     {{- end }}
