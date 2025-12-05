@@ -124,8 +124,6 @@ spec:
               UPGRADE_DISABLE="{{ default true .addon.lifecycle.upgrade.disable }}"
               NAMESPACE="{{ default .name .addon.namespace }}"
               CONDITION_DEFINED="{{ if .addon.lifecycle.install.condition }}true{{ else }}false{{ end }}"
-              CONDITION_KIND="{{ default "Deployment" .addon.lifecycle.install.condition.kind }}"
-              CONDITION_LABELS="{{ range $key, $value := .addon.lifecycle.install.condition.matchLabels }}-l {{$key}}={{$value}} {{end}}"
               
               HELM_EXTRA_VALUES_FILE="/etc/{{ $addonFullName }}/values.yaml"
               HELM_EXTRA_VALUES=""
@@ -149,9 +147,14 @@ spec:
                 fi
 
                 # If a condition is defined, use it to detect an existing installation
-                if [ "${CONDITION_DEFINED}" = "true" ] && [ kubectl -n "${NAMESPACE}" get "${CONDITION_KIND}" ${CONDITION_LABELS} --no-headers | grep -q . ]; then
-                  echo "Skipping installation of addon ${RELEASE} due to upgrade.disable=true and existing installation"
-                  exit 0
+                if [ "${CONDITION_DEFINED}" = "true" ]; then
+                  CONDITION_KIND="{{ default "Deployment" .addon.lifecycle.install.condition.kind }}"
+                  CONDITION_LABELS="{{ range $key, $value := .addon.lifecycle.install.condition.matchLabels }}-l {{$key}}={{$value}} {{end}}"
+                  
+                  if  [ kubectl -n "${NAMESPACE}" get "${CONDITION_KIND}" ${CONDITION_LABELS} --no-headers | grep -q . ]; then
+                    echo "Skipping installation of addon ${RELEASE} due to upgrade.disable=true and existing installation"
+                    exit 0
+                  fi
                 fi
 
                 # Check if a Helm release already exists
