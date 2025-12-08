@@ -85,7 +85,7 @@ spec:
           {{- if or $extraEnvs (eq $addonNamespace "kube-system") }}
           env:
           {{- end }}
-            {{- if eq $addonNamespace "kube-system" }}
+          {{- if eq $addonNamespace "kube-system" }}
             - name: KUBERNETES_SERVICE_HOST
               valueFrom:
                 fieldRef:
