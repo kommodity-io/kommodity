@@ -81,8 +81,11 @@ spec:
             - name: extra-values
               mountPath: /etc/{{ $addonFullName }}
           {{- end }}
+          {{- $extraEnvs := .addon.extraEnvs }}
+          {{- if or $extraEnvs (eq $addonNamespace "kube-system") }}
           env:
-            {{- if eq $addonNamespace "kube-system" }}
+          {{- end }}
+          {{- if eq $addonNamespace "kube-system" }}
             - name: KUBERNETES_SERVICE_HOST
               valueFrom:
                 fieldRef:
@@ -91,7 +94,6 @@ spec:
             - name: KUBERNETES_SERVICE_PORT
               value: "6443"
             {{- end }}
-            {{- $extraEnvs := .addon.extraEnvs }}
             {{- if $extraEnvs }}
             {{- range $envName, $env := $extraEnvs }}
             {{- $hasValue := $env.value }}
