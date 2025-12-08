@@ -153,8 +153,9 @@ kommodity:
       # Defines the values to be passed to the downstream Helm chart
       extraValues:
         enabled: true
-        cm:
-          admin.enabled: false
+        configs:
+          cm:
+            admin.enabled: false
 
       # Defines extra environment variables to be added to the installer job
       # extraEnvs:
