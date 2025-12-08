@@ -1,5 +1,6 @@
 {{- define "kommodity.addon.installer" -}}
 {{- $addonFullName := printf "%s-%s" .name (.addon.chart.version | replace "." "-") -}}
+{{- $addonNamespace := default .name .addon.namespace -}}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -12,19 +13,19 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: {{ $addonFullName }}-install
-  namespace: {{ default .name .addon.namespace }}
+  namespace: {{ $addonNamespace }}
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: {{ $addonFullName }}-install
-  namespace: {{ default .name .addon.namespace }}
+  namespace: {{ $addonNamespace }}
 ---
 apiVersion: batch/v1
 kind: Job
 metadata:
   name: {{ $addonFullName }}-install
-  namespace: {{ default .name .addon.namespace }}
+  namespace: {{ $addonNamespace }}
 spec:
   backoffLimit: 10
   ttlSecondsAfterFinished: 3600
@@ -63,7 +64,9 @@ spec:
                     operator: Exists
       serviceAccount: {{ $addonFullName }}-install
       serviceAccountName: {{ $addonFullName }}-install
+      {{- if eq $addonNamespace "kube-system" }}
       hostNetwork: true
+      {{- end }}
       {{- if .addon.extraValues }}
       volumes:
         - name: extra-values
@@ -122,7 +125,7 @@ spec:
               RELEASE="{{ .name }}"
               INSTALL_MODE="{{ default "HelmInstall" .addon.lifecycle.install.mode }}"
               UPGRADE_DISABLE="{{ default true .addon.lifecycle.upgrade.disable }}"
-              NAMESPACE="{{ default .name .addon.namespace }}"
+              NAMESPACE="{{ $addonNamespace }}"
               {{- if .addon.lifecycle.install.condition }}
               CONDITION_DEFINED="true"
               CONDITION_KIND="{{ default "Deployment" .addon.lifecycle.install.condition.kind }}"
