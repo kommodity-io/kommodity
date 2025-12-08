@@ -78,6 +78,7 @@ spec:
             - name: extra-values
               mountPath: /etc/{{ getFullName }}
           {{- end }}
+          {{- if eq $namespace "kube-system" }}
           env:
             - name: KUBERNETES_SERVICE_HOST
               valueFrom:
@@ -86,6 +87,7 @@ spec:
                   fieldPath: status.podIP
             - name: KUBERNETES_SERVICE_PORT
               value: "6443"
+          {{- end }}
           command:
             - /bin/sh
             - -c

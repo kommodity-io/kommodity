@@ -82,11 +82,15 @@ spec:
               mountPath: /etc/{{ $addonFullName }}
           {{- end }}
           env:
+            {{- if eq $addonNamespace "kube-system" }}
             - name: KUBERNETES_SERVICE_HOST
               valueFrom:
                 fieldRef:
                   apiVersion: v1
                   fieldPath: status.podIP
+            - name: KUBERNETES_SERVICE_PORT
+              value: "6443"
+            {{- end }}
             {{- $extraEnvs := .addon.extraEnvs }}
             {{- if $extraEnvs }}
             {{- range $envName, $env := $extraEnvs }}
@@ -107,8 +111,6 @@ spec:
             {{- end }}
             {{- end }}
             {{- end }}
-            - name: KUBERNETES_SERVICE_PORT
-              value: "6443"
           command:
             - /bin/sh
             - -c
