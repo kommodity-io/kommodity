@@ -61,7 +61,7 @@ kommodity:
         repository: https://helm.cilium.io/
         name: cilium
         version: 1.18.4
-      # Defined the values to be passed to the downstream Helm chart at first install only, immutable after that
+      # Defines the values to be passed to the downstream Helm chart at first install only, immutable after that
       initialExtraValues:
         enabled: true
         k8sServiceHost: localhost
@@ -150,7 +150,7 @@ kommodity:
         repository: oci://ghcr.io/argoproj/argo-helm
         name: argo-cd
         version: 9.1.2
-      # Defined the values to be passed to the downstream Helm chart at first install only, immutable after that
+      # Defines the values to be passed to the downstream Helm chart at first install only, immutable after that
       initialExtraValues:
         enabled: true
         configs:
