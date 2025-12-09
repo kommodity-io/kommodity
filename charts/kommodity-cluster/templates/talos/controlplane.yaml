@@ -90,11 +90,11 @@ spec:
       talosVersion: {{ include "kommodity.talosVersion" $ }}
       hostname: {}
       {{- $cpPatches := $.Values.kommodity.controlplane.configPatches }}
-      {{- $hasNpConfigPatches := and $cpPatches (gt (len $cpPatches) 0) }}
+      {{- $hasCpConfigPatches := and $cpPatches (gt (len $cpPatches) 0) }}
       {{- $globalCpPatches := $.Values.kommodity.global.configPatches }}
       {{- $hasGlobalCpConfigPatches := and $globalCpPatches (gt (len $globalCpPatches) 0) }}
       {{- $disableTalosNetwork := or $.Values.talos.disableCNI $.Values.talos.disableKubeProxy }}
-      {{- if or $anyAddonEnabled $hasNpConfigPatches $hasGlobalCpConfigPatches $disableTalosNetwork }}
+      {{- if or $anyAddonEnabled $hasCpConfigPatches $hasGlobalCpConfigPatches $disableTalosNetwork }}
       configPatches:
       {{- end }}
         - op: add
@@ -103,7 +103,7 @@ spec:
       {{- if $anyAddonEnabled }}
 {{- include "kommodity.addonsInlineManifests" . | trim | nindent 12 }}
       {{- end }}
-      {{- if $hasNpConfigPatches }}
+      {{- if $hasCpConfigPatches }}
 {{ toYaml $cpPatches | nindent 8 }}
       {{- end }}
       {{- if $hasGlobalCpConfigPatches }}
