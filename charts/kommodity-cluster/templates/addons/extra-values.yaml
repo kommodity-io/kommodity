@@ -7,5 +7,5 @@ metadata:
   namespace: {{ .namespace }}
 stringData:
   values.yaml: |
-{{- toYaml .extraValues | nindent 4 }}
+{{- toYaml .initialExtraValues | nindent 4 }}
 {{- end }}
