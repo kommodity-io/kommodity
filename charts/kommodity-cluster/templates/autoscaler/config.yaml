@@ -13,7 +13,7 @@ data:
   name: {{ .Values.kommodity.clusterAutoscaler.chart.name }}
   version: {{ .Values.kommodity.clusterAutoscaler.chart.version }}
 ---
-{{- if .Values.kommodity.clusterAutoscaler.extraValues }}
+{{- if .Values.kommodity.clusterAutoscaler.initialExtraValues }}
 {{- $override := merge (dict
     "autoDiscovery" (dict
       "clusterName" .Release.Name
@@ -28,7 +28,7 @@ data:
     "clusterAPICloudConfigPath" "/etc/kubernetes/value"
   )
 }}
-{{- $extraValues := deepCopy .Values.kommodity.clusterAutoscaler.extraValues | merge $override }}
+{{- $extraValues := deepCopy .Values.kommodity.clusterAutoscaler.initialExtraValues | merge $override }}
 apiVersion: v1
 kind: Secret
 metadata:

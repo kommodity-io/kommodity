@@ -13,7 +13,7 @@ kommodity:
       repository: https://kubernetes.github.io/autoscaler
       name: cluster-autoscaler
       version: 9.52.1
-    extraValues:
+    initialExtraValues:
       fullnameOverride: "cluster-autoscaler"
       clusterScoped: true
 
@@ -61,8 +61,8 @@ kommodity:
         repository: https://helm.cilium.io/
         name: cilium
         version: 1.18.4
-      # Defined the values to be passed to the downstream Helm chart
-      extraValues:
+      # Defines the values to be passed to the downstream Helm chart at first install only, immutable after that
+      initialExtraValues:
         enabled: true
         k8sServiceHost: localhost
         k8sServicePort: 7445
@@ -150,8 +150,8 @@ kommodity:
         repository: oci://ghcr.io/argoproj/argo-helm
         name: argo-cd
         version: 9.1.2
-      # Defines the values to be passed to the downstream Helm chart
-      extraValues:
+      # Defines the values to be passed to the downstream Helm chart at first install only, immutable after that
+      initialExtraValues:
         enabled: true
         configs:
           cm:

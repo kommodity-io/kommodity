@@ -67,7 +67,7 @@ spec:
       {{- if eq $addonNamespace "kube-system" }}
       hostNetwork: true
       {{- end }}
-      {{- if .addon.extraValues }}
+      {{- if .addon.initialExtraValues }}
       volumes:
         - name: extra-values
           secret:
@@ -76,7 +76,7 @@ spec:
       containers:
         - name: {{ $addonFullName }}-install
           image: alpine/k8s:1.34.1
-          {{- if .addon.extraValues }}
+          {{- if .addon.initialExtraValues }}
           volumeMounts:
             - name: extra-values
               mountPath: /etc/{{ $addonFullName }}
