@@ -25,10 +25,8 @@ echo "🗑️  Removing cluster-related secrets..."
 kubectl delete secrets -l cluster.x-k8s.io/cluster-name="$CLUSTER_NAME"
 
 echo "🔧 Removing finalizers from ScalewayMachines..."
-for m in $(kubectl get scalewaymachine \
-  -l cluster.x-k8s.io/cluster-name="$CLUSTER_NAME" -o name); do
-  kubectl patch "$m" --type=json \
-    -p='[{"op": "remove", "path": "/metadata/finalizers"}]'
+kubectl get scalewaymachine -l cluster.x-k8s.io/cluster-name="$CLUSTER_NAME" -o name | while read -r m; do
+  kubectl patch "$m" --type=json -p='[{"op": "remove", "path": "/metadata/finalizers"}]'
 done
 
 echo "🎉 Cluster deletion workflow completed!"
