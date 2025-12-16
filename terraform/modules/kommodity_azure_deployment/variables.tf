@@ -65,7 +65,7 @@ variable "log_analytics" {
 variable "kommodity_container" {
   type = object({
     revision_mode                   = optional(string, "Single")
-    image_registry                  = optional(string, "ghcr.io/kommodity-io/kommodity/kommodity")
+    image_registry                  = optional(string, "ghcr.io/kommodity-io/kommodity")
     image_version                   = optional(string, "latest")
     port                            = optional(number, 5000)
     cpu                             = optional(number, 0.25)
