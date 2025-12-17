@@ -209,10 +209,10 @@ kommodity:
 
   nodepools:
     default:
-      # Replicas for this nodepool, default is 1, disabled if autoscaling is enabled
+      # Replicas for this nodepool, default is 1, not used if clusterAutoscaler is enabled
       replicas: 1
+      # Required if clusterAutoscaler is enabled
       autoscaling:
-        enabled: true
         minReplicas: 1
         maxReplicas: 3
       # Configurations related the specific nodepool
