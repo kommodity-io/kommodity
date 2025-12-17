@@ -10,6 +10,8 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     app.kubernetes.io/managed-by: kommodity
+  annotations:
+    helm.sh/resource-policy: keep # Prevent Helm from deleting the resource on uninstall, deletion will be handled by CAPI
 spec:
   failureDomains:
   {{- range $zone, $_ := $zones }}
