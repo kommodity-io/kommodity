@@ -1,4 +1,5 @@
 {{- range $name, $np := .Values.kommodity.nodepools }}
+---
 apiVersion: cluster.x-k8s.io/v1beta1
 kind: MachineDeployment
 metadata:
