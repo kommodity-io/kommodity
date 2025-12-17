@@ -7,7 +7,10 @@ metadata:
   namespace: {{ $.Release.Namespace }}
   labels:
     app.kubernetes.io/managed-by: kommodity
-{{- if and $.Values.kommodity.clusterAutoscaler.enabled $np.autoscaling.enabled }}
+{{- if $.Values.kommodity.clusterAutoscaler.enabled }}
+{{- if or (not (hasKey $np "autoscaling")) (not (hasKey $np.autoscaling "minReplicas")) (not (hasKey $np.autoscaling "maxReplicas")) }}
+{{- fail (printf "nodepool '%s' must have autoscaling.minReplicas and autoscaling.maxReplicas set when clusterAutoscaler is enabled" $name) -}}
+{{- end }}
   annotations:
     cluster.x-k8s.io/cluster-api-autoscaler-node-group-min-size: {{ $np.autoscaling.minReplicas | quote }}
     cluster.x-k8s.io/cluster-api-autoscaler-node-group-max-size: {{ $np.autoscaling.maxReplicas | quote }}
@@ -16,7 +19,7 @@ spec:
   clusterName: {{ $.Release.Name }}
   minReadySeconds: 0
   progressDeadlineSeconds: 600
-{{- if and $.Values.kommodity.clusterAutoscaler.enabled $np.autoscaling.enabled }}
+{{- if $.Values.kommodity.clusterAutoscaler.enabled }}
   replicas: {{ $np.autoscaling.minReplicas }}
 {{- else }}
   replicas: {{ $np.replicas | default 1 }}
