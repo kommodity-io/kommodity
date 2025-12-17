@@ -7,6 +7,7 @@ kommodity:
       enabled: false
 
   clusterAutoscaler:
+    # If enabled, each nodepool must have autoscaling.minReplicas and autoscaling.maxReplicas set
     enabled: true
     namespace: kube-system
     chart:
@@ -25,7 +26,8 @@ kommodity:
       podCIDR:
         - 10.244.0.0/16
 
-  extraSecrets: {}
+  extraSecrets:
+    {}
     # Examples of extra secrets to be created in the downstream cluster, type default to Opaque
     # my-namespace:
     #   my-string-data-secret:
@@ -208,16 +210,18 @@ kommodity:
     configPatches: []
 
   nodepools:
-    default:
-      # Replicas for this nodepool, default is 1, not used if clusterAutoscaler is enabled
-      replicas: 1
-      # Required if clusterAutoscaler is enabled
-      autoscaling:
-        minReplicas: 1
-        maxReplicas: 3
-      # Configurations related the specific nodepool
-      # Using RFC6902 JSON Patch format: https://docs.siderolabs.com/talos/v1.11/configure-your-talos-cluster/system-configuration/patching#rfc6902-json-patches
-      configPatches: []
+    {}
+    ## Example of nodepool configuration
+    # default:
+    #   # Replicas for this nodepool, default is 1, not used if clusterAutoscaler is enabled
+    #   replicas: 1
+    #   # Required if clusterAutoscaler is enabled
+    #   autoscaling:
+    #     minReplicas: 1
+    #     maxReplicas: 3
+    #   # Configurations related the specific nodepool
+    #   # Using RFC6902 JSON Patch format: https://docs.siderolabs.com/talos/v1.11/configure-your-talos-cluster/system-configuration/patching#rfc6902-json-patches
+    #   configPatches: []
 
 # Configurations related to Talos
 # Follow this documentation to generate a Talos image for Scaleway: https://www.talos.dev/v1.11/talos-guides/install/cloud-platforms/scaleway/
