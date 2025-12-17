@@ -82,7 +82,7 @@ func NewVolumeAttachmentREST(storageConfig storagebackend.Config, scheme runtime
 func ObjectNameFuncVolumeAttachment(obj runtime.Object) (string, error) {
 	volumeAttachment, ok := obj.(*storagev1.VolumeAttachment)
 	if !ok {
-		return "", storage.ErrObjectIsNotARoleBinding
+		return "", storage.ErrObjectIsNotAVolumeAttachment
 	}
 
 	return volumeAttachment.Name, nil
@@ -92,7 +92,6 @@ var _ rest.RESTCreateStrategy = volumeAttachmentStrategy{}
 var _ rest.RESTUpdateStrategy = volumeAttachmentStrategy{}
 var _ rest.NamespaceScopedStrategy = volumeAttachmentStrategy{}
 
-// NamespaceScoped is true for RoleBindings.
 func (volumeAttachmentStrategy) NamespaceScoped() bool {
 	return false
 }
@@ -109,7 +108,6 @@ func (volumeAttachmentStrategy) GetResetFields() map[fieldpath.APIVersion]*field
 	return fields
 }
 
-// AllowCreateOnUpdate is true for RoleBindings.
 func (volumeAttachmentStrategy) AllowCreateOnUpdate() bool {
 	return false
 }
@@ -171,7 +169,6 @@ func (v volumeAttachmentStrategy) ValidateUpdate(ctx context.Context, obj, old r
 func (volumeAttachmentStrategy) Canonicalize(obj runtime.Object) {
 }
 
-// AllowUnconditionalUpdate is true for Roles.
 func (volumeAttachmentStrategy) AllowUnconditionalUpdate() bool {
 	return false
 }
