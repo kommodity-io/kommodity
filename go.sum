@@ -447,8 +447,6 @@ github.com/kisielk/errcheck v1.5.0/go.mod h1:pFxgyoBC7bSaBwPgfKdkLd5X25qrDl4LWUI
 github.com/kisielk/gotool v1.0.0/go.mod h1:XhKaO+MFFWcvkIS/tQcRk01m1F5IRFswLeQ+oQHNcck=
 github.com/klauspost/compress v1.18.0 h1:c/Cqfb0r+Yi+JtIEq73FWXVkRonBlf0CRNYc8Zttxdo=
 github.com/klauspost/compress v1.18.0/go.mod h1:2Pp+KzxcywXVXMr50+X0Q/Lsb43OQHYWRCY2AiWywWQ=
-github.com/kommodity-io/cluster-api-provider-scaleway v0.1.4-0.20250923063851-b9a37ed6100d h1:0YFxyCEuEVXSWcNQGmwFOvAVqc3MPwkz5jKcIX0d5xg=
-github.com/kommodity-io/cluster-api-provider-scaleway v0.1.4-0.20250923063851-b9a37ed6100d/go.mod h1:WuHRLOeoL8LGtTUt5hDotsQuWwQzm5/wIpz8I487wZ0=
 github.com/kr/pretty v0.1.0/go.mod h1:dAy3ld7l9f0ibDNOQOHHMYYIIbhfbHSm3C4ZsoJORNo=
 github.com/kr/pretty v0.2.0/go.mod h1:ipq/a2n7PKx3OHsz4KJII5eveXtPO4qwEXGdVfWzfnI=
 github.com/kr/pretty v0.3.1 h1:flRD4NNwYAUpkphVc1HcthR4KEIFJ65n8Mw5qdRn3LE=
@@ -612,6 +610,8 @@ github.com/santhosh-tekuri/jsonschema/v5 v5.3.1 h1:lZUw3E0/J3roVtGQ+SCrUrg3ON6Ng
 github.com/santhosh-tekuri/jsonschema/v5 v5.3.1/go.mod h1:uToXkOrWAZ6/Oc07xWQrPOhJotwFIyu2bBVN41fcDUY=
 github.com/sasha-s/go-deadlock v0.3.5 h1:tNCOEEDG6tBqrNDOX35j/7hL5FcFViG6awUGROb2NsU=
 github.com/sasha-s/go-deadlock v0.3.5/go.mod h1:bugP6EGbdGYObIlx7pUZtWqlvo8k9H6vCBBsiChJQ5U=
+github.com/scaleway/cluster-api-provider-scaleway v0.1.4 h1:9nyC8aW4Z6PP+p4WhSIi4EGRkBkaUTbQM0jJZQqtNWU=
+github.com/scaleway/cluster-api-provider-scaleway v0.1.4/go.mod h1:WuHRLOeoL8LGtTUt5hDotsQuWwQzm5/wIpz8I487wZ0=
 github.com/scaleway/scaleway-sdk-go v1.0.0-beta.34.0.20250808131040-125b97d90073 h1:4muj/o8l5ONVGzmzaGgQtniCG9Zvnn3Teek28wcOMpg=
 github.com/scaleway/scaleway-sdk-go v1.0.0-beta.34.0.20250808131040-125b97d90073/go.mod h1:2Cfo14o/ZO3hZg9GjbyD/BHKbyri3K5BiEHq4fBcUHY=
 github.com/sergi/go-diff v1.2.0 h1:XU+rvMAioB0UC3q1MFrIQy4Vo5/4VsRDQQXHsEya6xQ=
@@ -1013,10 +1013,7 @@ k8s.io/component-helpers v0.32.3/go.mod h1:utTBXk8lhkJewBKNuNf32Xl3KT/0VV19DmiXU
 k8s.io/controller-manager v0.32.2 h1:/9XuHWEqofO2Aqa4l7KJGckJUcLVRWfx+qnVkdXoStI=
 k8s.io/controller-manager v0.32.2/go.mod h1:o5uo2tLCQhuoMt0RfKcQd0eqaNmSKOKiT+0YELCqXOk=
 k8s.io/gengo v0.0.0-20210813121822-485abfe95c7c/go.mod h1:FiNAH4ZV3gBg2Kwh89tzAEV2be7d5xI0vBa/VySYy3E=
-k8s.io/gengo v0.0.0-20211129171323-c02415ce4185 h1:TT1WdmqqXareKxZ/oNXEUSwKlLiHzPMyB0t8BaFeBYI=
 k8s.io/gengo v0.0.0-20211129171323-c02415ce4185/go.mod h1:FiNAH4ZV3gBg2Kwh89tzAEV2be7d5xI0vBa/VySYy3E=
-k8s.io/gengo/v2 v2.0.0-20240911193312-2b36238f13e9 h1:si3PfKm8dDYxgfbeA6orqrtLkvvIeH8UqffFJDl0bz4=
-k8s.io/gengo/v2 v2.0.0-20240911193312-2b36238f13e9/go.mod h1:EJykeLsmFC60UQbYJezXkEsG2FLrt0GPNkU5iK5GWxU=
 k8s.io/klog/v2 v2.0.0/go.mod h1:PBfzABfn139FHAV07az/IF9Wp1bkk3vpT2XSJ76fSDE=
 k8s.io/klog/v2 v2.2.0/go.mod h1:Od+F08eJP+W3HUb4pSrPpgp9DGU4GzlpG/TmITuYh/Y=
 k8s.io/klog/v2 v2.30.0/go.mod h1:y1WjHnz7Dj687irZUWR/WLkLc5N1YHtjLdmgWjndZn0=

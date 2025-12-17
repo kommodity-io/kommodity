@@ -18,6 +18,7 @@ package openapi
 //go:generate go run k8s.io/kube-openapi/cmd/openapi-gen --output-dir=./authorization --output-pkg=github.com/kommodity-io/kommodity/pkg/openapi/authorization --output-file=zz_generated.openapi.go --logtostderr k8s.io/api/authorization/v1
 //go:generate go run k8s.io/kube-openapi/cmd/openapi-gen --output-dir=./rbac --output-pkg=github.com/kommodity-io/kommodity/pkg/openapi/rbac --output-file=zz_generated.openapi.go --logtostderr k8s.io/api/rbac/v1
 //go:generate go run k8s.io/kube-openapi/cmd/openapi-gen --output-dir=./audit --output-pkg=github.com/kommodity-io/kommodity/pkg/openapi/audit --output-file=zz_generated.openapi.go --logtostderr k8s.io/apiserver/pkg/apis/audit/v1
+//go:generate go run k8s.io/kube-openapi/cmd/openapi-gen --output-dir=./storage --output-pkg=github.com/kommodity-io/kommodity/pkg/openapi/storage --output-file=zz_generated.openapi.go --logtostderr k8s.io/api/storage/v1
 
 import (
 	"fmt"
@@ -30,6 +31,7 @@ import (
 	"github.com/kommodity-io/kommodity/pkg/openapi/intstr"
 	"github.com/kommodity-io/kommodity/pkg/openapi/meta"
 	"github.com/kommodity-io/kommodity/pkg/openapi/rbac"
+	"github.com/kommodity-io/kommodity/pkg/openapi/storage"
 	"github.com/kommodity-io/kommodity/pkg/openapi/runtime"
 	"github.com/kommodity-io/kommodity/pkg/openapi/version"
 
@@ -76,6 +78,7 @@ func (o *Spec) GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]co
 		"admissionregistration": admissionregistration.GetOpenAPIDefinitions(ref),
 		"rbac":                  rbac.GetOpenAPIDefinitions(ref),
 		"audit":                 audit.GetOpenAPIDefinitions(ref),
+		"storage":               storage.GetOpenAPIDefinitions(ref),
 	}
 
 	openAPIDefinition := make(map[string]common.OpenAPIDefinition)

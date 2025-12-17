@@ -15,6 +15,7 @@ import (
 	"github.com/kommodity-io/kommodity/pkg/storage/events"
 	"github.com/kommodity-io/kommodity/pkg/storage/namespaces"
 	"github.com/kommodity-io/kommodity/pkg/storage/rbac"
+	"github.com/kommodity-io/kommodity/pkg/storage/storage"
 	"github.com/kommodity-io/kommodity/pkg/storage/secrets"
 	"github.com/kommodity-io/kommodity/pkg/storage/serviceaccount"
 	"github.com/kommodity-io/kommodity/pkg/storage/services"
@@ -24,6 +25,7 @@ import (
 	authorizationapiv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
@@ -122,6 +124,16 @@ func New(ctx context.Context, cfg *config.KommodityConfig) (*aggregatorapiserver
 	err = genericServer.InstallAPIGroup(rbacAPI)
 	if err != nil {
 		return nil, fmt.Errorf("failed to install rbac API group into the generic API server: %w", err)
+	}
+
+	storageAPI, err := setupStorageAPIGroupInfo(cfg, scheme, codecs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to setup storage API group info: %w", err)
+	}
+
+	err = genericServer.InstallAPIGroup(storageAPI)
+	if err != nil {
+		return nil, fmt.Errorf("failed to install storage API group into the generic API server: %w", err)
 	}
 
 	admissionRegistrationAPI, err := setupAdmissionRegistrationAPIGroupInfo(cfg, scheme, codecs)
@@ -331,6 +343,34 @@ func setupAdmissionRegistrationAPIGroupInfo(cfg *config.KommodityConfig,
 	apiGroupInfo.VersionedResourcesStorageMap["v1"] = map[string]rest.Storage{
 		"mutatingwebhookconfigurations":   mutatingWebhookConfigStorage,
 		"validatingwebhookconfigurations": validatingWebhookConfigStorage,
+	}
+
+	return &apiGroupInfo, nil
+}
+
+func setupStorageAPIGroupInfo(cfg *config.KommodityConfig,
+	scheme *runtime.Scheme,
+	codecs serializer.CodecFactory) (*genericapiserver.APIGroupInfo, error) {
+	apiGroupInfo := genericapiserver.NewDefaultAPIGroupInfo(
+		storagev1.GroupName,
+		scheme,
+		runtime.NewParameterCodec(scheme),
+		codecs,
+	)
+	noConv := serializer.WithoutConversionCodecFactory{CodecFactory: codecs}
+
+	kineStorageConfig, err := kine.NewKineStorageConfig(cfg, noConv.LegacyCodec(storagev1.SchemeGroupVersion))
+	if err != nil {
+		return nil, fmt.Errorf("unable to create Kine legacy storage config: %w", err)
+	}
+
+	volumeAttachmentStorage, err := storage.NewVolumeAttachmentREST(*kineStorageConfig, *scheme)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create REST storage service for storage v1 volumeattachments: %w", err)
+	}
+
+	apiGroupInfo.VersionedResourcesStorageMap["v1"] = map[string]rest.Storage{
+		"volumeattachments": volumeAttachmentStorage,
 	}
 
 	return &apiGroupInfo, nil
