@@ -40,14 +40,12 @@ kommodity:
 
   nodepools:
     default:
+      replicas: 1
       sku: PLAY2-NANO
       zone: fr-par-2 # Note: Make sure the Talos image specified below is available in this zone
       os:
         disk:
           size: 20
-      autoscaling:
-        minReplicas: 1
-        maxReplicas: 3
 
 talos:
   # Follow this documentation to generate a Talos image for Scaleway: https://docs.siderolabs.com/talos/v1.10/platform-specific-installations/cloud-platforms/scaleway
