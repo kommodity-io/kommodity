@@ -132,3 +132,11 @@ types:
     - k8s.io/apiserver/pkg/apis/audit/v1.ObjectReference
     - k8s.io/apiserver/pkg/apis/audit/v1.Event
     - k8s.io/apiserver/pkg/apis/audit/v1.EventList
+  storage:
+    - k8s.io/api/storage/v1.VolumeAttachment
+    - k8s.io/api/storage/v1.VolumeAttachmentList
+    - k8s.io/api/storage/v1.VolumeAttachmentSpec
+    - k8s.io/api/storage/v1.VolumeAttachmentSource
+    - k8s.io/api/storage/v1.VolumeAttachmentStatus
+    - k8s.io/api/storage/v1.VolumeError
+    - k8s.io/api/core/v1.PersistentVolumeSpec
