@@ -145,6 +145,10 @@ setup-kind-management-cluster:
 delete-kind-management-cluster:
 	kind delete cluster --name kind-management
 
-.PHONY: integration-test
-integration-test: 
+.PHONY: run-integration-test
+run-integration-test: 
 	go test -v ./pkg/test
+
+.PHONY: run-helm-unit-tests
+run-helm-unit-tests:
+	helm unittest charts/*

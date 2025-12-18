@@ -36,6 +36,10 @@ make setup
 make run
 # Teardown the local development setup
 make teardown
+# Run integration tests
+make integration-test
+# Run helm unit tests (requires helm unittest plugin)
+make run-helm-unit-tests
 ```
 
 ### ⚠️ Dependencies
@@ -97,7 +101,7 @@ grpcurl -plaintext localhost:8000 list
 ### Setup Kubectl for Kommodity Talos Cluster
 
 ```bash
-kubectl --kubeconfig <kommodity kubeconfig file> get secrets <cluster name>-talosconfig -ojson\ 
+kubectl --kubeconfig <kommodity kubeconfig file> get secrets <cluster name>-talosconfig -ojson\
   | jq -r '.data.talosconfig'\
   | base64 -d > talosconfig
 talosctl --talosconfig talosconfig kubeconfig -n <controlplane node ip>
@@ -171,21 +175,21 @@ grpcurl -plaintext -d "{\"data\": \"$(echo -n "$SEALED" | base64)\"}" \
 
 Several environment variables can be set to configure Kommodity:
 
-| Environment Variable                        | Description                                                    | Default Value           |
-|---------------------------------------------|----------------------------------------------------------------|-------------------------|
-| `KOMMODITY_PORT`                            | Port for the Kommodity server                                  | `5000`                  |
-| `KOMMODITY_BASE_URL`                        | Base URL for the Kommodity server                              | `http://localhost:5000` |
-| `KOMMODITY_ADMIN_GROUP`                     | Name of the admin group for privileged access                  | (none)                  |
-| `KOMMODITY_INSECURE_DISABLE_AUTHENTICATION` | Disable authentication for local development                   | `false`                 |
-| `KOMMODITY_OIDC_ISSUER_URL`                 | OIDC issuer URL for authentication                             | (none)                  |
-| `KOMMODITY_OIDC_CLIENT_ID`                  | OIDC client ID for authentication                              | (none)                  |
-| `KOMMODITY_OIDC_USERNAME_CLAIM`             | OIDC claim used for username                                   | `email`                 |
-| `KOMMODITY_OIDC_GROUPS_CLAIM`               | OIDC claim used for groups                                     | `groups`                |
-| `KOMMODITY_ATTESTATION_NONCE_TTL`           | TTL for attestation nonces (e.g., `5m`, `1h`)                  | `5m`                    |
-| `KOMMODITY_DB_URI`                          | URI of the PostgreSQL database                                 | (none)                  |
-| `KOMMODITY_DEVELOPMENT_MODE`                | Enable development mode                                        | `false`                 |
-| `KOMMODITY_INFRASTRUCTURE_PROVIDERS`        | Comma-separated list of infrastructure providers to enable     | All                     |
-| `KOMMODITY_AUDIT_POLICY_FILE_PATH`          | File path to the audit policy file                             | (none)                  |
+| Environment Variable                        | Description                                                | Default Value           |
+| ------------------------------------------- | ---------------------------------------------------------- | ----------------------- |
+| `KOMMODITY_PORT`                            | Port for the Kommodity server                              | `5000`                  |
+| `KOMMODITY_BASE_URL`                        | Base URL for the Kommodity server                          | `http://localhost:5000` |
+| `KOMMODITY_ADMIN_GROUP`                     | Name of the admin group for privileged access              | (none)                  |
+| `KOMMODITY_INSECURE_DISABLE_AUTHENTICATION` | Disable authentication for local development               | `false`                 |
+| `KOMMODITY_OIDC_ISSUER_URL`                 | OIDC issuer URL for authentication                         | (none)                  |
+| `KOMMODITY_OIDC_CLIENT_ID`                  | OIDC client ID for authentication                          | (none)                  |
+| `KOMMODITY_OIDC_USERNAME_CLAIM`             | OIDC claim used for username                               | `email`                 |
+| `KOMMODITY_OIDC_GROUPS_CLAIM`               | OIDC claim used for groups                                 | `groups`                |
+| `KOMMODITY_ATTESTATION_NONCE_TTL`           | TTL for attestation nonces (e.g., `5m`, `1h`)              | `5m`                    |
+| `KOMMODITY_DB_URI`                          | URI of the PostgreSQL database                             | (none)                  |
+| `KOMMODITY_DEVELOPMENT_MODE`                | Enable development mode                                    | `false`                 |
+| `KOMMODITY_INFRASTRUCTURE_PROVIDERS`        | Comma-separated list of infrastructure providers to enable | All                     |
+| `KOMMODITY_AUDIT_POLICY_FILE_PATH`          | File path to the audit policy file                         | (none)                  |
 
 ## 🚀 Deployment
 
