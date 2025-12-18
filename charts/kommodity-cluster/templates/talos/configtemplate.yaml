@@ -11,7 +11,11 @@ spec:
   template:
     spec:
       generateType: worker
+      {{- if and (hasKey $np "talos") (hasKey $np.talos "version") }}
+      talosVersion: {{ $np.talos.version }}
+      {{- else }}
       talosVersion: {{ include "kommodity.talosVersion" $ }}
+      {{- end }}
       {{- $hasNpConfigPatches := and $np.configPatches (gt (len $np.configPatches) 0) }}
       {{- $hasGlobalConfigPatches := and $.Values.kommodity.global.configPatches (gt (len $.Values.kommodity.global.configPatches) 0) }}
       {{- if or $hasNpConfigPatches $hasGlobalConfigPatches }}

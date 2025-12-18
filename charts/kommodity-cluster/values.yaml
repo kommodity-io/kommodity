@@ -208,6 +208,17 @@ kommodity:
     # Configurations related to the control plane nodes
     # Using RFC6902 JSON Patch format: https://docs.siderolabs.com/talos/v1.11/configure-your-talos-cluster/system-configuration/patching#rfc6902-json-patches
     configPatches: []
+    
+    # Kubernetes version can be overridden here, otherwise the top-level kubernetes.version is used
+    # This is especially useful for K8s upgrades, where it is recommended to upgrade the control plane first (https://cluster-api.sigs.k8s.io/tasks/upgrading-clusters#upgrading-using-cluster-api)
+    # kubernetes:
+    #   version: v1.33.4
+
+    # Talos version can be overridden here, otherwise the top-level talos.version is used
+    # This is especially useful for Talos upgrades, where it is recommended to not upgrade all nodes at once (https://docs.siderolabs.com/talos/v1.11/configure-your-talos-cluster/lifecycle-management/upgrading-talos)
+    # talos:
+    #   version: v1.11.3
+
 
   nodepools:
     {}
@@ -222,6 +233,12 @@ kommodity:
     #   # Configurations related the specific nodepool
     #   # Using RFC6902 JSON Patch format: https://docs.siderolabs.com/talos/v1.11/configure-your-talos-cluster/system-configuration/patching#rfc6902-json-patches
     #   configPatches: []
+    #   # Kubernetes version can be overridden here, otherwise the top-level kubernetes.version is used
+    #   kubernetes:
+    #     version: v1.33.4
+    #   # Talos version can be overridden here, otherwise the top-level talos.version is used
+    #   talos:
+    #     version: v1.11.3
 
 # Configurations related to Talos
 # Follow this documentation to generate a Talos image for Scaleway: https://www.talos.dev/v1.11/talos-guides/install/cloud-platforms/scaleway/
