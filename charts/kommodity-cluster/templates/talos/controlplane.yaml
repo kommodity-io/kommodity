@@ -61,7 +61,11 @@ metadata:
   labels:
     app.kubernetes.io/managed-by: kommodity
 spec:
+  {{- if and (hasKey .Values.kommodity.controlplane "kubernetes") (hasKey .Values.kommodity.controlplane.kubernetes "version") }}
+  version: {{ $.Values.kommodity.controlplane.kubernetes.version }}
+  {{- else }}
   version: {{ $.Values.kubernetes.version }}
+  {{- end }}
   replicas: {{ $.Values.kommodity.controlplane.replicas }}
   rolloutStrategy:
     rollingUpdate:
@@ -87,7 +91,11 @@ spec:
   controlPlaneConfig:
     controlplane:
       generateType: controlplane
+      {{- if and (hasKey $.Values.kommodity.controlplane "talos") (hasKey $.Values.kommodity.controlplane.talos "version") }}
+      talosVersion: {{ $.Values.kommodity.controlplane.talos.version }}
+      {{- else }}
       talosVersion: {{ include "kommodity.talosVersion" $ }}
+      {{- end }}
       hostname: {}
       {{- $cpPatches := $.Values.kommodity.controlplane.configPatches }}
       {{- $hasCpConfigPatches := and $cpPatches (gt (len $cpPatches) 0) }}

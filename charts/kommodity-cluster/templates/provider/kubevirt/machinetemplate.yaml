@@ -29,7 +29,11 @@ spec:
                     - ReadWriteOnce
                 source:
                   http:
+                    {{- if and (hasKey .Values.kommodity.controlplane "talos") (hasKey .Values.kommodity.controlplane.talos "imageName") }}
+                    url: {{ $.Values.kommodity.controlplane.talos.imageName }}
+                    {{- else }}
                     url: {{ $.Values.talos.imageName }}
+                    {{- end }}
           instancetype:
             name: {{ .Values.kommodity.controlplane.sku }}
             kind: VirtualMachineClusterInstancetype
@@ -80,7 +84,11 @@ spec:
                     - ReadWriteOnce
                 source:
                   http:
+                    {{- if and (hasKey .Values.kommodity.controlplane "talos") (hasKey .Values.kommodity.controlplane.talos "imageName") }}
+                    url: {{ $.Values.kommodity.controlplane.talos.imageName }}
+                    {{- else }}
                     url: {{ $.Values.talos.imageName }}
+                    {{- end }}
           instancetype: 
             name: {{ $np.sku }}
             kind: VirtualMachineClusterInstancetype
