@@ -26,7 +26,7 @@ tests:
       - matchRegex:
           path: metadata.name
           pattern: ".*-worker-.*"
-  - it: should make sure a TalosConfigTemplate is created
+  - it: should make sure a ScalewayCluster is created
     template: templates/provider/scaleway/cluster.yaml
     asserts:
       - isKind:

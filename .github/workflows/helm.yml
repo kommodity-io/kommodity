@@ -321,13 +321,16 @@ jobs:
       - name: Run helm unittest
         id: unittest
         run: |
+          set -eou pipefail
 
-          charts=$(find charts -mindepth 1 -maxdepth 1 -type d | sed 's|charts/||')
+          git fetch origin main
+          mapfile -t changed_charts < <(git diff --name-only origin/main | grep -oE '^charts/([^/]+)' | sed 's/charts\///' | sort -u)
+
 
           echo "result=success" >> "$GITHUB_OUTPUT"
           exit_code=0
 
-          for chart in "${charts[@]}"; do
+          for chart in "${changed_charts[@]}"; do
 
             set +e
             output=$(helm unittest "charts/${chart}" 2>&1)
