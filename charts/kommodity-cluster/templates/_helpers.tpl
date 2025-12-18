@@ -1,5 +1,5 @@
 {{/*
-Return the Kubernetes version, defaulting to .Chart.AppVersion if .Values.kubernetes.version is not set or empty.
+Return the Talos version, defaulting to .Chart.AppVersion if .Values.talos.version is not set or empty.
 Usage: {{ include "kommodity.talosVersion" . }}
 */}}
 {{- define "kommodity.talosVersion" -}}
