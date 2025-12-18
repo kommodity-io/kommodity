@@ -19,7 +19,9 @@ tests:
       - equal:
           path: spec.infrastructureRef.kind
           value: ScalewayCluster
-  - it: should make sure a Cluster is created
+      - hasDocuments:
+          count: 1
+  - it: should make sure a MachineDeployment is created
     template: templates/provider/capi/machinedeployment.yaml
     asserts:
       - isKind:
@@ -27,6 +29,11 @@ tests:
       - equal:
           path: spec.template.spec.infrastructureRef.kind
           value: ScalewayMachineTemplate
+      - equal:
+          path: spec.template.spec.version
+          value: "v1.33.4"
+      - hasDocuments:
+          count: 1
   - it: should make sure a TalosControlPlane is created
     template: templates/talos/controlplane.yaml
     asserts:
@@ -38,6 +45,11 @@ tests:
       - equal:
           path: spec.controlPlaneConfig.controlplane.talosVersion
           value: "v1.11.6"
+      - equal:
+          path: spec.version
+          value: "v1.11.6"
+      - hasDocuments:
+          count: 1
   - it: should make sure a TalosConfigTemplate is created
     template: templates/talos/configtemplate.yaml
     asserts:
@@ -49,11 +61,15 @@ tests:
       - equal:
           path: spec.template.spec.talosVersion
           value: "v1.11.3"
+      - hasDocuments:
+          count: 1
   - it: should make sure a ScalewayCluster is created
     template: templates/provider/scaleway/cluster.yaml
     asserts:
       - isKind:
           of: ScalewayCluster
+      - hasDocuments:
+          count: 1
   - it: should make sure a ScalewayMachineTemplate is created
     template: templates/provider/scaleway/machinetemplate.yaml
     asserts:
