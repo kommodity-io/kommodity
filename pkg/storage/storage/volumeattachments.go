@@ -29,7 +29,8 @@ type REST struct {
 }
 
 // volumeAttachmentStrategy implements RESTCreateStrategy and RESTUpdateStrategy
-// Heavily inspired by: https://github.com/kubernetes/kubernetes/blob/master/pkg/registry/storage/volumeattachment/strategy.go
+// Heavily inspired by:
+// https://github.com/kubernetes/kubernetes/blob/master/pkg/registry/storage/volumeattachment/strategy.go
 type volumeAttachmentStrategy struct {
 	runtime.ObjectTyper
 	names.NameGenerator
@@ -37,12 +38,11 @@ type volumeAttachmentStrategy struct {
 
 // Strategy is the default logic that applies when creating and updating
 // VolumeAttachment objects via the REST API.
+//nolint:gochecknoglobals // Strategy is intended to be global.
 var Strategy = volumeAttachmentStrategy{legacyscheme.Scheme, names.SimpleNameGenerator}
 
 // NewVolumeAttachmentREST creates a REST interface for storagev1 VolumeAttachment resource.
-//
-//nolint:dupl // Similar to pkg/storage/rbac/roles.go::NewRoleREST but not identical.
-func NewVolumeAttachmentREST(storageConfig storagebackend.Config, scheme runtime.Scheme) (rest.Storage, error) {
+func NewVolumeAttachmentREST(storageConfig storagebackend.Config, _ runtime.Scheme) (rest.Storage, error) {
 	store, _, err := factory.Create(
 		*storageConfig.ForResource(corev1.Resource(volumeAttachmentResource)),
 		func() runtime.Object { return &storagev1.VolumeAttachment{} },
@@ -113,31 +113,39 @@ func (volumeAttachmentStrategy) AllowCreateOnUpdate() bool {
 }
 
 // WarningsOnCreate returns warnings for the creation of the given object.
-func (volumeAttachmentStrategy) WarningsOnCreate(ctx context.Context, obj runtime.Object) []string {
+func (volumeAttachmentStrategy) WarningsOnCreate(_ context.Context, _ runtime.Object) []string {
 	return nil
 }
 
 // PrepareForCreate clears fields that are not allowed to be set by end users on creation.
-func (volumeAttachmentStrategy) PrepareForCreate(ctx context.Context, obj runtime.Object) {
-	volumeAttachment := obj.(*storagev1.VolumeAttachment)
+func (volumeAttachmentStrategy) PrepareForCreate(_ context.Context, obj runtime.Object) {
+	volumeAttachment, ok := obj.(*storagev1.VolumeAttachment)
+	if !ok {
+		return
+	}
+
 	volumeAttachment.Status = storagev1.VolumeAttachmentStatus{}
 }
 
 // WarningsOnUpdate returns warnings for the given update.
-func (volumeAttachmentStrategy) WarningsOnUpdate(ctx context.Context, obj, old runtime.Object) []string {
+func (volumeAttachmentStrategy) WarningsOnUpdate(_ context.Context, _ runtime.Object, _ runtime.Object) []string {
 	return nil
 }
 
-// PrepareForUpdate sets the Status fields which is not allowed to be set by an end user updating a VolumeAttachment
-func (volumeAttachmentStrategy) PrepareForUpdate(ctx context.Context, obj, old runtime.Object) {
-	newVolumeAttachment := obj.(*storagev1.VolumeAttachment)
-	oldVolumeAttachment := old.(*storagev1.VolumeAttachment)
+// PrepareForUpdate sets the Status fields which is not allowed to be set by an end user updating a VolumeAttachment.
+func (volumeAttachmentStrategy) PrepareForUpdate(_ context.Context, obj, old runtime.Object) {
+	newVolumeAttachment, okNew := obj.(*storagev1.VolumeAttachment)
+
+	oldVolumeAttachment, okOld := old.(*storagev1.VolumeAttachment)
+	if !okNew || !okOld {
+		return
+	}
 
 	newVolumeAttachment.Status = oldVolumeAttachment.Status
 	// No need to increment Generation because we don't allow updates to spec
 }
 
-func (volumeAttachmentStrategy) Validate(ctx context.Context, obj runtime.Object) field.ErrorList {
+func (volumeAttachmentStrategy) Validate(_ context.Context, obj runtime.Object) field.ErrorList {
 	obj, ok := obj.(*storagev1.VolumeAttachment)
 	if !ok {
 		return field.ErrorList{field.Invalid(
@@ -149,8 +157,14 @@ func (volumeAttachmentStrategy) Validate(ctx context.Context, obj runtime.Object
 }
 
 func (v volumeAttachmentStrategy) ValidateUpdate(ctx context.Context, obj, old runtime.Object) field.ErrorList {
-	newVolumeAttachmentObj := obj.(*storagev1.VolumeAttachment)
-	oldVolumeAttachmentObj := old.(*storagev1.VolumeAttachment)
+	newVolumeAttachmentObj, okNew := obj.(*storagev1.VolumeAttachment)
+
+	oldVolumeAttachmentObj, okOld := old.(*storagev1.VolumeAttachment)
+	if !okNew || !okOld {
+		return field.ErrorList{field.Invalid(
+			field.NewPath("object"), obj,
+			storage.ErrObjectIsNotAVolumeAttachment.Error())}
+	}
 
 	err := v.Validate(ctx, newVolumeAttachmentObj)
 	if err != nil {
@@ -166,20 +180,21 @@ func (v volumeAttachmentStrategy) ValidateUpdate(ctx context.Context, obj, old r
 }
 
 // Canonicalize normalizes the object after validation.
-func (volumeAttachmentStrategy) Canonicalize(obj runtime.Object) {
+func (volumeAttachmentStrategy) Canonicalize(_ runtime.Object) {
 }
 
 func (volumeAttachmentStrategy) AllowUnconditionalUpdate() bool {
 	return false
 }
 
-// volumeAttachmentStatusStrategy implements behavior for VolumeAttachmentStatus subresource
+// volumeAttachmentStatusStrategy implements behavior for VolumeAttachmentStatus subresource.
 type volumeAttachmentStatusStrategy struct {
 	volumeAttachmentStrategy
 }
 
 // StatusStrategy is the default logic that applies when creating and updating
 // VolumeAttachmentStatus subresource via the REST API.
+//nolint:gochecknoglobals // Strategy is intended to be global.
 var StatusStrategy = volumeAttachmentStatusStrategy{Strategy}
 
 // GetResetFields returns the set of fields that get reset by the strategy
@@ -195,10 +210,14 @@ func (volumeAttachmentStatusStrategy) GetResetFields() map[fieldpath.APIVersion]
 	return fields
 }
 
-// PrepareForUpdate sets the Status fields which is not allowed to be set by an end user updating a VolumeAttachment
-func (volumeAttachmentStatusStrategy) PrepareForUpdate(ctx context.Context, obj, old runtime.Object) {
-	newVolumeAttachment := obj.(*storagev1.VolumeAttachment)
-	oldVolumeAttachment := old.(*storagev1.VolumeAttachment)
+// PrepareForUpdate sets the Status fields which is not allowed to be set by an end user updating a VolumeAttachment.
+func (volumeAttachmentStatusStrategy) PrepareForUpdate(_ context.Context, obj, old runtime.Object) {
+	newVolumeAttachment, okNew := obj.(*storagev1.VolumeAttachment)
+	oldVolumeAttachment, okOld := old.(*storagev1.VolumeAttachment)
+
+	if !okNew || !okOld {
+		return
+	}
 
 	newVolumeAttachment.Spec = oldVolumeAttachment.Spec
 	metav1.ResetObjectMetaForStatus(&newVolumeAttachment.ObjectMeta, &oldVolumeAttachment.ObjectMeta)
