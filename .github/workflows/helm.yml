@@ -12,8 +12,8 @@ on:
       - main
 
 jobs:
-  check-charts:
-    name: Check charts
+  diff-charts:
+    name: Generate diff of charts
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     permissions:
@@ -351,150 +351,12 @@ jobs:
 
           exit $exit_code
 
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: test-results
-          path: test-results/
-          retention-days: 7
-
-  publish-test-results:
-    name: Publish test results
-    runs-on: ubuntu-latest
-    needs: unit-tests
-    # Run after chart-diff to avoid PR comment race conditions
-    if: always() && github.event_name == 'pull_request' && !cancelled()
-    steps:
-      - name: Download all test results
-        uses: actions/download-artifact@v4
-        with:
-          pattern: test-results
-          path: all-results
-          merge-multiple: true
-
-      - name: Aggregate test results
-        id: aggregate
-        run: |
-          set -eou pipefail
-
-          MAX_COMMENT_SIZE=65000
-          comment_body=""
-          has_failures="false"
-
-          # Process each test result file
-          for result_file in all-results/*.txt; do
-            if [[ ! -f "$result_file" ]]; then
-              continue
-            fi
-
-            chart_name=$(basename "$result_file" .txt)
-            test_output=$(cat "$result_file")
-
-            # Check if tests failed
-            if echo "$test_output" | grep -q "FAIL"; then
-              status_icon="❌"
-              has_failures="true"
-            else
-              status_icon="✅"
-            fi
-
-            # Build the comment section for this chart
-            chart_section="### ${status_icon} \`${chart_name}\`
-
-          <details>
-          <summary>Test output</summary>
-
-          \`\`\`
-          ${test_output}
-          \`\`\`
-
-          </details>
-
-          "
-            comment_body+="$chart_section"
-          done
-
-          # Check if comment body exceeds max size
-          comment_length=${#comment_body}
-          if [[ $comment_length -gt $MAX_COMMENT_SIZE ]]; then
-            echo "output_too_large=true" >> "$GITHUB_OUTPUT"
-            # Create a truncated version for the comment
-            truncated_body="⚠️ **Test output exceeds GitHub comment size limit.**
-
-          The full test results have been uploaded as an artifact. Please download the \`test-results-combined\` artifact to view the complete output.
-
-          **Summary:**
-          "
-            # Add just the summary (chart names and status)
-            for result_file in all-results/*.txt; do
-              if [[ ! -f "$result_file" ]]; then
-                continue
-              fi
-              chart_name=$(basename "$result_file" .txt)
-              test_output=$(cat "$result_file")
-              if echo "$test_output" | grep -q "FAIL"; then
-                truncated_body+="- ❌ \`${chart_name}\`: Failed
-          "
-              else
-                truncated_body+="- ✅ \`${chart_name}\`: Passed
-          "
-              fi
-            done
-
-            {
-              echo 'comment<<EOF'
-              echo "$truncated_body"
-              echo 'EOF'
-            } >> "$GITHUB_OUTPUT"
-          else
-            echo "output_too_large=false" >> "$GITHUB_OUTPUT"
-            {
-              echo 'comment<<EOF'
-              echo "$comment_body"
-              echo 'EOF'
-            } >> "$GITHUB_OUTPUT"
-          fi
-
-          echo "has_failures=$has_failures" >> "$GITHUB_OUTPUT"
-
-          # Save full output for artifact
-          echo "$comment_body" > combined-results.md
-
-      - name: Upload combined results
-        uses: actions/upload-artifact@v4
-        if: steps.aggregate.outputs.output_too_large == 'true'
-        with:
-          name: test-results-combined
-          path: combined-results.md
-          retention-days: 7
-
-      - name: Find test comment
-        uses: peter-evans/find-comment@v4
-        id: find-diff
-        with:
-          issue-number: ${{ github.event.pull_request.number }}
-          comment-author: "github-actions[bot]"
-          body-includes: "Helm Unit Test Results"
-
-      - name: Publish test results
-        uses: peter-evans/create-or-update-comment@v5
-        with:
-          comment-id: ${{ steps.find-diff.outputs.comment-id }}
-          issue-number: ${{ github.event.pull_request.number }}
-          body: |
-            ## 🧪 Helm Unit Test Results
-
-            ${{ steps.aggregate.outputs.comment }}
-          edit-mode: replace
-
   publish-charts:
     name: Publish charts
     runs-on: ubuntu-latest
     needs:
-      - check-charts
+      - diff-charts
       - unit-tests
-      - publish-test-results
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
       packages: write
