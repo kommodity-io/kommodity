@@ -10,7 +10,6 @@ on:
   pull_request:
     branches:
       - main
-  workflow_dispatch:
 
 jobs:
   check-charts:
@@ -20,6 +19,7 @@ jobs:
     permissions:
       pull-requests: write
       issues: write
+      contents: write
     steps:
       - name: Checkout PR
         uses: actions/checkout@v5
