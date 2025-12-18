@@ -18,7 +18,7 @@ kommodity:
       # type: Opaque
       name: scaleway-secret
     config:
-      projectID: a76e6396-6a8e-4406-a1dc-ad4024c60295
+      projectID: <YOUR_PROJECT_ID_HERE>
 
     cloudControllerManager:
       enabled: true
@@ -40,7 +40,6 @@ kommodity:
 
   nodepools:
     default:
-      replicas: 1
       sku: PLAY2-NANO
       zone: fr-par-2 # Note: Make sure the Talos image specified below is available in this zone
       os:
