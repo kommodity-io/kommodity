@@ -18,8 +18,8 @@ kommodity:
       # type: Opaque
       name: scaleway-secret
     config:
-      projectID: <YOUR_PROJECT_ID_HERE>
-    
+      projectID: a76e6396-6a8e-4406-a1dc-ad4024c60295
+
     cloudControllerManager:
       enabled: true
       manifest: https://raw.githubusercontent.com/scaleway/scaleway-cloud-controller-manager/master/examples/k8s-scaleway-ccm-latest.yml
@@ -46,6 +46,9 @@ kommodity:
       os:
         disk:
           size: 20
+      autoscaling:
+        minReplicas: 1
+        maxReplicas: 3
 
 talos:
   # Follow this documentation to generate a Talos image for Scaleway: https://docs.siderolabs.com/talos/v1.10/platform-specific-installations/cloud-platforms/scaleway

@@ -1,0 +1,40 @@
+suite: test creation of resources for Scaleway cluster  
+values:
+  - ../values.yaml
+  - ../values.scaleway.yaml
+release:
+  name: test-cluster
+  namespace: default
+set:
+  image.pullPolicy: Always
+templates:
+  - templates/*
+tests:
+  - it: should make sure a TalosControlPlane is created
+    template: templates/talos/controlplane.yaml
+    asserts:
+      - isKind:
+          of: TalosControlPlane
+      - equal:
+          path: spec.infrastructureTemplate.kind
+          value: ScalewayMachineTemplate
+  - it: should make sure a TalosConfigTemplate is created
+    template: templates/talos/configtemplate.yaml
+    asserts:
+      - isKind:
+          of: TalosConfigTemplate
+      - matchRegex:
+          path: metadata.name
+          pattern: ".*-worker-.*"
+  - it: should make sure a TalosConfigTemplate is created
+    template: templates/provider/scaleway/cluster.yaml
+    asserts:
+      - isKind:
+          of: ScalewayCluster
+  - it: should make sure a ScalewayMachineTemplate is created
+    template: templates/provider/scaleway/machinetemplate.yaml
+    asserts:
+      - isKind:
+          of: ScalewayMachineTemplate
+      - hasDocuments:
+          count: 2
