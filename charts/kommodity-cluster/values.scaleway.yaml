@@ -1,4 +1,4 @@
-# Default values for kommodity-cluster in Scaleway.
+# Example of values to create a cluster in Scaleway.
 kommodity:
   provider:
     name: Scaleway
