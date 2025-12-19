@@ -66,6 +66,7 @@ func enhanceScheme(scheme *runtime.Scheme) error {
 		{"eventsv1.AddToScheme", eventsv1.AddToScheme},
 		{"metav1.AddMetaToScheme", metav1.AddMetaToScheme},
 		{"rbacv1.AddToScheme", rbacv1.AddToScheme},
+		{"storagev1.AddToScheme", storageapiv1.AddToScheme},
 	}
 
 	for _, add := range addFuncs {
@@ -120,6 +121,10 @@ func mapInternalAliases(scheme *runtime.Scheme) {
 
 	add("RoleList", gvRbacInternal, &rbacv1.RoleList{})
 	add("RoleBindingList", gvRbacInternal, &rbacv1.RoleBindingList{})
+
+	gvStorageInternal := schema.GroupVersion{Group: "storage.k8s.io", Version: runtime.APIVersionInternal}
+	add("VolumeAttachment", gvStorageInternal, &storageapiv1.VolumeAttachment{})
+	add("VolumeAttachmentList", gvStorageInternal, &storageapiv1.VolumeAttachmentList{})
 }
 
 func setupSecureServingWithSelfSigned(cfg *config.KommodityConfig) (*options.SecureServingOptions, error) {

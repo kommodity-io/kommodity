@@ -35,6 +35,8 @@ var (
 	ErrObjectIsNotARole = errors.New("object is not a Role")
 	// ErrObjectIsNotARoleBinding indicates that the object is not a RoleBinding.
 	ErrObjectIsNotARoleBinding = errors.New("object is not a RoleBinding")
+	// ErrObjectIsNotAVolumeAttachment indicates that the object is not a VolumeAttachment.
+	ErrObjectIsNotAVolumeAttachment = errors.New("object is not a VolumeAttachment")
 	// ErrFieldIsNull indicates that the field is null.
 	ErrFieldIsNull = errors.New("field must not be null")
 )
