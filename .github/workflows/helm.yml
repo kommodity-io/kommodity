@@ -10,11 +10,10 @@ on:
   pull_request:
     branches:
       - main
-  workflow_dispatch:
 
 jobs:
-  check_charts:
-    name: Check charts
+  diff-charts:
+    name: Generate diff of charts
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     permissions:
@@ -305,9 +304,59 @@ jobs:
         if: steps.lint.outputs.result != '0'
         run: exit 1
 
-  publish_charts:
+  unit-tests:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+
+      - name: Install helm-unittest plugin
+        run: helm plugin install https://github.com/helm-unittest/helm-unittest.git --verify=false --version 1.0.3
+
+      - name: Run helm unittest
+        id: unittest
+        run: |
+          set -eou pipefail
+
+          git fetch origin main
+          mapfile -t changed_charts < <(git diff --name-only origin/main | grep -oE '^charts/([^/]+)' | sed 's/charts\///' | sort -u)
+
+
+          echo "result=success" >> "$GITHUB_OUTPUT"
+          exit_code=0
+
+          for chart in "${changed_charts[@]}"; do
+
+            set +e
+            output=$(helm unittest "charts/${chart}" 2>&1)
+            last_exit_code=$?
+            set -e
+
+            echo "$output"
+
+            # Save output to file for artifact upload
+            mkdir -p test-results
+            echo "$output" > "test-results/${chart}.txt"
+
+            # Determine result status
+            if [[ $last_exit_code -ne 0 ]]; then
+              echo "result=failure" >> "$GITHUB_OUTPUT"
+              exit_code=$last_exit_code
+            fi
+          done
+
+          exit $exit_code
+
+  publish-charts:
     name: Publish charts
     runs-on: ubuntu-latest
+    needs:
+      - diff-charts
+      - unit-tests
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
       packages: write

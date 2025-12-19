@@ -1,0 +1,91 @@
+suite: test creation of resources for Scaleway cluster
+values:
+  - ../values.scaleway.yaml
+release:
+  name: test-cluster
+  namespace: default
+set:
+  kommodity.controlplane.talos.version: "v1.11.6"
+  kommodity.controlplane.talos.imageName: "talos-base-v1.11.6"
+  kommodity.controlplane.kubernetes.version: "v1.11.6"
+templates:
+  - templates/*
+tests:
+  - it: should make sure a Cluster is created
+    template: templates/provider/capi/cluster.yaml
+    asserts:
+      - isKind:
+          of: Cluster
+      - equal:
+          path: spec.infrastructureRef.kind
+          value: ScalewayCluster
+      - hasDocuments:
+          count: 1
+  - it: should make sure a MachineDeployment is created
+    template: templates/provider/capi/machinedeployment.yaml
+    asserts:
+      - isKind:
+          of: MachineDeployment
+      - equal:
+          path: spec.template.spec.infrastructureRef.kind
+          value: ScalewayMachineTemplate
+      - equal:
+          path: spec.template.spec.version
+          value: "v1.33.4"
+      - hasDocuments:
+          count: 1
+  - it: should make sure a TalosControlPlane is created
+    template: templates/talos/controlplane.yaml
+    asserts:
+      - isKind:
+          of: TalosControlPlane
+      - equal:
+          path: spec.infrastructureTemplate.kind
+          value: ScalewayMachineTemplate
+      - equal:
+          path: spec.controlPlaneConfig.controlplane.talosVersion
+          value: "v1.11.6"
+      - equal:
+          path: spec.version
+          value: "v1.11.6"
+      - hasDocuments:
+          count: 1
+  - it: should make sure a TalosConfigTemplate is created
+    template: templates/talos/configtemplate.yaml
+    asserts:
+      - isKind:
+          of: TalosConfigTemplate
+      - matchRegex:
+          path: metadata.name
+          pattern: ".*-worker-.*"
+      - equal:
+          path: spec.template.spec.talosVersion
+          value: "v1.11.3"
+      - hasDocuments:
+          count: 1
+  - it: should make sure a ScalewayCluster is created
+    template: templates/provider/scaleway/cluster.yaml
+    asserts:
+      - isKind:
+          of: ScalewayCluster
+      - hasDocuments:
+          count: 1
+  - it: should make sure a ScalewayMachineTemplate is created
+    template: templates/provider/scaleway/machinetemplate.yaml
+    asserts:
+      - isKind:
+          of: ScalewayMachineTemplate
+      - hasDocuments:
+          count: 2
+      - equal:
+          path: spec.template.spec.image.name
+          value: talos-base-v1.11.6
+        documentSelector:
+          path: metadata.name
+          value: test-cluster-controlplane
+      - equal:
+          path: spec.template.spec.image.name
+          value: talos-base-v1.11.3
+        documentSelector:
+          path: metadata.name
+          value: test-cluster-worker-default

@@ -1,4 +1,4 @@
-# Default values for kommodity-cluster in Scaleway.
+# Example of values to create a cluster in Scaleway.
 kommodity:
   provider:
     name: Scaleway
@@ -19,7 +19,7 @@ kommodity:
       name: scaleway-secret
     config:
       projectID: <YOUR_PROJECT_ID_HERE>
-    
+
     cloudControllerManager:
       enabled: true
       manifest: https://raw.githubusercontent.com/scaleway/scaleway-cloud-controller-manager/master/examples/k8s-scaleway-ccm-latest.yml
