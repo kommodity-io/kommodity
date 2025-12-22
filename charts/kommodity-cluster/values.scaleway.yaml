@@ -24,6 +24,14 @@ kommodity:
       enabled: true
       manifest: https://raw.githubusercontent.com/scaleway/scaleway-cloud-controller-manager/master/examples/k8s-scaleway-ccm-latest.yml
 
+  global:
+    configPatches:
+      # Required when using a Cloud Controller Manager (https://kubernetes.io/docs/tasks/administer-cluster/running-cloud-controller/#running-cloud-controller-manager)
+      - op: add
+        path: /machine/kubelet/extraArgs
+        value:
+          cloud-provider: external
+
   network:
     ipv4:
       enabled: true
