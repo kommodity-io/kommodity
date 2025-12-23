@@ -24,7 +24,7 @@ spec:
                 pvc:
                   resources:
                     requests:
-                      storage: 20Gi
+                      storage: {{ .Values.kommodity.controlplane.os.disk.size }}
                   accessModes:
                     - ReadWriteOnce
                   {{- if hasKey .Values.kommodity.provider.config "storageClassName" }}
@@ -82,7 +82,7 @@ spec:
                 pvc:
                   resources:
                     requests:
-                      storage: 20Gi
+                      storage: {{ $np.os.disk.size }}
                   accessModes:
                     - ReadWriteOnce
                   {{- if hasKey $.Values.kommodity.provider.config "storageClassName" }}

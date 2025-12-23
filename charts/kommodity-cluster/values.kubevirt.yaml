@@ -28,11 +28,17 @@ kommodity:
   controlplane:
     replicas: 2
     sku: s1.medium
+    os:
+      disk:
+        size: 20Gi
 
   nodepools:
     default:
       replicas: 1
       sku: s1.medium
+      os:
+        disk:
+          size: 20Gi
 
       # Optional: specify GPU resources
       # gpus:
