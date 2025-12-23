@@ -34,7 +34,7 @@ tests:
           value: KubevirtMachineTemplate
       - equal:
           path: spec.template.spec.version
-          value: global-kubernetes-version
+          value: "global-kubernetes-version"
       - hasDocuments:
           count: 1
   - it: should make sure a TalosControlPlane is created
@@ -82,13 +82,13 @@ tests:
           count: 2
       - equal:
           path: spec.template.spec.virtualMachineTemplate.spec.dataVolumeTemplates[0].spec.source.http.url
-          value: controlplane-talos-image
+          value: "controlplane-talos-image"
         documentSelector:
           path: metadata.name
           value: test-cluster-controlplane
       - equal:
           path: spec.template.spec.virtualMachineTemplate.spec.dataVolumeTemplates[0].spec.source.http.url
-          value: global-talos-image
+          value: "global-talos-image"
         documentSelector:
           path: metadata.name
           value: test-cluster-worker-default
