@@ -1,6 +1,6 @@
-suite: test creation of resources for Scaleway cluster
+suite: test creation of resources for Kubevirt cluster
 values:
-  - ../values.scaleway.yaml
+  - ../values.kubevirt.yaml
 release:
   name: test-cluster
   namespace: default
@@ -21,7 +21,7 @@ tests:
           of: Cluster
       - equal:
           path: spec.infrastructureRef.kind
-          value: ScalewayCluster
+          value: KubevirtCluster
       - hasDocuments:
           count: 1
   - it: should make sure a MachineDeployment is created
@@ -31,10 +31,10 @@ tests:
           of: MachineDeployment
       - equal:
           path: spec.template.spec.infrastructureRef.kind
-          value: ScalewayMachineTemplate
+          value: KubevirtMachineTemplate
       - equal:
           path: spec.template.spec.version
-          value: "global-kubernetes-version"
+          value: global-kubernetes-version
       - hasDocuments:
           count: 1
   - it: should make sure a TalosControlPlane is created
@@ -44,7 +44,7 @@ tests:
           of: TalosControlPlane
       - equal:
           path: spec.infrastructureTemplate.kind
-          value: ScalewayMachineTemplate
+          value: KubevirtMachineTemplate
       - equal:
           path: spec.controlPlaneConfig.controlplane.talosVersion
           value: "controlplane-talos-version"
@@ -66,29 +66,29 @@ tests:
           value: "global-talos-version"
       - hasDocuments:
           count: 1
-  - it: should make sure a ScalewayCluster is created
-    template: templates/provider/scaleway/cluster.yaml
+  - it: should make sure a KubevirtCluster is created
+    template: templates/provider/kubevirt/cluster.yaml
     asserts:
       - isKind:
-          of: ScalewayCluster
+          of: KubevirtCluster
       - hasDocuments:
           count: 1
-  - it: should make sure a ScalewayMachineTemplate is created
-    template: templates/provider/scaleway/machinetemplate.yaml
+  - it: should make sure a KubevirtMachineTemplate is created
+    template: templates/provider/kubevirt/machinetemplate.yaml
     asserts:
       - isKind:
-          of: ScalewayMachineTemplate
+          of: KubevirtMachineTemplate
       - hasDocuments:
           count: 2
       - equal:
-          path: spec.template.spec.image.name
-          value: "controlplane-talos-image"
+          path: spec.template.spec.virtualMachineTemplate.spec.dataVolumeTemplates[0].spec.source.http.url
+          value: controlplane-talos-image
         documentSelector:
           path: metadata.name
           value: test-cluster-controlplane
       - equal:
-          path: spec.template.spec.image.name
-          value: "global-talos-image"
+          path: spec.template.spec.virtualMachineTemplate.spec.dataVolumeTemplates[0].spec.source.http.url
+          value: global-talos-image
         documentSelector:
           path: metadata.name
           value: test-cluster-worker-default

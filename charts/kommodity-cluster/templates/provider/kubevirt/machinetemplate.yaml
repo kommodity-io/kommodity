@@ -84,8 +84,8 @@ spec:
                     - ReadWriteOnce
                 source:
                   http:
-                    {{- if and (hasKey .Values.kommodity.controlplane "talos") (hasKey .Values.kommodity.controlplane.talos "imageName") }}
-                    url: {{ $.Values.kommodity.controlplane.talos.imageName }}
+                    {{- if and (hasKey $np "talos") (hasKey $np.talos "imageName") }}
+                    url: {{ $np.talos.imageName }}
                     {{- else }}
                     url: {{ $.Values.talos.imageName }}
                     {{- end }}
