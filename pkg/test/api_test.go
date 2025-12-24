@@ -17,10 +17,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
-	"k8s.io/client-go/dynamic"
 )
 
 //nolint:gochecknoglobals // Test environment needs to be reused by all tests.
@@ -42,7 +39,7 @@ func TestMain(m *testing.M) {
 func TestAPIIntegration(t *testing.T) {
 	t.Parallel()
 
-	client, err := helpers.KommodityClient(env.KommodityCfg)
+	client, err := helpers.K8sClientFromRestConfig(env.KommodityCfg)
 	require.NoError(t, err)
 	groups, err := client.Discovery().ServerGroups()
 	require.NoError(t, err)
@@ -62,7 +59,7 @@ func TestAPIIntegration(t *testing.T) {
 func TestCreateKubevirtCluster(t *testing.T) {
 	t.Parallel()
 
-	client, err := helpers.KommodityClient(env.KommodityCfg)
+	client, err := helpers.K8sClientFromRestConfig(env.KommodityCfg)
 	require.NoError(t, err)
 	ctx := context.Background()
 
@@ -101,7 +98,22 @@ func TestCreateKubevirtCluster(t *testing.T) {
 	installKommodityClusterChart(t, "kubevirt-cluster", "default")
 
 	// Check that CAPI resources are created in Kommodity
-	waitForResource(t, "default", "cluster.x-k8s.io", "v1beta1", "machines", 2*time.Minute)
+	err = helpers.WaitForResource(env.KommodityCfg, "default", "cluster.x-k8s.io", "v1beta1", "machines", 2*time.Minute)
+	require.NoError(t, err)
+
+	// Check that Kubevirt resources are created in K3s
+	// Convert k3s kubeconfig to rest.Config
+	k3sCfg, err := helpers.RestConfigFromKubeConfig(env.K3sKubeconfig)
+	require.NoError(t, err)
+
+	k3sClient, err := helpers.K8sClientFromRestConfig(k3sCfg)
+	require.NoError(t, err)
+
+	_, err = k3sClient.CoreV1().Namespaces().Get(ctx, "kubevirt-cluster-namespace", metav1.GetOptions{})
+	require.NoError(t, err)
+
+	err = helpers.WaitForResource(k3sCfg, "kubevirt-cluster-namespace", "kubevirt.io", "v1", "virtualmachines", 2*time.Minute)
+	require.NoError(t, err)
 }
 
 func installKommodityClusterChart(t *testing.T, releaseName string, namespace string) {
@@ -132,30 +144,5 @@ func installKommodityClusterChart(t *testing.T, releaseName string, namespace st
 	installer.Wait = false
 
 	_, err = installer.Run(chart, values)
-	require.NoError(t, err)
-}
-
-func waitForResource(t *testing.T, namespace string, group string, version string, resource string, timeout time.Duration) {
-	t.Helper()
-
-	client, err := dynamic.NewForConfig(env.KommodityCfg)
-	require.NoError(t, err)
-
-	gvr := schema.GroupVersionResource{
-		Group:    group,
-		Version:  version,
-		Resource: resource,
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
-	err = wait.PollUntilContextTimeout(ctx, 2*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
-		list, err := client.Resource(gvr).Namespace(namespace).List(ctx, metav1.ListOptions{})
-		if err != nil {
-			return false, err
-		}
-		return len(list.Items) > 0, nil
-	})
 	require.NoError(t, err)
 }
