@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	tc "github.com/testcontainers/testcontainers-go"
@@ -163,12 +164,15 @@ func startK3sContainer(ctx context.Context, net *tc.DockerNetwork) (*k3s.K3sCont
 		panic(err)
 	}
 
+	// print(fmt.Sprintf("K3s kubeconfig:\n%s\n", string(kubeconfig)))
+
 	k3sCfg, err := RestConfigFromKubeConfig(kubeconfig)
 	if err != nil {
 		panic(err)
 	}
 
-	err = WaitForResource(k3sCfg, "kubevirt", "kubevirt.io", "v1", "kubevirts", 2*time.Minute)
+	// Wait for Kubevirt to be ready (status.phase=Deployed)
+	err = WaitForResource(k3sCfg, "kubevirt", "kubevirt", "kubevirt.io", "v1", "kubevirts", 2*time.Minute)
 	if err != nil {
 		panic(err)
 	}
@@ -222,7 +226,7 @@ func RepoRoot() string {
 	return findRepoRoot()
 }
 
-// K8sClientFromRestConfig builds a Kubernetes client from the Kommodity REST config.
+// K8sClientFromRestConfig builds a Kubernetes client from a REST config.
 func K8sClientFromRestConfig(cfg *rest.Config) (*kubernetes.Clientset, error) {
 	return kubernetes.NewForConfig(cfg)
 }
@@ -239,7 +243,7 @@ func (e TestEnvironment) Teardown() {
 	_ = e.Network.Remove(ctx)
 }
 
-func WaitForResource(config *rest.Config, namespace string, group string, version string, kind string, timeout time.Duration) error {
+func WaitForResource(config *rest.Config, namespace string, nameContains string, group string, version string, kind string, timeout time.Duration) error {
 	client, err := dynamic.NewForConfig(config)
 	if err != nil {
 		return fmt.Errorf("failed to create dynamic client: %v", err)
@@ -255,18 +259,23 @@ func WaitForResource(config *rest.Config, namespace string, group string, versio
 	defer cancel()
 
 	err = k8s_wait.PollUntilContextTimeout(ctx, 5*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
-		println(fmt.Sprintf("Waiting for resource %s/%s/%s in namespace %s", group, version, kind, namespace))
+		println(fmt.Sprintf("Waiting for resource %s/%s/%s in namespace %s (name contains: %q)", group, version, kind, namespace, nameContains))
 		list, err := client.Resource(gvr).Namespace(namespace).List(ctx, metav1.ListOptions{})
 		if err != nil {
 			return false, err
 		}
-		return len(list.Items) > 0, nil
+		for _, item := range list.Items {
+			if nameContains == "" || strings.Contains(item.GetName(), nameContains) {
+				return true, nil
+			}
+		}
+		return false, nil
 	})
 	if err != nil {
-		return fmt.Errorf("resource %s/%s/%s not found in namespace %s within timeout: %v", group, version, kind, namespace, err)
+		return fmt.Errorf("resource %s/%s/%s not found in namespace %s within timeout (name contains: %q): %v", group, version, kind, namespace, nameContains, err)
 	}
 
-	println(fmt.Sprintf("Resource %s/%s/%s found in namespace %s", group, version, kind, namespace))
+	println(fmt.Sprintf("Resource %s/%s/%s found in namespace %s (name contains: %q)", group, version, kind, namespace, nameContains))
 	return nil
 }
 
