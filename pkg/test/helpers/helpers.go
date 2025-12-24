@@ -31,7 +31,7 @@ const (
 type TestEnvironment struct {
 	Postgres      tc.Container
 	Kommodity     tc.Container
-	KommodityK8s  *kubernetes.Clientset
+	KommodityCfg  *rest.Config
 	K3s           *k3s.K3sContainer
 	K3sKubeconfig []byte
 	AppHost       string
@@ -55,7 +55,7 @@ func SetupContainers() TestEnvironment {
 	postgres := startPostgresContainer(ctx, networkName)
 
 	// Start Kommodityt API server
-	kommodity, kommodityClient := startKommodityContainer(ctx, networkName)
+	kommodity, kommodityCfg := startKommodityContainer(ctx, networkName)
 
 	// Start K3s cluster
 	k3sContainer, kubeconfig := startK3sContainer(ctx, newNetwork)
@@ -67,7 +67,7 @@ func SetupContainers() TestEnvironment {
 	env := TestEnvironment{
 		Postgres:      postgres,
 		Kommodity:     kommodity,
-		KommodityK8s:  kommodityClient,
+		KommodityCfg:  kommodityCfg,
 		K3s:           k3sContainer,
 		K3sKubeconfig: kubeconfig,
 		AppHost:       kommodityHost,
@@ -104,7 +104,7 @@ func startPostgresContainer(ctx context.Context, networkName string) tc.Containe
 	return postgres
 }
 
-func startKommodityContainer(ctx context.Context, networkName string) (tc.Container, *kubernetes.Clientset) {
+func startKommodityContainer(ctx context.Context, networkName string) (tc.Container, *rest.Config) {
 	kommodity, err := tc.GenericContainer(ctx, tc.GenericContainerRequest{
 		ContainerRequest: tc.ContainerRequest{
 			Image:        "kommodity:latest",
@@ -133,14 +133,11 @@ func startKommodityContainer(ctx context.Context, networkName string) (tc.Contai
 		panic(err)
 	}
 
-	kommodityClient, err := kubernetes.NewForConfig(&rest.Config{
+	kommodityCfg := &rest.Config{
 		Host: "http://" + net.JoinHostPort(kommodityHost, kommodityPort.Port()),
-	})
-	if err != nil {
-		panic(err)
 	}
 
-	return kommodity, kommodityClient
+	return kommodity, kommodityCfg
 }
 
 func startK3sContainer(ctx context.Context, net *tc.DockerNetwork) (*k3s.K3sContainer, []byte) {
@@ -209,6 +206,11 @@ func findRepoRoot() string {
 // RepoRoot returns the repository root directory.
 func RepoRoot() string {
 	return findRepoRoot()
+}
+
+// KommodityClient builds a Kubernetes client from the Kommodity REST config.
+func KommodityClient(cfg *rest.Config) (*kubernetes.Clientset, error) {
+	return kubernetes.NewForConfig(cfg)
 }
 
 // Teardown stops and removes the containers and network used in the test environment.

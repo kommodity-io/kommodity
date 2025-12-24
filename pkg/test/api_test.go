@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/kommodity-io/kommodity/pkg/test/helpers"
 	"github.com/stretchr/testify/require"
@@ -16,7 +17,10 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
+	"k8s.io/client-go/dynamic"
 )
 
 //nolint:gochecknoglobals // Test environment needs to be reused by all tests.
@@ -38,7 +42,8 @@ func TestMain(m *testing.M) {
 func TestAPIIntegration(t *testing.T) {
 	t.Parallel()
 
-	client := env.KommodityK8s
+	client, err := helpers.KommodityClient(env.KommodityCfg)
+	require.NoError(t, err)
 	groups, err := client.Discovery().ServerGroups()
 	require.NoError(t, err)
 
@@ -57,12 +62,13 @@ func TestAPIIntegration(t *testing.T) {
 func TestCreateKubevirtCluster(t *testing.T) {
 	t.Parallel()
 
-	client := env.KommodityK8s
+	client, err := helpers.KommodityClient(env.KommodityCfg)
+	require.NoError(t, err)
 	ctx := context.Background()
 
 	// Ensure default namespace exists
 
-	_, err := client.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
+	_, err = client.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "default",
 		},
@@ -95,7 +101,7 @@ func TestCreateKubevirtCluster(t *testing.T) {
 	installKommodityClusterChart(t, "kubevirt-cluster", "default")
 
 	// Check that CAPI resources are created in Kommodity
-	
+	waitForMachines(t, "default")
 }
 
 func installKommodityClusterChart(t *testing.T, releaseName string, namespace string) {
@@ -126,5 +132,30 @@ func installKommodityClusterChart(t *testing.T, releaseName string, namespace st
 	installer.Wait = false
 
 	_, err = installer.Run(chart, values)
+	require.NoError(t, err)
+}
+
+func waitForMachines(t *testing.T, namespace string) {
+	t.Helper()
+
+	client, err := dynamic.NewForConfig(env.KommodityCfg)
+	require.NoError(t, err)
+
+	machineGVR := schema.GroupVersionResource{
+		Group:    "cluster.x-k8s.io",
+		Version:  "v1beta1",
+		Resource: "machines",
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	err = wait.PollUntilContextTimeout(ctx, 2*time.Second, 2*time.Minute, true, func(ctx context.Context) (bool, error) {
+		list, err := client.Resource(machineGVR).Namespace(namespace).List(ctx, metav1.ListOptions{})
+		if err != nil {
+			return false, err
+		}
+		return len(list.Items) > 0, nil
+	})
 	require.NoError(t, err)
 }
