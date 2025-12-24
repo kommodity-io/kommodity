@@ -11,6 +11,11 @@ import (
 	"github.com/testcontainers/testcontainers-go/modules/k3s"
 	"github.com/testcontainers/testcontainers-go/network"
 	"github.com/testcontainers/testcontainers-go/wait"
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/clientcmd"
 )
 
 const (
@@ -51,6 +56,7 @@ func SetupContainers() TestEnvironment {
 
 	// Start K3s cluster
 	k3sContainer, kubeconfig := startK3sContainer(ctx, newNetwork)
+	ensureK3sNamespace(ctx, kubeconfig, "kubevirt-cluster-namespace")
 
 	kommodityHost, _ := kommodity.Host(ctx)
 	kommodityPort, _ := kommodity.MappedPort(ctx, "5000")
@@ -139,6 +145,27 @@ func startK3sContainer(ctx context.Context, net *tc.DockerNetwork) (*k3s.K3sCont
 	return k3sContainer, kubeconfig
 }
 
+func ensureK3sNamespace(ctx context.Context, kubeconfig []byte, name string) {
+	config, err := clientcmd.RESTConfigFromKubeConfig(kubeconfig)
+	if err != nil {
+		panic(err)
+	}
+
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		panic(err)
+	}
+
+	_, err = clientset.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+	}, metav1.CreateOptions{})
+	if err != nil && !apierrors.IsAlreadyExists(err) {
+		panic(err)
+	}
+}
+
 func findRepoRoot() string {
 	dir, err := os.Getwd()
 	if err != nil {
@@ -165,6 +192,8 @@ func (e TestEnvironment) Teardown() {
 
 	_ = e.Postgres.Terminate(ctx)
 	_ = e.Kommodity.Terminate(ctx)
-	_ = e.K3s.Terminate(ctx)
+	if e.K3s != nil {
+		_ = e.K3s.Terminate(ctx)
+	}
 	_ = e.Network.Remove(ctx)
 }
