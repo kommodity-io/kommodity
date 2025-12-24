@@ -239,7 +239,7 @@ func (e TestEnvironment) Teardown() {
 	_ = e.Network.Remove(ctx)
 }
 
-func WaitForResource(config *rest.Config, namespace string, group string, version string, resource string, timeout time.Duration) error {
+func WaitForResource(config *rest.Config, namespace string, group string, version string, kind string, timeout time.Duration) error {
 	client, err := dynamic.NewForConfig(config)
 	if err != nil {
 		return fmt.Errorf("failed to create dynamic client: %v", err)
@@ -248,13 +248,14 @@ func WaitForResource(config *rest.Config, namespace string, group string, versio
 	gvr := schema.GroupVersionResource{
 		Group:    group,
 		Version:  version,
-		Resource: resource,
+		Resource: kind,
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	err = k8s_wait.PollUntilContextTimeout(ctx, 2*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
+	err = k8s_wait.PollUntilContextTimeout(ctx, 5*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
+		println(fmt.Sprintf("Waiting for resource %s/%s/%s in namespace %s", group, version, kind, namespace))
 		list, err := client.Resource(gvr).Namespace(namespace).List(ctx, metav1.ListOptions{})
 		if err != nil {
 			return false, err
@@ -262,8 +263,10 @@ func WaitForResource(config *rest.Config, namespace string, group string, versio
 		return len(list.Items) > 0, nil
 	})
 	if err != nil {
-		return fmt.Errorf("resource %s/%s/%s not found in namespace %s within timeout: %v", group, version, resource, namespace, err)
+		return fmt.Errorf("resource %s/%s/%s not found in namespace %s within timeout: %v", group, version, kind, namespace, err)
 	}
+
+	println(fmt.Sprintf("Resource %s/%s/%s found in namespace %s", group, version, kind, namespace))
 	return nil
 }
 
