@@ -101,7 +101,7 @@ func TestCreateKubevirtCluster(t *testing.T) {
 	installKommodityClusterChart(t, "kubevirt-cluster", "default")
 
 	// Check that CAPI resources are created in Kommodity
-	waitForMachines(t, "default")
+	waitForResource(t, "default", "cluster.x-k8s.io", "v1beta1", "machines", 2*time.Minute)
 }
 
 func installKommodityClusterChart(t *testing.T, releaseName string, namespace string) {
@@ -135,23 +135,23 @@ func installKommodityClusterChart(t *testing.T, releaseName string, namespace st
 	require.NoError(t, err)
 }
 
-func waitForMachines(t *testing.T, namespace string) {
+func waitForResource(t *testing.T, namespace string, group string, version string, resource string, timeout time.Duration) {
 	t.Helper()
 
 	client, err := dynamic.NewForConfig(env.KommodityCfg)
 	require.NoError(t, err)
 
-	machineGVR := schema.GroupVersionResource{
-		Group:    "cluster.x-k8s.io",
-		Version:  "v1beta1",
-		Resource: "machines",
+	gvr := schema.GroupVersionResource{
+		Group:    group,
+		Version:  version,
+		Resource: resource,
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	err = wait.PollUntilContextTimeout(ctx, 2*time.Second, 2*time.Minute, true, func(ctx context.Context) (bool, error) {
-		list, err := client.Resource(machineGVR).Namespace(namespace).List(ctx, metav1.ListOptions{})
+	err = wait.PollUntilContextTimeout(ctx, 2*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
+		list, err := client.Resource(gvr).Namespace(namespace).List(ctx, metav1.ListOptions{})
 		if err != nil {
 			return false, err
 		}
