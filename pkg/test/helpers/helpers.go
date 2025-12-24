@@ -206,6 +206,11 @@ func findRepoRoot() string {
 	panic("go.mod not found")
 }
 
+// RepoRoot returns the repository root directory.
+func RepoRoot() string {
+	return findRepoRoot()
+}
+
 // Teardown stops and removes the containers and network used in the test environment.
 func (e TestEnvironment) Teardown() {
 	ctx := context.Background()
