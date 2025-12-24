@@ -3,6 +3,7 @@ package helpers
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"os"
 	"path/filepath"
@@ -15,6 +16,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	k8s_wait "k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -159,6 +163,16 @@ func startK3sContainer(ctx context.Context, net *tc.DockerNetwork) (*k3s.K3sCont
 		panic(err)
 	}
 
+	k3sCfg, err := RestConfigFromKubeConfig(kubeconfig)
+	if err != nil {
+		panic(err)
+	}
+
+	err = WaitForResource(k3sCfg, "kubevirt", "kubevirt.io", "v1", "kubevirts", 2*time.Minute)
+	if err != nil {
+		panic(err)
+	}
+
 	return k3sContainer, kubeconfig
 }
 
@@ -208,8 +222,8 @@ func RepoRoot() string {
 	return findRepoRoot()
 }
 
-// KommodityClient builds a Kubernetes client from the Kommodity REST config.
-func KommodityClient(cfg *rest.Config) (*kubernetes.Clientset, error) {
+// K8sClientFromRestConfig builds a Kubernetes client from the Kommodity REST config.
+func K8sClientFromRestConfig(cfg *rest.Config) (*kubernetes.Clientset, error) {
 	return kubernetes.NewForConfig(cfg)
 }
 
@@ -223,4 +237,36 @@ func (e TestEnvironment) Teardown() {
 		_ = e.K3s.Terminate(ctx)
 	}
 	_ = e.Network.Remove(ctx)
+}
+
+func WaitForResource(config *rest.Config, namespace string, group string, version string, resource string, timeout time.Duration) error {
+	client, err := dynamic.NewForConfig(config)
+	if err != nil {
+		return fmt.Errorf("failed to create dynamic client: %v", err)
+	}
+
+	gvr := schema.GroupVersionResource{
+		Group:    group,
+		Version:  version,
+		Resource: resource,
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	err = k8s_wait.PollUntilContextTimeout(ctx, 2*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
+		list, err := client.Resource(gvr).Namespace(namespace).List(ctx, metav1.ListOptions{})
+		if err != nil {
+			return false, err
+		}
+		return len(list.Items) > 0, nil
+	})
+	if err != nil {
+		return fmt.Errorf("resource %s/%s/%s not found in namespace %s within timeout: %v", group, version, resource, namespace, err)
+	}
+	return nil
+}
+
+func RestConfigFromKubeConfig(kubeconfig []byte) (*rest.Config, error) {
+	return clientcmd.RESTConfigFromKubeConfig(kubeconfig)
 }
