@@ -3,6 +3,7 @@ package helpers
 
 import (
 	"context"
+	"net"
 	"os"
 	"path/filepath"
 	"time"
@@ -15,6 +16,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 )
 
@@ -29,6 +31,7 @@ const (
 type TestEnvironment struct {
 	Postgres      tc.Container
 	Kommodity     tc.Container
+	KommodityK8s  *kubernetes.Clientset
 	K3s           *k3s.K3sContainer
 	K3sKubeconfig []byte
 	AppHost       string
@@ -52,7 +55,7 @@ func SetupContainers() TestEnvironment {
 	postgres := startPostgresContainer(ctx, networkName)
 
 	// Start Kommodityt API server
-	kommodity := startKommodityContainer(ctx, networkName)
+	kommodity, kommodityClient := startKommodityContainer(ctx, networkName)
 
 	// Start K3s cluster
 	k3sContainer, kubeconfig := startK3sContainer(ctx, newNetwork)
@@ -64,6 +67,7 @@ func SetupContainers() TestEnvironment {
 	env := TestEnvironment{
 		Postgres:      postgres,
 		Kommodity:     kommodity,
+		KommodityK8s:  kommodityClient,
 		K3s:           k3sContainer,
 		K3sKubeconfig: kubeconfig,
 		AppHost:       kommodityHost,
@@ -100,7 +104,7 @@ func startPostgresContainer(ctx context.Context, networkName string) tc.Containe
 	return postgres
 }
 
-func startKommodityContainer(ctx context.Context, networkName string) tc.Container {
+func startKommodityContainer(ctx context.Context, networkName string) (tc.Container, *kubernetes.Clientset) {
 	kommodity, err := tc.GenericContainer(ctx, tc.GenericContainerRequest{
 		ContainerRequest: tc.ContainerRequest{
 			Image:        "kommodity:latest",
@@ -120,7 +124,23 @@ func startKommodityContainer(ctx context.Context, networkName string) tc.Contain
 		panic(err)
 	}
 
-	return kommodity
+	kommodityHost, err := kommodity.Host(ctx)
+	if err != nil {
+		panic(err)
+	}
+	kommodityPort, err := kommodity.MappedPort(ctx, "5000")
+	if err != nil {
+		panic(err)
+	}
+
+	kommodityClient, err := kubernetes.NewForConfig(&rest.Config{
+		Host: "http://" + net.JoinHostPort(kommodityHost, kommodityPort.Port()),
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	return kommodity, kommodityClient
 }
 
 func startK3sContainer(ctx context.Context, net *tc.DockerNetwork) (*k3s.K3sContainer, []byte) {
