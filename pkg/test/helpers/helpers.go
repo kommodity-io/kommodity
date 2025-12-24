@@ -14,8 +14,10 @@ import (
 )
 
 const (
-	postgresDefaultPort = "5432"
-	startupTimeout      = 10 * time.Second
+	postgresDefaultPort  = "5432"
+	startupTimeout       = 10 * time.Second
+	kubevirtManifestsDir = "pkg/test/manifests/kubevirt"
+	rancherK3sImage      = "rancher/k3s:v1.27.1-k3s1"
 )
 
 // TestEnvironment holds the containers and connection info for the test setup.
@@ -117,10 +119,10 @@ func startKommodityContainer(ctx context.Context, networkName string) tc.Contain
 
 func startK3sContainer(ctx context.Context, net *tc.DockerNetwork) (*k3s.K3sContainer, []byte) {
 	repoRoot := findRepoRoot()
-	kubevirtOperator := filepath.Join(repoRoot, "pkg", "test", "manifests", "kubevirt", "kubevirt-operator.yaml")
-	kubevirtCR := filepath.Join(repoRoot, "pkg", "test", "manifests", "kubevirt", "kubevirt-cr.yaml")
+	kubevirtOperator := filepath.Join(repoRoot, kubevirtManifestsDir, "kubevirt-operator.yaml")
+	kubevirtCR := filepath.Join(repoRoot, kubevirtManifestsDir, "kubevirt-cr.yaml")
 
-	k3sContainer, err := k3s.Run(ctx, "rancher/k3s:v1.27.1-k3s1",
+	k3sContainer, err := k3s.Run(ctx, rancherK3sImage,
 		network.WithNetwork([]string{"k3s"}, net),
 		k3s.WithManifest(kubevirtOperator),
 		k3s.WithManifest(kubevirtCR),
@@ -163,8 +165,6 @@ func (e TestEnvironment) Teardown() {
 
 	_ = e.Postgres.Terminate(ctx)
 	_ = e.Kommodity.Terminate(ctx)
-	if e.K3s != nil {
-		_ = e.K3s.Terminate(ctx)
-	}
+	_ = e.K3s.Terminate(ctx)
 	_ = e.Network.Remove(ctx)
 }
