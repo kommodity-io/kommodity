@@ -98,7 +98,7 @@ func TestCreateKubevirtCluster(t *testing.T) {
 	installKommodityClusterChart(t, "kubevirt-cluster", "default")
 
 	// Check that CAPI resources are created in Kommodity
-	err = helpers.WaitForResource(env.KommodityCfg, "default", "worker", "cluster.x-k8s.io", "v1beta1", "machines", 2*time.Minute)
+	err = helpers.WaitForResource(env.KommodityCfg, "default", "worker", "cluster.x-k8s.io", "v1beta1", "machines", "", "", 2*time.Minute)
 	require.NoError(t, err)
 
 	// Check that Kubevirt resources are created in K3s
@@ -112,7 +112,7 @@ func TestCreateKubevirtCluster(t *testing.T) {
 	_, err = k3sClient.CoreV1().Namespaces().Get(ctx, "kubevirt-cluster-namespace", metav1.GetOptions{})
 	require.NoError(t, err)
 
-	err = helpers.WaitForResource(k3sCfg, "kubevirt-cluster-namespace", "worker", "kubevirt.io", "v1", "virtualmachines", 2*time.Minute)
+	err = helpers.WaitForResource(k3sCfg, "kubevirt-cluster-namespace", "worker", "kubevirt.io", "v1", "virtualmachines", "", "", 2*time.Minute)
 	require.NoError(t, err)
 }
 
