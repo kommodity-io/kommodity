@@ -14,8 +14,6 @@ import (
 	"github.com/testcontainers/testcontainers-go/modules/k3s"
 	"github.com/testcontainers/testcontainers-go/network"
 	"github.com/testcontainers/testcontainers-go/wait"
-	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -63,10 +61,6 @@ func SetupContainers() TestEnvironment {
 	// Start Kommodityt API server
 	kommodity, kommodityCfg := startKommodityContainer(ctx, networkName)
 
-	// Start K3s cluster
-	k3sContainer, kubeconfig := startK3sContainer(ctx, newNetwork)
-	ensureK3sNamespace(ctx, kubeconfig, "kubevirt-cluster-namespace")
-
 	kommodityHost, _ := kommodity.Host(ctx)
 	kommodityPort, _ := kommodity.MappedPort(ctx, "5000")
 
@@ -74,8 +68,6 @@ func SetupContainers() TestEnvironment {
 		Postgres:      postgres,
 		Kommodity:     kommodity,
 		KommodityCfg:  kommodityCfg,
-		K3s:           k3sContainer,
-		K3sKubeconfig: kubeconfig,
 		AppHost:       kommodityHost,
 		AppPort:       kommodityPort.Port(),
 		Network:       newNetwork,
@@ -146,66 +138,6 @@ func startKommodityContainer(ctx context.Context, networkName string) (tc.Contai
 	return kommodity, kommodityCfg
 }
 
-func startK3sContainer(ctx context.Context, net *tc.DockerNetwork) (*k3s.K3sContainer, []byte) {
-	repoRoot := findRepoRoot()
-	kubevirtOperator := filepath.Join(repoRoot, kubevirtManifestsDir, "kubevirt-operator.yaml")
-	kubevirtCR := filepath.Join(repoRoot, kubevirtManifestsDir, "kubevirt-cr.yaml")
-
-	k3sContainer, err := k3s.Run(ctx, rancherK3sImage,
-		network.WithNetwork([]string{"k3s"}, net),
-		k3s.WithManifest(kubevirtOperator),
-		k3s.WithManifest(kubevirtCR),
-	)
-	if err != nil {
-		panic(err)
-	}
-
-	kubeconfig, err := k3sContainer.GetKubeConfig(ctx)
-	if err != nil {
-		panic(err)
-	}
-
-	// Print the kubeconfig to a file for debugging purposes
-	err = os.WriteFile(filepath.Join(findRepoRoot(), "k3s_kubeconfig.yaml"), kubeconfig, 0644)
-	if err != nil {
-		panic(err)
-	}
-
-	k3sCfg, err := RestConfigFromKubeConfig(kubeconfig)
-	if err != nil {
-		panic(err)
-	}
-
-	// Wait for Kubevirt to be ready (status.phase=Deployed)
-	err = WaitForResource(k3sCfg, "kubevirt", "kubevirt", "kubevirt.io", "v1", "kubevirts", "status.phase", "Deployed", 10*time.Minute)
-	if err != nil {
-		panic(err)
-	}
-
-	return k3sContainer, kubeconfig
-}
-
-func ensureK3sNamespace(ctx context.Context, kubeconfig []byte, name string) {
-	config, err := clientcmd.RESTConfigFromKubeConfig(kubeconfig)
-	if err != nil {
-		panic(err)
-	}
-
-	clientset, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		panic(err)
-	}
-
-	_, err = clientset.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
-		},
-	}, metav1.CreateOptions{})
-	if err != nil && !apierrors.IsAlreadyExists(err) {
-		panic(err)
-	}
-}
-
 func findRepoRoot() string {
 	dir, err := os.Getwd()
 	if err != nil {
@@ -242,9 +174,6 @@ func (e TestEnvironment) Teardown() {
 
 	_ = e.Postgres.Terminate(ctx)
 	_ = e.Kommodity.Terminate(ctx)
-	if e.K3s != nil {
-		_ = e.K3s.Terminate(ctx)
-	}
 	_ = e.Network.Remove(ctx)
 }
 

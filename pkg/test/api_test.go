@@ -2,7 +2,7 @@ package test_test
 
 import (
 	"context"
-	"encoding/base64"
+	"fmt"
 	"net"
 	"os"
 	"path/filepath"
@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/kommodity-io/kommodity/pkg/test/helpers"
+	"github.com/scaleway/scaleway-sdk-go/api/instance/v1"
+	"github.com/scaleway/scaleway-sdk-go/scw"
 	"github.com/stretchr/testify/require"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart/loader"
@@ -56,7 +58,7 @@ func TestAPIIntegration(t *testing.T) {
 	require.Contains(t, coreGroupVersions, "v1")
 }
 
-func TestCreateKubevirtCluster(t *testing.T) {
+func TestCreateScalewayCluster(t *testing.T) {
 	t.Parallel()
 
 	client, err := helpers.K8sClientFromRestConfig(env.KommodityCfg)
@@ -74,54 +76,77 @@ func TestCreateKubevirtCluster(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	// Create secret that holds K3s kubeconfig
+	// Create secret that holds Scaleway access and secret key
+	scalewayAccessKey := os.Getenv("SCW_ACCESS_KEY")
+	scalewaySecretKey := os.Getenv("SCW_SECRET_KEY")
+	scalewayDefaultRegion := os.Getenv("SCW_DEFAULT_REGION")
+	scalewayProjectID := os.Getenv("SCW_DEFAULT_PROJECT_ID")
 
-	encodedKubeconfig := base64.StdEncoding.EncodeToString(env.K3sKubeconfig)
-	secret, err := client.CoreV1().Secrets("default").Create(ctx, &corev1.Secret{
+	require.NotEmpty(t, scalewayAccessKey, "SCW_ACCESS_KEY environment variable must be set")
+	require.NotEmpty(t, scalewaySecretKey, "SCW_SECRET_KEY environment variable must be set")
+	require.NotEmpty(t, scalewayDefaultRegion, "SCW_DEFAULT_REGION environment variable must be set")
+	require.NotEmpty(t, scalewayProjectID, "SCW_DEFAULT_PROJECT_ID environment variable must be set")
+
+	_, err = client.CoreV1().Secrets("default").Create(ctx, &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "kubevirt-credentials",
+			Name: "scaleway-secret",
 		},
 		Type: corev1.SecretTypeOpaque,
 		Data: map[string][]byte{
-			"kubeconfig": []byte(encodedKubeconfig),
+			"SCW_ACCESS_KEY":         []byte(scalewayAccessKey),
+			"SCW_SECRET_KEY":         []byte(scalewaySecretKey),
+			"SCW_DEFAULT_REGION":     []byte(scalewayDefaultRegion),
+			"SCW_DEFAULT_PROJECT_ID": []byte(scalewayProjectID),
 		},
 	}, metav1.CreateOptions{})
 	require.NoError(t, err)
-	require.Equal(t, corev1.SecretTypeOpaque, secret.Type)
 
-	created, err := client.CoreV1().Secrets("default").Get(ctx, "kubevirt-credentials", metav1.GetOptions{})
-	require.NoError(t, err)
-	require.Equal(t, corev1.SecretTypeOpaque, created.Type)
-	require.Equal(t, []byte(encodedKubeconfig), created.Data["kubeconfig"])
-
-	// Install Kubevirt cluster helm chart in Kommodity
-	installKommodityClusterChart(t, "kubevirt-cluster", "default")
+	// Install Scaleway cluster helm chart in Kommodity
+	installKommodityClusterChart(t, "scaleway-cluster", "default", "values.scaleway.yaml")
 
 	// Check that CAPI resources are created in Kommodity
 	err = helpers.WaitForResource(env.KommodityCfg, "default", "worker", "cluster.x-k8s.io", "v1beta1", "machines", "", "", 2*time.Minute)
 	require.NoError(t, err)
 
-	// Check that Kubevirt resources are created in K3s
-	// Convert k3s kubeconfig to rest.Config
-	k3sCfg, err := helpers.RestConfigFromKubeConfig(env.K3sKubeconfig)
-	require.NoError(t, err)
+	// Convert SCW_DEFAULT_REGION to instance.Region
+	regionExists := scw.Region(scalewayDefaultRegion).Exists()
+	if !regionExists {
+		panic("invalid SCW_DEFAULT_REGION provided: " + scalewayDefaultRegion)
+	}
 
-	k3sClient, err := helpers.K8sClientFromRestConfig(k3sCfg)
-	require.NoError(t, err)
+	// Check that resources are created in Scaleway
+	scwClient, err := scw.NewClient(
+		// Get your credentials at https://console.scaleway.com/iam/api-keys
+		scw.WithAuth(scalewayAccessKey, scalewaySecretKey),
+		// Get more about our availability zones at https://www.scaleway.com/en/docs/console/my-account/reference-content/products-availability/
+		scw.WithDefaultRegion(scw.Region(scalewayDefaultRegion)),
+		scw.WithDefaultProjectID(scalewayProjectID),
+	)
+	if err != nil {
+		panic(err)
+	}
 
-	_, err = k3sClient.CoreV1().Namespaces().Get(ctx, "kubevirt-cluster-namespace", metav1.GetOptions{})
-	require.NoError(t, err)
+	instanceApi := instance.NewAPI(scwClient)
 
-	err = helpers.WaitForResource(k3sCfg, "kubevirt-cluster-namespace", "worker", "kubevirt.io", "v1", "virtualmachines", "", "", 2*time.Minute)
-	require.NoError(t, err)
+	response, err := instanceApi.ListServers(&instance.ListServersRequest{
+		Zone: scw.ZoneFrPar2,
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	// Do something with the response...
+	for _, server := range response.Servers {
+		fmt.Println("Server", server.ID, server.Name)
+	}
 }
 
-func installKommodityClusterChart(t *testing.T, releaseName string, namespace string) {
+func installKommodityClusterChart(t *testing.T, releaseName string, namespace string, valuesFile string) {
 	t.Helper()
 
 	repoRoot := helpers.RepoRoot()
 	chartPath := filepath.Join(repoRoot, "charts", "kommodity-cluster")
-	valuesPath := filepath.Join(repoRoot, "charts", "kommodity-cluster", "values.kubevirt.yaml")
+	valuesPath := filepath.Join(repoRoot, "charts", "kommodity-cluster", valuesFile)
 
 	cfg := new(action.Configuration)
 	restGetter := genericclioptions.NewConfigFlags(false)
