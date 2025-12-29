@@ -25,10 +25,8 @@ import (
 )
 
 const (
-	postgresDefaultPort  = "5432"
-	startupTimeout       = 10 * time.Second
-	kubevirtManifestsDir = "pkg/test/manifests/kubevirt"
-	rancherK3sImage      = "rancher/k3s:v1.27.1-k3s1"
+	postgresDefaultPort = "5432"
+	startupTimeout      = 10 * time.Second
 )
 
 // TestEnvironment holds the containers and connection info for the test setup.
@@ -44,39 +42,45 @@ type TestEnvironment struct {
 }
 
 // SetupContainers initializes and starts the necessary containers for testing.
-func SetupContainers() TestEnvironment {
+func SetupContainers() (TestEnvironment, error) {
 	ctx := context.Background()
 
 	// Create network
 	newNetwork, err := network.New(ctx)
 	if err != nil {
-		panic(err)
+		return TestEnvironment{}, fmt.Errorf("failed to create network: %w", err)
 	}
 
 	networkName := newNetwork.Name
 
 	// Start Postgres
-	postgres := startPostgresContainer(ctx, networkName)
+	postgres, err := startPostgresContainer(ctx, networkName)
+	if err != nil {
+		return TestEnvironment{}, fmt.Errorf("failed to start Postgres container: %w", err)
+	}
 
 	// Start Kommodityt API server
-	kommodity, kommodityCfg := startKommodityContainer(ctx, networkName)
+	kommodity, kommodityCfg, err := startKommodityContainer(ctx, networkName)
+	if err != nil {
+		return TestEnvironment{}, fmt.Errorf("failed to start Kommodity container: %w", err)
+	}
 
 	kommodityHost, _ := kommodity.Host(ctx)
 	kommodityPort, _ := kommodity.MappedPort(ctx, "5000")
 
 	env := TestEnvironment{
-		Postgres:      postgres,
-		Kommodity:     kommodity,
-		KommodityCfg:  kommodityCfg,
-		AppHost:       kommodityHost,
-		AppPort:       kommodityPort.Port(),
-		Network:       newNetwork,
+		Postgres:     postgres,
+		Kommodity:    kommodity,
+		KommodityCfg: kommodityCfg,
+		AppHost:      kommodityHost,
+		AppPort:      kommodityPort.Port(),
+		Network:      newNetwork,
 	}
 
-	return env
+	return env, nil
 }
 
-func startPostgresContainer(ctx context.Context, networkName string) tc.Container {
+func startPostgresContainer(ctx context.Context, networkName string) (tc.Container, error) {
 	postgres, err := tc.GenericContainer(ctx, tc.GenericContainerRequest{
 		ContainerRequest: tc.ContainerRequest{
 			Image:    "postgres:16",
@@ -96,13 +100,13 @@ func startPostgresContainer(ctx context.Context, networkName string) tc.Containe
 		Started: true,
 	})
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
-	return postgres
+	return postgres, nil
 }
 
-func startKommodityContainer(ctx context.Context, networkName string) (tc.Container, *rest.Config) {
+func startKommodityContainer(ctx context.Context, networkName string) (tc.Container, *rest.Config, error) {
 	kommodity, err := tc.GenericContainer(ctx, tc.GenericContainerRequest{
 		ContainerRequest: tc.ContainerRequest{
 			Image:        "kommodity:latest",
@@ -119,34 +123,35 @@ func startKommodityContainer(ctx context.Context, networkName string) (tc.Contai
 		Started: true,
 	})
 	if err != nil {
-		panic(err)
+		return nil, nil, fmt.Errorf("failed to start Kommodity container: %w", err)
 	}
 
 	kommodityHost, err := kommodity.Host(ctx)
 	if err != nil {
-		panic(err)
+		return nil, nil, fmt.Errorf("failed to get host where Kommodity container port is exposed: %w", err)
 	}
 	kommodityPort, err := kommodity.MappedPort(ctx, "5000")
 	if err != nil {
-		panic(err)
+		return nil, nil, fmt.Errorf("failed to get externally mapped port for Kommodity container port: %w", err)
 	}
 
 	kommodityCfg := &rest.Config{
 		Host: "http://" + net.JoinHostPort(kommodityHost, kommodityPort.Port()),
 	}
 
-	return kommodity, kommodityCfg
+	return kommodity, kommodityCfg, nil
 }
 
-func findRepoRoot() string {
+// FindRepoRoot returns the repository root directory.
+func FindRepoRoot() (string, error) {
 	dir, err := os.Getwd()
 	if err != nil {
-		panic(err)
+		return "", fmt.Errorf("failed to get working directory: %w", err)
 	}
 
 	for {
 		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
-			return dir
+			return dir, nil
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
@@ -155,12 +160,7 @@ func findRepoRoot() string {
 		dir = parent
 	}
 
-	panic("go.mod not found")
-}
-
-// RepoRoot returns the repository root directory.
-func RepoRoot() string {
-	return findRepoRoot()
+	return "", fmt.Errorf("go.mod not found in any parent directory of %s", dir)
 }
 
 // K8sClientFromRestConfig builds a Kubernetes client from a REST config.
