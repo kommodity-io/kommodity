@@ -27,7 +27,12 @@ var env helpers.TestEnvironment
 
 func TestMain(m *testing.M) {
 	// --- Setup ---
-	env = helpers.SetupContainers()
+	env, err := helpers.SetupContainers()
+	if err != nil {
+		fmt.Println("Failed to set up test containers:", err)
+		env.Teardown()
+		os.Exit(1)
+	}
 
 	// Run tests
 	code := m.Run()
@@ -110,9 +115,7 @@ func TestCreateScalewayCluster(t *testing.T) {
 
 	// Convert SCW_DEFAULT_REGION to instance.Region
 	regionExists := scw.Region(scalewayDefaultRegion).Exists()
-	if !regionExists {
-		panic("invalid SCW_DEFAULT_REGION provided: " + scalewayDefaultRegion)
-	}
+	require.True(t, regionExists, "invalid SCW_DEFAULT_REGION provided: "+scalewayDefaultRegion)
 
 	// Check that resources are created in Scaleway
 	scwClient, err := scw.NewClient(
@@ -122,18 +125,12 @@ func TestCreateScalewayCluster(t *testing.T) {
 		scw.WithDefaultRegion(scw.Region(scalewayDefaultRegion)),
 		scw.WithDefaultProjectID(scalewayProjectID),
 	)
-	if err != nil {
-		panic(err)
-	}
+	require.NoError(t, err)
 
 	instanceApi := instance.NewAPI(scwClient)
 
-	response, err := instanceApi.ListServers(&instance.ListServersRequest{
-		Zone: scw.ZoneFrPar2,
-	})
-	if err != nil {
-		panic(err)
-	}
+	response, err := instanceApi.ListServers(&instance.ListServersRequest{})
+	require.NoError(t, err)
 
 	// Do something with the response...
 	for _, server := range response.Servers {
@@ -144,7 +141,9 @@ func TestCreateScalewayCluster(t *testing.T) {
 func installKommodityClusterChart(t *testing.T, releaseName string, namespace string, valuesFile string) {
 	t.Helper()
 
-	repoRoot := helpers.RepoRoot()
+	repoRoot, err := helpers.FindRepoRoot()
+	require.NoError(t, err)
+
 	chartPath := filepath.Join(repoRoot, "charts", "kommodity-cluster")
 	valuesPath := filepath.Join(repoRoot, "charts", "kommodity-cluster", valuesFile)
 
@@ -154,7 +153,7 @@ func installKommodityClusterChart(t *testing.T, releaseName string, namespace st
 	restGetter.APIServer = &apiServer
 	restGetter.Namespace = &namespace
 
-	err := cfg.Init(restGetter, namespace, "secret", func(string, ...interface{}) {})
+	err = cfg.Init(restGetter, namespace, "secret", func(string, ...interface{}) {})
 	require.NoError(t, err)
 
 	chart, err := loader.Load(chartPath)
