@@ -3,6 +3,7 @@ package test_test
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"testing"
@@ -42,25 +43,25 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-// func TestAPIIntegration(t *testing.T) {
-// 	t.Parallel()
+func TestAPIIntegration(t *testing.T) {
+	t.Parallel()
 
-// 	client, err := kubernetes.NewForConfig(env.KommodityCfg)
-// 	require.NoError(t, err)
-// 	groups, err := client.Discovery().ServerGroups()
-// 	require.NoError(t, err)
+	client, err := kubernetes.NewForConfig(env.KommodityCfg)
+	require.NoError(t, err)
+	groups, err := client.Discovery().ServerGroups()
+	require.NoError(t, err)
 
-// 	var coreGroupVersions []string
-// 	for _, group := range groups.Groups {
-// 		if group.Name == "" {
-// 			for _, version := range group.Versions {
-// 				coreGroupVersions = append(coreGroupVersions, version.Version)
-// 			}
-// 			break
-// 		}
-// 	}
-// 	require.Contains(t, coreGroupVersions, "v1")
-// }
+	var coreGroupVersions []string
+	for _, group := range groups.Groups {
+		if group.Name == "" {
+			for _, version := range group.Versions {
+				coreGroupVersions = append(coreGroupVersions, version.Version)
+			}
+			break
+		}
+	}
+	require.Contains(t, coreGroupVersions, "v1")
+}
 
 func TestCreateScalewayCluster(t *testing.T) {
 	t.Parallel()
@@ -106,19 +107,18 @@ func TestCreateScalewayCluster(t *testing.T) {
 	require.NoError(t, err)
 
 	// Install Scaleway cluster helm chart in Kommodity
-	installKommodityClusterChart(t, "scaleway-cluster", "default", "values.scaleway.yaml")
+	scalewayDefaultZone := installKommodityClusterChart(t, "scaleway-cluster", "default", "values.scaleway.yaml", scalewayProjectID)
 
 	// Check that CAPI resources are created in Kommodity
 	err = helpers.WaitForK8sResource(env.KommodityCfg, "default", "worker", "cluster.x-k8s.io", "v1beta1", "machines", "", "", 2*time.Minute)
 	require.NoError(t, err)
 
-	scalewayDefaultZone := "fr-par-2"
-
-	// Check that Scaleway resources are created
+// Check that Scaleway resources are created
 	err = helpers.WaitForScalewayServer(scalewayAccessKey, scalewaySecretKey, scalewayDefaultRegion, scalewayDefaultZone, scalewayProjectID, 2, 5*time.Minute)
 	require.NoError(t, err)
 
 	// Uninstall cluster chart
+	log.Println("Uninstalling kommodity-cluster helm chart...")
 	uninstallKommodityClusterChart(t, "scaleway-cluster", "default")
 
 	// Check that Scaleway resources are deleted
@@ -127,7 +127,7 @@ func TestCreateScalewayCluster(t *testing.T) {
 
 }
 
-func installKommodityClusterChart(t *testing.T, releaseName string, namespace string, valuesFile string) {
+func installKommodityClusterChart(t *testing.T, releaseName string, namespace string, valuesFile string, scalewayProjectID string) string {
 	t.Helper()
 
 	repoRoot, err := helpers.FindRepoRoot()
@@ -151,6 +151,37 @@ func installKommodityClusterChart(t *testing.T, releaseName string, namespace st
 	values, err := chartutil.ReadValuesFile(valuesPath)
 	require.NoError(t, err)
 
+	// Read default zone from values file to reuse in Scaleway verification.
+	scalewayDefaultZone := ""
+	if kommoditySection, ok := values["kommodity"].(map[string]interface{}); ok {
+		if nodepools, ok := kommoditySection["nodepools"].(map[string]interface{}); ok {
+			if defaultPool, ok := nodepools["default"].(map[string]interface{}); ok {
+				if zone, ok := defaultPool["zone"].(string); ok {
+					scalewayDefaultZone = zone
+				}
+			}
+		}
+	}
+	require.NotEmpty(t, scalewayDefaultZone, "kommodity.nodepools.default.zone must be set in %s", valuesFile)
+
+	// Override projectID with the value provided via environment to avoid hard-coded data in the values file.
+	kommodityVals, ok := values["kommodity"].(map[string]interface{})
+	if !ok || kommodityVals == nil {
+		kommodityVals = map[string]interface{}{}
+		values["kommodity"] = kommodityVals
+	}
+	providerVals, ok := kommodityVals["provider"].(map[string]interface{})
+	if !ok || providerVals == nil {
+		providerVals = map[string]interface{}{}
+		kommodityVals["provider"] = providerVals
+	}
+	configVals, ok := providerVals["config"].(map[string]interface{})
+	if !ok || configVals == nil {
+		configVals = map[string]interface{}{}
+		providerVals["config"] = configVals
+	}
+	configVals["projectID"] = scalewayProjectID
+
 	installer := action.NewInstall(cfg)
 	installer.ReleaseName = releaseName
 	installer.Namespace = namespace
@@ -158,6 +189,8 @@ func installKommodityClusterChart(t *testing.T, releaseName string, namespace st
 
 	_, err = installer.Run(chart, values)
 	require.NoError(t, err)
+
+	return scalewayDefaultZone
 }
 
 func uninstallKommodityClusterChart(t *testing.T, releaseName string, namespace string) {
