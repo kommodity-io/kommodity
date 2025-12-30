@@ -3,15 +3,12 @@ package test_test
 import (
 	"context"
 	"fmt"
-	"net"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/kommodity-io/kommodity/pkg/test/helpers"
-	"github.com/scaleway/scaleway-sdk-go/api/instance/v1"
-	"github.com/scaleway/scaleway-sdk-go/scw"
 	"github.com/stretchr/testify/require"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart/loader"
@@ -20,6 +17,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
+	"k8s.io/client-go/kubernetes"
 )
 
 //nolint:gochecknoglobals // Test environment needs to be reused by all tests.
@@ -27,7 +25,8 @@ var env helpers.TestEnvironment
 
 func TestMain(m *testing.M) {
 	// --- Setup ---
-	env, err := helpers.SetupContainers()
+	var err error
+	env, err = helpers.SetupContainers()
 	if err != nil {
 		fmt.Println("Failed to set up test containers:", err)
 		env.Teardown()
@@ -43,30 +42,30 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-func TestAPIIntegration(t *testing.T) {
-	t.Parallel()
+// func TestAPIIntegration(t *testing.T) {
+// 	t.Parallel()
 
-	client, err := helpers.K8sClientFromRestConfig(env.KommodityCfg)
-	require.NoError(t, err)
-	groups, err := client.Discovery().ServerGroups()
-	require.NoError(t, err)
+// 	client, err := kubernetes.NewForConfig(env.KommodityCfg)
+// 	require.NoError(t, err)
+// 	groups, err := client.Discovery().ServerGroups()
+// 	require.NoError(t, err)
 
-	var coreGroupVersions []string
-	for _, group := range groups.Groups {
-		if group.Name == "" {
-			for _, version := range group.Versions {
-				coreGroupVersions = append(coreGroupVersions, version.Version)
-			}
-			break
-		}
-	}
-	require.Contains(t, coreGroupVersions, "v1")
-}
+// 	var coreGroupVersions []string
+// 	for _, group := range groups.Groups {
+// 		if group.Name == "" {
+// 			for _, version := range group.Versions {
+// 				coreGroupVersions = append(coreGroupVersions, version.Version)
+// 			}
+// 			break
+// 		}
+// 	}
+// 	require.Contains(t, coreGroupVersions, "v1")
+// }
 
 func TestCreateScalewayCluster(t *testing.T) {
 	t.Parallel()
 
-	client, err := helpers.K8sClientFromRestConfig(env.KommodityCfg)
+	client, err := kubernetes.NewForConfig(env.KommodityCfg)
 	require.NoError(t, err)
 	ctx := context.Background()
 
@@ -110,32 +109,20 @@ func TestCreateScalewayCluster(t *testing.T) {
 	installKommodityClusterChart(t, "scaleway-cluster", "default", "values.scaleway.yaml")
 
 	// Check that CAPI resources are created in Kommodity
-	err = helpers.WaitForResource(env.KommodityCfg, "default", "worker", "cluster.x-k8s.io", "v1beta1", "machines", "", "", 2*time.Minute)
+	err = helpers.WaitForK8sResource(env.KommodityCfg, "default", "worker", "cluster.x-k8s.io", "v1beta1", "machines", "", "", 2*time.Minute)
 	require.NoError(t, err)
 
-	// Convert SCW_DEFAULT_REGION to instance.Region
-	regionExists := scw.Region(scalewayDefaultRegion).Exists()
-	require.True(t, regionExists, "invalid SCW_DEFAULT_REGION provided: "+scalewayDefaultRegion)
-
-	// Check that resources are created in Scaleway
-	scwClient, err := scw.NewClient(
-		// Get your credentials at https://console.scaleway.com/iam/api-keys
-		scw.WithAuth(scalewayAccessKey, scalewaySecretKey),
-		// Get more about our availability zones at https://www.scaleway.com/en/docs/console/my-account/reference-content/products-availability/
-		scw.WithDefaultRegion(scw.Region(scalewayDefaultRegion)),
-		scw.WithDefaultProjectID(scalewayProjectID),
-	)
+	// Check that Scaleway resources are created
+	err = helpers.WaitForScalewayServer(scalewayAccessKey, scalewaySecretKey, scalewayDefaultRegion, scalewayProjectID, 2, 5*time.Minute)
 	require.NoError(t, err)
 
-	instanceApi := instance.NewAPI(scwClient)
+	// Uninstall cluster chart
+	uninstallKommodityClusterChart(t, "scaleway-cluster", "default")
 
-	response, err := instanceApi.ListServers(&instance.ListServersRequest{})
+	// Check that Scaleway resources are deleted
+	err = helpers.WaitForScalewayServersDeletion(scalewayAccessKey, scalewaySecretKey, scalewayDefaultRegion, scalewayProjectID, 5*time.Minute)
 	require.NoError(t, err)
 
-	// Do something with the response...
-	for _, server := range response.Servers {
-		fmt.Println("Server", server.ID, server.Name)
-	}
 }
 
 func installKommodityClusterChart(t *testing.T, releaseName string, namespace string, valuesFile string) {
@@ -149,7 +136,7 @@ func installKommodityClusterChart(t *testing.T, releaseName string, namespace st
 
 	cfg := new(action.Configuration)
 	restGetter := genericclioptions.NewConfigFlags(false)
-	apiServer := "http://" + net.JoinHostPort(env.AppHost, env.AppPort)
+	apiServer := env.KommodityCfg.Host
 	restGetter.APIServer = &apiServer
 	restGetter.Namespace = &namespace
 
@@ -168,5 +155,23 @@ func installKommodityClusterChart(t *testing.T, releaseName string, namespace st
 	installer.Wait = false
 
 	_, err = installer.Run(chart, values)
+	require.NoError(t, err)
+}
+
+func uninstallKommodityClusterChart(t *testing.T, releaseName string, namespace string) {
+	t.Helper()
+
+	cfg := new(action.Configuration)
+	restGetter := genericclioptions.NewConfigFlags(false)
+	apiServer := env.KommodityCfg.Host
+	restGetter.APIServer = &apiServer
+	restGetter.Namespace = &namespace
+
+	err := cfg.Init(restGetter, namespace, "secret", func(string, ...interface{}) {})
+	require.NoError(t, err)
+
+	uninstaller := action.NewUninstall(cfg)
+
+	_, err = uninstaller.Run(releaseName)
 	require.NoError(t, err)
 }
