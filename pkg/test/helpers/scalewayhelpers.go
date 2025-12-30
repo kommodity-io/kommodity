@@ -12,11 +12,16 @@ import (
 )
 
 // WaitForScalewayServer checks for the existence of servers in Scaleway using the provided credentials.
-func WaitForScalewayServer(scalewayAccessKey, scalewaySecretKey, scalewayDefaultRegion, scalewayProjectID string, instanceCount int, timeout time.Duration) error {
+func WaitForScalewayServer(scalewayAccessKey, scalewaySecretKey, scalewayDefaultRegion, scalewayDefaultZone, scalewayProjectID string, instanceCount int, timeout time.Duration) error {
 	// Convert SCW_DEFAULT_REGION to instance.Region
-	regionExists := scw.Region(scalewayDefaultRegion).Exists()
-	if !regionExists {
+	region, err := scw.ParseRegion(scalewayDefaultRegion)
+	if err != nil {
 		return fmt.Errorf("invalid SCW_DEFAULT_REGION provided: %s", scalewayDefaultRegion)
+	}
+
+	zone, err := scw.ParseZone(scalewayDefaultZone)
+	if err != nil {
+		return fmt.Errorf("invalid SCW_DEFAULT_ZONE provided: %s", scalewayDefaultZone)
 	}
 
 	// Check that resources are created in Scaleway
@@ -24,9 +29,9 @@ func WaitForScalewayServer(scalewayAccessKey, scalewaySecretKey, scalewayDefault
 		// Get your credentials at https://console.scaleway.com/iam/api-keys
 		scw.WithAuth(scalewayAccessKey, scalewaySecretKey),
 		// Get more about our availability zones at https://www.scaleway.com/en/docs/console/my-account/reference-content/products-availability/
-		scw.WithDefaultRegion(scw.Region(scalewayDefaultRegion)),
+		scw.WithDefaultRegion(region),
 		scw.WithDefaultProjectID(scalewayProjectID),
-		scw.WithDefaultZone(scw.ZoneFrPar2),
+		scw.WithDefaultZone(zone),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create Scaleway client: %w", err)
@@ -41,11 +46,6 @@ func WaitForScalewayServer(scalewayAccessKey, scalewaySecretKey, scalewayDefault
 		response, err := instanceApi.ListServers(&instance.ListServersRequest{})
 		if err != nil {
 			return false, fmt.Errorf("failed to list Scaleway servers: %w", err)
-		}
-
-		// Do something with the response...
-		for _, server := range response.Servers {
-			fmt.Println("Server", server.ID, server.Name)
 		}
 
 		if len(response.Servers) < instanceCount {
@@ -71,11 +71,16 @@ func WaitForScalewayServer(scalewayAccessKey, scalewaySecretKey, scalewayDefault
 }
 
 // WaitForScalewayServersDeletion waits until all servers in Scaleway are deleted using the provided credentials.
-func WaitForScalewayServersDeletion(scalewayAccessKey, scalewaySecretKey, scalewayDefaultRegion, scalewayProjectID string, timeout time.Duration) error {
-	// Convert SCW_DEFAULT_REGION to instance.Region
-	regionExists := scw.Region(scalewayDefaultRegion).Exists()
-	if !regionExists {
+func WaitForScalewayServersDeletion(scalewayAccessKey, scalewaySecretKey, scalewayDefaultRegion, scalewayDefaultZone, scalewayProjectID string, timeout time.Duration) error {
+	// Convert SCW_DEFAULT_REGION to scw.Region
+	region, err := scw.ParseRegion(scalewayDefaultRegion)
+	if err != nil {
 		return fmt.Errorf("invalid SCW_DEFAULT_REGION provided: %s", scalewayDefaultRegion)
+	}
+
+	zone, err := scw.ParseZone(scalewayDefaultZone)
+	if err != nil {
+		return fmt.Errorf("invalid SCW_DEFAULT_ZONE provided: %s", scalewayDefaultZone)
 	}
 
 	// Wait for resources to be deleted in Scaleway
@@ -83,9 +88,9 @@ func WaitForScalewayServersDeletion(scalewayAccessKey, scalewaySecretKey, scalew
 		// Get your credentials at https://console.scaleway.com/iam/api-keys
 		scw.WithAuth(scalewayAccessKey, scalewaySecretKey),
 		// Get more about our availability zones at https://www.scaleway.com/en/docs/console/my-account/reference-content/products-availability/
-		scw.WithDefaultRegion(scw.Region(scalewayDefaultRegion)),
+		scw.WithDefaultRegion(region),
 		scw.WithDefaultProjectID(scalewayProjectID),
-		scw.WithDefaultZone(scw.ZoneFrPar2),
+		scw.WithDefaultZone(zone),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create Scaleway client: %w", err)

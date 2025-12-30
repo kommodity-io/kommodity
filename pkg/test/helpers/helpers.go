@@ -130,9 +130,6 @@ func startKommodityContainer(ctx context.Context, networkName string) (tc.Contai
 		Host: "http://" + net.JoinHostPort(kommodityHost, kommodityPort.Port()),
 	}
 
-	// show kommodity kubeconfig
-	fmt.Println("Kommodity kubeconfig:", kommodityCfg)
-
 	return kommodity, kommodityCfg, nil
 }
 
