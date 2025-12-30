@@ -112,15 +112,17 @@ func TestCreateScalewayCluster(t *testing.T) {
 	err = helpers.WaitForK8sResource(env.KommodityCfg, "default", "worker", "cluster.x-k8s.io", "v1beta1", "machines", "", "", 2*time.Minute)
 	require.NoError(t, err)
 
+	scalewayDefaultZone := "fr-par-2"
+
 	// Check that Scaleway resources are created
-	err = helpers.WaitForScalewayServer(scalewayAccessKey, scalewaySecretKey, scalewayDefaultRegion, scalewayProjectID, 2, 5*time.Minute)
+	err = helpers.WaitForScalewayServer(scalewayAccessKey, scalewaySecretKey, scalewayDefaultRegion, scalewayDefaultZone, scalewayProjectID, 2, 5*time.Minute)
 	require.NoError(t, err)
 
 	// Uninstall cluster chart
 	uninstallKommodityClusterChart(t, "scaleway-cluster", "default")
 
 	// Check that Scaleway resources are deleted
-	err = helpers.WaitForScalewayServersDeletion(scalewayAccessKey, scalewaySecretKey, scalewayDefaultRegion, scalewayProjectID, 5*time.Minute)
+	err = helpers.WaitForScalewayServersDeletion(scalewayAccessKey, scalewaySecretKey, scalewayDefaultRegion, scalewayDefaultZone, scalewayProjectID, 5*time.Minute)
 	require.NoError(t, err)
 
 }
