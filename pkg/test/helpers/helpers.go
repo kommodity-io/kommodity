@@ -19,9 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	k8s_wait "k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
 )
 
 const (
@@ -36,8 +34,6 @@ type TestEnvironment struct {
 	KommodityCfg  *rest.Config
 	K3s           *k3s.K3sContainer
 	K3sKubeconfig []byte
-	AppHost       string
-	AppPort       string
 	Network       *tc.DockerNetwork
 }
 
@@ -65,15 +61,10 @@ func SetupContainers() (TestEnvironment, error) {
 		return TestEnvironment{}, fmt.Errorf("failed to start Kommodity container: %w", err)
 	}
 
-	kommodityHost, _ := kommodity.Host(ctx)
-	kommodityPort, _ := kommodity.MappedPort(ctx, "5000")
-
 	env := TestEnvironment{
 		Postgres:     postgres,
 		Kommodity:    kommodity,
 		KommodityCfg: kommodityCfg,
-		AppHost:      kommodityHost,
-		AppPort:      kommodityPort.Port(),
 		Network:      newNetwork,
 	}
 
@@ -139,6 +130,9 @@ func startKommodityContainer(ctx context.Context, networkName string) (tc.Contai
 		Host: "http://" + net.JoinHostPort(kommodityHost, kommodityPort.Port()),
 	}
 
+	// show kommodity kubeconfig
+	fmt.Println("Kommodity kubeconfig:", kommodityCfg)
+
 	return kommodity, kommodityCfg, nil
 }
 
@@ -163,11 +157,6 @@ func FindRepoRoot() (string, error) {
 	return "", fmt.Errorf("go.mod not found in any parent directory of %s", dir)
 }
 
-// K8sClientFromRestConfig builds a Kubernetes client from a REST config.
-func K8sClientFromRestConfig(cfg *rest.Config) (*kubernetes.Clientset, error) {
-	return kubernetes.NewForConfig(cfg)
-}
-
 // Teardown stops and removes the containers and network used in the test environment.
 func (e TestEnvironment) Teardown() {
 	ctx := context.Background()
@@ -177,7 +166,8 @@ func (e TestEnvironment) Teardown() {
 	_ = e.Network.Remove(ctx)
 }
 
-func WaitForResource(config *rest.Config, namespace string, nameContains string, group string, version string, kind string, fieldPath string, fieldValue string, timeout time.Duration) error {
+// WaitForK8sResource waits for a Kubernetes resource to be created that matches the given criteria.
+func WaitForK8sResource(config *rest.Config, namespace string, nameContains string, group string, version string, kind string, fieldPath string, fieldValue string, timeout time.Duration) error {
 	client, err := dynamic.NewForConfig(config)
 	if err != nil {
 		return fmt.Errorf("failed to create dynamic client: %v", err)
@@ -222,8 +212,4 @@ func WaitForResource(config *rest.Config, namespace string, nameContains string,
 
 	println(fmt.Sprintf("Resource %s/%s/%s found in namespace %s (name contains: %q, field %q=%q)", group, version, kind, namespace, nameContains, fieldPath, fieldValue))
 	return nil
-}
-
-func RestConfigFromKubeConfig(kubeconfig []byte) (*rest.Config, error) {
-	return clientcmd.RESTConfigFromKubeConfig(kubeconfig)
 }
