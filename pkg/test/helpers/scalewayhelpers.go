@@ -102,7 +102,6 @@ func DeleteAllScalewayServers(scalewayAccessKey, scalewaySecretKey, scalewayDefa
 	zones := region.GetZones()
 
 	for _, zone := range zones {
-		log.Printf("Deleting servers in zone %s", zone)
 		instanceApi, err := getInstanceAPI(scalewayAccessKey, scalewaySecretKey, scalewayDefaultRegion, string(zone), scalewayProjectID)
 		if err != nil {
 			return fmt.Errorf("failed to get instance API for zone %s: %w", zone, err)
@@ -114,8 +113,18 @@ func DeleteAllScalewayServers(scalewayAccessKey, scalewaySecretKey, scalewayDefa
 		}
 
 		for _, server := range response.Servers {
-			log.Printf("Deleting server %s in zone %s", server.ID, zone)
-			err := instanceApi.DeleteServer(&instance.DeleteServerRequest{
+			if server.State == instance.ServerStateRunning {
+				err := instanceApi.ServerActionAndWait(&instance.ServerActionAndWaitRequest{
+					ServerID: server.ID,
+					Action:   instance.ServerActionPoweroff,
+					Zone:     zone,
+				})
+				if err != nil {
+					return fmt.Errorf("failed to power off Scaleway server %s in zone %s: %w", server.ID, zone, err)
+				}
+			}
+
+			err = instanceApi.DeleteServer(&instance.DeleteServerRequest{
 				ServerID: server.ID,
 			})
 			if err != nil {
@@ -123,9 +132,6 @@ func DeleteAllScalewayServers(scalewayAccessKey, scalewaySecretKey, scalewayDefa
 			}
 			log.Printf("Deleted Scaleway server %s in zone %s", server.ID, zone)
 		}
-	}
-	if err != nil {
-		return fmt.Errorf("failed to get instance API: %w", err)
 	}
 
 	return nil
@@ -135,12 +141,12 @@ func getInstanceAPI(scalewayAccessKey, scalewaySecretKey, scalewayDefaultRegion,
 	// Convert SCW_DEFAULT_REGION to instance.Region
 	region, err := scw.ParseRegion(scalewayDefaultRegion)
 	if err != nil {
-		return nil, fmt.Errorf("invalid SCW_DEFAULT_REGION provided: %s", scalewayDefaultRegion)
+		return nil, fmt.Errorf("invalid region provided: %s", scalewayDefaultRegion)
 	}
 
 	zone, err := scw.ParseZone(scalewayDefaultZone)
 	if err != nil {
-		return nil, fmt.Errorf("invalid SCW_DEFAULT_ZONE provided: %s", scalewayDefaultZone)
+		return nil, fmt.Errorf("invalid zone provided: %s", scalewayDefaultZone)
 	}
 
 	scwClient, err := scw.NewClient(scw.WithAuth(scalewayAccessKey, scalewaySecretKey),
