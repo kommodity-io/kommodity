@@ -24,6 +24,10 @@ import (
 //nolint:gochecknoglobals // Test environment needs to be reused by all tests.
 var env helpers.TestEnvironment
 
+const (
+	clusterName = "ci-test-cluster"
+)
+
 func TestMain(m *testing.M) {
 	// --- Setup ---
 	var err error
@@ -106,6 +110,10 @@ func TestCreateScalewayCluster(t *testing.T) {
 	}, metav1.CreateOptions{})
 	require.NoError(t, err)
 
+	// Ensure no Scaleway servers are present before starting the test
+	err = helpers.DeleteAllScalewayServers(scalewayAccessKey, scalewaySecretKey, scalewayDefaultRegion, scalewayProjectID)
+	require.NoError(t, err)
+
 	// Install Scaleway cluster helm chart in Kommodity
 	scalewayDefaultZone := installKommodityClusterChart(t, "scaleway-cluster", "default", "values.scaleway.yaml", scalewayProjectID)
 
@@ -113,16 +121,16 @@ func TestCreateScalewayCluster(t *testing.T) {
 	err = helpers.WaitForK8sResource(env.KommodityCfg, "default", "worker", "cluster.x-k8s.io", "v1beta1", "machines", "", "", 2*time.Minute)
 	require.NoError(t, err)
 
-// Check that Scaleway resources are created
-	err = helpers.WaitForScalewayServer(scalewayAccessKey, scalewaySecretKey, scalewayDefaultRegion, scalewayDefaultZone, scalewayProjectID, 2, 5*time.Minute)
+	// Check that Scaleway resources are created
+	err = helpers.WaitForScalewayServers(clusterName, scalewayAccessKey, scalewaySecretKey, scalewayDefaultRegion, scalewayDefaultZone, scalewayProjectID, 2, 5*time.Minute)
 	require.NoError(t, err)
 
 	// Uninstall cluster chart
 	log.Println("Uninstalling kommodity-cluster helm chart...")
-	uninstallKommodityClusterChart(t, "scaleway-cluster", "default")
+	uninstallKommodityClusterChart(t, clusterName, "default")
 
 	// Check that Scaleway resources are deleted
-	err = helpers.WaitForScalewayServersDeletion(scalewayAccessKey, scalewaySecretKey, scalewayDefaultRegion, scalewayDefaultZone, scalewayProjectID, 5*time.Minute)
+	err = helpers.WaitForScalewayServersDeletion(clusterName, scalewayAccessKey, scalewaySecretKey, scalewayDefaultRegion, scalewayDefaultZone, scalewayProjectID, 5*time.Minute)
 	require.NoError(t, err)
 
 }
