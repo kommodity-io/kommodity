@@ -34,7 +34,7 @@ require (
 	k8s.io/client-go v0.32.6
 	k8s.io/component-base v0.32.6
 	k8s.io/kube-aggregator v0.32.3
-	k8s.io/kube-openapi v0.0.0-20250318190949-c8a335a9a2ff
+	k8s.io/kube-openapi v0.0.0-20250701173324-9bd5c66d9911
 	k8s.io/kubernetes v1.32.6
 	k8s.io/utils v0.0.0-20250321185631-1f6e0b77f77e
 	kubevirt.io/api v1.5.0
