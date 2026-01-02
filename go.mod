@@ -34,9 +34,9 @@ require (
 	k8s.io/client-go v0.32.6
 	k8s.io/component-base v0.32.6
 	k8s.io/kube-aggregator v0.32.3
-	k8s.io/kube-openapi v0.0.0-20250710124328-f3f2b991d03b
+	k8s.io/kube-openapi v0.0.0-20250318190949-c8a335a9a2ff
 	k8s.io/kubernetes v1.32.6
-	k8s.io/utils v0.0.0-20250604170112-4c0f3b243397
+	k8s.io/utils v0.0.0-20250321185631-1f6e0b77f77e
 	kubevirt.io/api v1.5.0
 	kubevirt.io/containerized-data-importer-api v1.63.1-0.20251115214221-0b4e9b5c9c59
 	sigs.k8s.io/cluster-api v1.10.4
@@ -52,7 +52,6 @@ require (
 	github.com/moby/sys/atomicwriter v0.1.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.32.0 // indirect
 	gotest.tools/v3 v3.5.2 // indirect
-	sigs.k8s.io/structured-merge-diff/v6 v6.3.0 // indirect
 )
 
 require (
