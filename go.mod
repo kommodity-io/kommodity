@@ -28,6 +28,7 @@ require (
 	golang.org/x/time v0.12.0
 	google.golang.org/grpc v1.75.1
 	gopkg.in/yaml.v3 v3.0.1
+	helm.sh/helm/v3 v3.19.4
 	k8s.io/api v0.34.2
 	k8s.io/apiextensions-apiserver v0.34.2
 	k8s.io/apimachinery v0.34.2
@@ -52,6 +53,7 @@ require (
 require (
 	github.com/BurntSushi/toml v1.5.0 // indirect
 	github.com/Masterminds/squirrel v1.5.4 // indirect
+	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/containerd/containerd v1.7.29 // indirect
 	github.com/cyphar/filepath-securejoin v0.6.1 // indirect
 	github.com/fatih/color v1.18.0 // indirect
@@ -118,7 +120,6 @@ require (
 	github.com/Rican7/retry v0.3.1 // indirect
 	github.com/adrg/xdg v0.5.3 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
-	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/asaskevich/govalidator/v11 v11.0.2-0.20250122183457-e11347878e23 // indirect
 	github.com/benbjohnson/clock v1.3.5 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -273,7 +274,6 @@ require (
 	github.com/spf13/cobra v1.10.1 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/stoewer/go-strcase v1.3.0 // indirect
-	github.com/testcontainers/testcontainers-go/modules/k3s v0.40.0
 	github.com/tidwall/btree v1.8.1 // indirect
 	github.com/tklauser/go-sysconf v0.3.12 // indirect
 	github.com/tklauser/numcpus v0.6.1 // indirect
@@ -326,7 +326,6 @@ require (
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gopkg.in/square/go-jose.v2 v2.6.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
-	helm.sh/helm/v3 v3.19.4
 	k8s.io/cli-runtime v0.34.2
 	k8s.io/cloud-provider v0.32.2 // indirect
 	k8s.io/cluster-bootstrap v0.32.3 // indirect
