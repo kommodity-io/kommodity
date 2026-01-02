@@ -11,39 +11,22 @@ import (
 	k8s_wait "k8s.io/apimachinery/pkg/util/wait"
 )
 
-// WaitForScalewayServer checks for the existence of servers in Scaleway using the provided credentials.
-func WaitForScalewayServer(scalewayAccessKey, scalewaySecretKey, scalewayDefaultRegion, scalewayDefaultZone, scalewayProjectID string, instanceCount int, timeout time.Duration) error {
-	// Convert SCW_DEFAULT_REGION to instance.Region
-	region, err := scw.ParseRegion(scalewayDefaultRegion)
+// WaitForScalewayServers checks for the existence of servers in Scaleway using the provided credentials.
+func WaitForScalewayServers(clusterName, scalewayAccessKey, scalewaySecretKey, scalewayDefaultRegion, scalewayDefaultZone, scalewayProjectID string, instanceCount int, timeout time.Duration) error {
+	instanceApi, err := getInstanceAPI(scalewayAccessKey, scalewaySecretKey, scalewayDefaultRegion, scalewayDefaultZone, scalewayProjectID)
 	if err != nil {
-		return fmt.Errorf("invalid SCW_DEFAULT_REGION provided: %s", scalewayDefaultRegion)
+		return fmt.Errorf("failed to get instance API: %w", err)
 	}
-
-	zone, err := scw.ParseZone(scalewayDefaultZone)
-	if err != nil {
-		return fmt.Errorf("invalid SCW_DEFAULT_ZONE provided: %s", scalewayDefaultZone)
-	}
-
-	// Check that resources are created in Scaleway
-	scwClient, err := scw.NewClient(
-		// Get your credentials at https://console.scaleway.com/iam/api-keys
-		scw.WithAuth(scalewayAccessKey, scalewaySecretKey),
-		// Get more about our availability zones at https://www.scaleway.com/en/docs/console/my-account/reference-content/products-availability/
-		scw.WithDefaultRegion(region),
-		scw.WithDefaultProjectID(scalewayProjectID),
-		scw.WithDefaultZone(zone),
-	)
-	if err != nil {
-		return fmt.Errorf("failed to create Scaleway client: %w", err)
-	}
-
-	instanceApi := instance.NewAPI(scwClient)
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
+	requestOptions := instance.ListServersRequest{
+		Tags: []string{fmt.Sprintf("caps-scalewaycluster=%s", clusterName)},
+	}
+
 	err = k8s_wait.PollUntilContextTimeout(ctx, 5*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
-		response, err := instanceApi.ListServers(&instance.ListServersRequest{})
+		response, err := instanceApi.ListServers(&requestOptions)
 		if err != nil {
 			return false, fmt.Errorf("failed to list Scaleway servers: %w", err)
 		}
@@ -71,38 +54,21 @@ func WaitForScalewayServer(scalewayAccessKey, scalewaySecretKey, scalewayDefault
 }
 
 // WaitForScalewayServersDeletion waits until all servers in Scaleway are deleted using the provided credentials.
-func WaitForScalewayServersDeletion(scalewayAccessKey, scalewaySecretKey, scalewayDefaultRegion, scalewayDefaultZone, scalewayProjectID string, timeout time.Duration) error {
-	// Convert SCW_DEFAULT_REGION to scw.Region
-	region, err := scw.ParseRegion(scalewayDefaultRegion)
+func WaitForScalewayServersDeletion(clusterName, scalewayAccessKey, scalewaySecretKey, scalewayDefaultRegion, scalewayDefaultZone, scalewayProjectID string, timeout time.Duration) error {
+	instanceApi, err := getInstanceAPI(scalewayAccessKey, scalewaySecretKey, scalewayDefaultRegion, scalewayDefaultZone, scalewayProjectID)
 	if err != nil {
-		return fmt.Errorf("invalid SCW_DEFAULT_REGION provided: %s", scalewayDefaultRegion)
+		return fmt.Errorf("failed to get instance API: %w", err)
 	}
-
-	zone, err := scw.ParseZone(scalewayDefaultZone)
-	if err != nil {
-		return fmt.Errorf("invalid SCW_DEFAULT_ZONE provided: %s", scalewayDefaultZone)
-	}
-
-	// Wait for resources to be deleted in Scaleway
-	scwClient, err := scw.NewClient(
-		// Get your credentials at https://console.scaleway.com/iam/api-keys
-		scw.WithAuth(scalewayAccessKey, scalewaySecretKey),
-		// Get more about our availability zones at https://www.scaleway.com/en/docs/console/my-account/reference-content/products-availability/
-		scw.WithDefaultRegion(region),
-		scw.WithDefaultProjectID(scalewayProjectID),
-		scw.WithDefaultZone(zone),
-	)
-	if err != nil {
-		return fmt.Errorf("failed to create Scaleway client: %w", err)
-	}
-
-	instanceApi := instance.NewAPI(scwClient)
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
+	requestOptions := instance.ListServersRequest{
+		Tags: []string{fmt.Sprintf("caps-scalewaycluster=%s", clusterName)},
+	}
+
 	err = k8s_wait.PollUntilContextTimeout(ctx, 5*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
-		response, err := instanceApi.ListServers(&instance.ListServersRequest{})
+		response, err := instanceApi.ListServers(&requestOptions)
 		if err != nil {
 			return false, fmt.Errorf("failed to list Scaleway servers: %w", err)
 		}
@@ -123,4 +89,70 @@ func WaitForScalewayServersDeletion(scalewayAccessKey, scalewaySecretKey, scalew
 	}
 
 	return nil
+}
+
+// DeleteAllScalewayServers deletes all servers in a Scaleway Project using the provided credentials.
+func DeleteAllScalewayServers(scalewayAccessKey, scalewaySecretKey, scalewayDefaultRegion, scalewayProjectID string) error {
+
+	// Get available zones in the region
+	region, err := scw.ParseRegion(scalewayDefaultRegion)
+	if err != nil {
+		return fmt.Errorf("invalid region provided: %s", scalewayDefaultRegion)
+	}
+	zones := region.GetZones()
+
+	for _, zone := range zones {
+		log.Printf("Deleting servers in zone %s", zone)
+		instanceApi, err := getInstanceAPI(scalewayAccessKey, scalewaySecretKey, scalewayDefaultRegion, string(zone), scalewayProjectID)
+		if err != nil {
+			return fmt.Errorf("failed to get instance API for zone %s: %w", zone, err)
+		}
+
+		response, err := instanceApi.ListServers(&instance.ListServersRequest{})
+		if err != nil {
+			return fmt.Errorf("failed to list Scaleway servers in zone %s: %w", zone, err)
+		}
+
+		for _, server := range response.Servers {
+			log.Printf("Deleting server %s in zone %s", server.ID, zone)
+			err := instanceApi.DeleteServer(&instance.DeleteServerRequest{
+				ServerID: server.ID,
+			})
+			if err != nil {
+				return fmt.Errorf("failed to delete Scaleway server %s in zone %s: %w", server.ID, zone, err)
+			}
+			log.Printf("Deleted Scaleway server %s in zone %s", server.ID, zone)
+		}
+	}
+	if err != nil {
+		return fmt.Errorf("failed to get instance API: %w", err)
+	}
+
+	return nil
+}
+
+func getInstanceAPI(scalewayAccessKey, scalewaySecretKey, scalewayDefaultRegion, scalewayDefaultZone, scalewayProjectID string) (*instance.API, error) {
+	// Convert SCW_DEFAULT_REGION to instance.Region
+	region, err := scw.ParseRegion(scalewayDefaultRegion)
+	if err != nil {
+		return nil, fmt.Errorf("invalid SCW_DEFAULT_REGION provided: %s", scalewayDefaultRegion)
+	}
+
+	zone, err := scw.ParseZone(scalewayDefaultZone)
+	if err != nil {
+		return nil, fmt.Errorf("invalid SCW_DEFAULT_ZONE provided: %s", scalewayDefaultZone)
+	}
+
+	scwClient, err := scw.NewClient(scw.WithAuth(scalewayAccessKey, scalewaySecretKey),
+		scw.WithDefaultRegion(region),
+		scw.WithDefaultProjectID(scalewayProjectID),
+		scw.WithDefaultZone(zone),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Scaleway client: %w", err)
+	}
+
+	instanceApi := instance.NewAPI(scwClient)
+
+	return instanceApi, nil
 }
