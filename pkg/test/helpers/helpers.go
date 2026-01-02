@@ -11,7 +11,6 @@ import (
 	"time"
 
 	tc "github.com/testcontainers/testcontainers-go"
-	"github.com/testcontainers/testcontainers-go/modules/k3s"
 	"github.com/testcontainers/testcontainers-go/network"
 	"github.com/testcontainers/testcontainers-go/wait"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -32,8 +31,6 @@ type TestEnvironment struct {
 	Postgres      tc.Container
 	Kommodity     tc.Container
 	KommodityCfg  *rest.Config
-	K3s           *k3s.K3sContainer
-	K3sKubeconfig []byte
 	Network       *tc.DockerNetwork
 }
 
