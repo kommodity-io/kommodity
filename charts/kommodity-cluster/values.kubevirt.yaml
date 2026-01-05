@@ -17,6 +17,8 @@ kommodity:
     config:
       # Namespace in the external Kubevirt cluster where the VMs will be deployed
       infraClusterNamespace: kubevirt-cluster-namespace
+      # Specify a storageClassName if needed
+      # storageClassName: my-storage-class
 
   network:
     cluster:
@@ -26,11 +28,17 @@ kommodity:
   controlplane:
     replicas: 2
     sku: s1.medium
+    os:
+      disk:
+        size: 20
 
   nodepools:
     default:
       replicas: 1
       sku: s1.medium
+      os:
+        disk:
+          size: 20
 
       # Optional: specify GPU resources
       # gpus:

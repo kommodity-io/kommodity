@@ -24,9 +24,12 @@ spec:
                 pvc:
                   resources:
                     requests:
-                      storage: 20Gi
+                      storage: {{ .Values.kommodity.controlplane.os.disk.size }}Gi
                   accessModes:
                     - ReadWriteOnce
+                  {{- if hasKey .Values.kommodity.provider.config "storageClassName" }}
+                  storageClassName: {{ .Values.kommodity.provider.config.storageClassName }}
+                  {{- end }}
                 source:
                   http:
                     {{- if and (hasKey .Values.kommodity.controlplane "talos") (hasKey .Values.kommodity.controlplane.talos "imageName") }}
@@ -79,13 +82,16 @@ spec:
                 pvc:
                   resources:
                     requests:
-                      storage: 20Gi
+                      storage: {{ $np.os.disk.size }}Gi
                   accessModes:
                     - ReadWriteOnce
+                  {{- if hasKey $.Values.kommodity.provider.config "storageClassName" }}
+                  storageClassName: {{ $.Values.kommodity.provider.config.storageClassName }}
+                  {{- end }}
                 source:
                   http:
-                    {{- if and (hasKey .Values.kommodity.controlplane "talos") (hasKey .Values.kommodity.controlplane.talos "imageName") }}
-                    url: {{ $.Values.kommodity.controlplane.talos.imageName }}
+                    {{- if and (hasKey $np "talos") (hasKey $np.talos "imageName") }}
+                    url: {{ $np.talos.imageName }}
                     {{- else }}
                     url: {{ $.Values.talos.imageName }}
                     {{- end }}
