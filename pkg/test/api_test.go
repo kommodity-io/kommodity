@@ -20,7 +20,8 @@ import (
 var env helpers.TestEnvironment
 
 const (
-	clusterName = "ci-test-cluster"
+	clusterName      = "ci-test-cluster"
+	kommodityLogFile = "kommodity_container.log"
 )
 
 func TestMain(m *testing.M) {
@@ -35,6 +36,11 @@ func TestMain(m *testing.M) {
 
 	// Run tests
 	code := m.Run()
+
+	if code != 0 {
+		helpers.WriteKommodityLogsToFile(env.Kommodity, kommodityLogFile)
+		log.Printf("Kommodity container logs written to %s for debugging", kommodityLogFile)
+	}
 
 	// --- Teardown ---
 	env.Teardown()
@@ -108,6 +114,8 @@ func TestCreateScalewayCluster(t *testing.T) {
 	// Ensure no Scaleway servers are present before starting the test
 	err = helpers.DeleteAllScalewayServers(scalewayAccessKey, scalewaySecretKey, scalewayDefaultRegion, scalewayProjectID)
 	require.NoError(t, err)
+
+	log.Printf("Using project ID %s", scalewayProjectID)
 
 	// Install Scaleway cluster helm chart in Kommodity
 	scalewayDefaultZone := helpers.InstallKommodityClusterChart(t, env, clusterName, "default", "values.scaleway.yaml", scalewayProjectID)
