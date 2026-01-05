@@ -30,7 +30,7 @@ kommodity:
     sku: s1.medium
     os:
       disk:
-        size: 20Gi
+        size: 20
 
   nodepools:
     default:
@@ -38,7 +38,7 @@ kommodity:
       sku: s1.medium
       os:
         disk:
-          size: 20Gi
+          size: 20
 
       # Optional: specify GPU resources
       # gpus:
