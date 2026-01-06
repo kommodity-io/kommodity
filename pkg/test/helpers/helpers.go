@@ -4,6 +4,7 @@ package helpers
 import (
 	"context"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
@@ -28,10 +29,10 @@ const (
 
 // TestEnvironment holds the containers and connection info for the test setup.
 type TestEnvironment struct {
-	Postgres      tc.Container
-	Kommodity     tc.Container
-	KommodityCfg  *rest.Config
-	Network       *tc.DockerNetwork
+	Postgres     tc.Container
+	Kommodity    tc.Container
+	KommodityCfg *rest.Config
+	Network      *tc.DockerNetwork
 }
 
 // SetupContainers initializes and starts the necessary containers for testing.
@@ -205,5 +206,31 @@ func WaitForK8sResource(config *rest.Config, namespace string, nameContains stri
 	}
 
 	println(fmt.Sprintf("Resource %s/%s/%s found in namespace %s (name contains: %q, field %q=%q)", group, version, kind, namespace, nameContains, fieldPath, fieldValue))
+	return nil
+}
+
+func WriteKommodityLogsToFile(container tc.Container, filePath string) error {
+	if container == nil {
+		return fmt.Errorf("container is nil")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	logsReader, err := container.Logs(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get Kommodity container logs: %w", err)
+	}
+	defer logsReader.Close()
+
+	data, err := io.ReadAll(logsReader)
+	if err != nil {
+		return fmt.Errorf("failed to read Kommodity logs: %w", err)
+	}
+
+	if err := os.WriteFile(filePath, data, 0o644); err != nil {
+		return fmt.Errorf("failed to write Kommodity logs to file: %w", err)
+	}
+
 	return nil
 }
