@@ -33,23 +33,22 @@ const (
 // serviceAccountTokenGetter implements serviceaccount.ServiceAccountTokenGetter
 // to validate that ServiceAccounts and Secrets exist in Kommodity.
 type serviceAccountTokenGetter struct {
-	ctx    context.Context
 	client kubernetes.Interface
 }
 
-func newServiceAccountTokenGetter(ctx context.Context, config *restclient.Config) (*serviceAccountTokenGetter, error) {
+func newServiceAccountTokenGetter(config *restclient.Config) (*serviceAccountTokenGetter, error) {
 	client, err := kubernetes.NewForConfig(config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create kubernetes client: %w", err)
 	}
 
-	return &serviceAccountTokenGetter{ctx: ctx, client: client}, nil
+	return &serviceAccountTokenGetter{client: client}, nil
 }
 
 func (g *serviceAccountTokenGetter) GetServiceAccount(namespace, name string) (*corev1.ServiceAccount, error) {
 	serviceAccount, err := g.client.CoreV1().
 		ServiceAccounts(namespace).
-		Get(g.ctx, name, metav1.GetOptions{})
+		Get(context.Background(), name, metav1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get service account %s/%s: %w", namespace, name, err)
 	}
@@ -65,7 +64,7 @@ func (g *serviceAccountTokenGetter) GetPod(_, _ string) (*corev1.Pod, error) {
 func (g *serviceAccountTokenGetter) GetSecret(namespace, name string) (*corev1.Secret, error) {
 	secret, err := g.client.CoreV1().
 		Secrets(namespace).
-		Get(g.ctx, name, metav1.GetOptions{})
+		Get(context.Background(), name, metav1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get secret %s/%s: %w", namespace, name, err)
 	}
@@ -152,7 +151,7 @@ func applyAuth(ctx context.Context, cfg *config.KommodityConfig, config *generic
 	}
 
 	// Set up ServiceAccount token authenticator using the server's signing key
-	saAuthenticator, err := setupServiceAccountAuth(ctx, config)
+	saAuthenticator, err := setupServiceAccountAuth(config)
 	if err != nil {
 		return fmt.Errorf("failed to setup serviceaccount authenticator: %w", err)
 	}
@@ -217,7 +216,7 @@ func applyAuth(ctx context.Context, cfg *config.KommodityConfig, config *generic
 
 // setupServiceAccountAuth creates a ServiceAccount token authenticator using the server's signing key.
 // It validates that the ServiceAccount and Secret referenced in the token actually exist in Kommodity.
-func setupServiceAccountAuth(ctx context.Context, config *genericapiserver.RecommendedConfig) (authenticator.Token, error) {
+func setupServiceAccountAuth(config *genericapiserver.RecommendedConfig) (authenticator.Token, error) {
 	_, key, err := getServingCertAndKeyFromFiles(config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get serving key for SA auth: %w", err)
@@ -238,7 +237,7 @@ func setupServiceAccountAuth(ctx context.Context, config *genericapiserver.Recom
 	}
 
 	// Create a ServiceAccount token getter to validate SA and Secret exist in Kommodity
-	saGetter, err := newServiceAccountTokenGetter(ctx, config.LoopbackClientConfig)
+	saGetter, err := newServiceAccountTokenGetter(config.LoopbackClientConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create service account token getter: %w", err)
 	}
