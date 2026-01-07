@@ -37,6 +37,17 @@ spec:
         cluster.x-k8s.io/cluster-name: {{ $.Release.Name }}
         cluster.x-k8s.io/deployment-name: {{ $.Release.Name }}-worker-{{ $name }}
         app.kubernetes.io/managed-by: kommodity
+        {{- if hasKey $np "labels" }}
+        {{- range $key, $value := $np.labels }}
+        {{ $key }}: {{ $value }}
+        {{- end }}
+        {{- end }}
+      {{- if hasKey $np "annotations" }}
+      annotations:
+        {{- range $key, $value := $np.annotations }}
+        {{ $key }}: {{ $value }}
+        {{- end }}
+      {{- end }}
     spec:
       bootstrap:
         configRef:
