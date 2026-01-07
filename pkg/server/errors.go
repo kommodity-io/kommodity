@@ -26,4 +26,6 @@ var (
 	ErrPrivateKeyNotRSA = errors.New("private key is not RSA")
 	// ErrFailedToParsePrivateKey indicates that failed to parse private key as PKCS1 or PKCS8.
 	ErrFailedToParsePrivateKey = errors.New("failed to parse private key as PKCS1 or PKCS8")
+	// ErrNotSupportedInKommodity indicates that the requested resource is not supported in Kommodity.
+	ErrNotSupportedInKommodity = errors.New("not supported in Kommodity")
 )
