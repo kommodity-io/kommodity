@@ -1,4 +1,4 @@
-# Default values for kommodity-cluster in Scaleway.
+# Default values for kommodity-cluster.
 kommodity:
   provider:
     name: Docker
