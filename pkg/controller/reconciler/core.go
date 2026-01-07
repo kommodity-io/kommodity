@@ -3,6 +3,7 @@ package reconciler
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"time"
 
 	"github.com/kommodity-io/kommodity/pkg/config"
@@ -56,7 +57,8 @@ func setupCAPI(ctx context.Context, manager ctrl.Manager,
 
 	logger.Info("Setting up Machine controller")
 
-	err = setupMachineWithManager(ctx, manager, clusterCache, opt, remoteConnectionGracePeriod)
+	err = setupMachineWithManager(ctx, manager, clusterCache, opt, remoteConnectionGracePeriod, 
+		[]*regexp.Regexp{regexp.MustCompile(".*")}, []*regexp.Regexp{regexp.MustCompile(".*")})
 	if err != nil {
 		return fmt.Errorf("failed to setup Machine controller: %w", err)
 	}
@@ -128,12 +130,15 @@ func setupClusterClassWithManager(ctx context.Context, manager ctrl.Manager, opt
 
 func setupMachineWithManager(ctx context.Context, manager ctrl.Manager,
 	clusterCache clustercache.ClusterCache, opt controller.Options,
-	remoteConnectionGracePeriod time.Duration) error {
+	remoteConnectionGracePeriod time.Duration, 
+	additionalSyncMachineLabels []*regexp.Regexp, additionalSyncMachineAnnotations []*regexp.Regexp) error {
 	err := (&capi_controllers.MachineReconciler{
-		Client:                      manager.GetClient(),
-		APIReader:                   manager.GetAPIReader(),
-		ClusterCache:                clusterCache,
-		RemoteConditionsGracePeriod: remoteConnectionGracePeriod,
+		Client:                           manager.GetClient(),
+		APIReader:                        manager.GetAPIReader(),
+		ClusterCache:                     clusterCache,
+		RemoteConditionsGracePeriod:      remoteConnectionGracePeriod,
+		AdditionalSyncMachineLabels:      additionalSyncMachineLabels,
+		AdditionalSyncMachineAnnotations: additionalSyncMachineAnnotations,
 	}).SetupWithManager(ctx, manager, opt)
 	if err != nil {
 		return fmt.Errorf("failed to setup Machine: %w", err)
