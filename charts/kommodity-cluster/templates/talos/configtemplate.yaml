@@ -27,4 +27,9 @@ spec:
       {{- if $hasNpConfigPatches }}
 {{- toYaml $np.configPatches | nindent 8 }}
       {{- end }}
+      {{- if $.Values.kommodity.kms.enabled }}
+      {{- /* Use VolumeConfig for disk encryption (Talos v1.12+) instead of deprecated machine.systemDiskEncryption */}}
+      strategicPatches:
+{{- include "kommodity.talos.volumeEncryption" (dict "endpoint" $.Values.kommodity.kms.endpoint) | nindent 8 }}
+      {{- end }}
 {{- end }}
