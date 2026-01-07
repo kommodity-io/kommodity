@@ -6,10 +6,13 @@ on:
       - main
     paths:
       - "charts/**"
-      - ".github/workflows/helm.yaml"
+      - ".github/workflows/helm.yml"
   pull_request:
     branches:
       - main
+    paths:
+      - "charts/**"
+      - ".github/workflows/helm.yml"
 
 jobs:
   diff-charts:
@@ -355,7 +358,6 @@ jobs:
     name: Publish charts
     runs-on: ubuntu-latest
     needs:
-      - diff-charts
       - unit-tests
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
