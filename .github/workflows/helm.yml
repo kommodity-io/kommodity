@@ -310,7 +310,6 @@ jobs:
   unit-tests:
     name: Unit tests
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -358,6 +357,8 @@ jobs:
   publish-charts:
     name: Publish charts
     runs-on: ubuntu-latest
+    needs:
+      - unit-tests
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
       packages: write
