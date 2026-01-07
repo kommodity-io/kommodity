@@ -89,7 +89,7 @@ func (a *AutoscalerJob) PrepareForApply(ctx context.Context, cfg *config.Kommodi
 
 	autoscalerKubeconfig := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "kommodiy-cluster-autoscaler-kubeconfig",
+			Name:      "kommodity-cluster-autoscaler-kubeconfig",
 			Namespace: "kube-system",
 		},
 		Data: map[string][]byte{
