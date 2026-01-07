@@ -24,7 +24,7 @@ data:
     "extraArgs" (dict
       "node-group-auto-discovery" (printf "clusterapi:clusterName=%s,cluster.x-k8s.io/cluster-name=%s" .Release.Name .Release.Name)
     )
-    "clusterAPIKubeconfigSecret" "kommodiy-cluster-autoscaler-kubeconfig"
+    "clusterAPIKubeconfigSecret" "kommodity-cluster-autoscaler-kubeconfig"
     "clusterAPICloudConfigPath" "/etc/kubernetes/value"
   )
 }}
