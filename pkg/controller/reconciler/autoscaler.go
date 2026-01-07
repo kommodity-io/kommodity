@@ -41,7 +41,6 @@ type AutoscalerJob struct {
 
 // Kubeconfig holds the configuration for accessing the Kommodity cluster from downstream clusters.
 type Kubeconfig struct {
-	CaCrt     string
 	BaseURL   string
 	Token     string
 	Namespace string
@@ -70,7 +69,6 @@ func (a *AutoscalerJob) PrepareForApply(ctx context.Context, cfg *config.Kommodi
 	}
 
 	kubeconfig := &Kubeconfig{
-		CaCrt:     string(autoscalerSecret.Data["ca.crt"]),
 		BaseURL:   cfg.BaseURL,
 		Token:     string(autoscalerSecret.Data["token"]),
 		Namespace: string(autoscalerSecret.Data["namespace"]),
