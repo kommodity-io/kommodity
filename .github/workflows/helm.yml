@@ -6,13 +6,13 @@ on:
       - main
     paths:
       - "charts/**"
-      - ".github/workflows/helm.yaml"
+      - ".github/workflows/helm.yml"
   pull_request:
     branches:
       - main
     paths:
       - "charts/**"
-      - ".github/workflows/helm.yaml"
+      - ".github/workflows/helm.yml"
 
 jobs:
   diff-charts:
