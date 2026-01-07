@@ -1,0 +1,34 @@
+{{/*
+VolumeConfig documents for KMS disk encryption.
+These are used as strategic patches in TalosConfigTemplate and TalosControlPlane.
+See: https://docs.siderolabs.com/talos/v1.12/reference/configuration/block/volumeconfig
+*/}}
+{{- define "kommodity.talos.volumeEncryption" -}}
+{{- $endpoint := .endpoint -}}
+- |
+  apiVersion: v1alpha1
+  kind: VolumeConfig
+  name: STATE
+  provisioning:
+    diskSelector:
+      match: 'system_disk'
+  encryption:
+    provider: luks2
+    keys:
+      - slot: 0
+        kms:
+          endpoint: {{ $endpoint | quote }}
+- |
+  apiVersion: v1alpha1
+  kind: VolumeConfig
+  name: EPHEMERAL
+  provisioning:
+    diskSelector:
+      match: 'system_disk'
+  encryption:
+    provider: luks2
+    keys:
+      - slot: 0
+        kms:
+          endpoint: {{ $endpoint | quote }}
+{{- end -}}
