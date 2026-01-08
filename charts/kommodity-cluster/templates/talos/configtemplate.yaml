@@ -3,7 +3,7 @@
 apiVersion: bootstrap.cluster.x-k8s.io/v1alpha3
 kind: TalosConfigTemplate
 metadata:
-  name: {{ $.Release.Name }}-worker-{{ $name }}
+  name: {{ $.Release.Name }}-worker-{{ $name }}-{{ include "kommodity-cluster.configPatchesHash" (dict "poolValues" $np "allValues" $.Values) }}
   namespace: {{ $.Release.Namespace }}
   labels:
     app.kubernetes.io/managed-by: kommodity

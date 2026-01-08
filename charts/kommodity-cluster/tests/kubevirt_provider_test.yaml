@@ -7,7 +7,6 @@ release:
 set:
   kommodity.controlplane.talos.version: "controlplane-talos-version"
   kommodity.controlplane.talos.imageName: "controlplane-talos-image"
-  kommodity.controlplane.kubernetes.version: "controlplane-kubernetes-version"
   talos.imageName: "global-talos-image"
   talos.version: "global-talos-version"
   kubernetes.version: "global-kubernetes-version"
@@ -37,35 +36,6 @@ tests:
           value: "global-kubernetes-version"
       - hasDocuments:
           count: 1
-  - it: should make sure a TalosControlPlane is created
-    template: templates/talos/controlplane.yaml
-    asserts:
-      - isKind:
-          of: TalosControlPlane
-      - equal:
-          path: spec.infrastructureTemplate.kind
-          value: KubevirtMachineTemplate
-      - equal:
-          path: spec.controlPlaneConfig.controlplane.talosVersion
-          value: "controlplane-talos-version"
-      - equal:
-          path: spec.version
-          value: "controlplane-kubernetes-version"
-      - hasDocuments:
-          count: 1
-  - it: should make sure a TalosConfigTemplate is created
-    template: templates/talos/configtemplate.yaml
-    asserts:
-      - isKind:
-          of: TalosConfigTemplate
-      - matchRegex:
-          path: metadata.name
-          pattern: ".*-worker-.*"
-      - equal:
-          path: spec.template.spec.talosVersion
-          value: "global-talos-version"
-      - hasDocuments:
-          count: 1
   - it: should make sure a KubevirtCluster is created
     template: templates/provider/kubevirt/cluster.yaml
     asserts:
@@ -80,13 +50,13 @@ tests:
           of: KubevirtMachineTemplate
       - hasDocuments:
           count: 2
-      - matchRegex:
+      - equal:
           path: metadata.name
-          pattern: "^test-cluster-controlplane-.*"
+          value: "test-cluster-controlplane-0917ef"
         documentIndex: 0
-      - matchRegex:
+      - equal:
           path: metadata.name
-          pattern: "^test-cluster-worker-default-.*"
+          value: "test-cluster-worker-default-e9a1f2"
         documentIndex: 1
       - equal:
           path: spec.template.spec.virtualMachineTemplate.spec.dataVolumeTemplates[0].spec.source.http.url

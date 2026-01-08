@@ -1,0 +1,125 @@
+suite: test creation of resources for Talos
+values:
+  - ../values.scaleway.yaml
+release:
+  name: test-cluster
+  namespace: default
+set:
+  kommodity.controlplane.talos.version: "controlplane-talos-version"
+  kommodity.controlplane.talos.imageName: "controlplane-talos-image"
+  kommodity.controlplane.kubernetes.version: "controlplane-kubernetes-version"
+  talos.imageName: "global-talos-image"
+  talos.version: "global-talos-version"
+  kubernetes.version: "global-kubernetes-version"
+  kommodity.global.configPatches: [{ op: add, path: /my-path, value: my-value }]
+templates:
+  - templates/*
+tests:
+  - it: should make sure a TalosControlPlane is created
+    template: templates/talos/controlplane.yaml
+    asserts:
+      - isKind:
+          of: TalosControlPlane
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: metadata.name
+          value: "test-cluster-controlplane"
+      - equal:
+          path: spec.infrastructureTemplate.kind
+          value: ScalewayMachineTemplate
+      - equal:
+          path: spec.controlPlaneConfig.controlplane.talosVersion
+          value: "controlplane-talos-version"
+      - equal:
+          path: spec.version
+          value: "controlplane-kubernetes-version"
+      - hasDocuments:
+          count: 1
+  - it: should make sure a TalosConfigTemplate is created
+    template: templates/talos/configtemplate.yaml
+    asserts:
+      - isKind:
+          of: TalosConfigTemplate
+      - equal:
+          path: metadata.name
+          value: "test-cluster-worker-default-de30e8"
+      - equal:
+          path: spec.template.spec.talosVersion
+          value: "global-talos-version"
+      - hasDocuments:
+          count: 1
+  - it: should make sure Cluster references the correct TalosControlPlane
+    template: templates/provider/capi/cluster.yaml
+    asserts:
+      - isKind:
+          of: Cluster
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: spec.controlPlaneRef.kind
+          value: "TalosControlPlane"
+      - equal:
+          path: spec.controlPlaneRef.name
+          value: "test-cluster-controlplane"
+  - it: should make sure MachineDeployment references the correct TalosConfigTemplate
+    template: templates/provider/capi/machinedeployment.yaml
+    asserts:
+      - isKind:
+          of: MachineDeployment
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: spec.template.spec.bootstrap.configRef.kind
+          value: "TalosConfigTemplate"
+      - equal:
+          path: spec.template.spec.bootstrap.configRef.name
+          value: "test-cluster-worker-default-de30e8"
+  - it: should update the TalosConfigTemplate name when kms config is changed
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.kms.enabled: true
+    asserts:
+      - isKind:
+          of: TalosConfigTemplate
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: metadata.name
+          value: "test-cluster-worker-default-1e2529"
+  - it: should update the TalosConfigTemplate name global config patches are changed
+    template: templates/talos/configtemplate.yaml
+    set:
+        kommodity.global.configPatches: [{ op: add, path: /new-path, value: new-value }]
+    asserts:
+      - isKind:
+          of: TalosConfigTemplate
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: metadata.name
+          value: "test-cluster-worker-default-eb6cf1"
+  - it: should update the TalosConfigTemplate name when nodepool config patches are changed
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.nodepools.default.configPatches: [{ op: add, path: /new-path, value: new-value }]
+    asserts:
+      - isKind:
+          of: TalosConfigTemplate
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: metadata.name
+          value: "test-cluster-worker-default-63c08e"
+  - it: should update the TalosConfigTemplate name when Talos version is changed
+    template: templates/talos/configtemplate.yaml
+    set:
+      talos.version: "new-version"
+    asserts:
+      - isKind:
+          of: TalosConfigTemplate
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: metadata.name
+          value: "test-cluster-worker-default-df5022"
