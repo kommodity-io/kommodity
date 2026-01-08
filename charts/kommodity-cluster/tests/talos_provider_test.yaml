@@ -24,7 +24,7 @@ tests:
           count: 1
       - equal:
           path: metadata.name
-          value: "test-cluster-controlplane-95f64b"
+          value: "test-cluster-controlplane"
       - equal:
           path: spec.infrastructureTemplate.kind
           value: ScalewayMachineTemplate
@@ -61,7 +61,7 @@ tests:
           value: "TalosControlPlane"
       - equal:
           path: spec.controlPlaneRef.name
-          value: "test-cluster-controlplane-95f64b"
+          value: "test-cluster-controlplane"
   - it: should make sure MachineDeployment references the correct TalosConfigTemplate
     template: templates/provider/capi/machinedeployment.yaml
     asserts:

@@ -56,7 +56,7 @@
 apiVersion: controlplane.cluster.x-k8s.io/v1alpha3
 kind: TalosControlPlane
 metadata:
-  name: {{ $.Release.Name }}-controlplane-{{ include "kommodity-cluster.configPatchesHash" (dict "configPatches" .Values.kommodity.controlplane.configPatches "globalConfigPatches" .Values.kommodity.global.configPatches) }}
+  name: {{ $.Release.Name }}-controlplane
   namespace: {{ $.Release.Namespace }}
   labels:
     app.kubernetes.io/managed-by: kommodity
