@@ -3,7 +3,7 @@
 apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
 kind: ScalewayMachineTemplate
 metadata:
-  name: {{ .Release.Name }}-controlplane-{{ toYaml .Values.kommodity.controlplane | sha256sum | trunc 6 }}
+  name: {{ .Release.Name }}-controlplane-{{ include "kommodity-cluster.machineSpecsHash" (dict "poolValues" .Values.kommodity.controlplane "allValues" .Values) }}
   namespace: {{ .Release.Namespace }}
   labels:
     app.kubernetes.io/managed-by: kommodity
@@ -30,7 +30,7 @@ spec:
 apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
 kind: ScalewayMachineTemplate
 metadata:
-  name: {{ $.Release.Name }}-worker-{{ $name }}-{{ toYaml $np | sha256sum | trunc 6 }}
+  name: {{ $.Release.Name }}-worker-{{ $name }}-{{ include "kommodity-cluster.machineSpecsHash" (dict "poolValues" $np "allValues" $.Values) }}
   namespace: {{ $.Release.Namespace }}
   labels:
     app.kubernetes.io/managed-by: kommodity

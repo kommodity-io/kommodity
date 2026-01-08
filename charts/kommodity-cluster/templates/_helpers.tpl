@@ -77,7 +77,7 @@ Create the name of the service account to use
 Compute sha256sum of parameters givens to the TalosConfigTemplate.
 Any values that should trigger a new Talos config template when changed should be added to the hash computation.
 */}}
-{{- define "kommodity-cluster.configPatchesHash" -}}
+{{- define "kommodity-cluster.talosConfigHash" -}}
 {{- $hasPoolConfigPatches := and .poolValues.configPatches (gt (len .poolValues.configPatches) 0) }}
 {{- $hasPoolTalosVersion := and .poolValues.talos .poolValues.talos.version (not (empty .poolValues.talos.version)) }}
 {{- $hasGlobalConfigPatches := and .allValues.kommodity.global.configPatches (gt (len .allValues.kommodity.global.configPatches) 0) }}
@@ -104,3 +104,22 @@ Any values that should trigger a new Talos config template when changed should b
 {{- end -}}
 {{- toJson $data | sha256sum | trunc 6 -}}
 {{- end -}}
+
+{{/*
+Compute sha256sum of parameters givens to the MachineTemplates.
+Any values that should trigger a new Machine template when changed should be added to the hash computation.
+*/}}
+{{- define "kommodity-cluster.machineSpecsHash" -}}
+{{- $data := dict -}}
+{{- $hasPoolTalosImageName := and .poolValues.talos .poolValues.talos.imageName (not (empty .poolValues.talos.imageName)) }}
+{{- if $hasPoolTalosImageName -}}
+	{{- $_ := set $data "talosImageName" .poolValues.talos.imageName -}}
+{{- else -}}
+	{{- $_ := set $data "talosImageName" .allValues.talos.imageName -}}
+{{- end -}}
+{{- $_ := set $data "sku" .poolValues.sku -}}
+{{- $_ := set $data "diskSize" .poolValues.os.disk.size -}}
+{{- $_ := set $data "publicNetworkEnabled" .allValues.kommodity.network.ipv4.public -}}
+{{- toJson $data | sha256sum | trunc 6 -}}
+{{- end -}}
+
