@@ -74,22 +74,33 @@ Create the name of the service account to use
 {{- end }}
 
 {{/*
-Compute sha256sum of global config patches and config patches given as parameter.
-This helps to create unique names for Talos config templates when config patches are used.
+Compute sha256sum of parameters givens to the TalosConfigTemplate.
+Any values that should trigger a new Talos config template when changed should be added to the hash computation.
 */}}
 {{- define "kommodity-cluster.configPatchesHash" -}}
-{{- $hasPoolConfigPatches := and .configPatches (gt (len .configPatches) 0) }}
-{{- $hasGlobalConfigPatches := and .globalConfigPatches (gt (len .globalConfigPatches) 0) }}
+{{- $hasPoolConfigPatches := and .poolValues.configPatches (gt (len .poolValues.configPatches) 0) }}
+{{- $hasPoolTalosVersion := and .poolValues.talos .poolValues.talos.version (not (empty .poolValues.talos.version)) }}
+{{- $hasGlobalConfigPatches := and .allValues.kommodity.global.configPatches (gt (len .allValues.kommodity.global.configPatches) 0) }}
 {{- $data := dict -}}
 {{- if $hasGlobalConfigPatches }}
-{{- $_ := set $data "globalConfigPatches" .globalConfigPatches -}}
+	{{- $_ := set $data "globalConfigPatches" .allValues.kommodity.global.configPatches -}}
 {{- end }}
 {{- if $hasPoolConfigPatches }}
-{{- $_ := set $data "extraConfigPatches" .configPatches -}}
+	{{- $_ := set $data "extraConfigPatches" .poolValues.configPatches -}}
 {{- end }}
-{{- if or $hasPoolConfigPatches $hasGlobalConfigPatches -}}
-{{- toJson $data | sha256sum | trunc 6 -}}
+{{- if $hasPoolConfigPatches }}
+	{{- $_ := set $data "extraConfigPatches" .poolValues.configPatches -}}
+{{- end }}
+{{- if $hasPoolTalosVersion }}
+	{{- $_ := set $data "talosVersion" .poolValues.talos.version -}}
 {{- else -}}
-{{- "000000" -}}
+	{{- $_ := set $data "talosVersion" .allValues.talos.version -}}
+{{- end }}
+{{- $_ := set $data "kmsEnabled" .allValues.kommodity.kms.enabled -}}
+{{- if .allValues.kommodity.kms.enabled -}}
+	{{- with .allValues.kommodity.kms.endpoint -}}
+		{{- $_ := set $data "kmsEndpoint" . -}}  
+	{{- end -}}
 {{- end -}}
+{{- toJson $data | sha256sum | trunc 6 -}}
 {{- end -}}
