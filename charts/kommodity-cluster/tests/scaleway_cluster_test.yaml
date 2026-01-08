@@ -73,22 +73,26 @@ tests:
           of: ScalewayCluster
       - hasDocuments:
           count: 1
-  - it: should make sure a ScalewayMachineTemplate is created
+  - it: should make sure 2 ScalewayMachineTemplates are created
     template: templates/provider/scaleway/machinetemplate.yaml
     asserts:
       - isKind:
           of: ScalewayMachineTemplate
       - hasDocuments:
           count: 2
+      - matchRegex:
+          path: metadata.name
+          pattern: "^test-cluster-controlplane-.*"
+        documentIndex: 0
+      - matchRegex:
+          path: metadata.name
+          pattern: "^test-cluster-worker-default-.*"
+        documentIndex: 1
       - equal:
           path: spec.template.spec.image.name
           value: "controlplane-talos-image"
-        documentSelector:
-          path: metadata.name
-          value: test-cluster-controlplane
+        documentIndex: 0
       - equal:
           path: spec.template.spec.image.name
           value: "global-talos-image"
-        documentSelector:
-          path: metadata.name
-          value: test-cluster-worker-default
+        documentIndex: 1
