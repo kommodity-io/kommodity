@@ -72,3 +72,24 @@ Create the name of the service account to use
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}
 {{- end }}
+
+{{/*
+Compute sha256sum of global config patches and config patches given as parameter.
+This helps to create unique names for Talos config templates when config patches are used.
+*/}}
+{{- define "kommodity-cluster.configPatchesHash" -}}
+{{- $hasPoolConfigPatches := and .configPatches (gt (len .configPatches) 0) }}
+{{- $hasGlobalConfigPatches := and .globalConfigPatches (gt (len .globalConfigPatches) 0) }}
+{{- $data := dict -}}
+{{- if $hasGlobalConfigPatches }}
+{{- $_ := set $data "globalConfigPatches" .globalConfigPatches -}}
+{{- end }}
+{{- if $hasPoolConfigPatches }}
+{{- $_ := set $data "extraConfigPatches" .configPatches -}}
+{{- end }}
+{{- if or $hasPoolConfigPatches $hasGlobalConfigPatches -}}
+{{- toJson $data | sha256sum | trunc 6 -}}
+{{- else -}}
+{{- "000000" -}}
+{{- end -}}
+{{- end -}}

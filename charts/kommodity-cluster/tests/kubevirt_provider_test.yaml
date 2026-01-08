@@ -7,7 +7,6 @@ release:
 set:
   kommodity.controlplane.talos.version: "controlplane-talos-version"
   kommodity.controlplane.talos.imageName: "controlplane-talos-image"
-  kommodity.controlplane.kubernetes.version: "controlplane-kubernetes-version"
   talos.imageName: "global-talos-image"
   talos.version: "global-talos-version"
   kubernetes.version: "global-kubernetes-version"
@@ -35,35 +34,6 @@ tests:
       - equal:
           path: spec.template.spec.version
           value: "global-kubernetes-version"
-      - hasDocuments:
-          count: 1
-  - it: should make sure a TalosControlPlane is created
-    template: templates/talos/controlplane.yaml
-    asserts:
-      - isKind:
-          of: TalosControlPlane
-      - equal:
-          path: spec.infrastructureTemplate.kind
-          value: KubevirtMachineTemplate
-      - equal:
-          path: spec.controlPlaneConfig.controlplane.talosVersion
-          value: "controlplane-talos-version"
-      - equal:
-          path: spec.version
-          value: "controlplane-kubernetes-version"
-      - hasDocuments:
-          count: 1
-  - it: should make sure a TalosConfigTemplate is created
-    template: templates/talos/configtemplate.yaml
-    asserts:
-      - isKind:
-          of: TalosConfigTemplate
-      - matchRegex:
-          path: metadata.name
-          pattern: ".*-worker-.*"
-      - equal:
-          path: spec.template.spec.talosVersion
-          value: "global-talos-version"
       - hasDocuments:
           count: 1
   - it: should make sure a KubevirtCluster is created

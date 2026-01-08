@@ -1,4 +1,4 @@
-suite: test creation of resources for Scaleway cluster
+suite: test creation of resources for Talos
 values:
   - ../values.scaleway.yaml
 release:
@@ -24,24 +24,17 @@ tests:
           value: ScalewayCluster
       - hasDocuments:
           count: 1
-  - it: should make sure a MachineDeployment is created
-    template: templates/provider/capi/machinedeployment.yaml
-    asserts:
-      - isKind:
-          of: MachineDeployment
-      - equal:
-          path: spec.template.spec.infrastructureRef.kind
-          value: ScalewayMachineTemplate
-      - equal:
-          path: spec.template.spec.version
-          value: "global-kubernetes-version"
-      - hasDocuments:
-          count: 1
+
   - it: should make sure a TalosControlPlane is created
     template: templates/talos/controlplane.yaml
     asserts:
       - isKind:
           of: TalosControlPlane
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: metadata.name
+          value: "test-cluster-controlplane-587ac6"
       - equal:
           path: spec.infrastructureTemplate.kind
           value: ScalewayMachineTemplate
@@ -58,41 +51,32 @@ tests:
     asserts:
       - isKind:
           of: TalosConfigTemplate
-      - matchRegex:
+      - equal:
           path: metadata.name
-          pattern: ".*-worker-.*"
+          value: "test-cluster-worker-default-587ac6"
       - equal:
           path: spec.template.spec.talosVersion
           value: "global-talos-version"
       - hasDocuments:
           count: 1
-  - it: should make sure a ScalewayCluster is created
-    template: templates/provider/scaleway/cluster.yaml
+  - it: should make sure Cluster references the correct TalosControlPlane
+    template: templates/provider/capi/cluster.yaml
     asserts:
       - isKind:
-          of: ScalewayCluster
+          of: Cluster
       - hasDocuments:
           count: 1
-  - it: should make sure 2 ScalewayMachineTemplates are created
-    template: templates/provider/scaleway/machinetemplate.yaml
+      - equal:
+          path: spec.controlPlaneRef.name
+          value: "test-cluster-controlplane-587ac6"
+  - it: should make sure MachineDeployment references the correct TalosConfigTemplate
+    template: templates/provider/capi/machinedeployment.yaml
     asserts:
       - isKind:
-          of: ScalewayMachineTemplate
+          of: MachineDeployment
       - hasDocuments:
-          count: 2
-      - matchRegex:
-          path: metadata.name
-          pattern: "^test-cluster-controlplane-.*"
-        documentIndex: 0
-      - matchRegex:
-          path: metadata.name
-          pattern: "^test-cluster-worker-default-.*"
-        documentIndex: 1
+          count: 1
       - equal:
-          path: spec.template.spec.image.name
-          value: "controlplane-talos-image"
-        documentIndex: 0
-      - equal:
-          path: spec.template.spec.image.name
-          value: "global-talos-image"
-        documentIndex: 1
+          path: spec.template.spec.bootstrap.configRef.name
+          value: "test-cluster-worker-default-587ac6"
+

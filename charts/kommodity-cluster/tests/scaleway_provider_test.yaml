@@ -1,0 +1,68 @@
+suite: test creation of resources for Scaleway cluster
+values:
+  - ../values.scaleway.yaml
+release:
+  name: test-cluster
+  namespace: default
+set:
+  kommodity.controlplane.talos.version: "controlplane-talos-version"
+  kommodity.controlplane.talos.imageName: "controlplane-talos-image"
+  talos.imageName: "global-talos-image"
+  talos.version: "global-talos-version"
+  kubernetes.version: "global-kubernetes-version"
+templates:
+  - templates/*
+tests:
+  - it: should make sure a Cluster is created
+    template: templates/provider/capi/cluster.yaml
+    asserts:
+      - isKind:
+          of: Cluster
+      - equal:
+          path: spec.infrastructureRef.kind
+          value: ScalewayCluster
+      - hasDocuments:
+          count: 1
+  - it: should make sure a MachineDeployment is created
+    template: templates/provider/capi/machinedeployment.yaml
+    asserts:
+      - isKind:
+          of: MachineDeployment
+      - equal:
+          path: spec.template.spec.infrastructureRef.kind
+          value: ScalewayMachineTemplate
+      - equal:
+          path: spec.template.spec.version
+          value: "global-kubernetes-version"
+      - hasDocuments:
+          count: 1
+  - it: should make sure a ScalewayCluster is created
+    template: templates/provider/scaleway/cluster.yaml
+    asserts:
+      - isKind:
+          of: ScalewayCluster
+      - hasDocuments:
+          count: 1
+  - it: should make sure 2 ScalewayMachineTemplates are created
+    template: templates/provider/scaleway/machinetemplate.yaml
+    asserts:
+      - isKind:
+          of: ScalewayMachineTemplate
+      - hasDocuments:
+          count: 2
+      - equal:
+          path: metadata.name
+          value: "test-cluster-controlplane-972106"
+        documentIndex: 0
+      - equal:
+          path: metadata.name
+          value: "test-cluster-worker-default-28a689"
+        documentIndex: 1
+      - equal:
+          path: spec.template.spec.image.name
+          value: "controlplane-talos-image"
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.image.name
+          value: "global-talos-image"
+        documentIndex: 1
