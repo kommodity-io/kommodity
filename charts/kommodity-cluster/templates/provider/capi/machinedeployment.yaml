@@ -72,7 +72,7 @@ spec:
         {{- else }}
         {{- fail "infrastructure provider is not supported" -}}
         {{- end }}
-        name: {{ $.Release.Name }}-worker-{{ $name }}
+        name: {{ $.Release.Name }}-worker-{{ $name }}-{{ toYaml $np | sha256sum | trunc 6 }}
         namespace: {{ $.Release.Namespace }}
       {{- if and (hasKey $np "kubernetes") (hasKey $np.kubernetes "version") }}
       version: {{ $np.kubernetes.version }}
