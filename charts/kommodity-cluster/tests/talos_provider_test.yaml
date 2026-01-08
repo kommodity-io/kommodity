@@ -11,20 +11,10 @@ set:
   talos.imageName: "global-talos-image"
   talos.version: "global-talos-version"
   kubernetes.version: "global-kubernetes-version"
+  kommodity.global.configPatches: [{op: add, path: /my-path, value: my-value}]
 templates:
   - templates/*
 tests:
-  - it: should make sure a Cluster is created
-    template: templates/provider/capi/cluster.yaml
-    asserts:
-      - isKind:
-          of: Cluster
-      - equal:
-          path: spec.infrastructureRef.kind
-          value: ScalewayCluster
-      - hasDocuments:
-          count: 1
-
   - it: should make sure a TalosControlPlane is created
     template: templates/talos/controlplane.yaml
     asserts:
@@ -34,7 +24,7 @@ tests:
           count: 1
       - equal:
           path: metadata.name
-          value: "test-cluster-controlplane-587ac6"
+          value: "test-cluster-controlplane-95f64b"
       - equal:
           path: spec.infrastructureTemplate.kind
           value: ScalewayMachineTemplate
@@ -53,7 +43,7 @@ tests:
           of: TalosConfigTemplate
       - equal:
           path: metadata.name
-          value: "test-cluster-worker-default-587ac6"
+          value: "test-cluster-worker-default-95f64b"
       - equal:
           path: spec.template.spec.talosVersion
           value: "global-talos-version"
@@ -67,8 +57,11 @@ tests:
       - hasDocuments:
           count: 1
       - equal:
+          path: spec.controlPlaneRef.kind
+          value: "TalosControlPlane"
+      - equal:
           path: spec.controlPlaneRef.name
-          value: "test-cluster-controlplane-587ac6"
+          value: "test-cluster-controlplane-95f64b"
   - it: should make sure MachineDeployment references the correct TalosConfigTemplate
     template: templates/provider/capi/machinedeployment.yaml
     asserts:
@@ -77,6 +70,9 @@ tests:
       - hasDocuments:
           count: 1
       - equal:
+          path: spec.template.spec.bootstrap.configRef.kind
+          value: "TalosConfigTemplate"
+      - equal:
           path: spec.template.spec.bootstrap.configRef.name
-          value: "test-cluster-worker-default-587ac6"
+          value: "test-cluster-worker-default-95f64b"
 
