@@ -20,8 +20,16 @@ spec:
       {{- if or $hasNpConfigPatches $hasGlobalConfigPatches $hasTaints $hasLabels $hasAnnotations }}
       configPatches:
       {{- end }}
-      {{- if $hasGlobalConfigPatches }}
-{{- toYaml $.Values.kommodity.global.configPatches | nindent 8 }}
+      {{- /* Output combined kubelet extraArgs patch (merges global config and taints) */ -}}
+      {{- include "kommodity-cluster.kubeletExtraArgsConfigPatch" (dict "globalConfigPatches" $.Values.kommodity.global.configPatches "taints" $np.taints) | nindent 8 }}
+      {{- /* Output global config patches except kubelet extraArgs (already handled above) */ -}}
+      {{- range $.Values.kommodity.global.configPatches }}
+      {{- if ne .path "/machine/kubelet/extraArgs" }}
+        - op: {{ .op }}
+          path: {{ .path }}
+          value:
+{{- toYaml .value | nindent 12 }}
+      {{- end }}
       {{- end }}
       {{- if $hasNpConfigPatches }}
 {{- toYaml $np.configPatches | nindent 8 }}

@@ -156,19 +156,41 @@ Convert taints list to Talos config patch.
 {{- define "kommodity-cluster.taintsToConfigPatch" -}}
 {{- $taints := .taints -}}
 {{- if and $taints (gt (len $taints) 0) -}}
-{{- $taintStrings := list -}}
-{{- range $key, $value := $taints -}}
-{{- $taintStrings = append $taintStrings (printf "%s=%s" $key $value) -}}
-{{- end -}}
-- op: add
-  path: /machine/kubelet/extraArgs
-  value:
-    register-with-taints: "{{ join "," $taintStrings }}"
 - op: add
   path: /machine/nodeTaints
   value:
     {{- range $key, $value := $taints }}
     {{ $key }}: "{{ $value }}"
+    {{- end }}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Build combined kubelet extraArgs from global config patches and taints.
+*/}}
+{{- define "kommodity-cluster.kubeletExtraArgsConfigPatch" -}}
+{{- $kubeletExtraArgs := dict -}}
+{{- /* Collect extraArgs from global config patches */ -}}
+{{- range .globalConfigPatches -}}
+{{- if eq .path "/machine/kubelet/extraArgs" -}}
+{{- $kubeletExtraArgs = merge $kubeletExtraArgs .value -}}
+{{- end -}}
+{{- end -}}
+{{- /* Add register-with-taints if we have taints */ -}}
+{{- if and .taints (gt (len .taints) 0) -}}
+{{- $taintStrings := list -}}
+{{- range $key, $value := .taints -}}
+{{- $taintStrings = append $taintStrings (printf "%s=%s" $key $value) -}}
+{{- end -}}
+{{- $_ := set $kubeletExtraArgs "register-with-taints" (join "," $taintStrings) -}}
+{{- end -}}
+{{- /* Output combined patch if we have any extraArgs */ -}}
+{{- if gt (len $kubeletExtraArgs) 0 -}}
+- op: add
+  path: /machine/kubelet/extraArgs
+  value:
+    {{- range $key, $value := $kubeletExtraArgs }}
+    {{ $key }}: {{ $value }}
     {{- end }}
 {{- end -}}
 {{- end -}}
