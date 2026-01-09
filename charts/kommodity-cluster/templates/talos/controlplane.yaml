@@ -107,11 +107,14 @@ spec:
       {{- if $anyAddonEnabled }}
 {{- include "kommodity.addonsInlineManifests" . | trim | nindent 12 }}
       {{- end }}
-      {{- if $hasCpConfigPatches }}
-{{ toYaml $cpPatches | nindent 8 }}
-      {{- end }}
-      {{- if $hasGlobalCpConfigPatches }}
-{{ toYaml $globalCpPatches | nindent 8 }}
+      {{- $cpTaints := $.Values.kommodity.controlplane.taints }}
+      {{- $hasCpTaints := and $cpTaints (gt (len $cpTaints) 0) }}
+      {{- $cpLabels := $.Values.kommodity.controlplane.labels }}
+      {{- $hasCpLabels := and $cpLabels (gt (len $cpLabels) 0) }}
+      {{- $cpAnnotations := $.Values.kommodity.controlplane.annotations }}
+      {{- $hasCpAnnotations := and $cpAnnotations (gt (len $cpAnnotations) 0) }}
+      {{- if or $hasCpConfigPatches $hasGlobalCpConfigPatches $hasCpTaints $hasCpLabels $hasCpAnnotations }}
+      {{- include "kommodity-cluster.combinedConfigPatches" (dict "globalConfigPatches" $globalCpPatches "nodepoolConfigPatches" $cpPatches "taints" $cpTaints "labels" $cpLabels "annotations" $cpAnnotations) | nindent 8 }}
       {{- end }}
       {{- if $.Values.talos.disableCNI }}
       {{- include "kommodity.talos.cni.disable" . | nindent 8 }}
