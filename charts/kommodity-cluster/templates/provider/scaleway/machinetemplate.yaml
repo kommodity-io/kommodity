@@ -12,11 +12,7 @@ spec:
     spec:
       commercialType: {{ .Values.kommodity.controlplane.sku }}
       image:
-        {{- if and (hasKey .Values.kommodity.controlplane "talos") (hasKey .Values.kommodity.controlplane.talos "imageName") }}
-        name: {{ .Values.kommodity.controlplane.talos.imageName }}
-        {{- else }}
-        name: {{ .Values.talos.imageName }}
-        {{- end }}
+        name: {{ default $.Values.talos.imageName (dig "talos" "imageName" "" .Values.kommodity.controlplane) }}
       {{- if .Values.kommodity.network.ipv4.public }}
       publicNetwork:
         enableIPv4: {{ .Values.kommodity.network.ipv4.enabled }}
@@ -39,11 +35,7 @@ spec:
     spec:
       commercialType: {{ $np.sku }}
       image:
-        {{- if and (hasKey $np "talos") (hasKey $np.talos "imageName") }}
-        name: {{ $np.talos.imageName }}
-        {{- else }}
-        name: {{ $.Values.talos.imageName }}
-        {{- end }}
+        name: {{ default $.Values.talos.imageName (dig "talos" "imageName" "" $np) }}
       {{- if $.Values.kommodity.network.ipv4.public }}
       publicNetwork:
         enableIPv4: {{ $.Values.kommodity.network.ipv4.enabled }}

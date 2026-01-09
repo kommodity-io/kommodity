@@ -32,11 +32,7 @@ spec:
                   {{- end }}
                 source:
                   http:
-                    {{- if and (hasKey .Values.kommodity.controlplane "talos") (hasKey .Values.kommodity.controlplane.talos "imageName") }}
-                    url: {{ $.Values.kommodity.controlplane.talos.imageName }}
-                    {{- else }}
-                    url: {{ $.Values.talos.imageName }}
-                    {{- end }}
+                    url: {{ default $.Values.talos.imageName (dig "talos" "imageName" "" .Values.kommodity.controlplane) }}
           instancetype:
             name: {{ .Values.kommodity.controlplane.sku }}
             kind: VirtualMachineClusterInstancetype
@@ -90,11 +86,7 @@ spec:
                   {{- end }}
                 source:
                   http:
-                    {{- if and (hasKey $np "talos") (hasKey $np.talos "imageName") }}
-                    url: {{ $np.talos.imageName }}
-                    {{- else }}
-                    url: {{ $.Values.talos.imageName }}
-                    {{- end }}
+                    url: {{ default $.Values.talos.imageName (dig "talos" "imageName" "" $np) }}
           instancetype: 
             name: {{ $np.sku }}
             kind: VirtualMachineClusterInstancetype

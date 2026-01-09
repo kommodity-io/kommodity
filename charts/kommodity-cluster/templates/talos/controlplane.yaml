@@ -91,11 +91,7 @@ spec:
   controlPlaneConfig:
     controlplane:
       generateType: controlplane
-      {{- if and (hasKey $.Values.kommodity.controlplane "talos") (hasKey $.Values.kommodity.controlplane.talos "version") }}
-      talosVersion: {{ $.Values.kommodity.controlplane.talos.version }}
-      {{- else }}
-      talosVersion: {{ include "kommodity.talosVersion" $ }}
-      {{- end }}
+      talosVersion: {{ default (include "kommodity.talosVersion" $) (dig "talos" "version" "" $.Values.kommodity.controlplane) }}
       hostname: {}
       {{- $cpPatches := $.Values.kommodity.controlplane.configPatches }}
       {{- $hasCpConfigPatches := and $cpPatches (gt (len $cpPatches) 0) }}

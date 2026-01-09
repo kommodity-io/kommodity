@@ -74,9 +74,5 @@ spec:
         {{- end }}
         name: {{ $.Release.Name }}-worker-{{ $name }}-{{ include "kommodity-cluster.machineSpecsHash" (dict "poolValues" $np "allValues" $.Values) }}
         namespace: {{ $.Release.Namespace }}
-      {{- if and (hasKey $np "kubernetes") (hasKey $np.kubernetes "version") }}
-      version: {{ $np.kubernetes.version }}
-      {{- else }}
-      version: {{ $.Values.kubernetes.version }}
-      {{- end }}
+      version : {{ default $.Values.kubernetes.version (dig "kubernetes" "version" "" $np) -}}
 {{- end }}
