@@ -193,8 +193,6 @@ Patches targeting the same path are merged together.
 - op: add
   path: {{ $path }}
   value:
-    {{- range $k, $v := $value }}
-    {{ $k }}: {{ $v | quote }}
-    {{- end }}
+{{ $value | toYaml | indent 4 }}
 {{- end -}}
 {{- end -}}
