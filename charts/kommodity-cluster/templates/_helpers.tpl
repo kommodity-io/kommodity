@@ -81,11 +81,15 @@ Any values that should trigger a new Talos config template when changed should b
 {{- $hasPoolConfigPatches := and .poolValues.configPatches (gt (len .poolValues.configPatches) 0) }}
 {{- $hasGlobalConfigPatches := and .allValues.kommodity.global.configPatches (gt (len .allValues.kommodity.global.configPatches) 0) }}
 {{- $data := dict -}}
+{{- $configPatches := list -}}
 {{- if $hasGlobalConfigPatches }}
-	{{- $_ := set $data "globalConfigPatches" .allValues.kommodity.global.configPatches -}}
+	{{- $configPatches = concat $configPatches .allValues.kommodity.global.configPatches -}}
 {{- end }}
 {{- if $hasPoolConfigPatches }}
-	{{- $_ := set $data "extraConfigPatches" .poolValues.configPatches -}}
+	{{- $configPatches = concat $configPatches .poolValues.configPatches -}}
+{{- end }}
+{{- if gt (len $configPatches) 0 }}
+	{{- $_ := set $data "configPatches" $configPatches -}}
 {{- end }}
 {{- $talosVersion := default .allValues.talos.version (dig "talos" "version" "" .poolValues) -}}
 {{- $_ := set $data "talosVersion" $talosVersion -}}
