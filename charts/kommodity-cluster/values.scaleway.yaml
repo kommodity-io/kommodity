@@ -58,8 +58,8 @@ kommodity:
         my-label: my-value
       annotations:
         my-annotation: my-annotation-value
-      taints:
-        my-taint: my-taint-value:NoSchedule
+      # taints:
+      #   my-taint: my-taint-value:NoSchedule
 
 talos:
   # Follow this documentation to generate a Talos image for Scaleway: https://docs.siderolabs.com/talos/v1.10/platform-specific-installations/cloud-platforms/scaleway
