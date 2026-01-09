@@ -52,11 +52,11 @@ tests:
           count: 2
       - equal:
           path: metadata.name
-          value: "test-cluster-controlplane-0917ef"
+          value: "test-cluster-controlplane-c7ad5a"
         documentIndex: 0
       - equal:
           path: metadata.name
-          value: "test-cluster-worker-default-e9a1f2"
+          value: "test-cluster-worker-default-9811d8"
         documentIndex: 1
       - equal:
           path: spec.template.spec.virtualMachineTemplate.spec.dataVolumeTemplates[0].spec.source.http.url

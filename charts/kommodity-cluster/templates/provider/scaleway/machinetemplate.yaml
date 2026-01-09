@@ -3,7 +3,7 @@
 apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
 kind: ScalewayMachineTemplate
 metadata:
-  name: {{ .Release.Name }}-controlplane-{{ toYaml .Values.kommodity.controlplane | sha256sum | trunc 6 }}
+  name: {{ .Release.Name }}-controlplane-{{ include "kommodity-cluster.machineSpecsHash" (dict "poolValues" .Values.kommodity.controlplane "allValues" .Values) }}
   namespace: {{ .Release.Namespace }}
   labels:
     app.kubernetes.io/managed-by: kommodity
@@ -12,11 +12,7 @@ spec:
     spec:
       commercialType: {{ .Values.kommodity.controlplane.sku }}
       image:
-        {{- if and (hasKey .Values.kommodity.controlplane "talos") (hasKey .Values.kommodity.controlplane.talos "imageName") }}
-        name: {{ .Values.kommodity.controlplane.talos.imageName }}
-        {{- else }}
-        name: {{ .Values.talos.imageName }}
-        {{- end }}
+        name: {{ default $.Values.talos.imageName (dig "talos" "imageName" "" .Values.kommodity.controlplane) }}
       {{- if .Values.kommodity.network.ipv4.public }}
       publicNetwork:
         enableIPv4: {{ .Values.kommodity.network.ipv4.enabled }}
@@ -30,7 +26,7 @@ spec:
 apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
 kind: ScalewayMachineTemplate
 metadata:
-  name: {{ $.Release.Name }}-worker-{{ $name }}-{{ toYaml $np | sha256sum | trunc 6 }}
+  name: {{ $.Release.Name }}-worker-{{ $name }}-{{ include "kommodity-cluster.machineSpecsHash" (dict "poolValues" $np "allValues" $.Values) }}
   namespace: {{ $.Release.Namespace }}
   labels:
     app.kubernetes.io/managed-by: kommodity
@@ -39,11 +35,7 @@ spec:
     spec:
       commercialType: {{ $np.sku }}
       image:
-        {{- if and (hasKey $np "talos") (hasKey $np.talos "imageName") }}
-        name: {{ $np.talos.imageName }}
-        {{- else }}
-        name: {{ $.Values.talos.imageName }}
-        {{- end }}
+        name: {{ default $.Values.talos.imageName (dig "talos" "imageName" "" $np) }}
       {{- if $.Values.kommodity.network.ipv4.public }}
       publicNetwork:
         enableIPv4: {{ $.Values.kommodity.network.ipv4.enabled }}

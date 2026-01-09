@@ -43,7 +43,7 @@ tests:
           of: TalosConfigTemplate
       - equal:
           path: metadata.name
-          value: "test-cluster-worker-default-de30e8"
+          value: "test-cluster-worker-default-1ccc5f"
       - equal:
           path: spec.template.spec.talosVersion
           value: "global-talos-version"
@@ -74,7 +74,7 @@ tests:
           value: "TalosConfigTemplate"
       - equal:
           path: spec.template.spec.bootstrap.configRef.name
-          value: "test-cluster-worker-default-de30e8"
+          value: "test-cluster-worker-default-1ccc5f"
   - it: should update the TalosConfigTemplate name when kms config is changed
     template: templates/talos/configtemplate.yaml
     set:
@@ -86,11 +86,12 @@ tests:
           count: 1
       - equal:
           path: metadata.name
-          value: "test-cluster-worker-default-1e2529"
+          value: "test-cluster-worker-default-a6b64b"
   - it: should update the TalosConfigTemplate name global config patches are changed
     template: templates/talos/configtemplate.yaml
     set:
-        kommodity.global.configPatches: [{ op: add, path: /new-path, value: new-value }]
+      kommodity.global.configPatches:
+        [{ op: add, path: /new-path, value: new-value }]
     asserts:
       - isKind:
           of: TalosConfigTemplate
@@ -98,11 +99,12 @@ tests:
           count: 1
       - equal:
           path: metadata.name
-          value: "test-cluster-worker-default-eb6cf1"
+          value: "test-cluster-worker-default-8b886b"
   - it: should update the TalosConfigTemplate name when nodepool config patches are changed
     template: templates/talos/configtemplate.yaml
     set:
-      kommodity.nodepools.default.configPatches: [{ op: add, path: /new-path, value: new-value }]
+      kommodity.nodepools.default.configPatches:
+        [{ op: add, path: /new-path, value: new-value }]
     asserts:
       - isKind:
           of: TalosConfigTemplate
@@ -110,7 +112,7 @@ tests:
           count: 1
       - equal:
           path: metadata.name
-          value: "test-cluster-worker-default-63c08e"
+          value: "test-cluster-worker-default-2a64c5"
   - it: should update the TalosConfigTemplate name when Talos version is changed
     template: templates/talos/configtemplate.yaml
     set:
@@ -122,4 +124,4 @@ tests:
           count: 1
       - equal:
           path: metadata.name
-          value: "test-cluster-worker-default-df5022"
+          value: "test-cluster-worker-default-cf6ec4"

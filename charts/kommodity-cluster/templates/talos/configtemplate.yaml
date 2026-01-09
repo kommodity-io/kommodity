@@ -3,7 +3,7 @@
 apiVersion: bootstrap.cluster.x-k8s.io/v1alpha3
 kind: TalosConfigTemplate
 metadata:
-  name: {{ $.Release.Name }}-worker-{{ $name }}-{{ include "kommodity-cluster.configPatchesHash" (dict "poolValues" $np "allValues" $.Values) }}
+  name: {{ $.Release.Name }}-worker-{{ $name }}-{{ include "kommodity-cluster.talosConfigHash" (dict "poolValues" $np "allValues" $.Values) }}
   namespace: {{ $.Release.Namespace }}
   labels:
     app.kubernetes.io/managed-by: kommodity
@@ -11,11 +11,7 @@ spec:
   template:
     spec:
       generateType: worker
-      {{- if and (hasKey $np "talos") (hasKey $np.talos "version") }}
-      talosVersion: {{ $np.talos.version }}
-      {{- else }}
-      talosVersion: {{ include "kommodity.talosVersion" $ }}
-      {{- end }}
+      talosVersion: {{ default (include "kommodity.talosVersion" $) (dig "talos" "version" "" $np) }}
       {{- $hasNpConfigPatches := and $np.configPatches (gt (len $np.configPatches) 0) }}
       {{- $hasGlobalConfigPatches := and $.Values.kommodity.global.configPatches (gt (len $.Values.kommodity.global.configPatches) 0) }}
       {{- if or $hasNpConfigPatches $hasGlobalConfigPatches }}

@@ -52,11 +52,11 @@ tests:
           count: 2
       - equal:
           path: metadata.name
-          value: "test-cluster-controlplane-972106"
+          value: "test-cluster-controlplane-60fbcf"
         documentIndex: 0
       - equal:
           path: metadata.name
-          value: "test-cluster-worker-default-28a689"
+          value: "test-cluster-worker-default-65bb56"
         documentIndex: 1
       - equal:
           path: spec.template.spec.image.name
