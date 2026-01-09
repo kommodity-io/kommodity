@@ -15,6 +15,7 @@ set:
 templates:
   - templates/*
 tests:
+  # TalosControlPlane tests
   - it: should make sure a TalosControlPlane is created
     template: templates/talos/controlplane.yaml
     asserts:
@@ -34,21 +35,23 @@ tests:
       - equal:
           path: spec.version
           value: "controlplane-kubernetes-version"
-      - hasDocuments:
-          count: 1
+
+  # TalosConfigTemplate tests
   - it: should make sure a TalosConfigTemplate is created
     template: templates/talos/configtemplate.yaml
     asserts:
       - isKind:
           of: TalosConfigTemplate
+      - hasDocuments:
+          count: 1
       - equal:
           path: metadata.name
           value: "test-cluster-worker-default-995574"
       - equal:
           path: spec.template.spec.talosVersion
           value: "global-talos-version"
-      - hasDocuments:
-          count: 1
+
+  # CAPI Cluster tests
   - it: should make sure Cluster references the correct TalosControlPlane
     template: templates/provider/capi/cluster.yaml
     asserts:
@@ -62,6 +65,8 @@ tests:
       - equal:
           path: spec.controlPlaneRef.name
           value: "test-cluster-controlplane"
+
+  # MachineDeployment tests
   - it: should make sure MachineDeployment references the correct TalosConfigTemplate
     template: templates/provider/capi/machinedeployment.yaml
     asserts:
@@ -75,6 +80,8 @@ tests:
       - equal:
           path: spec.template.spec.bootstrap.configRef.name
           value: "test-cluster-worker-default-995574"
+
+  # Hash change tests
   - it: should update the TalosConfigTemplate name when kms config is changed
     template: templates/talos/configtemplate.yaml
     set:
@@ -87,7 +94,8 @@ tests:
       - equal:
           path: metadata.name
           value: "test-cluster-worker-default-1fa450"
-  - it: should update the TalosConfigTemplate name global config patches are changed
+
+  - it: should update the TalosConfigTemplate name when global config patches are changed
     template: templates/talos/configtemplate.yaml
     set:
       kommodity.global.configPatches:
@@ -100,6 +108,7 @@ tests:
       - equal:
           path: metadata.name
           value: "test-cluster-worker-default-48d742"
+
   - it: should update the TalosConfigTemplate name when nodepool config patches are changed
     template: templates/talos/configtemplate.yaml
     set:
@@ -113,6 +122,7 @@ tests:
       - equal:
           path: metadata.name
           value: "test-cluster-worker-default-93abb3"
+
   - it: should update the TalosConfigTemplate name when Talos version is changed
     template: templates/talos/configtemplate.yaml
     set:
@@ -125,3 +135,124 @@ tests:
       - equal:
           path: metadata.name
           value: "test-cluster-worker-default-eda5f2"
+
+  # Config patch merging tests
+  - it: should merge patches with same op and path
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.global.configPatches:
+        - op: add
+          path: /machine/env
+          value:
+            GLOBAL_VAR: global-value
+      kommodity.nodepools.default.configPatches:
+        - op: add
+          path: /machine/env
+          value:
+            NODEPOOL_VAR: nodepool-value
+    asserts:
+      - isKind:
+          of: TalosConfigTemplate
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: metadata.name
+          value: "test-cluster-worker-default-0aca86"
+      - contains:
+          path: spec.template.spec.configPatches
+          content:
+            op: add
+            path: /machine/env
+            value:
+              GLOBAL_VAR: global-value
+              NODEPOOL_VAR: nodepool-value
+
+  - it: should not merge patches with different ops on same path
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.global.configPatches:
+        - op: add
+          path: /machine/env
+          value:
+            ADD_VAR: add-value
+        - op: replace
+          path: /machine/env
+          value:
+            REPLACE_VAR: replace-value
+    asserts:
+      - isKind:
+          of: TalosConfigTemplate
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: metadata.name
+          value: "test-cluster-worker-default-ffe422"
+      - contains:
+          path: spec.template.spec.configPatches
+          content:
+            op: add
+            path: /machine/env
+            value:
+              ADD_VAR: add-value
+      - contains:
+          path: spec.template.spec.configPatches
+          content:
+            op: replace
+            path: /machine/env
+            value:
+              REPLACE_VAR: replace-value
+
+  # Taints tests
+  - it: should generate kubelet extraArgs and nodeTaints patches for taints
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.global.configPatches: []
+      kommodity.nodepools.default.taints:
+        workload: "gpu:NoSchedule"
+    asserts:
+      - isKind:
+          of: TalosConfigTemplate
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: metadata.name
+          value: "test-cluster-worker-default-e35b6e"
+      - contains:
+          path: spec.template.spec.configPatches
+          content:
+            op: add
+            path: /machine/kubelet/extraArgs
+            value:
+              register-with-taints: "workload=gpu:NoSchedule"
+      - contains:
+          path: spec.template.spec.configPatches
+          content:
+            op: add
+            path: /machine/nodeTaints
+            value:
+              workload: "gpu:NoSchedule"
+
+  # Labels and annotations tests
+  - it: should generate nodeLabels and nodeAnnotations patches
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.global.configPatches: []
+    asserts:
+      - isKind:
+          of: TalosConfigTemplate
+      - hasDocuments:
+          count: 1
+      - contains:
+          path: spec.template.spec.configPatches
+          content:
+            op: add
+            path: /machine/nodeLabels
+            value:
+              my-label: my-value
+      - contains:
+          path: spec.template.spec.configPatches
+          content:
+            op: add
+            path: /machine/nodeAnnotations
+            value:
+              my-annotation: my-annotation-value
