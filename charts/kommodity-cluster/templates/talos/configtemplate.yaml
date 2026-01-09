@@ -19,7 +19,7 @@ spec:
       {{- $hasAnnotations := and $np.annotations (gt (len $np.annotations) 0) }}
       {{- if or $hasNpConfigPatches $hasGlobalConfigPatches $hasTaints $hasLabels $hasAnnotations }}
       configPatches:
-      {{- include "kommodity-cluster.combinedConfigPatches" (dict "globalConfigPatches" $.Values.kommodity.global.configPatches "nodepoolConfigPatches" $np.configPatches "taints" $np.taints "labels" $np.labels "annotations" $np.annotations) | nindent 8 }}
+      {{- include "kommodity-cluster.combinedConfigPatches" (dict "globalConfigPatches" $.Values.kommodity.global.configPatches "nodepoolConfigPatches" $np.configPatches "taints" $np.taints "labels" $np.labels "annotations" $np.annotations) | trim | nindent 8 }}
       {{- end }}
       {{- if $.Values.kommodity.kms.enabled }}
       {{- /* Use VolumeConfig for disk encryption (Talos v1.12+) instead of deprecated machine.systemDiskEncryption */}}

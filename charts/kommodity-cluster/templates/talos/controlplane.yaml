@@ -111,7 +111,7 @@ spec:
 {{- include "kommodity.addonsInlineManifests" . | trim | nindent 12 }}
       {{- end }}
       {{- if $hasExtraConfigPatches }}
-{{- include "kommodity-cluster.combinedConfigPatches" (dict "globalConfigPatches" $globalPatches "nodepoolConfigPatches" $cpPatches "taints" $cpTaints "labels" $cpLabels "annotations" $cpAnnotations) | nindent 8 }}
+{{- include "kommodity-cluster.combinedConfigPatches" (dict "globalConfigPatches" $globalPatches "nodepoolConfigPatches" $cpPatches "taints" $cpTaints "labels" $cpLabels "annotations" $cpAnnotations) | trim | nindent 8 }}
       {{- end }}
       {{- if $.Values.talos.disableCNI }}
       {{- include "kommodity.talos.cni.disable" . | nindent 8 }}
