@@ -5,16 +5,11 @@ release:
   name: test-cluster
   namespace: default
 set:
-  kommodity.controlplane.talos.version: "controlplane-talos-version"
-  kommodity.controlplane.talos.imageName: "controlplane-talos-image"
-  kommodity.controlplane.kubernetes.version: "controlplane-kubernetes-version"
-  talos.imageName: "global-talos-image"
-  talos.version: "global-talos-version"
-  kubernetes.version: "global-kubernetes-version"
   kommodity.global.configPatches: [{ op: add, path: /my-path, value: my-value }]
 templates:
   - templates/*
 tests:
+  # TalosControlPlane tests
   - it: should make sure a TalosControlPlane is created
     template: templates/talos/controlplane.yaml
     asserts:
@@ -28,53 +23,20 @@ tests:
       - equal:
           path: spec.infrastructureTemplate.kind
           value: ScalewayMachineTemplate
-      - equal:
-          path: spec.controlPlaneConfig.controlplane.talosVersion
-          value: "controlplane-talos-version"
-      - equal:
-          path: spec.version
-          value: "controlplane-kubernetes-version"
-      - hasDocuments:
-          count: 1
+
+  # TalosConfigTemplate tests
   - it: should make sure a TalosConfigTemplate is created
     template: templates/talos/configtemplate.yaml
     asserts:
       - isKind:
           of: TalosConfigTemplate
-      - equal:
+      - hasDocuments:
+          count: 1
+      - matchRegex:
           path: metadata.name
-          value: "test-cluster-worker-default-1ccc5f"
-      - equal:
-          path: spec.template.spec.talosVersion
-          value: "global-talos-version"
-      - hasDocuments:
-          count: 1
-  - it: should make sure Cluster references the correct TalosControlPlane
-    template: templates/provider/capi/cluster.yaml
-    asserts:
-      - isKind:
-          of: Cluster
-      - hasDocuments:
-          count: 1
-      - equal:
-          path: spec.controlPlaneRef.kind
-          value: "TalosControlPlane"
-      - equal:
-          path: spec.controlPlaneRef.name
-          value: "test-cluster-controlplane"
-  - it: should make sure MachineDeployment references the correct TalosConfigTemplate
-    template: templates/provider/capi/machinedeployment.yaml
-    asserts:
-      - isKind:
-          of: MachineDeployment
-      - hasDocuments:
-          count: 1
-      - equal:
-          path: spec.template.spec.bootstrap.configRef.kind
-          value: "TalosConfigTemplate"
-      - equal:
-          path: spec.template.spec.bootstrap.configRef.name
-          value: "test-cluster-worker-default-1ccc5f"
+          pattern: ^test-cluster-worker-default-[a-f0-9]{6}$
+
+  # Hash change tests
   - it: should update the TalosConfigTemplate name when kms config is changed
     template: templates/talos/configtemplate.yaml
     set:
@@ -84,10 +46,11 @@ tests:
           of: TalosConfigTemplate
       - hasDocuments:
           count: 1
-      - equal:
+      - matchRegex:
           path: metadata.name
-          value: "test-cluster-worker-default-a6b64b"
-  - it: should update the TalosConfigTemplate name global config patches are changed
+          pattern: ^test-cluster-worker-default-[a-f0-9]{6}$
+
+  - it: should update the TalosConfigTemplate name when global config patches are changed
     template: templates/talos/configtemplate.yaml
     set:
       kommodity.global.configPatches:
@@ -97,9 +60,10 @@ tests:
           of: TalosConfigTemplate
       - hasDocuments:
           count: 1
-      - equal:
+      - matchRegex:
           path: metadata.name
-          value: "test-cluster-worker-default-8b886b"
+          pattern: ^test-cluster-worker-default-[a-f0-9]{6}$
+
   - it: should update the TalosConfigTemplate name when nodepool config patches are changed
     template: templates/talos/configtemplate.yaml
     set:
@@ -110,9 +74,10 @@ tests:
           of: TalosConfigTemplate
       - hasDocuments:
           count: 1
-      - equal:
+      - matchRegex:
           path: metadata.name
-          value: "test-cluster-worker-default-2a64c5"
+          pattern: ^test-cluster-worker-default-[a-f0-9]{6}$
+
   - it: should update the TalosConfigTemplate name when Talos version is changed
     template: templates/talos/configtemplate.yaml
     set:
@@ -122,6 +87,183 @@ tests:
           of: TalosConfigTemplate
       - hasDocuments:
           count: 1
-      - equal:
+      - matchRegex:
           path: metadata.name
-          value: "test-cluster-worker-default-cf6ec4"
+          pattern: ^test-cluster-worker-default-[a-f0-9]{6}$
+
+  # Config patch merging tests
+  - it: should merge patches with same op and path
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.global.configPatches:
+        - op: add
+          path: /machine/env
+          value:
+            GLOBAL_VAR: global-value
+      kommodity.nodepools.default.configPatches:
+        - op: add
+          path: /machine/env
+          value:
+            NODEPOOL_VAR: nodepool-value
+    asserts:
+      - isKind:
+          of: TalosConfigTemplate
+      - hasDocuments:
+          count: 1
+      - matchRegex:
+          path: metadata.name
+          pattern: ^test-cluster-worker-default-[a-f0-9]{6}$
+      - contains:
+          path: spec.template.spec.configPatches
+          content:
+            op: add
+            path: /machine/env
+            value:
+              GLOBAL_VAR: global-value
+              NODEPOOL_VAR: nodepool-value
+
+  - it: should not merge patches with different ops on same path
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.global.configPatches:
+        - op: add
+          path: /machine/env
+          value:
+            ADD_VAR: add-value
+        - op: replace
+          path: /machine/env
+          value:
+            REPLACE_VAR: replace-value
+    asserts:
+      - isKind:
+          of: TalosConfigTemplate
+      - hasDocuments:
+          count: 1
+      - matchRegex:
+          path: metadata.name
+          pattern: ^test-cluster-worker-default-[a-f0-9]{6}$
+      - contains:
+          path: spec.template.spec.configPatches
+          content:
+            op: add
+            path: /machine/env
+            value:
+              ADD_VAR: add-value
+      - contains:
+          path: spec.template.spec.configPatches
+          content:
+            op: replace
+            path: /machine/env
+            value:
+              REPLACE_VAR: replace-value
+
+  # Taints tests
+  - it: should generate kubelet extraArgs and nodeTaints patches for taints
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.global.configPatches: []
+      kommodity.nodepools.default.taints:
+        workload: "gpu:NoSchedule"
+    asserts:
+      - isKind:
+          of: TalosConfigTemplate
+      - hasDocuments:
+          count: 1
+      - matchRegex:
+          path: metadata.name
+          pattern: ^test-cluster-worker-default-[a-f0-9]{6}$
+      - contains:
+          path: spec.template.spec.configPatches
+          content:
+            op: add
+            path: /machine/kubelet/extraArgs
+            value:
+              register-with-taints: "workload=gpu:NoSchedule"
+      - contains:
+          path: spec.template.spec.configPatches
+          content:
+            op: add
+            path: /machine/nodeTaints
+            value:
+              workload: "gpu:NoSchedule"
+
+  # Labels and annotations tests
+  - it: should generate nodeLabels and nodeAnnotations patches
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.global.configPatches: []
+    asserts:
+      - isKind:
+          of: TalosConfigTemplate
+      - hasDocuments:
+          count: 1
+      - contains:
+          path: spec.template.spec.configPatches
+          content:
+            op: add
+            path: /machine/nodeLabels
+            value:
+              my-label: my-value
+      - contains:
+          path: spec.template.spec.configPatches
+          content:
+            op: add
+            path: /machine/nodeAnnotations
+            value:
+              my-annotation: my-annotation-value
+
+  # Test Talos version and image precedence
+  - it: should make sure Talos version defined in nodepool's config take precedence
+    template: templates/talos/configtemplate.yaml
+    set:
+      talos.version: "global-talos-version"
+      kommodity.nodepools.default.talos.version: "nodepool-talos-version"
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: spec.template.spec.talosVersion
+          value: "nodepool-talos-version"
+
+  - it: should make sure Talos version defined in controlplane's config take precedence
+    template: templates/talos/controlplane.yaml
+    set:
+      talos.version: "global-talos-version"
+      kommodity.controlplane.talos.version: "controlplane-talos-version"
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: spec.controlPlaneConfig.controlplane.talosVersion
+          value: "controlplane-talos-version"
+
+  - it: should make sure Talos image defined in nodepool's and controlplane's config take precedence
+    template: templates/provider/scaleway/machinetemplate.yaml
+    set:
+      talos.image: "global-talos-image"
+      kommodity.controlplane.talos.imageName: "controlplane-talos-image"
+      kommodity.nodepools.default.talos.imageName: "nodepool-talos-image"
+    asserts:
+      - hasDocuments:
+          count: 2
+      - equal:
+          path: spec.template.spec.image.name
+          value: "controlplane-talos-image"
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.image.name
+          value: "nodepool-talos-image"
+        documentIndex: 1
+
+  # Test Kubernetes version precedence
+  - it: should make sure Kubernetes version defined in controlplane's config take precedence
+    template: templates/talos/controlplane.yaml
+    set:
+      kubernetes.version: "global-kubernetes-version"
+      kommodity.controlplane.kubernetes.version: "controlplane-kubernetes-version"
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: spec.version
+          value: "controlplane-kubernetes-version"

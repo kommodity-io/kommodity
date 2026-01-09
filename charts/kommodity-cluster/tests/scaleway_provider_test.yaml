@@ -4,12 +4,6 @@ values:
 release:
   name: test-cluster
   namespace: default
-set:
-  kommodity.controlplane.talos.version: "controlplane-talos-version"
-  kommodity.controlplane.talos.imageName: "controlplane-talos-image"
-  talos.imageName: "global-talos-image"
-  talos.version: "global-talos-version"
-  kubernetes.version: "global-kubernetes-version"
 templates:
   - templates/*
 tests:
@@ -23,19 +17,21 @@ tests:
           value: ScalewayCluster
       - hasDocuments:
           count: 1
-  - it: should make sure a MachineDeployment is created
+  - it: should make sure a MachineDeployment is created for each nodepool
     template: templates/provider/capi/machinedeployment.yaml
     asserts:
       - isKind:
           of: MachineDeployment
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: metadata.name
+          value: "test-cluster-worker-default"
+        documentIndex: 0
       - equal:
           path: spec.template.spec.infrastructureRef.kind
           value: ScalewayMachineTemplate
-      - equal:
-          path: spec.template.spec.version
-          value: "global-kubernetes-version"
-      - hasDocuments:
-          count: 1
+        documentIndex: 0
   - it: should make sure a ScalewayCluster is created
     template: templates/provider/scaleway/cluster.yaml
     asserts:
@@ -43,26 +39,40 @@ tests:
           of: ScalewayCluster
       - hasDocuments:
           count: 1
-  - it: should make sure 2 ScalewayMachineTemplates are created
+  - it: should make sure ScalewayMachineTemplates are created for controlplane and nodepools
     template: templates/provider/scaleway/machinetemplate.yaml
     asserts:
       - isKind:
           of: ScalewayMachineTemplate
       - hasDocuments:
           count: 2
+      - matchRegex:
+          path: metadata.name
+          pattern: ^test-cluster-controlplane-[a-f0-9]{6}$
+        documentIndex: 0
+      - matchRegex:
+          path: metadata.name
+          pattern: ^test-cluster-worker-default-[a-f0-9]{6}$
+        documentIndex: 1
+  - it: should create MachineDeployments for multiple nodepools
+    template: templates/provider/capi/machinedeployment.yaml
+    set:
+      kommodity.nodepools.gpu.replicas: 2
+      kommodity.nodepools.gpu.sku: "GPU-LARGE"
+      kommodity.nodepools.gpu.zone: "fr-par-2"
+      kommodity.nodepools.gpu.os.disk.size: 50
+    asserts:
+      - hasDocuments:
+          count: 2
       - equal:
           path: metadata.name
-          value: "test-cluster-controlplane-60fbcf"
+          value: "test-cluster-worker-default"
         documentIndex: 0
       - equal:
           path: metadata.name
-          value: "test-cluster-worker-default-65bb56"
+          value: "test-cluster-worker-gpu"
         documentIndex: 1
       - equal:
-          path: spec.template.spec.image.name
-          value: "controlplane-talos-image"
-        documentIndex: 0
-      - equal:
-          path: spec.template.spec.image.name
-          value: "global-talos-image"
+          path: spec.replicas
+          value: 2
         documentIndex: 1

@@ -32,6 +32,8 @@ As a build system, we use `make`.
 make build
 # Run code generation and start the local development setup (through docker compose)
 make setup
+# Build the UI components (needed before running Kommodity locally)
+make build-ui
 # Run the application locally.
 make run
 # Teardown the local development setup
