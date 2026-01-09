@@ -93,12 +93,15 @@ spec:
       generateType: controlplane
       talosVersion: {{ default (include "kommodity.talosVersion" $) (dig "talos" "version" "" $.Values.kommodity.controlplane) }}
       hostname: {}
-      {{- $cpPatches := $.Values.kommodity.controlplane.configPatches }}
-      {{- $hasCpConfigPatches := and $cpPatches (gt (len $cpPatches) 0) }}
-      {{- $globalCpPatches := $.Values.kommodity.global.configPatches }}
-      {{- $hasGlobalCpConfigPatches := and $globalCpPatches (gt (len $globalCpPatches) 0) }}
+      {{- $cp := $.Values.kommodity.controlplane }}
+      {{- $cpPatches := dig "configPatches" nil $cp }}
+      {{- $globalPatches := dig "global" "configPatches" nil $.Values.kommodity }}
+      {{- $cpTaints := dig "taints" nil $cp }}
+      {{- $cpLabels := dig "labels" nil $cp }}
+      {{- $cpAnnotations := dig "annotations" nil $cp }}
       {{- $disableTalosNetwork := or $.Values.talos.disableCNI $.Values.talos.disableKubeProxy }}
-      {{- if or $anyAddonEnabled $hasCpConfigPatches $hasGlobalCpConfigPatches $disableTalosNetwork }}
+      {{- $hasExtraConfigPatches := or $cpPatches $globalPatches $cpTaints $cpLabels $cpAnnotations }}
+      {{- if or $anyAddonEnabled $hasExtraConfigPatches $disableTalosNetwork }}
       configPatches:
       {{- end }}
         - op: add
@@ -107,14 +110,8 @@ spec:
       {{- if $anyAddonEnabled }}
 {{- include "kommodity.addonsInlineManifests" . | trim | nindent 12 }}
       {{- end }}
-      {{- $cpTaints := $.Values.kommodity.controlplane.taints }}
-      {{- $hasCpTaints := and $cpTaints (gt (len $cpTaints) 0) }}
-      {{- $cpLabels := $.Values.kommodity.controlplane.labels }}
-      {{- $hasCpLabels := and $cpLabels (gt (len $cpLabels) 0) }}
-      {{- $cpAnnotations := $.Values.kommodity.controlplane.annotations }}
-      {{- $hasCpAnnotations := and $cpAnnotations (gt (len $cpAnnotations) 0) }}
-      {{- if or $hasCpConfigPatches $hasGlobalCpConfigPatches $hasCpTaints $hasCpLabels $hasCpAnnotations }}
-      {{- include "kommodity-cluster.combinedConfigPatches" (dict "globalConfigPatches" $globalCpPatches "nodepoolConfigPatches" $cpPatches "taints" $cpTaints "labels" $cpLabels "annotations" $cpAnnotations) | nindent 8 }}
+      {{- if $hasExtraConfigPatches }}
+{{- include "kommodity-cluster.combinedConfigPatches" (dict "globalConfigPatches" $globalPatches "nodepoolConfigPatches" $cpPatches "taints" $cpTaints "labels" $cpLabels "annotations" $cpAnnotations) | nindent 8 }}
       {{- end }}
       {{- if $.Values.talos.disableCNI }}
       {{- include "kommodity.talos.cni.disable" . | nindent 8 }}
