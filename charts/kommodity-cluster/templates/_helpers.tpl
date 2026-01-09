@@ -122,24 +122,28 @@ Any values that should trigger a new Machine template when changed should be add
 
 {{/*
 Build combined config patches from global config patches, nodepool config patches, taints, labels, and annotations.
-Patches targeting the same path are merged together.
+Patches with the same op and path are merged together.
 */}}
 {{- define "kommodity-cluster.combinedConfigPatches" -}}
-{{- $patchesByPath := dict -}}
+{{- $patches := dict -}}
 {{- /* Collect global config patches */ -}}
 {{- range .globalConfigPatches -}}
-{{- if hasKey $patchesByPath .path -}}
-{{- $_ := set $patchesByPath .path (merge (get $patchesByPath .path) .value) -}}
+{{- $key := printf "%s:%s" .op .path -}}
+{{- if hasKey $patches $key -}}
+{{- $existing := get $patches $key -}}
+{{- $_ := set $existing "value" (merge (get $existing "value") .value) -}}
 {{- else -}}
-{{- $_ := set $patchesByPath .path .value -}}
+{{- $_ := set $patches $key (dict "op" .op "path" .path "value" .value) -}}
 {{- end -}}
 {{- end -}}
 {{- /* Collect nodepool config patches */ -}}
 {{- range .nodepoolConfigPatches -}}
-{{- if hasKey $patchesByPath .path -}}
-{{- $_ := set $patchesByPath .path (merge (get $patchesByPath .path) .value) -}}
+{{- $key := printf "%s:%s" .op .path -}}
+{{- if hasKey $patches $key -}}
+{{- $existing := get $patches $key -}}
+{{- $_ := set $existing "value" (merge (get $existing "value") .value) -}}
 {{- else -}}
-{{- $_ := set $patchesByPath .path .value -}}
+{{- $_ := set $patches $key (dict "op" .op "path" .path "value" .value) -}}
 {{- end -}}
 {{- end -}}
 {{- /* Add taints patches */ -}}
@@ -150,49 +154,53 @@ Patches targeting the same path are merged together.
 {{- range $key, $value := $taints -}}
 {{- $taintStrings = append $taintStrings (printf "%s=%s" $key $value) -}}
 {{- end -}}
-{{- $kubeletPath := "/machine/kubelet/extraArgs" -}}
-{{- if hasKey $patchesByPath $kubeletPath -}}
-{{- $_ := set (get $patchesByPath $kubeletPath) "register-with-taints" (join "," $taintStrings) -}}
+{{- $kubeletKey := "add:/machine/kubelet/extraArgs" -}}
+{{- if hasKey $patches $kubeletKey -}}
+{{- $existing := get $patches $kubeletKey -}}
+{{- $_ := set (get $existing "value") "register-with-taints" (join "," $taintStrings) -}}
 {{- else -}}
-{{- $_ := set $patchesByPath $kubeletPath (dict "register-with-taints" (join "," $taintStrings)) -}}
+{{- $_ := set $patches $kubeletKey (dict "op" "add" "path" "/machine/kubelet/extraArgs" "value" (dict "register-with-taints" (join "," $taintStrings))) -}}
 {{- end -}}
 {{- /* Build nodeTaints */ -}}
-{{- $nodeTaintsPath := "/machine/nodeTaints" -}}
+{{- $nodeTaintsKey := "add:/machine/nodeTaints" -}}
 {{- $nodeTaintsValue := dict -}}
 {{- range $key, $value := $taints -}}
 {{- $_ := set $nodeTaintsValue $key $value -}}
 {{- end -}}
-{{- if hasKey $patchesByPath $nodeTaintsPath -}}
-{{- $_ := set $patchesByPath $nodeTaintsPath (merge (get $patchesByPath $nodeTaintsPath) $nodeTaintsValue) -}}
+{{- if hasKey $patches $nodeTaintsKey -}}
+{{- $existing := get $patches $nodeTaintsKey -}}
+{{- $_ := set $existing "value" (merge (get $existing "value") $nodeTaintsValue) -}}
 {{- else -}}
-{{- $_ := set $patchesByPath $nodeTaintsPath $nodeTaintsValue -}}
+{{- $_ := set $patches $nodeTaintsKey (dict "op" "add" "path" "/machine/nodeTaints" "value" $nodeTaintsValue) -}}
 {{- end -}}
 {{- end -}}
 {{- /* Add labels patch */ -}}
 {{- $labels := .labels -}}
 {{- if and $labels (gt (len $labels) 0) -}}
-{{- $labelsPath := "/machine/nodeLabels" -}}
-{{- if hasKey $patchesByPath $labelsPath -}}
-{{- $_ := set $patchesByPath $labelsPath (merge (get $patchesByPath $labelsPath) $labels) -}}
+{{- $labelsKey := "add:/machine/nodeLabels" -}}
+{{- if hasKey $patches $labelsKey -}}
+{{- $existing := get $patches $labelsKey -}}
+{{- $_ := set $existing "value" (merge (get $existing "value") $labels) -}}
 {{- else -}}
-{{- $_ := set $patchesByPath $labelsPath $labels -}}
+{{- $_ := set $patches $labelsKey (dict "op" "add" "path" "/machine/nodeLabels" "value" $labels) -}}
 {{- end -}}
 {{- end -}}
 {{- /* Add annotations patch */ -}}
 {{- $annotations := .annotations -}}
 {{- if and $annotations (gt (len $annotations) 0) -}}
-{{- $annotationsPath := "/machine/nodeAnnotations" -}}
-{{- if hasKey $patchesByPath $annotationsPath -}}
-{{- $_ := set $patchesByPath $annotationsPath (merge (get $patchesByPath $annotationsPath) $annotations) -}}
+{{- $annotationsKey := "add:/machine/nodeAnnotations" -}}
+{{- if hasKey $patches $annotationsKey -}}
+{{- $existing := get $patches $annotationsKey -}}
+{{- $_ := set $existing "value" (merge (get $existing "value") $annotations) -}}
 {{- else -}}
-{{- $_ := set $patchesByPath $annotationsPath $annotations -}}
+{{- $_ := set $patches $annotationsKey (dict "op" "add" "path" "/machine/nodeAnnotations" "value" $annotations) -}}
 {{- end -}}
 {{- end -}}
 {{- /* Output all combined patches */ -}}
-{{- range $path, $value := $patchesByPath }}
-- op: add
-  path: {{ $path }}
+{{- range $key, $patch := $patches }}
+- op: {{ $patch.op }}
+  path: {{ $patch.path }}
   value:
-{{ $value | toYaml | indent 4 }}
+{{ $patch.value | toYaml | indent 4 }}
 {{- end -}}
 {{- end -}}
