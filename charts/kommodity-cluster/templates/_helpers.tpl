@@ -79,7 +79,6 @@ Any values that should trigger a new Talos config template when changed should b
 */}}
 {{- define "kommodity-cluster.talosConfigHash" -}}
 {{- $hasPoolConfigPatches := and .poolValues.configPatches (gt (len .poolValues.configPatches) 0) }}
-{{- $hasPoolTalosVersion := and .poolValues.talos .poolValues.talos.version (not (empty .poolValues.talos.version)) }}
 {{- $hasGlobalConfigPatches := and .allValues.kommodity.global.configPatches (gt (len .allValues.kommodity.global.configPatches) 0) }}
 {{- $data := dict -}}
 {{- if $hasGlobalConfigPatches }}
@@ -88,14 +87,9 @@ Any values that should trigger a new Talos config template when changed should b
 {{- if $hasPoolConfigPatches }}
 	{{- $_ := set $data "extraConfigPatches" .poolValues.configPatches -}}
 {{- end }}
-{{- if $hasPoolConfigPatches }}
-	{{- $_ := set $data "extraConfigPatches" .poolValues.configPatches -}}
-{{- end }}
-{{- if $hasPoolTalosVersion }}
-	{{- $_ := set $data "talosVersion" .poolValues.talos.version -}}
-{{- else -}}
-	{{- $_ := set $data "talosVersion" .allValues.talos.version -}}
-{{- end }}
+{{- $talosVersion := default .allValues.talos.version (dig "talos" "version" .poolValues) -}}
+{{- $_ := set $data "talosVersion" $talosVersion -}}
+
 {{- $_ := set $data "kmsEnabled" .allValues.kommodity.kms.enabled -}}
 {{- if .allValues.kommodity.kms.enabled -}}
 	{{- with .allValues.kommodity.kms.endpoint -}}
@@ -111,15 +105,10 @@ Any values that should trigger a new Machine template when changed should be add
 */}}
 {{- define "kommodity-cluster.machineSpecsHash" -}}
 {{- $data := dict -}}
-{{- $hasPoolTalosImageName := and .poolValues.talos .poolValues.talos.imageName (not (empty .poolValues.talos.imageName)) }}
-{{- if $hasPoolTalosImageName -}}
-	{{- $_ := set $data "talosImageName" .poolValues.talos.imageName -}}
-{{- else -}}
-	{{- $_ := set $data "talosImageName" .allValues.talos.imageName -}}
-{{- end -}}
+{{- $talosImageName := default .allValues.talos.imageName (dig "talos" "imageName" .poolValues) -}}
+{{- $_ := set $data "talosImageName" $talosImageName -}}
 {{- $_ := set $data "sku" .poolValues.sku -}}
 {{- $_ := set $data "diskSize" .poolValues.os.disk.size -}}
 {{- $_ := set $data "publicNetworkEnabled" .allValues.kommodity.network.ipv4.public -}}
 {{- toJson $data | sha256sum | trunc 6 -}}
 {{- end -}}
-
