@@ -112,7 +112,7 @@ Any values that should trigger a new Machine template when changed should be add
 {{- $talosImageName := default .allValues.talos.imageName (dig "talos" "imageName" "" .poolValues) -}}
 {{- $_ := set $data "talosImageName" $talosImageName -}}
 {{- $_ := set $data "sku" .poolValues.sku -}}
-{{- $_ := set $data "diskSize" .poolValues.os.disk.size -}}
+{{- $_ := set $data "diskSize" (dig "os" "disk" "size" "" .poolValues) -}}
 {{- $_ := set $data "publicNetworkEnabled" .allValues.kommodity.network.ipv4.public -}}
 {{- toJson $data | sha256sum | trunc 6 -}}
 {{- end -}}
