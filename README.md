@@ -37,7 +37,7 @@ make run
 # Teardown the local development setup
 make teardown
 # Run integration tests
-make run-integration-test
+make integration-test
 # Run helm unit tests (requires helm unittest plugin)
 make run-helm-unit-tests
 ```
