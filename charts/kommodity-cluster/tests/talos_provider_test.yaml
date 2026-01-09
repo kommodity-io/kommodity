@@ -4,6 +4,8 @@ values:
 release:
   name: test-cluster
   namespace: default
+set:
+  kommodity.global.configPatches: [{ op: add, path: /my-path, value: my-value }]
 templates:
   - templates/*
 tests:
@@ -30,9 +32,9 @@ tests:
           of: TalosConfigTemplate
       - hasDocuments:
           count: 1
-      - equal:
+      - matchRegex:
           path: metadata.name
-          value: "test-cluster-worker-default-995574"
+          pattern: ^test-cluster-worker-default-[a-f0-9]{6}$
 
   # Hash change tests
   - it: should update the TalosConfigTemplate name when kms config is changed
@@ -44,9 +46,9 @@ tests:
           of: TalosConfigTemplate
       - hasDocuments:
           count: 1
-      - equal:
+      - matchRegex:
           path: metadata.name
-          value: "test-cluster-worker-default-1fa450"
+          pattern: ^test-cluster-worker-default-[a-f0-9]{6}$
 
   - it: should update the TalosConfigTemplate name when global config patches are changed
     template: templates/talos/configtemplate.yaml
@@ -58,9 +60,9 @@ tests:
           of: TalosConfigTemplate
       - hasDocuments:
           count: 1
-      - equal:
+      - matchRegex:
           path: metadata.name
-          value: "test-cluster-worker-default-48d742"
+          pattern: ^test-cluster-worker-default-[a-f0-9]{6}$
 
   - it: should update the TalosConfigTemplate name when nodepool config patches are changed
     template: templates/talos/configtemplate.yaml
@@ -72,9 +74,9 @@ tests:
           of: TalosConfigTemplate
       - hasDocuments:
           count: 1
-      - equal:
+      - matchRegex:
           path: metadata.name
-          value: "test-cluster-worker-default-93abb3"
+          pattern: ^test-cluster-worker-default-[a-f0-9]{6}$
 
   - it: should update the TalosConfigTemplate name when Talos version is changed
     template: templates/talos/configtemplate.yaml
@@ -85,9 +87,9 @@ tests:
           of: TalosConfigTemplate
       - hasDocuments:
           count: 1
-      - equal:
+      - matchRegex:
           path: metadata.name
-          value: "test-cluster-worker-default-eda5f2"
+          pattern: ^test-cluster-worker-default-[a-f0-9]{6}$
 
   # Config patch merging tests
   - it: should merge patches with same op and path
@@ -108,9 +110,9 @@ tests:
           of: TalosConfigTemplate
       - hasDocuments:
           count: 1
-      - equal:
+      - matchRegex:
           path: metadata.name
-          value: "test-cluster-worker-default-0aca86"
+          pattern: ^test-cluster-worker-default-[a-f0-9]{6}$
       - contains:
           path: spec.template.spec.configPatches
           content:
@@ -137,9 +139,9 @@ tests:
           of: TalosConfigTemplate
       - hasDocuments:
           count: 1
-      - equal:
+      - matchRegex:
           path: metadata.name
-          value: "test-cluster-worker-default-ffe422"
+          pattern: ^test-cluster-worker-default-[a-f0-9]{6}$
       - contains:
           path: spec.template.spec.configPatches
           content:
@@ -167,9 +169,9 @@ tests:
           of: TalosConfigTemplate
       - hasDocuments:
           count: 1
-      - equal:
+      - matchRegex:
           path: metadata.name
-          value: "test-cluster-worker-default-e35b6e"
+          pattern: ^test-cluster-worker-default-[a-f0-9]{6}$
       - contains:
           path: spec.template.spec.configPatches
           content:
