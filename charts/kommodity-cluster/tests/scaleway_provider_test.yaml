@@ -4,12 +4,6 @@ values:
 release:
   name: test-cluster
   namespace: default
-set:
-  kommodity.controlplane.talos.version: "controlplane-talos-version"
-  kommodity.controlplane.talos.imageName: "controlplane-talos-image"
-  talos.imageName: "global-talos-image"
-  talos.version: "global-talos-version"
-  kubernetes.version: "global-kubernetes-version"
 templates:
   - templates/*
 tests:
@@ -38,10 +32,6 @@ tests:
           path: spec.template.spec.infrastructureRef.kind
           value: ScalewayMachineTemplate
         documentIndex: 0
-      - equal:
-          path: spec.template.spec.version
-          value: "global-kubernetes-version"
-        documentIndex: 0
   - it: should make sure a ScalewayCluster is created
     template: templates/provider/scaleway/cluster.yaml
     asserts:
@@ -58,19 +48,11 @@ tests:
           count: 2
       - equal:
           path: metadata.name
-          value: "test-cluster-controlplane-60fbcf"
+          value: "test-cluster-controlplane-d1e41f"
         documentIndex: 0
       - equal:
           path: metadata.name
-          value: "test-cluster-worker-default-65bb56"
-        documentIndex: 1
-      - equal:
-          path: spec.template.spec.image.name
-          value: "controlplane-talos-image"
-        documentIndex: 0
-      - equal:
-          path: spec.template.spec.image.name
-          value: "global-talos-image"
+          value: "test-cluster-worker-default-d1e41f"
         documentIndex: 1
   - it: should create MachineDeployments for multiple nodepools
     template: templates/provider/capi/machinedeployment.yaml

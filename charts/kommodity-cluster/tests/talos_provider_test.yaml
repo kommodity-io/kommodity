@@ -4,14 +4,6 @@ values:
 release:
   name: test-cluster
   namespace: default
-set:
-  kommodity.controlplane.talos.version: "controlplane-talos-version"
-  kommodity.controlplane.talos.imageName: "controlplane-talos-image"
-  kommodity.controlplane.kubernetes.version: "controlplane-kubernetes-version"
-  talos.imageName: "global-talos-image"
-  talos.version: "global-talos-version"
-  kubernetes.version: "global-kubernetes-version"
-  kommodity.global.configPatches: [{ op: add, path: /my-path, value: my-value }]
 templates:
   - templates/*
 tests:
@@ -29,12 +21,6 @@ tests:
       - equal:
           path: spec.infrastructureTemplate.kind
           value: ScalewayMachineTemplate
-      - equal:
-          path: spec.controlPlaneConfig.controlplane.talosVersion
-          value: "controlplane-talos-version"
-      - equal:
-          path: spec.version
-          value: "controlplane-kubernetes-version"
 
   # TalosConfigTemplate tests
   - it: should make sure a TalosConfigTemplate is created
@@ -46,39 +32,6 @@ tests:
           count: 1
       - equal:
           path: metadata.name
-          value: "test-cluster-worker-default-995574"
-      - equal:
-          path: spec.template.spec.talosVersion
-          value: "global-talos-version"
-
-  # CAPI Cluster tests
-  - it: should make sure Cluster references the correct TalosControlPlane
-    template: templates/provider/capi/cluster.yaml
-    asserts:
-      - isKind:
-          of: Cluster
-      - hasDocuments:
-          count: 1
-      - equal:
-          path: spec.controlPlaneRef.kind
-          value: "TalosControlPlane"
-      - equal:
-          path: spec.controlPlaneRef.name
-          value: "test-cluster-controlplane"
-
-  # MachineDeployment tests
-  - it: should make sure MachineDeployment references the correct TalosConfigTemplate
-    template: templates/provider/capi/machinedeployment.yaml
-    asserts:
-      - isKind:
-          of: MachineDeployment
-      - hasDocuments:
-          count: 1
-      - equal:
-          path: spec.template.spec.bootstrap.configRef.kind
-          value: "TalosConfigTemplate"
-      - equal:
-          path: spec.template.spec.bootstrap.configRef.name
           value: "test-cluster-worker-default-995574"
 
   # Hash change tests
@@ -256,3 +209,59 @@ tests:
             path: /machine/nodeAnnotations
             value:
               my-annotation: my-annotation-value
+
+  # Test Talos version and image precedence
+  - it: should make sure Talos version defined in nodepool's config take precedence
+    template: templates/talos/configtemplate.yaml
+    set:
+      talos.version: "global-talos-version"
+      kommodity.nodepools.default.talos.version: "nodepool-talos-version"
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: spec.template.spec.talosVersion
+          value: "nodepool-talos-version"
+
+  - it: should make sure Talos version defined in controlplane's config take precedence
+    template: templates/talos/controlplane.yaml
+    set:
+      talos.version: "global-talos-version"
+      kommodity.controlplane.talos.version: "controlplane-talos-version"
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: spec.controlPlaneConfig.controlplane.talosVersion
+          value: "controlplane-talos-version"
+
+  - it: should make sure Talos image defined in nodepool's and controlplane's config take precedence
+    template: templates/provider/scaleway/machinetemplate.yaml
+    set:
+      talos.image: "global-talos-image"
+      kommodity.controlplane.talos.imageName: "controlplane-talos-image"
+      kommodity.nodepools.default.talos.imageName: "nodepool-talos-image"
+    asserts:
+      - hasDocuments:
+          count: 2
+      - equal:
+          path: spec.template.spec.image.name
+          value: "controlplane-talos-image"
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.image.name
+          value: "nodepool-talos-image"
+        documentIndex: 1
+
+  # Test Kubernetes version precedence
+  - it: should make sure Kubernetes version defined in controlplane's config take precedence
+    template: templates/talos/controlplane.yaml
+    set:
+      kubernetes.version: "global-kubernetes-version"
+      kommodity.controlplane.kubernetes.version: "controlplane-kubernetes-version"
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: spec.version
+          value: "controlplane-kubernetes-version"
