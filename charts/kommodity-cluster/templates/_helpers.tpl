@@ -156,6 +156,14 @@ Convert taints list to Talos config patch.
 {{- define "kommodity-cluster.taintsToConfigPatch" -}}
 {{- $taints := .taints -}}
 {{- if and $taints (gt (len $taints) 0) -}}
+{{- $taintStrings := list -}}
+{{- range $key, $value := $taints -}}
+{{- $taintStrings = append $taintStrings (printf "%s=%s" $key $value) -}}
+{{- end -}}
+- op: add
+  path: /machine/kubelet/extraArgs
+  value:
+    register-with-taints: "{{ join "," $taintStrings }}"
 - op: add
   path: /machine/nodeTaints
   value:
