@@ -121,76 +121,80 @@ Any values that should trigger a new Machine template when changed should be add
 {{- end -}}
 
 {{/*
-Convert labels list to Talos config patch.
+Build combined config patches from global config patches, nodepool config patches, taints, labels, and annotations.
+Patches targeting the same path are merged together.
 */}}
-{{- define "kommodity-cluster.labelsToConfigPatch" -}}
-{{- $labels := .labels -}}
-{{- if and $labels (gt (len $labels) 0) -}}
-- op: add
-  path: /machine/nodeLabels
-  value:
-    {{- range $key, $value := $labels }}
-    {{ $key }}: "{{ $value }}"
-    {{- end }}
+{{- define "kommodity-cluster.combinedConfigPatches" -}}
+{{- $patchesByPath := dict -}}
+{{- /* Collect global config patches */ -}}
+{{- range .globalConfigPatches -}}
+{{- if hasKey $patchesByPath .path -}}
+{{- $_ := set $patchesByPath .path (merge (get $patchesByPath .path) .value) -}}
+{{- else -}}
+{{- $_ := set $patchesByPath .path .value -}}
 {{- end -}}
 {{- end -}}
-
-{{/*
-Convert annotations list to Talos config patch.
-*/}}
-{{- define "kommodity-cluster.annotationsToConfigPatch" -}}
-{{- $annotations := .annotations -}}
-{{- if and $annotations (gt (len $annotations) 0) -}}
-- op: add
-  path: /machine/nodeAnnotations
-  value:
-    {{- range $key, $value := $annotations }}
-    {{ $key }}: "{{ $value }}"
-    {{- end }}
+{{- /* Collect nodepool config patches */ -}}
+{{- range .nodepoolConfigPatches -}}
+{{- if hasKey $patchesByPath .path -}}
+{{- $_ := set $patchesByPath .path (merge (get $patchesByPath .path) .value) -}}
+{{- else -}}
+{{- $_ := set $patchesByPath .path .value -}}
 {{- end -}}
 {{- end -}}
-
-{{/*
-Convert taints list to Talos config patch.
-*/}}
-{{- define "kommodity-cluster.taintsToConfigPatch" -}}
+{{- /* Add taints patches */ -}}
 {{- $taints := .taints -}}
 {{- if and $taints (gt (len $taints) 0) -}}
-- op: add
-  path: /machine/nodeTaints
-  value:
-    {{- range $key, $value := $taints }}
-    {{ $key }}: "{{ $value }}"
-    {{- end }}
-{{- end -}}
-{{- end -}}
-
-{{/*
-Build combined kubelet extraArgs from global config patches and taints.
-*/}}
-{{- define "kommodity-cluster.kubeletExtraArgsConfigPatch" -}}
-{{- $kubeletExtraArgs := dict -}}
-{{- /* Collect extraArgs from global config patches */ -}}
-{{- range .globalConfigPatches -}}
-{{- if eq .path "/machine/kubelet/extraArgs" -}}
-{{- $kubeletExtraArgs = merge $kubeletExtraArgs .value -}}
-{{- end -}}
-{{- end -}}
-{{- /* Add register-with-taints if we have taints */ -}}
-{{- if and .taints (gt (len .taints) 0) -}}
+{{- /* Build register-with-taints for kubelet extraArgs */ -}}
 {{- $taintStrings := list -}}
-{{- range $key, $value := .taints -}}
+{{- range $key, $value := $taints -}}
 {{- $taintStrings = append $taintStrings (printf "%s=%s" $key $value) -}}
 {{- end -}}
-{{- $_ := set $kubeletExtraArgs "register-with-taints" (join "," $taintStrings) -}}
+{{- $kubeletPath := "/machine/kubelet/extraArgs" -}}
+{{- if hasKey $patchesByPath $kubeletPath -}}
+{{- $_ := set (get $patchesByPath $kubeletPath) "register-with-taints" (join "," $taintStrings) -}}
+{{- else -}}
+{{- $_ := set $patchesByPath $kubeletPath (dict "register-with-taints" (join "," $taintStrings)) -}}
 {{- end -}}
-{{- /* Output combined patch if we have any extraArgs */ -}}
-{{- if gt (len $kubeletExtraArgs) 0 -}}
+{{- /* Build nodeTaints */ -}}
+{{- $nodeTaintsPath := "/machine/nodeTaints" -}}
+{{- $nodeTaintsValue := dict -}}
+{{- range $key, $value := $taints -}}
+{{- $_ := set $nodeTaintsValue $key $value -}}
+{{- end -}}
+{{- if hasKey $patchesByPath $nodeTaintsPath -}}
+{{- $_ := set $patchesByPath $nodeTaintsPath (merge (get $patchesByPath $nodeTaintsPath) $nodeTaintsValue) -}}
+{{- else -}}
+{{- $_ := set $patchesByPath $nodeTaintsPath $nodeTaintsValue -}}
+{{- end -}}
+{{- end -}}
+{{- /* Add labels patch */ -}}
+{{- $labels := .labels -}}
+{{- if and $labels (gt (len $labels) 0) -}}
+{{- $labelsPath := "/machine/nodeLabels" -}}
+{{- if hasKey $patchesByPath $labelsPath -}}
+{{- $_ := set $patchesByPath $labelsPath (merge (get $patchesByPath $labelsPath) $labels) -}}
+{{- else -}}
+{{- $_ := set $patchesByPath $labelsPath $labels -}}
+{{- end -}}
+{{- end -}}
+{{- /* Add annotations patch */ -}}
+{{- $annotations := .annotations -}}
+{{- if and $annotations (gt (len $annotations) 0) -}}
+{{- $annotationsPath := "/machine/nodeAnnotations" -}}
+{{- if hasKey $patchesByPath $annotationsPath -}}
+{{- $_ := set $patchesByPath $annotationsPath (merge (get $patchesByPath $annotationsPath) $annotations) -}}
+{{- else -}}
+{{- $_ := set $patchesByPath $annotationsPath $annotations -}}
+{{- end -}}
+{{- end -}}
+{{- /* Output all combined patches */ -}}
+{{- range $path, $value := $patchesByPath }}
 - op: add
-  path: /machine/kubelet/extraArgs
+  path: {{ $path }}
   value:
-    {{- range $key, $value := $kubeletExtraArgs }}
-    {{ $key }}: {{ $value }}
+    {{- range $k, $v := $value }}
+    {{ $k }}: {{ $v | quote }}
     {{- end }}
 {{- end -}}
 {{- end -}}

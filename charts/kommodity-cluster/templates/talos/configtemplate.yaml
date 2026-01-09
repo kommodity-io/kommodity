@@ -19,29 +19,7 @@ spec:
       {{- $hasAnnotations := and $np.annotations (gt (len $np.annotations) 0) }}
       {{- if or $hasNpConfigPatches $hasGlobalConfigPatches $hasTaints $hasLabels $hasAnnotations }}
       configPatches:
-      {{- end }}
-      {{- /* Output combined kubelet extraArgs patch (merges global config and taints) */ -}}
-      {{- include "kommodity-cluster.kubeletExtraArgsConfigPatch" (dict "globalConfigPatches" $.Values.kommodity.global.configPatches "taints" $np.taints) | nindent 8 }}
-      {{- /* Output global config patches except kubelet extraArgs (already handled above) */ -}}
-      {{- range $.Values.kommodity.global.configPatches }}
-      {{- if ne .path "/machine/kubelet/extraArgs" }}
-        - op: {{ .op }}
-          path: {{ .path }}
-          value:
-{{- toYaml .value | nindent 12 }}
-      {{- end }}
-      {{- end }}
-      {{- if $hasNpConfigPatches }}
-{{- toYaml $np.configPatches | nindent 8 }}
-      {{- end }}
-      {{- if $hasTaints }}
-      {{- include "kommodity-cluster.taintsToConfigPatch" $np | nindent 8 }}
-      {{- end }}
-      {{- if $hasLabels }}
-      {{- include "kommodity-cluster.labelsToConfigPatch" $np | nindent 8 }}
-      {{- end }}
-      {{- if $hasAnnotations }}
-      {{- include "kommodity-cluster.annotationsToConfigPatch" $np | nindent 8 }}
+      {{- include "kommodity-cluster.combinedConfigPatches" (dict "globalConfigPatches" $.Values.kommodity.global.configPatches "nodepoolConfigPatches" $np.configPatches "taints" $np.taints "labels" $np.labels "annotations" $np.annotations) | nindent 8 }}
       {{- end }}
       {{- if $.Values.kommodity.kms.enabled }}
       {{- /* Use VolumeConfig for disk encryption (Talos v1.12+) instead of deprecated machine.systemDiskEncryption */}}
