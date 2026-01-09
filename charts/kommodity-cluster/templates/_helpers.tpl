@@ -100,6 +100,9 @@ Any values that should trigger a new Talos config template when changed should b
 		{{- $_ := set $data "kmsEndpoint" . -}}  
 	{{- end -}}
 {{- end -}}
+{{- $_ := set $data "labels" (dig "labels" "" .poolValues) -}}
+{{- $_ := set $data "annotations" (dig "annotations" "" .poolValues) -}}
+{{- $_ := set $data "taints" (dig "taints" "" .poolValues) -}}
 {{- toJson $data | sha256sum | trunc 6 -}}
 {{- end -}}
 
@@ -115,4 +118,49 @@ Any values that should trigger a new Machine template when changed should be add
 {{- $_ := set $data "diskSize" (dig "os" "disk" "size" "" .poolValues) -}}
 {{- $_ := set $data "publicNetworkEnabled" .allValues.kommodity.network.ipv4.public -}}
 {{- toJson $data | sha256sum | trunc 6 -}}
+{{- end -}}
+
+{{/*
+Convert labels list to Talos config patch.
+*/}}
+{{- define "kommodity-cluster.labelsToConfigPatch" -}}
+{{- $labels := .labels -}}
+{{- if and $labels (gt (len $labels) 0) -}}
+- op: add
+  path: /machine/nodeLabels
+  value:
+    {{- range $key, $value := $labels }}
+    {{ $key }}: "{{ $value }}"
+    {{- end }}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Convert annotations list to Talos config patch.
+*/}}
+{{- define "kommodity-cluster.annotationsToConfigPatch" -}}
+{{- $annotations := .annotations -}}
+{{- if and $annotations (gt (len $annotations) 0) -}}
+- op: add
+  path: /machine/nodeAnnotations
+  value:
+    {{- range $key, $value := $annotations }}
+    {{ $key }}: "{{ $value }}"
+    {{- end }}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Convert taints list to Talos config patch.
+*/}}
+{{- define "kommodity-cluster.taintsToConfigPatch" -}}
+{{- $taints := .taints -}}
+{{- if and $taints (gt (len $taints) 0) -}}
+- op: add
+  path: /machine/nodeTaints
+  value:
+    {{- range $key, $value := $taints }}
+    {{ $key }}: "{{ $value }}"
+    {{- end }}
+{{- end -}}
 {{- end -}}

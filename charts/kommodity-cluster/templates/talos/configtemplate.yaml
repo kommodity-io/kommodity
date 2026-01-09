@@ -14,7 +14,10 @@ spec:
       talosVersion: {{ default (include "kommodity.talosVersion" $) (dig "talos" "version" "" $np) }}
       {{- $hasNpConfigPatches := and $np.configPatches (gt (len $np.configPatches) 0) }}
       {{- $hasGlobalConfigPatches := and $.Values.kommodity.global.configPatches (gt (len $.Values.kommodity.global.configPatches) 0) }}
-      {{- if or $hasNpConfigPatches $hasGlobalConfigPatches }}
+      {{- $hasTaints := and $np.taints (gt (len $np.taints) 0) }}
+      {{- $hasLabels := and $np.labels (gt (len $np.labels) 0) }}
+      {{- $hasAnnotations := and $np.annotations (gt (len $np.annotations) 0) }}
+      {{- if or $hasNpConfigPatches $hasGlobalConfigPatches $hasTaints $hasLabels $hasAnnotations }}
       configPatches:
       {{- end }}
       {{- if $hasGlobalConfigPatches }}
@@ -22,6 +25,15 @@ spec:
       {{- end }}
       {{- if $hasNpConfigPatches }}
 {{- toYaml $np.configPatches | nindent 8 }}
+      {{- end }}
+      {{- if $hasTaints }}
+      {{- include "kommodity-cluster.taintsToConfigPatch" $np | nindent 8 }}
+      {{- end }}
+      {{- if $hasLabels }}
+      {{- include "kommodity-cluster.labelsToConfigPatch" $np | nindent 8 }}
+      {{- end }}
+      {{- if $hasAnnotations }}
+      {{- include "kommodity-cluster.annotationsToConfigPatch" $np | nindent 8 }}
       {{- end }}
       {{- if $.Values.kommodity.kms.enabled }}
       {{- /* Use VolumeConfig for disk encryption (Talos v1.12+) instead of deprecated machine.systemDiskEncryption */}}
