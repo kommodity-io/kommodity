@@ -87,7 +87,7 @@ Any values that should trigger a new Talos config template when changed should b
 {{- if $hasPoolConfigPatches }}
 	{{- $_ := set $data "extraConfigPatches" .poolValues.configPatches -}}
 {{- end }}
-{{- $talosVersion := default .allValues.talos.version (dig "talos" "version" .poolValues) -}}
+{{- $talosVersion := default .allValues.talos.version (dig "talos" "version" "" .poolValues) -}}
 {{- $_ := set $data "talosVersion" $talosVersion -}}
 
 {{- $_ := set $data "kmsEnabled" .allValues.kommodity.kms.enabled -}}
@@ -105,7 +105,7 @@ Any values that should trigger a new Machine template when changed should be add
 */}}
 {{- define "kommodity-cluster.machineSpecsHash" -}}
 {{- $data := dict -}}
-{{- $talosImageName := default .allValues.talos.imageName (dig "talos" "imageName" .poolValues) -}}
+{{- $talosImageName := default .allValues.talos.imageName (dig "talos" "imageName" "" .poolValues) -}}
 {{- $_ := set $data "talosImageName" $talosImageName -}}
 {{- $_ := set $data "sku" .poolValues.sku -}}
 {{- $_ := set $data "diskSize" .poolValues.os.disk.size -}}
