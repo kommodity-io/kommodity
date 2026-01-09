@@ -121,6 +121,24 @@ Any values that should trigger a new Machine template when changed should be add
 {{- end -}}
 
 {{/*
+Add or merge a patch into the patches dict.
+Takes: patches (dict), op (string), path (string), value (dict)
+*/}}
+{{- define "kommodity-cluster.addOrMergePatch" -}}
+{{- $patches := .patches -}}
+{{- $op := .op -}}
+{{- $path := .path -}}
+{{- $value := .value -}}
+{{- $key := printf "%s:%s" $op $path -}}
+{{- if hasKey $patches $key -}}
+{{- $existing := get $patches $key -}}
+{{- $_ := set $existing "value" (merge (get $existing "value") $value) -}}
+{{- else -}}
+{{- $_ := set $patches $key (dict "op" $op "path" $path "value" $value) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Build combined config patches from global config patches, nodepool config patches, taints, labels, and annotations.
 Patches with the same op and path are merged together.
 */}}
@@ -128,23 +146,11 @@ Patches with the same op and path are merged together.
 {{- $patches := dict -}}
 {{- /* Collect global config patches */ -}}
 {{- range .globalConfigPatches -}}
-{{- $key := printf "%s:%s" .op .path -}}
-{{- if hasKey $patches $key -}}
-{{- $existing := get $patches $key -}}
-{{- $_ := set $existing "value" (merge (get $existing "value") .value) -}}
-{{- else -}}
-{{- $_ := set $patches $key (dict "op" .op "path" .path "value" .value) -}}
-{{- end -}}
+{{- include "kommodity-cluster.addOrMergePatch" (dict "patches" $patches "op" .op "path" .path "value" .value) -}}
 {{- end -}}
 {{- /* Collect nodepool config patches */ -}}
 {{- range .nodepoolConfigPatches -}}
-{{- $key := printf "%s:%s" .op .path -}}
-{{- if hasKey $patches $key -}}
-{{- $existing := get $patches $key -}}
-{{- $_ := set $existing "value" (merge (get $existing "value") .value) -}}
-{{- else -}}
-{{- $_ := set $patches $key (dict "op" .op "path" .path "value" .value) -}}
-{{- end -}}
+{{- include "kommodity-cluster.addOrMergePatch" (dict "patches" $patches "op" .op "path" .path "value" .value) -}}
 {{- end -}}
 {{- /* Add taints patches */ -}}
 {{- $taints := .taints -}}
@@ -154,47 +160,21 @@ Patches with the same op and path are merged together.
 {{- range $key, $value := $taints -}}
 {{- $taintStrings = append $taintStrings (printf "%s=%s" $key $value) -}}
 {{- end -}}
-{{- $kubeletKey := "add:/machine/kubelet/extraArgs" -}}
-{{- if hasKey $patches $kubeletKey -}}
-{{- $existing := get $patches $kubeletKey -}}
-{{- $_ := set (get $existing "value") "register-with-taints" (join "," $taintStrings) -}}
-{{- else -}}
-{{- $_ := set $patches $kubeletKey (dict "op" "add" "path" "/machine/kubelet/extraArgs" "value" (dict "register-with-taints" (join "," $taintStrings))) -}}
-{{- end -}}
+{{- include "kommodity-cluster.addOrMergePatch" (dict "patches" $patches "op" "add" "path" "/machine/kubelet/extraArgs" "value" (dict "register-with-taints" (join "," $taintStrings))) -}}
 {{- /* Build nodeTaints */ -}}
-{{- $nodeTaintsKey := "add:/machine/nodeTaints" -}}
 {{- $nodeTaintsValue := dict -}}
 {{- range $key, $value := $taints -}}
 {{- $_ := set $nodeTaintsValue $key $value -}}
 {{- end -}}
-{{- if hasKey $patches $nodeTaintsKey -}}
-{{- $existing := get $patches $nodeTaintsKey -}}
-{{- $_ := set $existing "value" (merge (get $existing "value") $nodeTaintsValue) -}}
-{{- else -}}
-{{- $_ := set $patches $nodeTaintsKey (dict "op" "add" "path" "/machine/nodeTaints" "value" $nodeTaintsValue) -}}
-{{- end -}}
+{{- include "kommodity-cluster.addOrMergePatch" (dict "patches" $patches "op" "add" "path" "/machine/nodeTaints" "value" $nodeTaintsValue) -}}
 {{- end -}}
 {{- /* Add labels patch */ -}}
-{{- $labels := .labels -}}
-{{- if and $labels (gt (len $labels) 0) -}}
-{{- $labelsKey := "add:/machine/nodeLabels" -}}
-{{- if hasKey $patches $labelsKey -}}
-{{- $existing := get $patches $labelsKey -}}
-{{- $_ := set $existing "value" (merge (get $existing "value") $labels) -}}
-{{- else -}}
-{{- $_ := set $patches $labelsKey (dict "op" "add" "path" "/machine/nodeLabels" "value" $labels) -}}
-{{- end -}}
+{{- if and .labels (gt (len .labels) 0) -}}
+{{- include "kommodity-cluster.addOrMergePatch" (dict "patches" $patches "op" "add" "path" "/machine/nodeLabels" "value" .labels) -}}
 {{- end -}}
 {{- /* Add annotations patch */ -}}
-{{- $annotations := .annotations -}}
-{{- if and $annotations (gt (len $annotations) 0) -}}
-{{- $annotationsKey := "add:/machine/nodeAnnotations" -}}
-{{- if hasKey $patches $annotationsKey -}}
-{{- $existing := get $patches $annotationsKey -}}
-{{- $_ := set $existing "value" (merge (get $existing "value") $annotations) -}}
-{{- else -}}
-{{- $_ := set $patches $annotationsKey (dict "op" "add" "path" "/machine/nodeAnnotations" "value" $annotations) -}}
-{{- end -}}
+{{- if and .annotations (gt (len .annotations) 0) -}}
+{{- include "kommodity-cluster.addOrMergePatch" (dict "patches" $patches "op" "add" "path" "/machine/nodeAnnotations" "value" .annotations) -}}
 {{- end -}}
 {{- /* Output all combined patches */ -}}
 {{- range $key, $patch := $patches }}
