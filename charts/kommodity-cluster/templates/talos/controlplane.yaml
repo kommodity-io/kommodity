@@ -100,9 +100,10 @@ spec:
       {{- $cpLabels := dig "labels" nil $cp }}
       {{- $cpAnnotations := dig "annotations" nil $cp }}
       {{- $disableTalosNetwork := or $.Values.talos.disableCNI $.Values.talos.disableKubeProxy }}
-      {{- $oidcEnabled := and (hasKey $.Values.kommodity "oidc") $.Values.kommodity.oidc.enabled }}
-      {{- $hasExtraConfigPatches := or $cpPatches $globalPatches $cpTaints $cpLabels $cpAnnotations }}
-      {{- if or $anyAddonEnabled $hasExtraConfigPatches $disableTalosNetwork $oidcEnabled }}
+      {{- $oidc := dig "oidc" nil $.Values.kommodity }}
+      {{- $oidcEnabled := and $oidc $oidc.enabled }}
+      {{- $hasExtraConfigPatches := or $cpPatches $globalPatches $cpTaints $cpLabels $cpAnnotations $oidcEnabled }}
+      {{- if or $anyAddonEnabled $hasExtraConfigPatches $disableTalosNetwork }}
       configPatches:
       {{- end }}
         - op: add
@@ -112,7 +113,7 @@ spec:
 {{- include "kommodity.addonsInlineManifests" . | trim | nindent 12 }}
       {{- end }}
       {{- if $hasExtraConfigPatches }}
-{{- include "kommodity-cluster.combinedConfigPatches" (dict "globalConfigPatches" $globalPatches "nodepoolConfigPatches" $cpPatches "taints" $cpTaints "labels" $cpLabels "annotations" $cpAnnotations) | trim | nindent 8 }}
+{{- include "kommodity-cluster.combinedConfigPatches" (dict "globalConfigPatches" $globalPatches "nodepoolConfigPatches" $cpPatches "taints" $cpTaints "labels" $cpLabels "annotations" $cpAnnotations "oidc" $oidc) | trim | nindent 8 }}
       {{- end }}
       {{- if $.Values.talos.disableCNI }}
       {{- include "kommodity.talos.cni.disable" . | nindent 8 }}
@@ -122,9 +123,6 @@ spec:
       {{- end }}
       {{- if $.Values.kommodity.provider.cloudControllerManager.enabled }}
       {{- include "kommodity.talos.ccm" (dict "manifest" $.Values.kommodity.provider.cloudControllerManager.manifest) | nindent 8 }}
-      {{- end }}
-      {{- if $oidcEnabled }}
-      {{- include "kommodity.talos.oidc" (dict "oidc" $.Values.kommodity.oidc) | nindent 8 }}
       {{- end }}
     {{- if $.Values.kommodity.kms.enabled }}
     {{- /* Use VolumeConfig for disk encryption (Talos v1.12+) instead of deprecated machine.systemDiskEncryption */}}

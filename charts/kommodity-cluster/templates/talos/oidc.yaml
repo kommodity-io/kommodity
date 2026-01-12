@@ -1,20 +1,17 @@
-{{- define "kommodity.talos.oidc" -}}
+{{- define "kommodity.talos.oidc.extraArgs" -}}
 {{- $oidc := .oidc -}}
-- op: add
-  path: /cluster/apiServer/extraArgs
-  value:
-    oidc-issuer-url: {{ $oidc.issuerURL | quote }}
-    oidc-client-id: {{ $oidc.clientID | quote }}
-    {{- if $oidc.clientSecret }}
-    oidc-client-secret: {{ $oidc.clientSecret | quote }}
-    {{- end }}
-    {{- if $oidc.usernameClaim }}
-    oidc-username-claim: {{ $oidc.usernameClaim | quote }}
-    {{- end }}
-    {{- if $oidc.groupsClaim }}
-    oidc-groups-claim: {{ $oidc.groupsClaim | quote }}
-    {{- end }}
-    {{- range $scope := $oidc.extraScopes }}
-    oidc-extra-scope: {{ $scope | quote }}
-    {{- end }}
+{{- $args := dict "oidc-issuer-url" $oidc.issuerURL "oidc-client-id" $oidc.clientID -}}
+{{- if $oidc.clientSecret -}}
+{{- $_ := set $args "oidc-client-secret" $oidc.clientSecret -}}
+{{- end -}}
+{{- if $oidc.usernameClaim -}}
+{{- $_ := set $args "oidc-username-claim" $oidc.usernameClaim -}}
+{{- end -}}
+{{- if $oidc.groupsClaim -}}
+{{- $_ := set $args "oidc-groups-claim" $oidc.groupsClaim -}}
+{{- end -}}
+{{- range $scope := $oidc.extraScopes -}}
+{{- $_ := set $args "oidc-extra-scope" $scope -}}
+{{- end -}}
+{{- $args | toJson -}}
 {{- end -}}

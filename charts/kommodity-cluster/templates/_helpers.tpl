@@ -176,6 +176,11 @@ Patches with the same op and path are merged together.
 {{- if and .annotations (gt (len .annotations) 0) -}}
 {{- include "kommodity-cluster.addOrMergePatch" (dict "patches" $patches "op" "add" "path" "/machine/nodeAnnotations" "value" .annotations) -}}
 {{- end -}}
+{{- /* Add OIDC apiServer extraArgs patch */ -}}
+{{- if and .oidc .oidc.enabled -}}
+{{- $oidcExtraArgs := include "kommodity.talos.oidc.extraArgs" (dict "oidc" .oidc) | fromJson -}}
+{{- include "kommodity-cluster.addOrMergePatch" (dict "patches" $patches "op" "add" "path" "/cluster/apiServer/extraArgs" "value" $oidcExtraArgs) -}}
+{{- end -}}
 {{- /* Output all combined patches */ -}}
 {{- range $key, $patch := $patches }}
 - op: {{ $patch.op }}
