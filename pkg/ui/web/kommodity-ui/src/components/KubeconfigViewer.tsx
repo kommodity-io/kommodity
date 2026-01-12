@@ -135,9 +135,11 @@ export const KubeconfigViewer = ({ clusterName }: { clusterName: string }) => {
           }}
           showLineNumbers
         >
-          {loading
-            ? "# Loading kubeconfig…"
-            : kubeconfig || "# No kubeconfig loaded for this cluster."}
+          {kubeconfig
+            ? kubeconfig
+            : loading
+              ? "# Loading kubeconfig…"
+              : "# No kubeconfig loaded for this cluster."}
         </SyntaxHighlighter>
       </div>
     </div>

@@ -6,6 +6,9 @@ kommodity:
     cloudControllerManager:
       enabled: false
 
+  oidc:
+    enabled: false
+
   kms:
     enabled: false
 

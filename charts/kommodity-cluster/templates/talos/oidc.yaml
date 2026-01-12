@@ -1,0 +1,17 @@
+{{- define "kommodity.talos.oidc.extraArgs" -}}
+{{- $oidc := .oidc -}}
+{{- $args := dict "oidc-issuer-url" $oidc.issuerURL "oidc-client-id" $oidc.clientID -}}
+{{- if $oidc.clientSecret -}}
+{{- $_ := set $args "oidc-client-secret" $oidc.clientSecret -}}
+{{- end -}}
+{{- if $oidc.usernameClaim -}}
+{{- $_ := set $args "oidc-username-claim" $oidc.usernameClaim -}}
+{{- end -}}
+{{- if $oidc.groupsClaim -}}
+{{- $_ := set $args "oidc-groups-claim" $oidc.groupsClaim -}}
+{{- end -}}
+{{- range $scope := $oidc.extraScopes -}}
+{{- $_ := set $args "oidc-extra-scope" $scope -}}
+{{- end -}}
+{{- $args | toJson -}}
+{{- end -}}
