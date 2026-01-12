@@ -1,0 +1,53 @@
+suite: test creation of resources for CAPI
+values:
+  - ../values.scaleway.yaml
+release:
+  name: test-cluster
+  namespace: default
+templates:
+  - templates/*
+tests:
+  # Cluster
+  - it: should make sure Cluster references the correct TalosControlPlane
+    template: templates/provider/capi/cluster.yaml
+    asserts:
+      - isKind:
+          of: Cluster
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: spec.controlPlaneRef.kind
+          value: "TalosControlPlane"
+      - equal:
+          path: spec.controlPlaneRef.name
+          value: "test-cluster-controlplane"
+
+  # MachineDeployment tests
+  - it: should make sure MachineDeployment references the correct TalosConfigTemplate
+    template: templates/provider/capi/machinedeployment.yaml
+    asserts:
+      - isKind:
+          of: MachineDeployment
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: spec.template.spec.bootstrap.configRef.kind
+          value: "TalosConfigTemplate"
+      - equal:
+          path: spec.template.spec.bootstrap.configRef.name
+          value: "test-cluster-worker-default-4c4a8b"
+
+  # Test Kubernetes version precedence
+  - it: should make sure Kubernetes version defined in nodepool's config take precedence
+    template: templates/provider/capi/machinedeployment.yaml
+    set:
+      kubernetes.version: "global-kubernetes-version"
+      kommodity.nodepools.default.kubernetes.version: "nodepool-kubernetes-version"
+    asserts:
+      - isKind:
+          of: MachineDeployment
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: spec.template.spec.version
+          value: "nodepool-kubernetes-version"
