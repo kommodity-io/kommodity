@@ -226,6 +226,25 @@ kommodity:
     #   version: v1.11.3
     #   imageName: talos-base-v1.11.3
 
+    # labels:
+    #   my-label: my-value
+    # annotations:
+    #   my-annotation: my-annotation-value
+    # taints:
+    #   my-taint: my-taint-value:NoSchedule
+
+    # healthCheck:
+    #   enabled: false
+    #   maxUnhealthy: 40%
+    #   nodeStartupTimeout: 10m0s
+    #   unhealthyConditions:
+    #   - type: Ready
+    #     status: Unknown
+    #     timeout: 300s
+    #   - type: Ready
+    #     status: "False"
+    #     timeout: 300s
+
   nodepools:
     {}
     ## Example of nodepool configuration
@@ -236,16 +255,37 @@ kommodity:
     #   autoscaling:
     #     minReplicas: 1
     #     maxReplicas: 3
+
     #   # Configurations related the specific nodepool
     #   # Using RFC6902 JSON Patch format: https://docs.siderolabs.com/talos/v1.11/configure-your-talos-cluster/system-configuration/patching#rfc6902-json-patches
     #   configPatches: []
     #   # Kubernetes version can be overridden here, otherwise the top-level kubernetes.version is used
+
     #   kubernetes:
     #     version: v1.33.4
     #   # Talos version and imageName can be overridden here, otherwise the top-level talos.version and talos.imageName are used
     #   talos:
     #     version: v1.11.3
     #     imageName: talos-base-v1.11.3
+
+    #   labels:
+    #     my-label: my-value
+    #   annotations:
+    #     my-annotation: my-annotation-value
+    #   taints:
+    #     my-taint: my-taint-value:NoSchedule
+
+    #   healthCheck:
+    #     enabled: false
+    #     maxUnhealthy: 40%
+    #     nodeStartupTimeout: 10m0s
+    #     unhealthyConditions:
+    #     - type: Ready
+    #       status: Unknown
+    #       timeout: 300s
+    #     - type: Ready
+    #       status: "False"
+    #       timeout: 300s
 
 # Configurations related to Talos
 talos:
