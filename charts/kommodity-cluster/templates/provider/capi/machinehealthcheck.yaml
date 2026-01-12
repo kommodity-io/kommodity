@@ -35,7 +35,8 @@ spec:
       cluster.x-k8s.io/deployment-name: {{ $.Release.Name }}-worker-{{ $name }}
   unhealthyConditions:
   {{- if not $np.healthCheck.unhealthyConditions }}
-    {{ fail (printf "MachineHealthCheck for nodepool '%s' is enabled but no unhealthyConditions are defined in values" $name) }}  {{- end }}
+    {{- fail (printf "MachineHealthCheck for nodepool '%s' is enabled but no unhealthyConditions are defined in values" $name) }}
+  {{- end }}
   {{- toYaml $np.healthCheck.unhealthyConditions | nindent 2 }}
 {{- end }}
 {{- end }}
