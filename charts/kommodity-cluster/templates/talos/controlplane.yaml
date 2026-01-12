@@ -100,8 +100,9 @@ spec:
       {{- $cpLabels := dig "labels" nil $cp }}
       {{- $cpAnnotations := dig "annotations" nil $cp }}
       {{- $disableTalosNetwork := or $.Values.talos.disableCNI $.Values.talos.disableKubeProxy }}
+      {{- $oidcEnabled := and (hasKey $.Values.kommodity "oidc") $.Values.kommodity.oidc.enabled }}
       {{- $hasExtraConfigPatches := or $cpPatches $globalPatches $cpTaints $cpLabels $cpAnnotations }}
-      {{- if or $anyAddonEnabled $hasExtraConfigPatches $disableTalosNetwork }}
+      {{- if or $anyAddonEnabled $hasExtraConfigPatches $disableTalosNetwork $oidcEnabled }}
       configPatches:
       {{- end }}
         - op: add
@@ -121,6 +122,9 @@ spec:
       {{- end }}
       {{- if $.Values.kommodity.provider.cloudControllerManager.enabled }}
       {{- include "kommodity.talos.ccm" (dict "manifest" $.Values.kommodity.provider.cloudControllerManager.manifest) | nindent 8 }}
+      {{- end }}
+      {{- if $oidcEnabled }}
+      {{- include "kommodity.talos.oidc" (dict "oidc" $.Values.kommodity.oidc) | nindent 8 }}
       {{- end }}
     {{- if $.Values.kommodity.kms.enabled }}
     {{- /* Use VolumeConfig for disk encryption (Talos v1.12+) instead of deprecated machine.systemDiskEncryption */}}

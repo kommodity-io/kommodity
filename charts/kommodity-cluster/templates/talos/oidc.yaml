@@ -1,0 +1,20 @@
+{{- define "kommodity.talos.oidc" -}}
+{{- $oidc := .oidc -}}
+- op: add
+  path: /cluster/apiServer/extraArgs
+  value:
+    oidc-issuer-url: {{ $oidc.issuerURL | quote }}
+    oidc-client-id: {{ $oidc.clientID | quote }}
+    {{- if $oidc.clientSecret }}
+    oidc-client-secret: {{ $oidc.clientSecret | quote }}
+    {{- end }}
+    {{- if $oidc.usernameClaim }}
+    oidc-username-claim: {{ $oidc.usernameClaim | quote }}
+    {{- end }}
+    {{- if $oidc.groupsClaim }}
+    oidc-groups-claim: {{ $oidc.groupsClaim | quote }}
+    {{- end }}
+    {{- range $scope := $oidc.extraScopes }}
+    oidc-extra-scope: {{ $scope | quote }}
+    {{- end }}
+{{- end -}}
