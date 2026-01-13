@@ -39,8 +39,14 @@ spec:
           runStrategy: Always
           template:
             spec:
+              networks:
+                - name: default
+                  pod: {}
               domain:
                 devices:
+                  interfaces:
+                    - name: default
+                      bridge: {}
                   networkInterfaceMultiqueue: true
                   disks:
                     - disk:
@@ -93,8 +99,14 @@ spec:
           runStrategy: Always
           template:
             spec:
+              networks:
+                - name: default
+                  pod: {}
               domain:
                 devices:
+                  interfaces:
+                    - name: default
+                      bridge: {}
                   {{- if $np.gpus }}
                   gpus:
                   {{- range $name, $gpu := $np.gpus }}
