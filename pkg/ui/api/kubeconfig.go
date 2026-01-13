@@ -5,14 +5,19 @@ import (
 	"context"
 	"embed"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"html/template"
 	"net/http"
+	"strings"
 
 	"github.com/Masterminds/sprig/v3"
+	"github.com/cosi-project/runtime/pkg/resource"
+	"github.com/cosi-project/runtime/pkg/safe"
 	"github.com/kommodity-io/kommodity/pkg/config"
 	talosclient "github.com/siderolabs/talos/pkg/machinery/client"
 	talosconfig "github.com/siderolabs/talos/pkg/machinery/client/config"
+	talosresconfig "github.com/siderolabs/talos/pkg/machinery/resources/config"
 	"gopkg.in/yaml.v3"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientgoclientset "k8s.io/client-go/kubernetes"
@@ -73,6 +78,8 @@ func GetKommodityKubeConfig(cfg *config.KommodityConfig) func(http.ResponseWrite
 }
 
 // GetKubeConfig handles requests for retrieving the kubeconfig for a given cluster.
+//
+//nolint:funlen
 func GetKubeConfig(cfg *config.KommodityConfig) func(http.ResponseWriter, *http.Request) {
 	return func(response http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodGet {
@@ -113,7 +120,7 @@ func GetKubeConfig(cfg *config.KommodityConfig) func(http.ResponseWriter, *http.
 			return
 		}
 
-		config, err := clientcmd.Load(kubeConfigBytes)
+		kubeConfig, err := clientcmd.Load(kubeConfigBytes)
 		if err != nil {
 			http.Error(response, fmt.Sprintf("Failed to load kubeconfig: %v", err),
 				http.StatusInternalServerError)
@@ -121,11 +128,27 @@ func GetKubeConfig(cfg *config.KommodityConfig) func(http.ResponseWriter, *http.
 			return
 		}
 
-		// Override admin user kubeconfig with OIDC settings.
+		// Fetch OIDC config from the downstream Talos cluster's machine config
+		oidcConfig, err := getOIDCConfigFromCluster(request.Context(), clusterName, talosConfig)
+		if err != nil {
+			if errors.Is(err, ErrOIDCNotConfigured) {
+				http.Error(response, "Cluster does not have OIDC configured in apiServer.extraArgs",
+					http.StatusForbidden)
+
+				return
+			}
+
+			http.Error(response, fmt.Sprintf("Failed to get OIDC config from cluster: %v", err),
+				http.StatusInternalServerError)
+
+			return
+		}
+
+		// Override admin user kubeconfig with OIDC settings from the cluster.
 		(&oidcKubeConfig{
 			BaseURL:    cfg.BaseURL,
-			Config:     config,
-			OIDCConfig: *cfg.AuthConfig.OIDCConfig,
+			Config:     kubeConfig,
+			OIDCConfig: *oidcConfig,
 		}).writeResponse(response, clusterConfigFS, "clusterconfig.tmpl")
 	}
 }
@@ -167,21 +190,104 @@ func getTalosConfig(ctx context.Context, clusterName string,
 	return talosConfig, nil
 }
 
-func getKubeContext(ctx context.Context, clusterName string, talosConfig *talosconfig.Config) ([]byte, error) {
+func getTalosClientWithNodeCtx(ctx context.Context, clusterName string,
+	talosConfig *talosconfig.Config) (*talosclient.Client, context.Context, error) {
 	talosClient, err := talosclient.New(ctx, talosclient.WithConfig(talosConfig))
 	if err != nil {
-		return nil, fmt.Errorf("failed to create talos client: %w", err)
+		return nil, nil, fmt.Errorf("failed to create talos client: %w", err)
 	}
 
 	talosClusterContext, success := talosConfig.Contexts[clusterName]
 	if !success {
-		return nil, ErrFailedToFindContext
+		return nil, nil, ErrFailedToFindContext
 	}
 
-	kubeconfig, err := talosClient.Kubeconfig(talosclient.WithNode(ctx, talosClusterContext.Endpoints[0]))
+	nodeCtx := talosclient.WithNode(ctx, talosClusterContext.Endpoints[0])
+
+	return talosClient, nodeCtx, nil
+}
+
+func getKubeContext(ctx context.Context, clusterName string, talosConfig *talosconfig.Config) ([]byte, error) {
+	talosClient, nodeCtx, err := getTalosClientWithNodeCtx(ctx, clusterName, talosConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	kubeconfig, err := talosClient.Kubeconfig(nodeCtx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get kubeconfig: %w", err)
 	}
 
 	return kubeconfig, nil
+}
+
+// getOIDCConfigFromCluster fetches the machine config from the downstream Talos cluster
+// and extracts OIDC configuration from cluster.apiServer.extraArgs.
+//
+//nolint:cyclo
+func getOIDCConfigFromCluster(ctx context.Context, clusterName string,
+	talosConfig *talosconfig.Config) (*config.OIDCConfig, error) {
+	talosClient, nodeCtx, err := getTalosClientWithNodeCtx(ctx, clusterName, talosConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get the MachineConfig resource from the downstream cluster
+	machineConfig, err := safe.StateGet[*talosresconfig.MachineConfig](
+		nodeCtx,
+		talosClient.COSI,
+		resource.NewMetadata(
+			talosresconfig.NamespaceName,
+			talosresconfig.MachineConfigType,
+			talosresconfig.ActiveID,
+			resource.VersionUndefined),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get machine config: %w", err)
+	}
+
+	// Extract OIDC settings from cluster.apiServer.extraArgs
+	cfg := machineConfig.Config()
+	if cfg.Cluster() == nil || cfg.Cluster().APIServer() == nil {
+		return nil, ErrOIDCNotConfigured
+	}
+
+	extraArgs := cfg.Cluster().APIServer().ExtraArgs()
+	if extraArgs == nil {
+		return nil, ErrOIDCNotConfigured
+	}
+
+	// Check if OIDC is configured
+	issuerURL, hasIssuer := extraArgs["oidc-issuer-url"]
+	clientID, hasClientID := extraArgs["oidc-client-id"]
+
+	if !hasIssuer || !hasClientID {
+		return nil, ErrOIDCNotConfigured
+	}
+
+	oidcConfig := &config.OIDCConfig{
+		IssuerURL: issuerURL,
+		ClientID:  clientID,
+	}
+
+	if usernameClaim, ok := extraArgs["oidc-username-claim"]; ok {
+		oidcConfig.UsernameClaim = usernameClaim
+	}
+
+	if groupsClaim, ok := extraArgs["oidc-groups-claim"]; ok {
+		oidcConfig.GroupsClaim = groupsClaim
+	}
+
+	// Handle extra scopes - they may be comma-separated or multiple entries
+	if extraScope, ok := extraArgs["oidc-extra-scope"]; ok {
+		// Split by comma in case multiple scopes are in one string
+		scopes := strings.Split(extraScope, ",")
+		for i := range scopes {
+			scopes[i] = strings.TrimSpace(scopes[i])
+		}
+
+		oidcConfig.ExtraScopes = scopes
+	}
+
+	return oidcConfig, nil
 }
