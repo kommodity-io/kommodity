@@ -15,7 +15,7 @@ spec:
       namespace: {{ .Values.kommodity.provider.config.infraClusterNamespace }}
     spec:
       type: LoadBalancer
-  {{- if hasKey .Values.kommodity.provider.config "controlPlaneEndpoint" }}
+  {{- if dig "provider" "config" "controlPlaneEndpoint" "" .Values.kommodity }}
   controlPlaneEndpoint:
     host: {{ .Values.kommodity.provider.config.controlPlaneEndpoint.host }}
     port: {{ .Values.kommodity.provider.config.controlPlaneEndpoint.port }}
