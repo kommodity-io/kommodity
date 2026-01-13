@@ -5,13 +5,13 @@ import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { toast } from "sonner";
 import { KOMMODITY_BASE_URL } from "@/config";
 
-export const KubeconfigViewer = ({ clusterName }: { clusterName: string }) => {
+export const KubeconfigViewer = ({ clusterName, subPath }: { clusterName: string; subPath: string }) => {
   const [kubeconfig, setKubeconfig] = useState<string>("");
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const buildApiUrl = (name: string) =>
-    `${KOMMODITY_BASE_URL}/api/kubeconfig/${name}`;
+  const buildApiUrl = () =>
+    `${KOMMODITY_BASE_URL}/api/kubeconfig/${subPath}${clusterName}`;
 
   useEffect(() => {
     if (!clusterName) {
@@ -23,7 +23,7 @@ export const KubeconfigViewer = ({ clusterName }: { clusterName: string }) => {
     const fetchKubeconfig = async () => {
       try {
         setLoading(true);
-        const url = buildApiUrl(clusterName);
+        const url = buildApiUrl();
         const res = await fetch(url, { signal: ac.signal });
 
         if (!res.ok) {
