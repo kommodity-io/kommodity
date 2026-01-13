@@ -11,6 +11,7 @@ clusters:
       {{- if $c.CertificateAuthorityData }}
       certificate-authority-data: {{ $c.CertificateAuthorityData | b64encBytes }}
       {{- end }}
+      {{- end }}
 {{- end }}
 contexts:
 {{- range $name, $ctx := .Contexts }}
