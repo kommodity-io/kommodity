@@ -17,8 +17,14 @@ kommodity:
     config:
       # Namespace in the external Kubevirt cluster where the VMs will be deployed
       infraClusterNamespace: kubevirt-cluster-namespace
+
       # Specify a storageClassName if needed
       # storageClassName: my-storage-class
+
+      # Specify a controlPlaneEndpoint if needed
+      # controlPlaneEndpoint:
+      #   host: my-host-ip
+      #   port: 6443
 
   network:
     cluster:
