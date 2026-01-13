@@ -19,9 +19,8 @@ spec:
   clusterName: {{ $.Release.Name }}
   minReadySeconds: 0
   progressDeadlineSeconds: 600
-{{- if $.Values.kommodity.clusterAutoscaler.enabled }}
-  replicas: {{ $np.autoscaling.minReplicas }}
-{{- else }}
+# Only set replicas if clusterAutoscaler is disabled
+{{- if not $.Values.kommodity.clusterAutoscaler.enabled }}
   replicas: {{ $np.replicas | default 1 }}
 {{- end }}
   strategy:
