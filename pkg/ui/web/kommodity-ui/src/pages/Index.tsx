@@ -1,9 +1,7 @@
 import { KubeconfigViewer } from "@/components/KubeconfigViewer";
 import { Instructions } from "@/components/Instructions";
-import { useParams } from "react-router-dom";
 
-const Index = () => {
-  const { clusterName } = useParams();
+const Index = ({ clusterName, subPath }: { clusterName: string; subPath: string }) => {
 
   return (
     <div className="min-h-screen bg-background">
@@ -21,7 +19,7 @@ const Index = () => {
           </div>
 
           {/* Kubeconfig Viewer */}
-          <KubeconfigViewer clusterName={clusterName} />
+          <KubeconfigViewer clusterName={clusterName} subPath={subPath} />
 
           {/* Instructions */}
           <Instructions />

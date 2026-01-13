@@ -21,8 +21,11 @@ import (
 	"k8s.io/client-go/tools/clientcmd/api"
 )
 
-//go:embed oidcaccess.tmpl
-var tmplFS embed.FS
+//go:embed clusterconfig.tmpl
+var clusterConfigFS embed.FS
+
+//go:embed kommodityconfig.tmpl
+var kommodityConfigFS embed.FS
 
 type oidcKubeConfig struct {
 	*api.Config
@@ -31,7 +34,7 @@ type oidcKubeConfig struct {
 	BaseURL string
 }
 
-func (o *oidcKubeConfig) writeResponse(response http.ResponseWriter) {
+func (o *oidcKubeConfig) writeResponse(response http.ResponseWriter, templateFS embed.FS, templateName string) {
 	response.Header().Set("Content-Type", "application/x-yaml")
 	response.WriteHeader(http.StatusOK)
 
@@ -40,13 +43,32 @@ func (o *oidcKubeConfig) writeResponse(response http.ResponseWriter) {
 		return base64.StdEncoding.EncodeToString(b)
 	}
 
-	tpl := template.Must(template.New("kubeconfig").Funcs(funcs).ParseFS(tmplFS, "oidcaccess.tmpl"))
+	tpl := template.Must(template.New("kubeconfig").
+		Funcs(funcs).
+		ParseFS(templateFS, templateName))
 
-	err := tpl.ExecuteTemplate(response, "oidcaccess.tmpl", o)
+	err := tpl.ExecuteTemplate(response, templateName, o)
 	if err != nil {
 		http.Error(response, fmt.Sprintf("Failed to execute kubeconfig template: %v", err), http.StatusInternalServerError)
 
 		return
+	}
+}
+
+// GetKommodityKubeConfig handles requests for retrieving the Kommodity kubeconfig.
+func GetKommodityKubeConfig(cfg *config.KommodityConfig) func(http.ResponseWriter, *http.Request) {
+	return func(response http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodGet {
+			http.Error(response, "Method not allowed", http.StatusMethodNotAllowed)
+
+			return
+		}
+
+		(&oidcKubeConfig{
+			BaseURL:    cfg.BaseURL,
+			Config:     nil,
+			OIDCConfig: *cfg.AuthConfig.OIDCConfig,
+		}).writeResponse(response, kommodityConfigFS, "kommodityconfig.tmpl")
 	}
 }
 
@@ -104,7 +126,7 @@ func GetKubeConfig(cfg *config.KommodityConfig) func(http.ResponseWriter, *http.
 			BaseURL:    cfg.BaseURL,
 			Config:     config,
 			OIDCConfig: *cfg.AuthConfig.OIDCConfig,
-		}).writeResponse(response)
+		}).writeResponse(response, clusterConfigFS, "clusterconfig.tmpl")
 	}
 }
 

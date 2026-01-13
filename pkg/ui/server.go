@@ -16,7 +16,7 @@ import (
 	"github.com/kommodity-io/kommodity/pkg/combinedserver"
 	"github.com/kommodity-io/kommodity/pkg/config"
 
-	api "github.com/kommodity-io/kommodity/pkg/ui/api"
+	"github.com/kommodity-io/kommodity/pkg/ui/api"
 )
 
 //go:embed web/kommodity-ui/dist
@@ -35,12 +35,14 @@ func NewHTTPMuxFactory(cfg *config.KommodityConfig) combinedserver.HTTPMuxFactor
 		mux.Handle("/env.js", api.EnvJSHandler([]string{
 			config.EnvBaseURL,
 		}))
-		mux.Handle("/ui/{clusterName}", handler)
+		mux.Handle("/ui/kommodity", handler)
+		mux.Handle("/ui/cluster/{clusterName}", handler)
 		mux.Handle("/assets/", handler)
 		mux.Handle("/public/", handler)
 		mux.Handle("/static/", handler)
 
-		mux.HandleFunc("GET /api/kubeconfig/{clusterName}", api.GetKubeConfig(cfg))
+		mux.HandleFunc("GET /api/kubeconfig/kommodity", api.GetKommodityKubeConfig(cfg))
+		mux.HandleFunc("GET /api/kubeconfig/cluster/{clusterName}", api.GetKubeConfig(cfg))
 
 		return nil
 	}
@@ -104,7 +106,7 @@ func isRoot(path string) bool {
 }
 
 func isClusterPath(path string) bool {
-	trimmed := strings.Trim(path, "/")
+	trimmed := strings.Trim(path, "/cluster")
 
 	return strings.Count(trimmed, "/") == 0 && !strings.Contains(trimmed, ".")
 }
