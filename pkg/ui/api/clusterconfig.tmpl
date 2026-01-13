@@ -4,7 +4,10 @@ clusters:
 {{- range $name, $c := .Clusters }}
   - name: {{ $name }}
     cluster:
-      server: {{ $.BaseURL }}
+      server: {{ $c.Server }}
+      {{- if $c.InsecureSkipTLSVerify }}
+      insecure-skip-tls-verify: true
+      {{- else }}
       {{- if $c.CertificateAuthorityData }}
       certificate-authority-data: {{ $c.CertificateAuthorityData | b64encBytes }}
       {{- end }}
