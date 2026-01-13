@@ -224,7 +224,7 @@ func getKubeContext(ctx context.Context, clusterName string, talosConfig *talosc
 // getOIDCConfigFromCluster fetches the machine config from the downstream Talos cluster
 // and extracts OIDC configuration from cluster.apiServer.extraArgs.
 //
-//nolint:cyclop
+//nolint:cyclop,funlen
 func getOIDCConfigFromCluster(ctx context.Context, clusterName string,
 	talosConfig *talosconfig.Config) (*config.OIDCConfig, error) {
 	talosClient, nodeCtx, err := getTalosClientWithNodeCtx(ctx, clusterName, talosConfig)
