@@ -282,6 +282,7 @@ func getOIDCConfigFromCluster(ctx context.Context, clusterName string,
 	if extraScope, ok := extraArgs["oidc-extra-scope"]; ok {
 		// Split by comma in case multiple scopes are in one string
 		scopes := strings.Split(extraScope, ",")
+
 		trimmedScopes := make([]string, 0, len(scopes))
 		for _, scope := range scopes {
 			trimmedScopes = append(trimmedScopes, strings.TrimSpace(scope))
