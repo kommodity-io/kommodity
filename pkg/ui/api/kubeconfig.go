@@ -40,23 +40,26 @@ type oidcKubeConfig struct {
 }
 
 func (o *oidcKubeConfig) writeResponse(response http.ResponseWriter, templateFS embed.FS, templateName string) {
-	response.Header().Set("Content-Type", "application/x-yaml")
-	response.WriteHeader(http.StatusOK)
-
 	funcs := sprig.FuncMap()
 	funcs["b64encBytes"] = func(b []byte) string {
 		return base64.StdEncoding.EncodeToString(b)
 	}
 
-	tpl := template.Must(template.New("kubeconfig").
+	tpl, err := template.New("kubeconfig").
 		Funcs(funcs).
-		ParseFS(templateFS, templateName))
-
-	err := tpl.ExecuteTemplate(response, templateName, o)
+		ParseFS(templateFS, templateName)
 	if err != nil {
-		http.Error(response, fmt.Sprintf("Failed to execute kubeconfig template: %v", err), http.StatusInternalServerError)
+		http.Error(response, fmt.Sprintf("Failed to parse kubeconfig template: %v", err), http.StatusInternalServerError)
 
 		return
+	}
+
+	response.Header().Set("Content-Type", "application/x-yaml")
+	response.WriteHeader(http.StatusOK)
+
+	err = tpl.ExecuteTemplate(response, templateName, o)
+	if err != nil {
+		fmt.Printf("Failed to execute kubeconfig template: %v\n", err)
 	}
 }
 
