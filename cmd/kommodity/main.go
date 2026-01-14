@@ -74,7 +74,7 @@ func main() {
 		server, err := combinedserver.New(combinedserver.ServerConfig{
 			Port: cfg.ServerPort,
 			HTTPFactories: []combinedserver.HTTPMuxFactory{
-				uiserver.NewHTTPMuxFactory(cfg),
+				uiserver.NewHTTPMuxFactory(rootCtx, cfg),
 				attestationserver.NewHTTPMuxFactory(cfg),
 				metadataserver.NewHTTPMuxFactory(cfg),
 				k8sserver.NewHTTPMuxFactory(rootCtx, cfg),
