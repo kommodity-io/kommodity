@@ -2,6 +2,7 @@
 package ui
 
 import (
+	"context"
 	"embed"
 	"fmt"
 	"io"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/kommodity-io/kommodity/pkg/combinedserver"
 	"github.com/kommodity-io/kommodity/pkg/config"
+	"github.com/kommodity-io/kommodity/pkg/logging"
 
 	"github.com/kommodity-io/kommodity/pkg/ui/api"
 )
@@ -23,8 +25,12 @@ import (
 var webDist embed.FS
 
 // NewHTTPMuxFactory creates a new HTTP mux factory for serving the Kommodity UI.
-func NewHTTPMuxFactory(cfg *config.KommodityConfig) combinedserver.HTTPMuxFactory {
+func NewHTTPMuxFactory(ctx context.Context, cfg *config.KommodityConfig) combinedserver.HTTPMuxFactory {
+	logger := logging.FromContext(ctx)
+	logger.Info("Initializing Kommodity UI server")
+
 	return func(mux *http.ServeMux) error {
+
 		sub, err := fs.Sub(webDist, "web/kommodity-ui/dist")
 		if err != nil {
 			return fmt.Errorf("failed to create sub filesystem for UI: %w", err)
@@ -41,8 +47,8 @@ func NewHTTPMuxFactory(cfg *config.KommodityConfig) combinedserver.HTTPMuxFactor
 		mux.Handle("/public/", handler)
 		mux.Handle("/static/", handler)
 
-		mux.HandleFunc("GET /api/kubeconfig/kommodity", api.GetKommodityKubeConfig(cfg))
-		mux.HandleFunc("GET /api/kubeconfig/cluster/{clusterName}", api.GetKubeConfig(cfg))
+		mux.HandleFunc("GET /api/kubeconfig/kommodity", api.GetKommodityKubeConfig(cfg, logger))
+		mux.HandleFunc("GET /api/kubeconfig/cluster/{clusterName}", api.GetKubeConfig(cfg, logger))
 
 		return nil
 	}
