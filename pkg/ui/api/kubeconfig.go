@@ -18,6 +18,7 @@ import (
 	talosclient "github.com/siderolabs/talos/pkg/machinery/client"
 	talosconfig "github.com/siderolabs/talos/pkg/machinery/client/config"
 	talosresconfig "github.com/siderolabs/talos/pkg/machinery/resources/config"
+	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientgoclientset "k8s.io/client-go/kubernetes"
@@ -39,29 +40,33 @@ type oidcKubeConfig struct {
 	BaseURL string
 }
 
-func (o *oidcKubeConfig) writeResponse(response http.ResponseWriter, templateFS embed.FS, templateName string) {
-	response.Header().Set("Content-Type", "application/x-yaml")
-	response.WriteHeader(http.StatusOK)
-
+func (o *oidcKubeConfig) writeResponse(response http.ResponseWriter,
+	templateFS embed.FS, templateName string, logger *zap.Logger) {
 	funcs := sprig.FuncMap()
 	funcs["b64encBytes"] = func(b []byte) string {
 		return base64.StdEncoding.EncodeToString(b)
 	}
 
-	tpl := template.Must(template.New("kubeconfig").
+	tpl, err := template.New("kubeconfig").
 		Funcs(funcs).
-		ParseFS(templateFS, templateName))
-
-	err := tpl.ExecuteTemplate(response, templateName, o)
+		ParseFS(templateFS, templateName)
 	if err != nil {
-		http.Error(response, fmt.Sprintf("Failed to execute kubeconfig template: %v", err), http.StatusInternalServerError)
+		http.Error(response, fmt.Sprintf("Failed to parse kubeconfig template: %v", err), http.StatusInternalServerError)
 
 		return
+	}
+
+	response.Header().Set("Content-Type", "application/x-yaml")
+	response.WriteHeader(http.StatusOK)
+
+	err = tpl.ExecuteTemplate(response, templateName, o)
+	if err != nil {
+		logger.Error("Failed to execute kubeconfig template", zap.Error(err))
 	}
 }
 
 // GetKommodityKubeConfig handles requests for retrieving the Kommodity kubeconfig.
-func GetKommodityKubeConfig(cfg *config.KommodityConfig) func(http.ResponseWriter, *http.Request) {
+func GetKommodityKubeConfig(cfg *config.KommodityConfig, logger *zap.Logger) func(http.ResponseWriter, *http.Request) {
 	return func(response http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodGet {
 			http.Error(response, "Method not allowed", http.StatusMethodNotAllowed)
@@ -73,14 +78,14 @@ func GetKommodityKubeConfig(cfg *config.KommodityConfig) func(http.ResponseWrite
 			BaseURL:    cfg.BaseURL,
 			Config:     nil,
 			OIDCConfig: *cfg.AuthConfig.OIDCConfig,
-		}).writeResponse(response, kommodityConfigFS, "kommodityconfig.tmpl")
+		}).writeResponse(response, kommodityConfigFS, "kommodityconfig.tmpl", logger)
 	}
 }
 
 // GetKubeConfig handles requests for retrieving the kubeconfig for a given cluster.
 //
 //nolint:funlen
-func GetKubeConfig(cfg *config.KommodityConfig) func(http.ResponseWriter, *http.Request) {
+func GetKubeConfig(cfg *config.KommodityConfig, logger *zap.Logger) func(http.ResponseWriter, *http.Request) {
 	return func(response http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodGet {
 			http.Error(response, "Method not allowed", http.StatusMethodNotAllowed)
@@ -149,7 +154,7 @@ func GetKubeConfig(cfg *config.KommodityConfig) func(http.ResponseWriter, *http.
 			BaseURL:    cfg.BaseURL,
 			Config:     kubeConfig,
 			OIDCConfig: *oidcConfig,
-		}).writeResponse(response, clusterConfigFS, "clusterconfig.tmpl")
+		}).writeResponse(response, clusterConfigFS, "clusterconfig.tmpl", logger)
 	}
 }
 
