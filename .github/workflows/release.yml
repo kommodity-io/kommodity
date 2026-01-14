@@ -268,18 +268,98 @@ jobs:
       contents: write
       pull-requests: write
       issues: write
+      packages: write
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - name: Download binaries
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v4
         with:
           path: release
           pattern: kommodity-*
           merge-multiple: true
 
-      - name: Create release
+      # Step 1: Dry-run to compute the next version
+      - name: Detect next version
+        id: semantic
+        uses: docker://ghcr.io/codfish/semantic-release-action:v3
+        with:
+          dry-run: true
+          repository-url: https://github.com/${{ github.repository }}
+          branches: |
+            [
+              "main"
+            ]
+          plugins: |
+            [
+              "@semantic-release/commit-analyzer",
+              "@semantic-release/release-notes-generator",
+              "@semantic-release/github"
+            ]
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check if release is needed
+        id: check
+        run: |
+          version="${{ steps.semantic.outputs.release-version }}"
+          if [[ -z "$version" ]]; then
+            echo "No new release needed"
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "New release version: v$version"
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
+            echo "version=v$version" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Step 2: Build and push Docker image (only if new release)
+      - name: Free disk space
+        if: steps.check.outputs.should_release == 'true'
+        run: |
+          sudo swapoff -a
+          sudo rm -f /swapfile
+          sudo rm -rf /usr/local/lib/android >/dev/null 2>&1
+          docker system prune -af
+
+      - name: Log in to GitHub Container Registry
+        if: steps.check.outputs.should_release == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up QEMU
+        if: steps.check.outputs.should_release == 'true'
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        if: steps.check.outputs.should_release == 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push Docker image
+        if: steps.check.outputs.should_release == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Containerfile
+          push: true
+          platforms: linux/amd64,linux/arm64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            VERSION="${{ steps.check.outputs.version }}"
+          tags: |
+            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ github.repository }}:${{ steps.check.outputs.version }}
+            ghcr.io/${{ github.repository }}:${{ github.sha }}
+
+      # Step 3: Create GitHub release (only after Docker push succeeds)
+      - name: Create GitHub release
+        if: steps.check.outputs.should_release == 'true'
         uses: docker://ghcr.io/codfish/semantic-release-action:v3
         with:
           repository-url: https://github.com/${{ github.repository }}
@@ -291,72 +371,7 @@ jobs:
             [
               "@semantic-release/commit-analyzer",
               "@semantic-release/release-notes-generator",
-              ["@semantic-release/github", { assets: [{ path: "release/**"}] }]
+              ["@semantic-release/github", { "assets": [{ "path": "release/**" }] }]
             ]
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  release-docker-image:
-    name: Release Docker image
-    runs-on: ubuntu-latest
-    needs:
-      - prepare
-      - release
-    permissions:
-      packages: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Free disk space
-        run: |
-          sudo swapoff -a
-          sudo rm -f /swapfile
-          sudo rm -rf /usr/local/lib/android >/dev/null 2>&1
-          docker system prune -af
-          df -h
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-        # We get the version from the git tag and not from the semantic-release output,
-        # because if the pipeline fails after a release is created,
-        # on rerun, semantic-release output will be null but we still want build and push a new docker image.
-      - name: Extract version from tag
-        id: extract_version
-        run: |
-          git fetch --tags --force
-          TAGS=$(git tag --points-at HEAD)
-          SEMVER_TAG=$(echo "$TAGS" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1)
-          if [ -z "$SEMVER_TAG" ]; then
-              echo "No semantic version tag found for this commit."
-              exit 1
-          fi
-          echo "Found semantic version tag: $SEMVER_TAG"
-          echo "version=${SEMVER_TAG}" >> $GITHUB_OUTPUT
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: Containerfile
-          push: true
-          platforms: linux/amd64,linux/arm64
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          build-args: |
-            VERSION="${{ steps.extract_version.outputs.version }}"
-          tags: |
-            ghcr.io/${{ github.repository }}:latest
-            ghcr.io/${{ github.repository }}:${{ steps.extract_version.outputs.version }}
-            ghcr.io/${{ github.repository }}:${{ github.sha }}
