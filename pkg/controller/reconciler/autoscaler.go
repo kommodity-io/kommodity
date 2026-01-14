@@ -108,11 +108,11 @@ func (a *AutoscalerJob) PrepareForApply(ctx context.Context, cfg *config.Kommodi
 }
 
 // Apply applies the Autoscaler installation job to the downstream cluster.
-func (a *AutoscalerJob) Apply(ctx context.Context) error {
+func (a *AutoscalerJob) Apply(ctx context.Context, clusterName string) error {
 	logger := logging.FromContext(ctx)
 	logger.Info("Applying Autoscaler Job", zap.String("jobName", a.config.Name))
 
-	err := a.applySecret(ctx)
+	err := a.applySecret(ctx, clusterName)
 	if err != nil {
 		return fmt.Errorf("failed to apply Autoscaler values secret: %w", err)
 	}
@@ -137,13 +137,13 @@ func (a *AutoscalerJob) Apply(ctx context.Context) error {
 	return nil
 }
 
-func (a *AutoscalerJob) applySecret(ctx context.Context) error {
+func (a *AutoscalerJob) applySecret(ctx context.Context, clusterName string) error {
 	a.config.HasExtraValues = true
 
 	var yamlSecret corev1.Secret
 
 	err := a.Get(ctx, client.ObjectKey{
-		Name:      "cluster-autoscaler-extra-values",
+		Name:      clusterName + "-cluster-autoscaler-extra-values",
 		Namespace: "default",
 	}, &yamlSecret)
 	if apierrors.IsNotFound(err) {
@@ -283,7 +283,7 @@ func (r *AutoscalerReconciler) installAutoscaler(ctx context.Context, clusterNam
 		}, fmt.Errorf("failed to prepare Autoscaler Job: %w", err)
 	}
 
-	err = autoscalerJob.Apply(ctx)
+	err = autoscalerJob.Apply(ctx, clusterName)
 	if err != nil {
 		return ctrl.Result{
 			Requeue:      true,
