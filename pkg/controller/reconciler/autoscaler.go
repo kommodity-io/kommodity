@@ -110,7 +110,7 @@ func (a *AutoscalerJob) PrepareForApply(ctx context.Context, cfg *config.Kommodi
 // Apply applies the Autoscaler installation job to the downstream cluster.
 func (a *AutoscalerJob) Apply(ctx context.Context, clusterName string) error {
 	logger := logging.FromContext(ctx)
-	logger.Info("Applying Autoscaler Job", zap.String("jobName", a.config.Name))
+	logger.Info("Applying Autoscaler test Job", zap.String("jobName", a.config.Name))
 
 	err := a.applySecret(ctx, clusterName)
 	if err != nil {
