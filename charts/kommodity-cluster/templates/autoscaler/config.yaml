@@ -32,7 +32,7 @@ data:
 apiVersion: v1
 kind: Secret
 metadata:
-  name: cluster-autoscaler-extra-values
+  name: {{ .Release.Name }}-cluster-autoscaler-extra-values
   labels:
     cluster.x-k8s.io/cluster-name: {{ .Release.Name }}
     app.kubernetes.io/managed-by: kommodity
