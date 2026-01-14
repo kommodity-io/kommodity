@@ -17,8 +17,6 @@ ARG VERSION
 
 WORKDIR /app
 
-# test
-
 RUN go env -w GOCACHE=/go-cache
 RUN go env -w GOMODCACHE=/gomod-cache
 
