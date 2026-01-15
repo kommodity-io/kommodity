@@ -1,4 +1,4 @@
-name: Build Talos Image
+name: Build Talos Installer Image
 
 on:
   workflow_dispatch:
