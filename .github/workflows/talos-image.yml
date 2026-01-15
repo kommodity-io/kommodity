@@ -79,7 +79,7 @@ jobs:
           PLATFORMS: ${{ inputs.platforms }}
           PUSH: ${{ inputs.push }}
         run: |
-          #!/bin/bash
+
           set -euo pipefail
 
           # Parse extensions into imager args
