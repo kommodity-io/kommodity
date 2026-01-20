@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/kommodity-io/kommodity/pkg/config"
+	"github.com/kommodity-io/kommodity/pkg/controller/reconciler"
 	admissionv1 "k8s.io/api/admission/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -256,6 +257,9 @@ func getOrCreateSigningKey(ctx context.Context, client corev1client.CoreV1Interf
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      signingKeySecretName,
 			Namespace: config.KommodityNamespace,
+			Labels: map[string]string{
+				"cluster.x-k8s.io/watch-filter": reconciler.SigningKeyControllerName,
+			},
 		},
 		Data: map[string][]byte{
 			signingKeyDataKey: keyPEM,

@@ -72,5 +72,12 @@ func SetupReconcilers(ctx context.Context,
 		return fmt.Errorf("failed to setup ExtraSecretsManager reconciler: %w", err)
 	}
 
+	err = (&SigningKeyReconciler{
+		Client: (*manager).GetClient(),
+	}).SetupWithManager(ctx, *manager, controllerOpts)
+	if err != nil {
+		return fmt.Errorf("failed to setup SigningKey reconciler: %w", err)
+	}
+
 	return nil
 }
