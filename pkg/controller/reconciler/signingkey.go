@@ -36,10 +36,11 @@ const (
 // recreates all service account token secrets to use the new key.
 type SigningKeyReconciler struct {
 	client.Client
+	CoreV1Client corev1client.CoreV1Interface
 
-	// SigningKeyGenerator is a function that generates and stores a new signing key.
-	// This is injected to allow for testing and to avoid circular dependencies.
-	SigningKeyGenerator func(ctx context.Context, client corev1client.CoreV1Interface) error
+	// GetOrCreateSigningKey retrieves or generates the signing key.
+	// This is injected to avoid circular dependencies with the server package.
+	GetOrCreateSigningKey func(ctx context.Context, client corev1client.CoreV1Interface) (any, error)
 }
 
 func deleteOnlyPredicate() predicate.Predicate {
@@ -104,9 +105,20 @@ func (r *SigningKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	logger.Info("Signing key secret was deleted, regenerating key and rotating tokens",
 		zap.String("secret", req.String()))
 
+	// Regenerate the signing key secret
+	_, err := r.GetOrCreateSigningKey(ctx, r.CoreV1Client)
+	if err != nil {
+		logger.Error("Failed to regenerate signing key", zap.Error(err))
+
+		return ctrl.Result{Requeue: true, RequeueAfter: RequeueAfter},
+			fmt.Errorf("failed to regenerate signing key: %w", err)
+	}
+
+	logger.Info("Successfully regenerated signing key secret")
+
 	secretList := &corev1.SecretList{}
 
-	err := r.List(ctx, secretList,
+	err = r.List(ctx, secretList,
 		client.MatchingFields{"type": string(corev1.SecretTypeServiceAccountToken)},
 	)
 	if err != nil {

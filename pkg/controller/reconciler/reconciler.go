@@ -9,6 +9,7 @@ import (
 	"github.com/kommodity-io/kommodity/pkg/config"
 	"github.com/kommodity-io/kommodity/pkg/logging"
 	"go.uber.org/zap"
+	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
 	"sigs.k8s.io/cluster-api/controllers/clustercache"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -19,12 +20,19 @@ const (
 	RemoteConnectionGracePeriod = 5 * time.Minute
 )
 
+// SigningKeyDeps contains dependencies for the SigningKeyReconciler.
+type SigningKeyDeps struct {
+	CoreV1Client          corev1client.CoreV1Interface
+	GetOrCreateSigningKey func(ctx context.Context, client corev1client.CoreV1Interface) (any, error)
+}
+
 // SetupReconcilers sets up all reconcilers with the provided manager.
 func SetupReconcilers(ctx context.Context,
 	cfg *config.KommodityConfig,
 	manager *ctrl.Manager,
 	clusterCache clustercache.ClusterCache,
-	controllerOpts controller.Options) error {
+	controllerOpts controller.Options,
+	signingKeyDeps SigningKeyDeps) error {
 	logger := logging.FromContext(ctx)
 
 	logger.Info("Setting up reconcilers",
@@ -50,7 +58,21 @@ func SetupReconcilers(ctx context.Context,
 		}
 	}
 
-	err = (&CloudControllerManagerReconciler{
+	err = setUpExtraReconcilers(ctx, cfg, manager, clusterCache, controllerOpts, signingKeyDeps)
+	if err != nil {
+		return fmt.Errorf("failed to setup extra reconcilers: %w", err)
+	}
+
+	return nil
+}
+
+func setUpExtraReconcilers(ctx context.Context,
+	cfg *config.KommodityConfig,
+	manager *ctrl.Manager,
+	clusterCache clustercache.ClusterCache,
+	controllerOpts controller.Options,
+	signingKeyDeps SigningKeyDeps) error {
+	err := (&CloudControllerManagerReconciler{
 		Client: (*manager).GetClient(),
 	}).SetupWithManager(ctx, *manager, controllerOpts)
 	if err != nil {
@@ -73,7 +95,9 @@ func SetupReconcilers(ctx context.Context,
 	}
 
 	err = (&SigningKeyReconciler{
-		Client: (*manager).GetClient(),
+		Client:                (*manager).GetClient(),
+		CoreV1Client:          signingKeyDeps.CoreV1Client,
+		GetOrCreateSigningKey: signingKeyDeps.GetOrCreateSigningKey,
 	}).SetupWithManager(ctx, *manager, controllerOpts)
 	if err != nil {
 		return fmt.Errorf("failed to setup SigningKey reconciler: %w", err)

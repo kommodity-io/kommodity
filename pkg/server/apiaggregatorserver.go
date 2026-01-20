@@ -10,6 +10,7 @@ import (
 
 	"github.com/kommodity-io/kommodity/pkg/config"
 	"github.com/kommodity-io/kommodity/pkg/controller"
+	"github.com/kommodity-io/kommodity/pkg/controller/reconciler"
 	"github.com/kommodity-io/kommodity/pkg/kine"
 	"github.com/kommodity-io/kommodity/pkg/logging"
 	"github.com/kommodity-io/kommodity/pkg/provider"
@@ -24,6 +25,7 @@ import (
 	"k8s.io/client-go/discovery"
 	restclientdynamic "k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
+	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
@@ -237,7 +239,20 @@ func startControllerManagersHook(cfg *config.KommodityConfig,
 			return fmt.Errorf("failed to waiting for provider CRDs are established: %w", err)
 		}
 
-		ctlMgr, err := controller.NewAggregatedControllerManager(ctx, cfg, genericServerConfig, scheme)
+		// Create kubernetes client for SigningKeyReconciler
+		kubeClient, err := kubernetes.NewForConfig(genericServerConfig.LoopbackClientConfig)
+		if err != nil {
+			return fmt.Errorf("failed to create kubernetes client for signing key reconciler: %w", err)
+		}
+
+		signingKeyDeps := reconciler.SigningKeyDeps{
+			CoreV1Client: kubeClient.CoreV1(),
+			GetOrCreateSigningKey: func(ctx context.Context, client v1.CoreV1Interface) (any, error) {
+				return getOrCreateSigningKey(ctx, client)
+			},
+		}
+
+		ctlMgr, err := controller.NewAggregatedControllerManager(ctx, cfg, genericServerConfig, scheme, signingKeyDeps)
 		if err != nil {
 			return fmt.Errorf("failed to create controller manager: %w", err)
 		}
