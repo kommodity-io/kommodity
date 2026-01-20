@@ -59,6 +59,20 @@ func deleteOnlyPredicate() predicate.Predicate {
 // SetupWithManager sets up the reconciler with the provided manager.
 func (r *SigningKeyReconciler) SetupWithManager(ctx context.Context,
 	mgr ctrl.Manager, opt controller.Options) error {
+	// Register field indexer for secret type to enable filtering by type in List calls
+	err := mgr.GetFieldIndexer().IndexField(ctx, &corev1.Secret{}, "type",
+		func(obj client.Object) []string {
+			secret, ok := obj.(*corev1.Secret)
+			if !ok {
+				return nil
+			}
+
+			return []string{string(secret.Type)}
+		})
+	if err != nil {
+		return fmt.Errorf("failed to create field indexer for secret type: %w", err)
+	}
+
 	builder := ctrl.NewControllerManagedBy(mgr).
 		Named(SigningKeyControllerName).
 		For(&corev1.Secret{}).
@@ -72,7 +86,7 @@ func (r *SigningKeyReconciler) SetupWithManager(ctx context.Context,
 			),
 		))
 
-	err := builder.Complete(r)
+	err = builder.Complete(r)
 	if err != nil {
 		return fmt.Errorf("failed setting up with a controller manager: %w", err)
 	}
