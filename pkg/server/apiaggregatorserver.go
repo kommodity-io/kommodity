@@ -266,14 +266,16 @@ func startTokenControllerHook(genericServerConfig *genericapiserver.RecommendedC
 			return fmt.Errorf("failed to create kubernetes client for tokens controller: %w", err)
 		}
 
-		cert, key, err := getServingCertAndKeyFromFiles(genericServerConfig)
+		// Get the CA certificate from the serving certificate (used for ca.crt in secrets)
+		cert, _, err := getServingCertAndKeyFromFiles(genericServerConfig)
 		if err != nil {
-			return fmt.Errorf("failed to get serving key from files: %w", err)
+			return fmt.Errorf("failed to get serving cert from files: %w", err)
 		}
 
-		rsaKey, err := convertPEMToRSAKey(key)
+		// Get or create the dedicated signing key (separate from TLS cert to survive rotation)
+		rsaKey, err := getOrCreateSigningKey(ctx, kubeClient.CoreV1())
 		if err != nil {
-			return fmt.Errorf("failed to convert PEM to RSA key: %w", err)
+			return fmt.Errorf("failed to get or create signing key: %w", err)
 		}
 
 		tokenGenerator, err := serviceaccount.JWTTokenGenerator(serviceaccount.LegacyIssuer, rsaKey)
