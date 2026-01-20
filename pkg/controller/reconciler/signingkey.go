@@ -36,6 +36,7 @@ const (
 // recreates all service account token secrets to use the new key.
 type SigningKeyReconciler struct {
 	client.Client
+
 	CoreV1Client corev1client.CoreV1Interface
 
 	// GetOrCreateSigningKey retrieves or generates the signing key.
