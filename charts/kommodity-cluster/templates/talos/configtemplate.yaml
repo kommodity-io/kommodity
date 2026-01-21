@@ -20,12 +20,7 @@ spec:
       {{- $hasInstaller := $.Values.talos.installer }}
       {{- if or $hasNpConfigPatches $hasGlobalConfigPatches $hasTaints $hasLabels $hasAnnotations $hasInstaller }}
       configPatches:
-      {{- if or $hasNpConfigPatches $hasGlobalConfigPatches $hasTaints $hasLabels $hasAnnotations }}
-      {{- include "kommodity-cluster.combinedConfigPatches" (dict "globalConfigPatches" $.Values.kommodity.global.configPatches "nodepoolConfigPatches" $np.configPatches "taints" $np.taints "labels" $np.labels "annotations" $np.annotations) | trim | nindent 8 }}
-      {{- end }}
-      {{- if $hasInstaller }}
-      {{- include "kommodity.talos.installer" (dict "installer" $.Values.talos.installer) | nindent 8 }}
-      {{- end }}
+      {{- include "kommodity-cluster.combinedConfigPatches" (dict "globalConfigPatches" $.Values.kommodity.global.configPatches "nodepoolConfigPatches" $np.configPatches "taints" $np.taints "labels" $np.labels "annotations" $np.annotations "installer" $.Values.talos.installer) | trim | nindent 8 }}
       {{- end }}
       {{- if $.Values.kommodity.kms.enabled }}
       {{- /* Use VolumeConfig for disk encryption (Talos v1.12+) instead of deprecated machine.systemDiskEncryption */}}

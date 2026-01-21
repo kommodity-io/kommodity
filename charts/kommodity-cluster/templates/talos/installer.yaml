@@ -1,23 +1,25 @@
 {{/*
-Configure Talos installer image and bundled extensions.
-Sets the machine.install.image to use a custom installer image with extensions.
-If autoBootstrap is configured, also sets the environment variables for the extension.
+Returns the Talos installer image URL as a string.
 See: https://docs.siderolabs.com/talos/v1.12/reference/configuration/v1alpha1/config#install
 */}}
-{{- define "kommodity.talos.installer" -}}
+{{- define "kommodity.talos.installer.image" -}}
 {{- $installer := .installer -}}
-- op: add
-  path: /machine/install/image
-  value: {{ $installer.repository }}/{{ $installer.imageName }}
-{{- if $installer.autoBootstrap }}
-- op: add
-  path: /machine/env
-  value:
-    TALOS_AUTO_BOOTSTRAP_LOG_LEVEL: {{ $installer.autoBootstrap.logLevel }}
-    TALOS_AUTO_BOOTSTRAP_SCAN_INTERVAL: {{ $installer.autoBootstrap.scanInterval }}
-    TALOS_AUTO_BOOTSTRAP_QUORUM_NODES: {{ $installer.autoBootstrap.quorumNodes | quote }}
-    TALOS_AUTO_BOOTSTRAP_PRE_BOOTSTRAP_DELAY: {{ $installer.autoBootstrap.preBootstrapDelay }}
-    TALOS_AUTO_BOOTSTRAP_MAX_BACKOFF: {{ $installer.autoBootstrap.maxBackoff }}
-    TALOS_AUTO_BOOTSTRAP_SCAN_TIMEOUT: {{ $installer.autoBootstrap.scanTimeout }}
-{{- end }}
+{{- printf "%s/%s" $installer.repository $installer.imageName -}}
+{{- end -}}
+
+{{/*
+Returns the autoBootstrap environment variables as JSON.
+Used by combinedConfigPatches to merge with other machine.env patches.
+*/}}
+{{- define "kommodity.talos.installer.autoBootstrapEnv" -}}
+{{- $autoBootstrap := .autoBootstrap -}}
+{{- $env := dict
+  "TALOS_AUTO_BOOTSTRAP_LOG_LEVEL" $autoBootstrap.logLevel
+  "TALOS_AUTO_BOOTSTRAP_SCAN_INTERVAL" $autoBootstrap.scanInterval
+  "TALOS_AUTO_BOOTSTRAP_QUORUM_NODES" ($autoBootstrap.quorumNodes | toString)
+  "TALOS_AUTO_BOOTSTRAP_PRE_BOOTSTRAP_DELAY" $autoBootstrap.preBootstrapDelay
+  "TALOS_AUTO_BOOTSTRAP_MAX_BACKOFF" $autoBootstrap.maxBackoff
+  "TALOS_AUTO_BOOTSTRAP_SCAN_TIMEOUT" $autoBootstrap.scanTimeout
+-}}
+{{- $env | toJson -}}
 {{- end -}}
