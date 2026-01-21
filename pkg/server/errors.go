@@ -28,4 +28,6 @@ var (
 	ErrFailedToParsePrivateKey = errors.New("failed to parse private key as PKCS1 or PKCS8")
 	// ErrNotSupportedInKommodity indicates that the requested resource is not supported in Kommodity.
 	ErrNotSupportedInKommodity = errors.New("not supported in Kommodity")
+	// ErrDataMissingFromSecret indicates that expected data is missing from a secret.
+	ErrDataMissingFromSecret = errors.New("expected data missing from secret")
 )
