@@ -124,6 +124,9 @@ spec:
       {{- if $.Values.kommodity.provider.cloudControllerManager.enabled }}
       {{- include "kommodity.talos.ccm" (dict "manifest" $.Values.kommodity.provider.cloudControllerManager.manifest) | nindent 8 }}
       {{- end }}
+      {{- if $.Values.talos.installer }}
+      {{- include "kommodity.talos.installer" (dict "installer" $.Values.talos.installer) | nindent 8 }}
+      {{- end }}
     {{- if $.Values.kommodity.kms.enabled }}
     {{- /* Use VolumeConfig for disk encryption (Talos v1.12+) instead of deprecated machine.systemDiskEncryption */}}
     strategicPatches:
