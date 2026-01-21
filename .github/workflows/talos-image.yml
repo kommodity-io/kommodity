@@ -1,0 +1,191 @@
+name: Build Talos Installer Image
+
+on:
+  workflow_dispatch:
+    inputs:
+      talos_version:
+        description: "Talos version (e.g., v1.12.0)"
+        required: true
+        default: "v1.12.0"
+        type: string
+      extensions:
+        description: "Comma-separated list of extension images"
+        required: false
+        default: ""
+        type: string
+      platforms:
+        description: "Platforms to build for (comma-separated)"
+        required: false
+        default: "linux/amd64,linux/arm64"
+        type: string
+      push:
+        description: "Push image to registry"
+        required: false
+        default: true
+        type: boolean
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: kommodity-talos-installer
+
+jobs:
+  build:
+    name: Build and Push Talos Image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Validate inputs
+        run: |
+          # Validate talos_version format (must be semver like v1.12.0)
+          if [[ ! "${{ inputs.talos_version }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
+            echo "::error::Invalid talos_version format. Expected semver (e.g., v1.12.0)"
+            exit 1
+          fi
+
+          # Validate platforms contain only allowed architectures
+          ALLOWED_ARCHS="amd64|arm64|arm/v7|386"
+          for platform in $(echo "${{ inputs.platforms }}" | tr ',' ' '); do
+            arch="${platform##*/}"
+            if [[ ! "$arch" =~ ^($ALLOWED_ARCHS)$ ]]; then
+              echo "::error::Invalid architecture: $arch. Allowed: $ALLOWED_ARCHS"
+              exit 1
+            fi
+          done
+
+      - name: Free disk space
+        run: |
+          sudo swapoff -a || true
+          sudo rm -f /swapfile || true
+          sudo rm -rf /usr/local/lib/android >/dev/null 2>&1 || true
+          docker system prune -af || true
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
+
+      - name: Log in to GitHub Container Registry
+        if: ${{ inputs.push }}
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push images
+        env:
+          TALOS_VERSION: ${{ inputs.talos_version }}
+          EXTENSIONS: ${{ inputs.extensions }}
+          PLATFORMS: ${{ inputs.platforms }}
+          PUSH: ${{ inputs.push }}
+        run: |
+
+          set -euo pipefail
+
+          # Parse extensions into imager args
+          EXTENSION_ARGS=""
+          if [[ -n "${EXTENSIONS}" ]]; then
+            IFS=',' read -ra EXT_ARRAY <<< "${EXTENSIONS}"
+            for ext in "${EXT_ARRAY[@]}"; do
+              ext=$(echo "$ext" | xargs)
+              [[ -n "$ext" ]] && EXTENSION_ARGS="${EXTENSION_ARGS} --system-extension-image ${ext}"
+            done
+          fi
+
+          # Build and push for each platform
+          ARCH_IMAGES=()
+          IFS=',' read -ra PLATFORM_ARRAY <<< "${PLATFORMS}"
+          for platform in "${PLATFORM_ARRAY[@]}"; do
+            platform=$(echo "$platform" | xargs)
+            [[ -z "$platform" ]] && continue
+
+            # Extract arch: linux/amd64 -> amd64, darwin/arm64 -> arm64, amd64 -> amd64
+            ARCH="${platform##*/}"
+
+            echo "=========================================="
+            echo "Building for ${ARCH}..."
+            echo "=========================================="
+
+            mkdir -p _out
+
+            docker run --rm -t \
+              -v "${PWD}/_out":/out \
+              -v /dev:/dev \
+              --privileged \
+              "ghcr.io/siderolabs/imager:${TALOS_VERSION}" \
+              installer \
+              --arch "${ARCH}" \
+              ${EXTENSION_ARGS}
+
+            # Load the image and get its ID directly from docker load output
+            LOADED_IMAGE=$(docker load -i "_out/installer-${ARCH}.tar" | grep "Loaded image:" | awk '{print $3}')
+            TARGET_IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${TALOS_VERSION}-${ARCH}"
+
+            docker tag "${LOADED_IMAGE}" "${TARGET_IMAGE}"
+            echo "Tagged: ${TARGET_IMAGE}"
+
+            if [[ "${PUSH}" == "true" ]]; then
+              docker push "${TARGET_IMAGE}"
+              echo "Pushed: ${TARGET_IMAGE}"
+            fi
+
+            ARCH_IMAGES+=("${TARGET_IMAGE}")
+
+            # Cleanup to save disk space
+            docker rmi "${LOADED_IMAGE}" || true
+            rm -rf _out
+          done
+
+          # Create and push multi-arch manifest
+          if [[ "${PUSH}" == "true" ]]; then
+            MANIFEST_TAG="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${TALOS_VERSION}"
+            LATEST_TAG="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
+
+            echo "=========================================="
+            echo "Creating multi-arch manifest..."
+            echo "=========================================="
+
+            docker manifest create "${MANIFEST_TAG}" "${ARCH_IMAGES[@]}"
+            docker manifest push "${MANIFEST_TAG}"
+
+            docker manifest create "${LATEST_TAG}" "${ARCH_IMAGES[@]}"
+            docker manifest push "${LATEST_TAG}"
+
+            echo "Pushed manifests:"
+            echo "  - ${MANIFEST_TAG}"
+            echo "  - ${LATEST_TAG}"
+          fi
+
+      - name: Summary
+        if: always()
+        env:
+          TALOS_VERSION: ${{ inputs.talos_version }}
+          EXTENSIONS: ${{ inputs.extensions }}
+          PLATFORMS: ${{ inputs.platforms }}
+          PUSH: ${{ inputs.push }}
+        run: |
+          {
+            echo "## Talos Image Build Summary"
+            echo ""
+            echo "| Setting | Value |"
+            echo "|---------|-------|"
+            echo "| Talos Version | \`${TALOS_VERSION}\` |"
+            echo "| Extensions | \`${EXTENSIONS:-none}\` |"
+            echo "| Platforms | \`${PLATFORMS}\` |"
+            echo "| Push | \`${PUSH}\` |"
+            echo ""
+
+            if [[ "${PUSH}" == "true" ]]; then
+              echo "### Published Images"
+              echo "\`\`\`"
+              echo "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${TALOS_VERSION}"
+              echo "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
+              echo "\`\`\`"
+              echo ""
+              echo "### Usage"
+              echo "\`\`\`yaml"
+              echo "talos:"
+              echo "  imageName: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${TALOS_VERSION}"
+              echo "\`\`\`"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
