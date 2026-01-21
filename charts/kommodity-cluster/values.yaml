@@ -291,22 +291,23 @@ kommodity:
 talos:
   version: v1.11.3
   imageName: my-talos-image
-  installer:
-    imageName: kommodity-talos-installer:v1.11.3
-    repository: ghcr.io/kommodity-io
-    autoBootstrap:
-      # Logging verbosity: debug, info, warn, error
-      logLevel: info
-      # Network discovery frequency
-      scanInterval: 30s
-      # Expected number of control plane nodes required for quorum before bootstrapping
-      quorumNodes: 1
-      # Leader wait time before executing bootstrap
-      preBootstrapDelay: 10s
-      # Maximum retry backoff period
-      maxBackoff: 2m
-      # Node probe timeout
-      scanTimeout: 2s
+  # installer:
+  #   imageName: kommodity-talos-installer:v1.11.3
+  #   repository: ghcr.io/kommodity-io
+  #   autoBootstrap:
+  #     # Logging verbosity: debug, info, warn, error
+  #     logLevel: info
+  #     # Network discovery frequency
+  #     scanInterval: 30s
+  #     # Expected number of control plane nodes required for quorum before bootstrapping
+  #     quorumNodes: 1
+  #     # Leader wait time before executing bootstrap
+  #     preBootstrapDelay: 10s
+  #     # Maximum retry backoff period
+  #     maxBackoff: 2m
+  #     # Node probe timeout
+  #     scanTimeout: 2s
+  
   # If true, the Talos CNI will be disabled. Useful when using a different CNI such as Cilium.
   disableCNI: true
   # If true, the Talos built-in kube-proxy will be disabled. Useful when using a different CNI such as Cilium.
