@@ -112,12 +112,12 @@ spec:
       {{- if $anyAddonEnabled }}
 {{- include "kommodity.addonsInlineManifests" . | trim | nindent 12 }}
       {{- end }}
-      {{- if $hasExtraConfigPatches }}
-{{- include "kommodity-cluster.combinedConfigPatches" (dict "globalConfigPatches" $globalPatches "nodepoolConfigPatches" $cpPatches "taints" $cpTaints "labels" $cpLabels "annotations" $cpAnnotations "oidc" $oidc) | trim | nindent 8 }}
+      {{- if or $hasExtraConfigPatches $.Values.talos.installer }}
+{{- include "kommodity-cluster.combinedConfigPatches" (dict "globalConfigPatches" $globalPatches "nodepoolConfigPatches" $cpPatches "taints" $cpTaints "labels" $cpLabels "annotations" $cpAnnotations "oidc" $oidc "installer" $.Values.talos.installer) | trim | nindent 8 }}
       {{- end }}
       {{- if $.Values.talos.disableCNI }}
       {{- include "kommodity.talos.cni.disable" . | nindent 8 }}
-      {{- end }}      
+      {{- end }}
       {{- if $.Values.talos.disableKubeProxy }}
       {{- include "kommodity.talos.proxy.disable" . | nindent 8 }}
       {{- end }}

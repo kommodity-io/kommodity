@@ -1,0 +1,25 @@
+{{/*
+Returns the Talos installer image URL as a string.
+See: https://docs.siderolabs.com/talos/v1.12/reference/configuration/v1alpha1/config#install
+*/}}
+{{- define "kommodity.talos.installer.image" -}}
+{{- $installer := .installer -}}
+{{- printf "%s/%s" $installer.repository $installer.imageName -}}
+{{- end -}}
+
+{{/*
+Returns the autoBootstrap environment variables as JSON.
+Used by combinedConfigPatches to merge with other machine.env patches.
+*/}}
+{{- define "kommodity.talos.installer.autoBootstrapEnv" -}}
+{{- $autoBootstrap := .autoBootstrap -}}
+{{- $env := dict
+  "TALOS_AUTO_BOOTSTRAP_LOG_LEVEL" $autoBootstrap.logLevel
+  "TALOS_AUTO_BOOTSTRAP_SCAN_INTERVAL" $autoBootstrap.scanInterval
+  "TALOS_AUTO_BOOTSTRAP_QUORUM_NODES" ($autoBootstrap.quorumNodes | toString)
+  "TALOS_AUTO_BOOTSTRAP_PRE_BOOTSTRAP_DELAY" $autoBootstrap.preBootstrapDelay
+  "TALOS_AUTO_BOOTSTRAP_MAX_BACKOFF" $autoBootstrap.maxBackoff
+  "TALOS_AUTO_BOOTSTRAP_SCAN_TIMEOUT" $autoBootstrap.scanTimeout
+-}}
+{{- $env | toJson -}}
+{{- end -}}

@@ -182,6 +182,16 @@ Patches with the same op and path are merged together.
 {{- $oidcExtraArgs := include "kommodity.talos.oidc.extraArgs" (dict "oidc" .oidc) | fromJson -}}
 {{- include "kommodity-cluster.addOrMergePatch" (dict "patches" $patches "op" "add" "path" "/cluster/apiServer/extraArgs" "value" $oidcExtraArgs) -}}
 {{- end -}}
+{{- /* Add installer image patch */ -}}
+{{- if .installer -}}
+{{- $installerImage := include "kommodity.talos.installer.image" (dict "installer" .installer) -}}
+{{- include "kommodity-cluster.addOrMergePatch" (dict "patches" $patches "op" "add" "path" "/machine/install/image" "value" $installerImage) -}}
+{{- /* Add autoBootstrap environment variables patch */ -}}
+{{- if .installer.autoBootstrap -}}
+{{- $autoBootstrapEnv := include "kommodity.talos.installer.autoBootstrapEnv" (dict "autoBootstrap" .installer.autoBootstrap) | fromJson -}}
+{{- include "kommodity-cluster.addOrMergePatch" (dict "patches" $patches "op" "add" "path" "/machine/env" "value" $autoBootstrapEnv) -}}
+{{- end -}}
+{{- end -}}
 {{- /* Output all combined patches */ -}}
 {{- range $key, $patch := $patches }}
 - op: {{ $patch.op }}
