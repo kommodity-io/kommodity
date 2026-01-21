@@ -1,0 +1,207 @@
+name: Build Talos Scaleway Boot Image
+
+on:
+  workflow_dispatch:
+    inputs:
+      talos_version:
+        description: "Talos version (e.g., v1.11.3)"
+        required: true
+        default: "v1.11.3"
+        type: string
+      extensions:
+        description: "Comma-separated list of extension images"
+        required: false
+        default: ""
+        type: string
+      push:
+        description: "Push image to registry"
+        required: false
+        default: true
+        type: boolean
+
+env:
+  REGISTRY: ghcr.io/kommodity-io
+  IMAGE_NAME: kommodity-talos-scaleway
+
+jobs:
+  build:
+    name: Build and Push Scaleway Boot Image
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      pages: write
+      packages: write
+      contents: write
+    steps:
+      - name: Validate inputs
+        run: |
+          # Validate talos_version format (must be semver like v1.11.3)
+          if [[ ! "${{ inputs.talos_version }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
+            echo "::error::Invalid talos_version format. Expected semver (e.g., v1.11.3)"
+            exit 1
+          fi
+
+      - name: Free disk space
+        run: |
+          sudo swapoff -a || true
+          sudo rm -f /swapfile || true
+          sudo rm -rf /usr/local/lib/android >/dev/null 2>&1 || true
+          docker system prune -af || true
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-utils zstd
+
+      - name: Install oras
+        run: |
+          ORAS_VERSION="1.2.0"
+          curl -LO "https://github.com/oras-project/oras/releases/download/v${ORAS_VERSION}/oras_${ORAS_VERSION}_linux_amd64.tar.gz"
+          tar -xzf "oras_${ORAS_VERSION}_linux_amd64.tar.gz"
+          sudo mv oras /usr/local/bin/
+          oras version
+
+      - name: Log in to GitHub Container Registry
+        if: ${{ inputs.push }}
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build Scaleway image
+        env:
+          TALOS_VERSION: ${{ inputs.talos_version }}
+          EXTENSIONS: ${{ inputs.extensions }}
+        run: |
+          set -euo pipefail
+
+          # Parse extensions into imager args
+          EXTENSION_ARGS=""
+          if [[ -n "${EXTENSIONS}" ]]; then
+            IFS=',' read -ra EXT_ARRAY <<< "${EXTENSIONS}"
+            for ext in "${EXT_ARRAY[@]}"; do
+              ext=$(echo "$ext" | xargs)
+              [[ -n "$ext" ]] && EXTENSION_ARGS="${EXTENSION_ARGS} --system-extension-image ${ext}"
+            done
+          fi
+
+          echo "=========================================="
+          echo "Building Scaleway image for Talos ${TALOS_VERSION}..."
+          echo "Extensions: ${EXTENSIONS:-none}"
+          echo "=========================================="
+
+          mkdir -p _out
+
+          # Build Scaleway image (only amd64 supported)
+          docker run --rm -t \
+            -v "${PWD}/_out":/out \
+            -v /dev:/dev \
+            --privileged \
+            "ghcr.io/siderolabs/imager:${TALOS_VERSION}" \
+            scaleway \
+            --arch amd64 \
+            ${EXTENSION_ARGS}
+
+          echo "=========================================="
+          echo "Build complete. Converting to qcow2..."
+          echo "=========================================="
+
+          ls -la _out/
+
+          # Decompress the raw image (Talos imager outputs .zst format)
+          zstd -d _out/scaleway-amd64.raw.zst
+
+          # Convert to qcow2 (required for Scaleway import)
+          qemu-img convert -f raw -O qcow2 _out/scaleway-amd64.raw "_out/${{ env.IMAGE_NAME }}-${TALOS_VERSION}.qcow2"
+
+          # Remove the raw file to save space
+          rm -f _out/scaleway-amd64.raw
+
+          echo "=========================================="
+          echo "Conversion complete!"
+          echo "=========================================="
+          ls -la _out/
+
+      - name: Push to registry
+        if: ${{ inputs.push }}
+        env:
+          TALOS_VERSION: ${{ inputs.talos_version }}
+        run: |
+          set -euo pipefail
+
+          IMAGE_TAG="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${TALOS_VERSION}"
+          LATEST_TAG="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
+          QCOW2_FILE="_out/${{ env.IMAGE_NAME }}-${TALOS_VERSION}.qcow2"
+
+          echo "=========================================="
+          echo "Pushing to registry..."
+          echo "=========================================="
+
+          # Push qcow2 as OCI artifact using oras
+          oras push "${IMAGE_TAG}" \
+            --artifact-type "application/vnd.talos.scaleway.image" \
+            "${QCOW2_FILE}:application/octet-stream"
+
+          echo "Pushed: ${IMAGE_TAG}"
+
+          # Tag as latest
+          oras tag "${IMAGE_TAG}" "latest"
+
+          echo "Tagged as: ${LATEST_TAG}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.IMAGE_NAME }}-${{ inputs.talos_version }}
+          path: _out/*.qcow2
+          retention-days: 7
+          compression-level: 0 # qcow2 is already compressed
+
+      - name: Summary
+        if: always()
+        env:
+          TALOS_VERSION: ${{ inputs.talos_version }}
+          EXTENSIONS: ${{ inputs.extensions }}
+          PUSH: ${{ inputs.push }}
+        run: |
+          {
+            echo "## Talos Scaleway Boot Image Build Summary"
+            echo ""
+            echo "| Setting | Value |"
+            echo "|---------|-------|"
+            echo "| Talos Version | \`${TALOS_VERSION}\` |"
+            echo "| Extensions | \`${EXTENSIONS:-none}\` |"
+            echo "| Push | \`${PUSH}\` |"
+            echo ""
+
+            if [[ "${PUSH}" == "true" ]]; then
+              echo "### Published Images"
+              echo "\`\`\`"
+              echo "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${TALOS_VERSION}"
+              echo "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
+              echo "\`\`\`"
+              echo ""
+              echo "### Download from registry"
+              echo "\`\`\`bash"
+              echo "oras pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${TALOS_VERSION}"
+              echo "\`\`\`"
+              echo ""
+            fi
+
+            echo "### Upload to Scaleway"
+            echo "To use this image in Scaleway:"
+            echo ""
+            echo "1. Download the qcow2 file (from artifact or registry)"
+            echo "2. Import as Scaleway image:"
+            echo "   \`\`\`bash"
+            echo "   scw block snapshot create name=${{ env.IMAGE_NAME }}-${TALOS_VERSION} volume-type=b_ssd bucket=your-bucket key=${{ env.IMAGE_NAME }}-${TALOS_VERSION}.qcow2"
+            echo "   scw instance image create name=${{ env.IMAGE_NAME }}-${TALOS_VERSION} arch=x86_64 snapshot-id=<snapshot-id>"
+            echo "   \`\`\`"
+            echo ""
+            echo "3. Use in values.yaml:"
+            echo "   \`\`\`yaml"
+            echo "   talos:"
+            echo "     imageName: ${{ env.IMAGE_NAME }}-${TALOS_VERSION}"
+            echo "   \`\`\`"
+          } >> "$GITHUB_STEP_SUMMARY"
