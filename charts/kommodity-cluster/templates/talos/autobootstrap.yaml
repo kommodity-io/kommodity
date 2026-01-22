@@ -5,7 +5,8 @@ This configures environment variables for the kommodity-autobootstrap extension 
 {{- define "kommodity.talos.autoBootstrapExtensionServiceConfig" -}}
 {{- $autoBootstrap := .autoBootstrap -}}
 {{- $logLevel := .logLevel -}}
-- apiVersion: v1alpha1
+- |
+  apiVersion: v1alpha1
   kind: ExtensionServiceConfig
   name: kommodity-autobootstrap
   environment:
