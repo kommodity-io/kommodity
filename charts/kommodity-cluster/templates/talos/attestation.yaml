@@ -1,0 +1,12 @@
+{{/*
+Returns the attestation ExtensionServiceConfig as a strategic merge patch.
+This configures environment variables for the kommodity-attestation extension service.
+*/}}
+{{- define "kommodity.talos.attestationExtensionServiceConfig" -}}
+{{- $logLevel := .logLevel -}}
+- apiVersion: v1alpha1
+  kind: ExtensionServiceConfig
+  name: kommodity-attestation
+  environment:
+    - LOG_LEVEL={{ $logLevel }}
+{{- end -}}
