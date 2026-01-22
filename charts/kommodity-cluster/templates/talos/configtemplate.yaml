@@ -23,9 +23,15 @@ spec:
       configPatches:
       {{- include "kommodity-cluster.combinedConfigPatches" (dict "globalConfigPatches" $.Values.kommodity.global.configPatches "nodepoolConfigPatches" $np.configPatches "taints" $np.taints "labels" $np.labels "annotations" $np.annotations "installer" $.Values.talos.installer "logLevel" $.Values.kommodity.logLevel) | trim | nindent 8 }}
       {{- end }}
+      {{- if or $.Values.kommodity.kms.enabled $.Values.kommodity.security.enabled }}
+      strategicPatches:
       {{- if $.Values.kommodity.kms.enabled }}
       {{- /* Use VolumeConfig for disk encryption (Talos v1.12+) instead of deprecated machine.systemDiskEncryption */}}
-      strategicPatches:
 {{- include "kommodity.talos.volumeEncryption" (dict "endpoint" $.Values.kommodity.kms.endpoint) | nindent 8 }}
+      {{- end }}
+      {{- if $.Values.kommodity.security.enabled }}
+      {{- /* ExtensionServiceConfig for kommodity-attestation extension */}}
+{{- include "kommodity.talos.attestationExtensionServiceConfig" (dict "logLevel" $.Values.kommodity.logLevel) | nindent 8 }}
+      {{- end }}
       {{- end }}
 {{- end }}
