@@ -4,7 +4,8 @@ This configures environment variables for the kommodity-attestation extension se
 */}}
 {{- define "kommodity.talos.attestationExtensionServiceConfig" -}}
 {{- $logLevel := .logLevel -}}
-- apiVersion: v1alpha1
+- |
+  apiVersion: v1alpha1
   kind: ExtensionServiceConfig
   name: kommodity-attestation
   environment:
