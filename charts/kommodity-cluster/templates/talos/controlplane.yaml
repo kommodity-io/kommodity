@@ -112,8 +112,8 @@ spec:
       {{- if $anyAddonEnabled }}
 {{- include "kommodity.addonsInlineManifests" . | trim | nindent 12 }}
       {{- end }}
-      {{- if or $hasExtraConfigPatches $.Values.talos.installer }}
-{{- include "kommodity-cluster.combinedConfigPatches" (dict "globalConfigPatches" $globalPatches "nodepoolConfigPatches" $cpPatches "taints" $cpTaints "labels" $cpLabels "annotations" $cpAnnotations "oidc" $oidc "installer" $.Values.talos.installer) | trim | nindent 8 }}
+      {{- if or $hasExtraConfigPatches $.Values.talos.installer $.Values.talos.autoBootstrap $.Values.kommodity.logLevel }}
+{{- include "kommodity-cluster.combinedConfigPatches" (dict "globalConfigPatches" $globalPatches "nodepoolConfigPatches" $cpPatches "taints" $cpTaints "labels" $cpLabels "annotations" $cpAnnotations "oidc" $oidc "installer" $.Values.talos.installer "autoBootstrap" $.Values.talos.autoBootstrap "logLevel" $.Values.kommodity.logLevel) | trim | nindent 8 }}
       {{- end }}
       {{- if $.Values.talos.disableCNI }}
       {{- include "kommodity.talos.cni.disable" . | nindent 8 }}

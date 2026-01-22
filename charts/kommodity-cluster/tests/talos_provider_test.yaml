@@ -120,6 +120,7 @@ tests:
             path: /machine/env
             value:
               GLOBAL_VAR: global-value
+              LOG_LEVEL: warn
               NODEPOOL_VAR: nodepool-value
 
   - it: should not merge patches with different ops on same path
@@ -149,6 +150,7 @@ tests:
             path: /machine/env
             value:
               ADD_VAR: add-value
+              LOG_LEVEL: warn
       - contains:
           path: spec.template.spec.configPatches
           content:
