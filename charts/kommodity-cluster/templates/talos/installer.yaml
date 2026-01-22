@@ -8,13 +8,21 @@ See: https://docs.siderolabs.com/talos/v1.12/reference/configuration/v1alpha1/co
 {{- end -}}
 
 {{/*
+Returns global Kommodity environment variables as JSON.
+Used by combinedConfigPatches to merge with other machine.env patches.
+*/}}
+{{- define "kommodity.talos.globalEnv" -}}
+{{- $env := dict "LOG_LEVEL" .logLevel -}}
+{{- $env | toJson -}}
+{{- end -}}
+
+{{/*
 Returns the autoBootstrap environment variables as JSON.
 Used by combinedConfigPatches to merge with other machine.env patches.
 */}}
-{{- define "kommodity.talos.installer.autoBootstrapEnv" -}}
+{{- define "kommodity.talos.autoBootstrapEnv" -}}
 {{- $autoBootstrap := .autoBootstrap -}}
 {{- $env := dict
-  "TALOS_AUTO_BOOTSTRAP_LOG_LEVEL" $autoBootstrap.logLevel
   "TALOS_AUTO_BOOTSTRAP_SCAN_INTERVAL" $autoBootstrap.scanInterval
   "TALOS_AUTO_BOOTSTRAP_QUORUM_NODES" ($autoBootstrap.quorumNodes | toString)
   "TALOS_AUTO_BOOTSTRAP_PRE_BOOTSTRAP_DELAY" $autoBootstrap.preBootstrapDelay

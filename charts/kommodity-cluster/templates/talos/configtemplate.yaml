@@ -18,9 +18,11 @@ spec:
       {{- $hasLabels := and $np.labels (gt (len $np.labels) 0) }}
       {{- $hasAnnotations := and $np.annotations (gt (len $np.annotations) 0) }}
       {{- $hasInstaller := $.Values.talos.installer }}
-      {{- if or $hasNpConfigPatches $hasGlobalConfigPatches $hasTaints $hasLabels $hasAnnotations $hasInstaller }}
+      {{- $hasAutoBootstrap := $.Values.talos.autoBootstrap }}
+      {{- $hasLogLevel := $.Values.kommodity.logLevel }}
+      {{- if or $hasNpConfigPatches $hasGlobalConfigPatches $hasTaints $hasLabels $hasAnnotations $hasInstaller $hasAutoBootstrap $hasLogLevel }}
       configPatches:
-      {{- include "kommodity-cluster.combinedConfigPatches" (dict "globalConfigPatches" $.Values.kommodity.global.configPatches "nodepoolConfigPatches" $np.configPatches "taints" $np.taints "labels" $np.labels "annotations" $np.annotations "installer" $.Values.talos.installer) | trim | nindent 8 }}
+      {{- include "kommodity-cluster.combinedConfigPatches" (dict "globalConfigPatches" $.Values.kommodity.global.configPatches "nodepoolConfigPatches" $np.configPatches "taints" $np.taints "labels" $np.labels "annotations" $np.annotations "installer" $.Values.talos.installer "autoBootstrap" $.Values.talos.autoBootstrap "logLevel" $.Values.kommodity.logLevel) | trim | nindent 8 }}
       {{- end }}
       {{- if $.Values.kommodity.kms.enabled }}
       {{- /* Use VolumeConfig for disk encryption (Talos v1.12+) instead of deprecated machine.systemDiskEncryption */}}
