@@ -125,17 +125,17 @@ spec:
       {{- include "kommodity.talos.ccm" (dict "manifest" $.Values.kommodity.provider.cloudControllerManager.manifest) | nindent 8 }}
       {{- end }}
     {{- if or $.Values.kommodity.kms.enabled $.Values.talos.autoBootstrap $.Values.kommodity.security.enabled }}
-    strategicPatches:
+      strategicPatches:
     {{- if $.Values.kommodity.kms.enabled }}
     {{- /* Use VolumeConfig for disk encryption (Talos v1.12+) instead of deprecated machine.systemDiskEncryption */}}
-{{- include "kommodity.talos.volumeEncryption" (dict "endpoint" $.Values.kommodity.kms.endpoint) | nindent 6 }}
+{{- include "kommodity.talos.volumeEncryption" (dict "endpoint" $.Values.kommodity.kms.endpoint) | nindent 8 }}
     {{- end }}
     {{- if $.Values.talos.autoBootstrap }}
     {{- /* ExtensionServiceConfig for kommodity-autobootstrap extension */}}
-{{- include "kommodity.talos.autoBootstrapExtensionServiceConfig" (dict "autoBootstrap" $.Values.talos.autoBootstrap "logLevel" $.Values.kommodity.logLevel) | nindent 6 }}
+{{- include "kommodity.talos.autoBootstrapExtensionServiceConfig" (dict "autoBootstrap" $.Values.talos.autoBootstrap "logLevel" $.Values.kommodity.logLevel) | nindent 8 }}
     {{- end }}
     {{- if $.Values.kommodity.security.enabled }}
     {{- /* ExtensionServiceConfig for kommodity-attestation extension */}}
-{{- include "kommodity.talos.attestationExtensionServiceConfig" (dict "logLevel" $.Values.kommodity.logLevel) | nindent 6 }}
+{{- include "kommodity.talos.attestationExtensionServiceConfig" (dict "logLevel" $.Values.kommodity.logLevel) | nindent 8 }}
     {{- end }}
     {{- end }}
