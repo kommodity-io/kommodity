@@ -192,11 +192,6 @@ Patches with the same op and path are merged together.
 {{- $globalEnv := include "kommodity.talos.globalEnv" (dict "logLevel" .logLevel) | fromJson -}}
 {{- include "kommodity-cluster.addOrMergePatch" (dict "patches" $patches "op" "add" "path" "/machine/env" "value" $globalEnv) -}}
 {{- end -}}
-{{- /* Add autoBootstrap environment variables patch */ -}}
-{{- if .autoBootstrap -}}
-{{- $autoBootstrapEnv := include "kommodity.talos.autoBootstrapEnv" (dict "autoBootstrap" .autoBootstrap) | fromJson -}}
-{{- include "kommodity-cluster.addOrMergePatch" (dict "patches" $patches "op" "add" "path" "/machine/env" "value" $autoBootstrapEnv) -}}
-{{- end -}}
 {{- /* Output all combined patches */ -}}
 {{- range $key, $patch := $patches }}
 - op: {{ $patch.op }}

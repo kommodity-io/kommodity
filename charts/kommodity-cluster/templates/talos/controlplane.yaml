@@ -112,8 +112,8 @@ spec:
       {{- if $anyAddonEnabled }}
 {{- include "kommodity.addonsInlineManifests" . | trim | nindent 12 }}
       {{- end }}
-      {{- if or $hasExtraConfigPatches $.Values.talos.installer $.Values.talos.autoBootstrap $.Values.kommodity.logLevel }}
-{{- include "kommodity-cluster.combinedConfigPatches" (dict "globalConfigPatches" $globalPatches "nodepoolConfigPatches" $cpPatches "taints" $cpTaints "labels" $cpLabels "annotations" $cpAnnotations "oidc" $oidc "installer" $.Values.talos.installer "autoBootstrap" $.Values.talos.autoBootstrap "logLevel" $.Values.kommodity.logLevel) | trim | nindent 8 }}
+      {{- if or $hasExtraConfigPatches $.Values.talos.installer $.Values.kommodity.logLevel }}
+{{- include "kommodity-cluster.combinedConfigPatches" (dict "globalConfigPatches" $globalPatches "nodepoolConfigPatches" $cpPatches "taints" $cpTaints "labels" $cpLabels "annotations" $cpAnnotations "oidc" $oidc "installer" $.Values.talos.installer "logLevel" $.Values.kommodity.logLevel) | trim | nindent 8 }}
       {{- end }}
       {{- if $.Values.talos.disableCNI }}
       {{- include "kommodity.talos.cni.disable" . | nindent 8 }}
@@ -124,8 +124,14 @@ spec:
       {{- if $.Values.kommodity.provider.cloudControllerManager.enabled }}
       {{- include "kommodity.talos.ccm" (dict "manifest" $.Values.kommodity.provider.cloudControllerManager.manifest) | nindent 8 }}
       {{- end }}
+    {{- if or $.Values.kommodity.kms.enabled $.Values.talos.autoBootstrap }}
+    strategicPatches:
     {{- if $.Values.kommodity.kms.enabled }}
     {{- /* Use VolumeConfig for disk encryption (Talos v1.12+) instead of deprecated machine.systemDiskEncryption */}}
-    strategicPatches:
 {{- include "kommodity.talos.volumeEncryption" (dict "endpoint" $.Values.kommodity.kms.endpoint) | nindent 6 }}
+    {{- end }}
+    {{- if $.Values.talos.autoBootstrap }}
+    {{- /* ExtensionServiceConfig for kommodity-autobootstrap extension */}}
+{{- include "kommodity.talos.autoBootstrapExtensionServiceConfig" (dict "autoBootstrap" $.Values.talos.autoBootstrap "logLevel" $.Values.kommodity.logLevel) | nindent 6 }}
+    {{- end }}
     {{- end }}
