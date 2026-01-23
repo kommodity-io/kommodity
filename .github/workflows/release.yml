@@ -98,7 +98,7 @@ jobs:
           retention-days: 1
 
       - name: Detect semantic release
-        uses: docker://ghcr.io/codfish/semantic-release-action:6c65402abb31a48c3f7396d7d099da015be67c2b # v4
+        uses: docker://ghcr.io/codfish/semantic-release-action@sha256:5d5447090feb2f9252aac2825ef14e244ecf53528fbe87d585b459adb547b914 # v4
         id: semantic
         with:
           repository-url: https://github.com/${{ github.repository }}
@@ -317,7 +317,7 @@ jobs:
       # Step 1: Dry-run to compute the next version
       - name: Detect next version
         id: semantic
-        uses: docker://ghcr.io/codfish/semantic-release-action:6c65402abb31a48c3f7396d7d099da015be67c2b # v4
+        uses: docker://ghcr.io/codfish/semantic-release-action@sha256:5d5447090feb2f9252aac2825ef14e244ecf53528fbe87d585b459adb547b914 # v4
         with:
           dry-run: true
           repository-url: https://github.com/${{ github.repository }}
@@ -392,7 +392,7 @@ jobs:
       # Create GitHub release (only after Docker push succeeds)
       - name: Create GitHub release
         if: steps.check.outputs.should_release == 'true'
-        uses: docker://ghcr.io/codfish/semantic-release-action:6c65402abb31a48c3f7396d7d099da015be67c2b # v4
+        uses: docker://ghcr.io/codfish/semantic-release-action@sha256:5d5447090feb2f9252aac2825ef14e244ecf53528fbe87d585b459adb547b914 # v4
         with:
           repository-url: https://github.com/${{ github.repository }}
           branches: |
