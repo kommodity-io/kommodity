@@ -198,15 +198,8 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
-            VERSION = "v0.0.0"
-            if [[ "${{ needs.prepare.outputs.version }}" != "" ]]; then  
-              VERSION = "${{ needs.prepare.outputs.version }}"
-            fi
+            VERSION=${{ needs.prepare.outputs.version }}
         
-      # TODO: remove once done debugging test issues
-      - name: Debug  tests
-        run: docker images
-
       - name: Calculate test coverage
         uses: gwatts/go-coverage-action@2845595538a59d63d1bf55f109c14e104c6f7cb3 # v2
         id: coverage
