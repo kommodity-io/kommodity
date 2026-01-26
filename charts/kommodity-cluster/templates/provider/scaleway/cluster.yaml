@@ -24,4 +24,10 @@ spec:
   {{- end }}
   region: {{ .Values.kommodity.region }}
   scalewaySecretName: {{ .Values.kommodity.provider.secret.name }}
+  {{- if and .Values.kommodity.network.ipv4.enabled .Values.kommodity.network.ipv4.nodeCIDR }}
+  network:
+    privateNetwork:
+      enabled: true
+      subnet: {{ .Values.kommodity.network.ipv4.nodeCIDR }}
+  {{- end }}
 {{- end }}

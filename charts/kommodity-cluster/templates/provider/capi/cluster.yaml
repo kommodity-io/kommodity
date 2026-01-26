@@ -12,6 +12,11 @@ spec:
       {{- range $cidr := .Values.kommodity.network.cluster.podCIDR }}
         - {{ $cidr }}
       {{- end }}
+    services:
+      cidrBlocks:
+      {{- range $cidr := .Values.kommodity.network.cluster.serviceCIDR }}
+        - {{ $cidr }}
+      {{- end }}
   controlPlaneRef:
     apiVersion: controlplane.cluster.x-k8s.io/v1alpha3
     kind: TalosControlPlane
