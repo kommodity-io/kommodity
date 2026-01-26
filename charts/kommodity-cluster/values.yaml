@@ -24,7 +24,7 @@ kommodity:
       fullnameOverride: "cluster-autoscaler"
       clusterScoped: true
 
-  # Cluster networking configuration using CG-NAT ranges 1/2 for pods, 1/4 nodes and services
+  # Cluster networking configuration using CG-NAT ranges: pods 10.64.0.0/11 (~2M IPs), nodes 100.112.0.0/12 (~1M IPs), services 100.96.0.0/12 (~1M IPs)
   network:
     ipv4:
       enabled: false
