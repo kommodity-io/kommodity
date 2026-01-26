@@ -151,7 +151,7 @@ jobs:
           echo "Tagged as: ${LATEST_TAG}"
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ env.IMAGE_NAME }}-${{ inputs.talos_version }}
           path: _out/*.qcow2
