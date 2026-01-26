@@ -28,7 +28,9 @@ kommodity:
   network:
     ipv4:
       enabled: false
+      # Setting public to false will prevent the creation of a public network interface
       public: false
+      # Setting nodeCIDR to an empty string will prevent the creation of a private network
       nodeCIDR: 100.112.0.0/12
     cluster:
       podCIDR:
