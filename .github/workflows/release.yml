@@ -31,7 +31,7 @@ jobs:
       issues: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           fetch-depth: 10
 
@@ -45,7 +45,7 @@ jobs:
         run: go mod download
 
       - name: Setup NPM
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: "24.2.0"
           cache: "npm"
@@ -64,7 +64,7 @@ jobs:
     name: Build Container Image
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
 
@@ -76,7 +76,7 @@ jobs:
       - name: Save Docker image
         run: docker save kommodity:latest -o kommodity-image.tar
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: kommodity-image
           path: kommodity-image.tar
@@ -91,7 +91,7 @@ jobs:
       contents: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           fetch-depth: 10
 
@@ -105,7 +105,7 @@ jobs:
         run: go mod download
 
       - name: Setup NPM
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: "24.2.0"
           cache: "npm"
@@ -117,7 +117,7 @@ jobs:
       - name: Build UI
         run: make build-ui
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: kommodity-image
 
@@ -146,7 +146,7 @@ jobs:
         arch: [amd64, arm64]
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -160,7 +160,7 @@ jobs:
         run: go mod download
 
       - name: Setup NPM
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: "24.2.0"
           cache: "npm"
@@ -238,7 +238,7 @@ jobs:
           mv bin/kommodity bin/${target}
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: kommodity-${{ matrix.os }}-${{ matrix.arch }}-${{ steps.version.outputs.version }}
           path: bin/kommodity-*
@@ -256,10 +256,10 @@ jobs:
       issues: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Download binaries
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           path: release
           merge-multiple: true
@@ -291,7 +291,7 @@ jobs:
       packages: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Free disk space
         shell: bash
@@ -304,7 +304,7 @@ jobs:
           docker system prune -af
           df -h
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: kommodity-image
 
