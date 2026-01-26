@@ -13,10 +13,8 @@ spec:
       commercialType: {{ .Values.kommodity.controlplane.sku }}
       image:
         name: {{ default $.Values.talos.imageName (dig "talos" "imageName" "" .Values.kommodity.controlplane) }}
-      {{- if .Values.kommodity.network.ipv4.public }}
       publicNetwork:
-        enableIPv4: {{ .Values.kommodity.network.ipv4.enabled }}
-      {{- end }}
+        enableIPv4: {{ and .Values.kommodity.network.ipv4.enabled .Values.kommodity.network.ipv4.public }}
       rootVolume:
         size: {{ .Values.kommodity.controlplane.os.disk.size }}
         type: block
