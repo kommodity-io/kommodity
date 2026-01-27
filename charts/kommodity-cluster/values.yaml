@@ -32,9 +32,17 @@ kommodity:
       public: false
       # Setting nodeCIDR to an empty string will prevent the creation of a private network
       nodeCIDR: 100.112.0.0/12
+    publicGateway:
+      enabled: false
+      # Optional: Commercial offer type (default: VPC-GW-S on Scaleway)
+      # type: VPC-GW-S
+      # Optional: Zone for the gateway (defaults to first zone in region)
+      # zone: fr-par-1
+      # Optional: Pre-existing IP to use for the gateway
+      # ip: ""
     cluster:
       podCIDR:
-        - 10.64.0.0/11
+        - 100.64.0.0/11
       serviceCIDR:
         - 100.96.0.0/12
 
