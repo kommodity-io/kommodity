@@ -34,7 +34,7 @@ kommodity:
       nodeCIDR: 100.112.0.0/12
     publicGateway:
       enabled: false
-      # Optional: Commercial offer type (default: VPC-GW-S)
+      # Optional: Commercial offer type (default: VPC-GW-S on Scaleway)
       # type: VPC-GW-S
       # Optional: Zone for the gateway (defaults to first zone in region)
       # zone: fr-par-1
