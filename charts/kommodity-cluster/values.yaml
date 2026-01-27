@@ -33,7 +33,7 @@ kommodity:
       # Setting nodeCIDR to an empty string will prevent the creation of a private network
       nodeCIDR: 100.112.0.0/12
     publicGateway:
-      enabled: true
+      enabled: false
       # Optional: Commercial offer type (default: VPC-GW-S)
       # type: VPC-GW-S
       # Optional: Zone for the gateway (defaults to first zone in region)
