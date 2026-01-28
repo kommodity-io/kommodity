@@ -30,7 +30,6 @@ func NewHTTPMuxFactory(ctx context.Context, cfg *config.KommodityConfig) combine
 	logger.Info("Initializing Kommodity UI server")
 
 	return func(mux *http.ServeMux) error {
-
 		sub, err := fs.Sub(webDist, "web/kommodity-ui/dist")
 		if err != nil {
 			return fmt.Errorf("failed to create sub filesystem for UI: %w", err)
