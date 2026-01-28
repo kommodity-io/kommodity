@@ -60,6 +60,10 @@ metadata:
   namespace: {{ $.Release.Namespace }}
   labels:
     app.kubernetes.io/managed-by: kommodity
+  {{- if not $.Values.kommodity.network.ipv4.public }}
+  annotations:
+    talos.dev/skip-bootstrap: "true"
+  {{- end }}
 spec:
   {{- if and (hasKey .Values.kommodity.controlplane "kubernetes") (hasKey .Values.kommodity.controlplane.kubernetes "version") }}
   version: {{ $.Values.kommodity.controlplane.kubernetes.version }}
