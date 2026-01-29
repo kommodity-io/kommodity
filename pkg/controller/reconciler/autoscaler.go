@@ -220,7 +220,7 @@ func (r *AutoscalerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	if err != nil {
 		logger.Error("Failed to install Autoscaler", zap.String("clusterName", clusterName), zap.Error(err))
 
-		return ctrl.Result{}, fmt.Errorf("failed to install Autoscaler for cluster %s: %w", clusterName, err)
+		return result, fmt.Errorf("failed to install Autoscaler for cluster %s: %w", clusterName, err)
 	}
 
 	return result, nil
