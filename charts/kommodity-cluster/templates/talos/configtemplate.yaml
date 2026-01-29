@@ -19,30 +19,9 @@ spec:
       {{- $hasAnnotations := and $np.annotations (gt (len $np.annotations) 0) }}
       {{- $hasInstaller := $.Values.talos.installer }}
       {{- $hasLogLevel := $.Values.kommodity.logLevel }}
-      {{- /* Check if user has /cluster/inlineManifests in global.configPatches */ -}}
-      {{- $userInlineManifests := list }}
-      {{- range $.Values.kommodity.global.configPatches }}
-        {{- if and (eq .op "add") (eq .path "/cluster/inlineManifests") }}
-          {{- $userInlineManifests = .value }}
-        {{- end }}
-      {{- end }}
-      {{- $hasInlineManifests := gt (len $userInlineManifests) 0 }}
+      {{- /* Note: /cluster/inlineManifests is skipped for workers - only control plane nodes apply inline manifests during bootstrap */ -}}
       {{- if or $hasNpConfigPatches $hasGlobalConfigPatches $hasTaints $hasLabels $hasAnnotations $hasInstaller $hasLogLevel }}
       configPatches:
-      {{- end }}
-      {{- /* Output /cluster/inlineManifests patch for user-provided manifests */ -}}
-      {{- if $hasInlineManifests }}
-        - op: add
-          path: /cluster/inlineManifests
-          value:
-      {{- range $userInlineManifests }}
-            - name: {{ .name }}
-              contents: |
-{{ .contents | indent 16 }}
-      {{- end }}
-      {{- end }}
-      {{- /* Output other patches (excluding /cluster/inlineManifests which is handled above) */ -}}
-      {{- if or $hasNpConfigPatches $hasGlobalConfigPatches $hasTaints $hasLabels $hasAnnotations $hasInstaller $hasLogLevel }}
 {{- include "kommodity-cluster.combinedConfigPatches" (dict "globalConfigPatches" $.Values.kommodity.global.configPatches "nodepoolConfigPatches" $np.configPatches "taints" $np.taints "labels" $np.labels "annotations" $np.annotations "installer" $.Values.talos.installer "logLevel" $.Values.kommodity.logLevel) | trim | nindent 8 }}
       {{- end }}
       {{- if or $.Values.kommodity.kms.enabled $.Values.kommodity.security.enabled }}
