@@ -7,8 +7,14 @@
 {{- end }}
 {{- end }}
 
-{{- define "kommodity.addonsInlineManifests" -}}
+{{/*
+Build a list of inline manifest items for enabled addons.
+Returns a JSON-encoded object with "items" key containing the list, to be parsed with fromJson.
+Usage: (include "kommodity.addonsInlineManifestsList" . | fromJson).items
+*/}}
+{{- define "kommodity.addonsInlineManifestsList" -}}
 {{- $root := . -}}
+{{- $manifests := list -}}
 {{- range $name, $addon := $root.Values.kommodity.addons }}
 {{- if $addon.enabled }}
   {{- $contents := "" }}
@@ -22,35 +28,22 @@
       {{- $contents = "" }}
     {{- end }}
     {{- if $addon.initialExtraValues }}
-- name: {{ $name }}-extra-values
-  contents: |
-{{ include "kommodity.addon.extra-values" (dict
-  "name"               $name
-  "namespace"          (default .name $addon.namespace)
-  "initialExtraValues" $addon.initialExtraValues
-) | indent 4 }}
+      {{- $extraValuesContents := include "kommodity.addon.extra-values" (dict "name" $name "namespace" (default .name $addon.namespace) "initialExtraValues" $addon.initialExtraValues) }}
+      {{- $manifests = append $manifests (dict "name" (printf "%s-extra-values" $name) "contents" $extraValuesContents) }}
     {{- end }}
     {{- if $addon.namespace }}
-- name: {{ $name }}-namespace
-  contents: |
-{{ include "kommodity.addon.namespace" (dict
-  "namespace"  $addon.namespace
-) | indent 4 }}
+      {{- $namespaceContents := include "kommodity.addon.namespace" (dict "namespace" $addon.namespace) }}
+      {{- $manifests = append $manifests (dict "name" (printf "%s-namespace" $name) "contents" $namespaceContents) }}
     {{- end }}
-{{- if $contents }}
-- name: {{ $name }}
-  contents: |
-{{ $contents | indent 4 }}
-{{- end }}
-- name: {{ $name }}-installer
-  contents: |
-{{ include "kommodity.addon.installer" (dict
-  "name"  $name
-  "addon" $addon
-) | indent 4 }}
+    {{- if $contents }}
+      {{- $manifests = append $manifests (dict "name" $name "contents" $contents) }}
+    {{- end }}
+    {{- $installerContents := include "kommodity.addon.installer" (dict "name" $name "addon" $addon) }}
+    {{- $manifests = append $manifests (dict "name" (printf "%s-installer" $name) "contents" $installerContents) }}
   {{- end }}
 {{- end }}
 {{- end }}
+{{- dict "items" $manifests | toJson -}}
 {{- end }}
 ---
 apiVersion: controlplane.cluster.x-k8s.io/v1alpha3
@@ -103,17 +96,14 @@ spec:
       {{- $oidc := dig "oidc" nil $.Values.kommodity }}
       {{- $oidcEnabled := and $oidc $oidc.enabled }}
       {{- $hasExtraConfigPatches := or $cpPatches $globalPatches $cpTaints $cpLabels $cpAnnotations $oidcEnabled }}
-      {{- if or $anyAddonEnabled $hasExtraConfigPatches $disableTalosNetwork }}
-      configPatches:
-      {{- end }}
-        - op: add
-          path: /cluster/inlineManifests
-          value:
+      {{- /* Get addon inline manifests as a list */ -}}
+      {{- $addonInlineManifests := list }}
       {{- if $anyAddonEnabled }}
-{{- include "kommodity.addonsInlineManifests" . | trim | nindent 12 }}
+        {{- $addonInlineManifests = (include "kommodity.addonsInlineManifestsList" . | fromJson).items }}
       {{- end }}
-      {{- if or $hasExtraConfigPatches $.Values.talos.installer $.Values.kommodity.logLevel }}
-{{- include "kommodity-cluster.combinedConfigPatches" (dict "globalConfigPatches" $globalPatches "nodepoolConfigPatches" $cpPatches "taints" $cpTaints "labels" $cpLabels "annotations" $cpAnnotations "oidc" $oidc "installer" $.Values.talos.installer "logLevel" $.Values.kommodity.logLevel) | trim | nindent 8 }}
+      {{- if or $anyAddonEnabled $hasExtraConfigPatches $disableTalosNetwork $.Values.talos.installer $.Values.kommodity.logLevel }}
+      configPatches:
+{{- include "kommodity-cluster.combinedConfigPatches" (dict "inlineManifests" $addonInlineManifests "globalConfigPatches" $globalPatches "nodepoolConfigPatches" $cpPatches "taints" $cpTaints "labels" $cpLabels "annotations" $cpAnnotations "oidc" $oidc "installer" $.Values.talos.installer "logLevel" $.Values.kommodity.logLevel) | trim | nindent 8 }}
       {{- end }}
       {{- if $.Values.talos.disableCNI }}
       {{- include "kommodity.talos.cni.disable" . | nindent 8 }}
