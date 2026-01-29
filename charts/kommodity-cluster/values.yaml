@@ -222,17 +222,7 @@ kommodity:
   global:
     # Configurations applied to all nodepools and controlplanes in the cluster
     # Using RFC6902 JSON Patch format: https://docs.siderolabs.com/talos/v1.11/configure-your-talos-cluster/system-configuration/patching#rfc6902-json-patches
-    configPatches:
-      - op: add
-        path: /cluster/inlineManifests
-        value:
-            - name: test-namespace
-              contents: |
-                ---
-                apiVersion: v1
-                kind: Namespace
-                metadata:
-                  name: test
+    configPatches: []
 
   controlplane:
     # Configurations related to the control plane nodes
