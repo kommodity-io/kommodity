@@ -147,22 +147,24 @@ For list values: concatenates the lists
 {{- end -}}
 
 {{/*
-Build combined config patches from global config patches, nodepool config patches, taints, labels, annotations, and inline manifests.
+Build combined config patches from global config patches, nodepool config patches, taints, labels, and annotations.
 Patches with the same op and path are merged together (dicts are merged, lists are concatenated).
+Note: /cluster/inlineManifests patches are skipped here and handled separately in controlplane.yaml
+to preserve YAML block scalar formatting for multi-line contents.
 */}}
 {{- define "kommodity-cluster.combinedConfigPatches" -}}
 {{- $patches := dict -}}
-{{- /* Collect inline manifests (from addons or other sources) */ -}}
-{{- if and .inlineManifests (gt (len .inlineManifests) 0) -}}
-{{- include "kommodity-cluster.addOrMergePatch" (dict "patches" $patches "op" "add" "path" "/cluster/inlineManifests" "value" .inlineManifests) -}}
-{{- end -}}
-{{- /* Collect global config patches */ -}}
+{{- /* Collect global config patches (skip /cluster/inlineManifests - handled separately) */ -}}
 {{- range .globalConfigPatches -}}
+{{- if ne .path "/cluster/inlineManifests" -}}
 {{- include "kommodity-cluster.addOrMergePatch" (dict "patches" $patches "op" .op "path" .path "value" .value) -}}
 {{- end -}}
-{{- /* Collect nodepool config patches */ -}}
+{{- end -}}
+{{- /* Collect nodepool config patches (skip /cluster/inlineManifests - handled separately) */ -}}
 {{- range .nodepoolConfigPatches -}}
+{{- if ne .path "/cluster/inlineManifests" -}}
 {{- include "kommodity-cluster.addOrMergePatch" (dict "patches" $patches "op" .op "path" .path "value" .value) -}}
+{{- end -}}
 {{- end -}}
 {{- /* Add taints patches */ -}}
 {{- $taints := .taints -}}
