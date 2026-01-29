@@ -2,6 +2,7 @@ package reconciler
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -17,6 +18,9 @@ const (
 	// RequeueAfter is the duration to wait before requeuing a request.
 	RequeueAfter = 10 * time.Second
 )
+
+// ErrClusterNotReady indicates the downstream cluster is not yet reachable.
+var ErrClusterNotReady = errors.New("downstream cluster not ready")
 
 // DownstreamClientConfig holds the configuration needed to create a Kubernetes client for downstream clusters.
 type DownstreamClientConfig struct {
@@ -77,6 +81,23 @@ func (c *DownstreamClientConfig) FetchDownstreamKubernetesClient(ctx context.Con
 	}
 
 	return downstreamClient, nil
+}
+
+// CheckClusterReady verifies the downstream cluster is reachable by attempting
+// to get the kube-system namespace. Returns ErrClusterNotReady if the cluster
+// is not yet accessible.
+func CheckClusterReady(ctx context.Context, kubeClient client.Client) error {
+	ns := &corev1.Namespace{}
+
+	err := kubeClient.Get(ctx, client.ObjectKey{Name: "kube-system"}, ns)
+	if err != nil {
+		logging.FromContext(ctx).Debug("Downstream cluster not ready",
+			zap.Error(err))
+
+		return fmt.Errorf("%w: %w", ErrClusterNotReady, err)
+	}
+
+	return nil
 }
 
 // ApplySecretToClient renders a secret template with the provided

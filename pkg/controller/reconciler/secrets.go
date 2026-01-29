@@ -8,6 +8,7 @@ import (
 	"github.com/kommodity-io/kommodity/pkg/logging"
 	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/cluster-api/util/predicates"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -67,10 +68,26 @@ func (r *ExtraSecretsManagerReconciler) Reconcile(ctx context.Context, req ctrl.
 		ClusterName: clusterName,
 	}).FetchDownstreamKubernetesClient(ctx)
 	if err != nil {
-		return ctrl.Result{
-			Requeue:      true,
-			RequeueAfter: RequeueAfter,
-		}, fmt.Errorf("failed to fetch kubeconfig from secret: %w", err)
+		if apierrors.IsNotFound(err) {
+			logger.Info("Cluster kubeconfig not ready yet, requeuing",
+				zap.String("clusterName", clusterName),
+				zap.Duration("requeueAfter", RequeueAfter))
+
+			return ctrl.Result{RequeueAfter: RequeueAfter}, nil
+		}
+
+		return ctrl.Result{}, fmt.Errorf("failed to fetch kubeconfig from secret: %w", err)
+	}
+
+	err = CheckClusterReady(ctx, kubeClient)
+	if err != nil {
+		logger.Info("Downstream cluster not ready yet, requeuing",
+			zap.String("clusterName", clusterName),
+			zap.Duration("requeueAfter", RequeueAfter))
+		
+		// When both a non-zero Result AND a non-nil error are returned, controller-runtime ignores the Result and uses its built-in exponential backoff for error handling.
+		// To avaid that, we return a nil error here.
+		return ctrl.Result{RequeueAfter: RequeueAfter}, nil
 	}
 
 	for key, value := range extraSecretSecret.StringData {
@@ -89,12 +106,12 @@ func (r *ExtraSecretsManagerReconciler) Reconcile(ctx context.Context, req ctrl.
 		if err != nil {
 			logger.Error("Failed to apply Extra Secret to client", zap.String("key", key), zap.Error(err))
 
-			return ctrl.Result{
-				Requeue:      true,
-				RequeueAfter: RequeueAfter,
-			}, fmt.Errorf("failed to apply Extra Secret to client for key %s: %w", key, err)
+			return ctrl.Result{}, fmt.Errorf("failed to apply Extra Secret to client for key %s: %w", key, err)
 		}
 	}
+
+	logger.Info("Successfully reconciled ExtraSecrets for cluster",
+		zap.String("clusterName", clusterName))
 
 	return ctrl.Result{}, nil
 }

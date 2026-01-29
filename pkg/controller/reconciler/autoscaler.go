@@ -216,14 +216,14 @@ func (r *AutoscalerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, fmt.Errorf("clusterName %w: %s", ErrValueNotFoundInConfigMap, req.String())
 	}
 
-	errResult, err := r.installAutoscaler(ctx, clusterName, ccmConfigMap.Data)
+	result, err := r.installAutoscaler(ctx, clusterName, ccmConfigMap.Data)
 	if err != nil {
 		logger.Error("Failed to install Autoscaler", zap.String("clusterName", clusterName), zap.Error(err))
 
-		return errResult, fmt.Errorf("failed to install Autoscaler for cluster %s: %w", clusterName, err)
+		return ctrl.Result{}, fmt.Errorf("failed to install Autoscaler for cluster %s: %w", clusterName, err)
 	}
 
-	return ctrl.Result{}, nil
+	return result, nil
 }
 
 //nolint:funlen // Primarily fetches values from the ConfigMap with proper error handling.
@@ -237,10 +237,24 @@ func (r *AutoscalerReconciler) installAutoscaler(ctx context.Context, clusterNam
 		ClusterName: clusterName,
 	}).FetchDownstreamKubernetesClient(ctx)
 	if err != nil {
-		return ctrl.Result{
-			Requeue:      true,
-			RequeueAfter: RequeueAfter,
-		}, fmt.Errorf("failed to fetch kubeconfig from secret: %w", err)
+		if apierrors.IsNotFound(err) {
+			logger.Info("Cluster kubeconfig not ready yet, requeuing",
+				zap.String("clusterName", clusterName),
+				zap.Duration("requeueAfter", RequeueAfter))
+
+			return ctrl.Result{RequeueAfter: RequeueAfter}, nil
+		}
+
+		return ctrl.Result{}, fmt.Errorf("failed to fetch kubeconfig from secret: %w", err)
+	}
+
+	err = CheckClusterReady(ctx, kubeClient)
+	if err != nil {
+		logger.Info("Downstream cluster not ready yet, requeuing",
+			zap.String("clusterName", clusterName),
+			zap.Duration("requeueAfter", RequeueAfter))
+
+		return ctrl.Result{RequeueAfter: RequeueAfter}, nil
 	}
 
 	namespace, success := configMapData["namespace"]
@@ -277,18 +291,20 @@ func (r *AutoscalerReconciler) installAutoscaler(ctx context.Context, clusterNam
 
 	err = autoscalerJob.PrepareForApply(ctx, r.cfg, clusterName)
 	if err != nil {
-		return ctrl.Result{
-			Requeue:      true,
-			RequeueAfter: RequeueAfter,
-		}, fmt.Errorf("failed to prepare Autoscaler Job: %w", err)
+		if apierrors.IsNotFound(err) {
+			logger.Info("Autoscaler secret not ready yet, requeuing",
+				zap.String("clusterName", clusterName),
+				zap.Duration("requeueAfter", RequeueAfter))
+
+			return ctrl.Result{RequeueAfter: RequeueAfter}, nil
+		}
+
+		return ctrl.Result{}, fmt.Errorf("failed to prepare Autoscaler Job: %w", err)
 	}
 
 	err = autoscalerJob.Apply(ctx, clusterName)
 	if err != nil {
-		return ctrl.Result{
-			Requeue:      true,
-			RequeueAfter: RequeueAfter,
-		}, fmt.Errorf("failed to apply Autoscaler Job: %w", err)
+		return ctrl.Result{}, fmt.Errorf("failed to apply Autoscaler Job: %w", err)
 	}
 
 	logger.Info("Successfully installed Autoscaler for cluster",
