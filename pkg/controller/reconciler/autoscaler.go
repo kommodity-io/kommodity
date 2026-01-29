@@ -226,7 +226,7 @@ func (r *AutoscalerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	return result, nil
 }
 
-//nolint:funlen // Primarily fetches values from the ConfigMap with proper error handling.
+//nolint:funlen,cyclop // Primarily fetches values from the ConfigMap with proper error handling.
 func (r *AutoscalerReconciler) installAutoscaler(ctx context.Context, clusterName string,
 	configMapData map[string]string) (ctrl.Result, error) {
 	logger := logging.FromContext(ctx)
@@ -254,6 +254,7 @@ func (r *AutoscalerReconciler) installAutoscaler(ctx context.Context, clusterNam
 			zap.String("clusterName", clusterName),
 			zap.Duration("requeueAfter", RequeueAfter))
 
+		//nolint:nilerr // intentionally return nil to avoid exponential backoff
 		return ctrl.Result{RequeueAfter: RequeueAfter}, nil
 	}
 

@@ -42,6 +42,7 @@ func (r *ExtraSecretsManagerReconciler) SetupWithManager(ctx context.Context,
 	return nil
 }
 
+//nolint:funlen // Handles multiple validation and error conditions for secret reconciliation.
 // Reconcile reconciles ExtraSecretsManagerReconciler resources.
 func (r *ExtraSecretsManagerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := logging.FromContext(ctx)
@@ -84,9 +85,8 @@ func (r *ExtraSecretsManagerReconciler) Reconcile(ctx context.Context, req ctrl.
 		logger.Info("Downstream cluster not ready yet, requeuing",
 			zap.String("clusterName", clusterName),
 			zap.Duration("requeueAfter", RequeueAfter))
-		
-		// When both a non-zero Result AND a non-nil error are returned, controller-runtime ignores the Result and uses its built-in exponential backoff for error handling.
-		// To avaid that, we return a nil error here.
+
+		//nolint:nilerr // intentionally return nil to avoid exponential backoff
 		return ctrl.Result{RequeueAfter: RequeueAfter}, nil
 	}
 
