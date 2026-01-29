@@ -10,4 +10,6 @@ var (
 	ErrValueNotFoundInSecret = errors.New("value not found in secret")
 	// ErrValueNotFoundInConfigMap is returned when a value is not found in a configmap.
 	ErrValueNotFoundInConfigMap = errors.New("value not found in configmap")
+	// ErrClusterNotReady indicates the downstream cluster is not yet reachable.
+	ErrClusterNotReady = errors.New("downstream cluster not ready")
 )
