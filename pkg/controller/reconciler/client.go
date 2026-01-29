@@ -2,7 +2,6 @@ package reconciler
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -18,9 +17,6 @@ const (
 	// RequeueAfter is the duration to wait before requeuing a request.
 	RequeueAfter = 10 * time.Second
 )
-
-// ErrClusterNotReady indicates the downstream cluster is not yet reachable.
-var ErrClusterNotReady = errors.New("downstream cluster not ready")
 
 // DownstreamClientConfig holds the configuration needed to create a Kubernetes client for downstream clusters.
 type DownstreamClientConfig struct {
