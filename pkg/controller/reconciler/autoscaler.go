@@ -226,7 +226,7 @@ func (r *AutoscalerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	return result, nil
 }
 
-//nolint:funlen,cyclop // Handles ConfigMap values, validates downstream cluster readiness, and installs the autoscaler, so some length and complexity are expected.
+//nolint:funlen,cyclop // Handles ConfigMap values, validates downstream cluster readiness, and installs the autoscaler.
 func (r *AutoscalerReconciler) installAutoscaler(ctx context.Context, clusterName string,
 	configMapData map[string]string) (ctrl.Result, error) {
 	logger := logging.FromContext(ctx)
