@@ -7,6 +7,10 @@
 {{- end }}
 {{- end }}
 
+{{/*
+Output inline manifest items for enabled addons as YAML text.
+This preserves proper YAML block scalar formatting for multi-line contents.
+*/}}
 {{- define "kommodity.addonsInlineManifests" -}}
 {{- $root := . -}}
 {{- range $name, $addon := $root.Values.kommodity.addons }}
@@ -103,15 +107,32 @@ spec:
       {{- $oidc := dig "oidc" nil $.Values.kommodity }}
       {{- $oidcEnabled := and $oidc $oidc.enabled }}
       {{- $hasExtraConfigPatches := or $cpPatches $globalPatches $cpTaints $cpLabels $cpAnnotations $oidcEnabled }}
-      {{- if or $anyAddonEnabled $hasExtraConfigPatches $disableTalosNetwork }}
+      {{- /* Check if user has /cluster/inlineManifests in global.configPatches */ -}}
+      {{- $userInlineManifests := list }}
+      {{- range $globalPatches }}
+        {{- if and (eq .op "add") (eq .path "/cluster/inlineManifests") }}
+          {{- $userInlineManifests = .value }}
+        {{- end }}
+      {{- end }}
+      {{- $hasInlineManifests := or $anyAddonEnabled (gt (len $userInlineManifests) 0) }}
+      {{- if or $hasInlineManifests $hasExtraConfigPatches $disableTalosNetwork $.Values.talos.installer $.Values.kommodity.logLevel }}
       configPatches:
       {{- end }}
+      {{- /* Output /cluster/inlineManifests patch with merged addon + user manifests */ -}}
+      {{- if $hasInlineManifests }}
         - op: add
           path: /cluster/inlineManifests
           value:
       {{- if $anyAddonEnabled }}
 {{- include "kommodity.addonsInlineManifests" . | trim | nindent 12 }}
       {{- end }}
+      {{- range $userInlineManifests }}
+            - name: {{ .name }}
+              contents: |
+{{ .contents | indent 16 }}
+      {{- end }}
+      {{- end }}
+      {{- /* Output other patches (excluding /cluster/inlineManifests which is handled above) */ -}}
       {{- if or $hasExtraConfigPatches $.Values.talos.installer $.Values.kommodity.logLevel }}
 {{- include "kommodity-cluster.combinedConfigPatches" (dict "globalConfigPatches" $globalPatches "nodepoolConfigPatches" $cpPatches "taints" $cpTaints "labels" $cpLabels "annotations" $cpAnnotations "oidc" $oidc "installer" $.Values.talos.installer "logLevel" $.Values.kommodity.logLevel) | trim | nindent 8 }}
       {{- end }}

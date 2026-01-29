@@ -123,7 +123,9 @@ Any values that should trigger a new Machine template when changed should be add
 
 {{/*
 Add or merge a patch into the patches dict.
-Takes: patches (dict), op (string), path (string), value (dict)
+Takes: patches (dict), op (string), path (string), value (dict or list)
+For dict values: merges the values together
+For list values: concatenates the lists
 */}}
 {{- define "kommodity-cluster.addOrMergePatch" -}}
 {{- $patches := .patches -}}
@@ -133,7 +135,12 @@ Takes: patches (dict), op (string), path (string), value (dict)
 {{- $key := printf "%s:%s" $op $path -}}
 {{- if hasKey $patches $key -}}
 {{- $existing := get $patches $key -}}
-{{- $_ := set $existing "value" (merge (get $existing "value") $value) -}}
+{{- $existingValue := get $existing "value" -}}
+{{- if and (kindIs "slice" $existingValue) (kindIs "slice" $value) -}}
+{{- $_ := set $existing "value" (concat $existingValue $value) -}}
+{{- else -}}
+{{- $_ := set $existing "value" (merge $existingValue $value) -}}
+{{- end -}}
 {{- else -}}
 {{- $_ := set $patches $key (dict "op" $op "path" $path "value" $value) -}}
 {{- end -}}
@@ -141,17 +148,23 @@ Takes: patches (dict), op (string), path (string), value (dict)
 
 {{/*
 Build combined config patches from global config patches, nodepool config patches, taints, labels, and annotations.
-Patches with the same op and path are merged together.
+Patches with the same op and path are merged together (dicts are merged, lists are concatenated).
+Note: /cluster/inlineManifests patches are skipped here and handled separately in controlplane.yaml
+to preserve YAML block scalar formatting for multi-line contents.
 */}}
 {{- define "kommodity-cluster.combinedConfigPatches" -}}
 {{- $patches := dict -}}
-{{- /* Collect global config patches */ -}}
+{{- /* Collect global config patches (skip /cluster/inlineManifests - handled separately) */ -}}
 {{- range .globalConfigPatches -}}
+{{- if ne .path "/cluster/inlineManifests" -}}
 {{- include "kommodity-cluster.addOrMergePatch" (dict "patches" $patches "op" .op "path" .path "value" .value) -}}
 {{- end -}}
-{{- /* Collect nodepool config patches */ -}}
+{{- end -}}
+{{- /* Collect nodepool config patches (skip /cluster/inlineManifests - handled separately) */ -}}
 {{- range .nodepoolConfigPatches -}}
+{{- if ne .path "/cluster/inlineManifests" -}}
 {{- include "kommodity-cluster.addOrMergePatch" (dict "patches" $patches "op" .op "path" .path "value" .value) -}}
+{{- end -}}
 {{- end -}}
 {{- /* Add taints patches */ -}}
 {{- $taints := .taints -}}
