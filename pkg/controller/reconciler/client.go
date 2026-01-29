@@ -79,6 +79,23 @@ func (c *DownstreamClientConfig) FetchDownstreamKubernetesClient(ctx context.Con
 	return downstreamClient, nil
 }
 
+// CheckClusterReady verifies the downstream cluster is reachable by attempting
+// to get the kube-system namespace. Returns ErrClusterNotReady if the cluster
+// is not yet accessible.
+func CheckClusterReady(ctx context.Context, kubeClient client.Client) error {
+	ns := &corev1.Namespace{}
+
+	err := kubeClient.Get(ctx, client.ObjectKey{Name: "kube-system"}, ns)
+	if err != nil {
+		logging.FromContext(ctx).Debug("Downstream cluster not ready",
+			zap.Error(err))
+
+		return fmt.Errorf("%w: %w", ErrClusterNotReady, err)
+	}
+
+	return nil
+}
+
 // ApplySecretToClient renders a secret template with the provided
 // secret data and applies it to the given Kubernetes client.
 func ApplySecretToClient(ctx context.Context, kubeClient client.Client, secret *corev1.Secret) error {
