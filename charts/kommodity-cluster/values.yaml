@@ -24,14 +24,15 @@ kommodity:
       fullnameOverride: "cluster-autoscaler"
       clusterScoped: true
 
-  # Cluster networking configuration using CG-NAT ranges: pods 10.64.0.0/11 (~2M IPs), nodes 100.112.0.0/12 (~1M IPs), services 100.96.0.0/12 (~1M IPs)
+  # Cluster networking configuration using CG-NAT ranges: pods 10.64.0.0/11 (~2M IPs), nodes 100.200.0.0/12 (~1M IPs), services 100.96.0.0/12 (~1M IPs)
   network:
     ipv4:
       enabled: true
       # Setting public to false will prevent the creation of a public network interface
       public: false
       # Setting nodeCIDR to an empty string will prevent the creation of a private network
-      nodeCIDR: 100.112.0.0/12
+      # Scaleway Private Networks require a prefix between /20 and /29
+      nodeCIDR: 10.200.0.0/20
     publicGateway:
       enabled: false
       # Optional: Commercial offer type (default: VPC-GW-S on Scaleway)
