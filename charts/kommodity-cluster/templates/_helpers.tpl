@@ -142,7 +142,7 @@ For list values: concatenates the lists
 {{- $_ := set $existing "value" (merge $existingValue $value) -}}
 {{- end -}}
 {{- else -}}
-{{- $_ := set $patches $key (dict "op" $op "path" $path "value" $value) -}}
+{{- $_ := set $patches $key (dict "op" $op "path" $path "value" (deepCopy $value)) -}}
 {{- end -}}
 {{- end -}}
 
