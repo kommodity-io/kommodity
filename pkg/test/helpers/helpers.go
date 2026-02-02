@@ -3,6 +3,7 @@ package helpers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -25,6 +26,9 @@ import (
 const (
 	postgresDefaultPort = "5432"
 	startupTimeout      = 10 * time.Second
+	pollInterval        = 5 * time.Second
+	writeTimeout        = 15 * time.Second
+	filePermission      = 0o600
 )
 
 // TestEnvironment holds the containers and connection info for the test setup.
@@ -119,6 +123,7 @@ func startKommodityContainer(ctx context.Context, networkName string) (tc.Contai
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get host where Kommodity container port is exposed: %w", err)
 	}
+
 	kommodityPort, err := kommodity.MappedPort(ctx, "5000")
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get externally mapped port for Kommodity container port: %w", err)
@@ -139,13 +144,16 @@ func FindRepoRoot() (string, error) {
 	}
 
 	for {
-		if _, err := os.Stat(filepath.Join(dir, ".git")); err == nil {
+		_, err := os.Stat(filepath.Join(dir, ".git"))
+		if err == nil {
 			return dir, nil
 		}
+
 		parent := filepath.Dir(dir)
 		if parent == dir {
 			break
 		}
+
 		dir = parent
 	}
 
@@ -165,7 +173,7 @@ func (e TestEnvironment) Teardown() {
 func WaitForK8sResource(config *rest.Config, namespace string, nameContains string, group string, version string, kind string, fieldPath string, fieldValue string, timeout time.Duration) error {
 	client, err := dynamic.NewForConfig(config)
 	if err != nil {
-		return fmt.Errorf("failed to create dynamic client: %v", err)
+		return fmt.Errorf("failed to create dynamic client: %w", err)
 	}
 
 	gvr := schema.GroupVersionResource{
@@ -177,44 +185,53 @@ func WaitForK8sResource(config *rest.Config, namespace string, nameContains stri
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	err = k8s_wait.PollUntilContextTimeout(ctx, 5*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
+	err = k8s_wait.PollUntilContextTimeout(ctx, pollInterval, timeout, true, func(ctx context.Context) (bool, error) {
 		println(fmt.Sprintf("Waiting for resource %s/%s/%s in namespace %s (name contains: %q, field %q=%q)", group, version, kind, namespace, nameContains, fieldPath, fieldValue))
+
 		list, err := client.Resource(gvr).Namespace(namespace).List(ctx, metav1.ListOptions{})
 		if err != nil {
 			return false, err
 		}
+
 		for _, item := range list.Items {
 			if nameContains != "" && !strings.Contains(item.GetName(), nameContains) {
 				continue
 			}
+
 			if fieldPath != "" {
 				parts := strings.Split(fieldPath, ".")
+
 				value, found, err := unstructured.NestedString(item.Object, parts...)
 				if err != nil || !found || value != fieldValue {
 					continue
 				}
 			}
+
 			if fieldValue != "" && fieldPath == "" {
 				continue
 			}
+
 			return true, nil
 		}
+
 		return false, nil
 	})
 	if err != nil {
-		return fmt.Errorf("resource %s/%s/%s not found in namespace %s within timeout (name contains: %q, field %q=%q): %v", group, version, kind, namespace, nameContains, fieldPath, fieldValue, err)
+		return fmt.Errorf("resource %s/%s/%s not found in namespace %s within timeout (name contains: %q, field %q=%q): %w", group, version, kind, namespace, nameContains, fieldPath, fieldValue, err)
 	}
 
 	println(fmt.Sprintf("Resource %s/%s/%s found in namespace %s (name contains: %q, field %q=%q)", group, version, kind, namespace, nameContains, fieldPath, fieldValue))
+
 	return nil
 }
 
+// WriteKommodityLogsToFile retrieves the logs from the Kommodity container and writes them to the specified file.
 func WriteKommodityLogsToFile(container tc.Container, filePath string) error {
 	if container == nil {
-		return fmt.Errorf("container is nil")
+		return errors.New("container is nil")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), writeTimeout)
 	defer cancel()
 
 	logsReader, err := container.Logs(ctx)
@@ -228,7 +245,8 @@ func WriteKommodityLogsToFile(container tc.Container, filePath string) error {
 		return fmt.Errorf("failed to read Kommodity logs: %w", err)
 	}
 
-	if err := os.WriteFile(filePath, data, 0o644); err != nil {
+	err = os.WriteFile(filePath, data, filePermission)
+	if err != nil {
 		return fmt.Errorf("failed to write Kommodity logs to file: %w", err)
 	}
 

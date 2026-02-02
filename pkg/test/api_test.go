@@ -1,4 +1,4 @@
-package test
+package integration_test
 
 import (
 	"context"
@@ -27,6 +27,7 @@ const (
 func TestMain(m *testing.M) {
 	// --- Setup ---
 	var err error
+
 	env, err = helpers.SetupContainers()
 	if err != nil {
 		fmt.Println("Failed to set up test containers:", err)
@@ -38,7 +39,11 @@ func TestMain(m *testing.M) {
 	code := m.Run()
 
 	if code != 0 {
-		helpers.WriteKommodityLogsToFile(env.Kommodity, kommodityLogFile)
+		err := helpers.WriteKommodityLogsToFile(env.Kommodity, kommodityLogFile)
+		if err != nil {
+			log.Printf("Failed to write Kommodity container logs to file: %v", err)
+		}
+
 		log.Printf("Kommodity container logs written to %s for debugging", kommodityLogFile)
 	}
 
@@ -57,14 +62,17 @@ func TestAPIIntegration(t *testing.T) {
 	require.NoError(t, err)
 
 	var coreGroupVersions []string
+
 	for _, group := range groups.Groups {
 		if group.Name == "" {
 			for _, version := range group.Versions {
 				coreGroupVersions = append(coreGroupVersions, version.Version)
 			}
+
 			break
 		}
 	}
+
 	require.Contains(t, coreGroupVersions, "v1")
 }
 
@@ -73,6 +81,7 @@ func TestCreateScalewayCluster(t *testing.T) {
 
 	client, err := kubernetes.NewForConfig(env.KommodityCfg)
 	require.NoError(t, err)
+
 	ctx := context.Background()
 
 	// Ensure default namespace exists

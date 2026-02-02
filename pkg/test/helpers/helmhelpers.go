@@ -49,13 +49,12 @@ func InstallKommodityClusterChart(t *testing.T, env TestEnvironment, releaseName
 		}
 		// Set SKU for control plane to cheapest one
 		if controlplane, ok := kommoditySection["controlplane"].(map[string]interface{}); ok {
-				controlplane["sku"] = "DEV1-S"
+			controlplane["sku"] = "DEV1-S"
 		}
 		// Set projectID in provider config
 		if provider, ok := kommoditySection["provider"].(map[string]interface{}); ok {
 			if config, ok := provider["config"].(map[string]interface{}); ok {
 				config["projectID"] = scalewayProjectID
-
 			}
 		}
 

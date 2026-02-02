@@ -13,7 +13,7 @@ import (
 
 // WaitForScalewayServers checks for the existence of servers in Scaleway using the provided credentials.
 func WaitForScalewayServers(clusterName, scalewayAccessKey, scalewaySecretKey, scalewayDefaultRegion, scalewayDefaultZone, scalewayProjectID string, instanceCount int, timeout time.Duration) error {
-	instanceApi, err := getInstanceAPI(scalewayAccessKey, scalewaySecretKey, scalewayDefaultRegion, scalewayDefaultZone, scalewayProjectID)
+	instanceAPI, err := getInstanceAPI(scalewayAccessKey, scalewaySecretKey, scalewayDefaultRegion, scalewayDefaultZone, scalewayProjectID)
 	if err != nil {
 		return fmt.Errorf("failed to get instance API: %w", err)
 	}
@@ -22,32 +22,35 @@ func WaitForScalewayServers(clusterName, scalewayAccessKey, scalewaySecretKey, s
 	defer cancel()
 
 	requestOptions := instance.ListServersRequest{
-		Tags: []string{fmt.Sprintf("caps-scalewaycluster=%s", clusterName)},
+		Tags: []string{"caps-scalewaycluster=" + clusterName},
 	}
 
-	err = k8s_wait.PollUntilContextTimeout(ctx, 5*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
-		response, err := instanceApi.ListServers(&requestOptions)
+	err = k8s_wait.PollUntilContextTimeout(ctx, pollInterval, timeout, true, func(_ context.Context) (bool, error) {
+		response, err := instanceAPI.ListServers(&requestOptions)
 		if err != nil {
 			return false, fmt.Errorf("failed to list Scaleway servers: %w", err)
 		}
 
 		if len(response.Servers) < instanceCount {
-			println(fmt.Sprintf("Found %d servers in Scaleway. Waiting for %d", len(response.Servers), instanceCount))
+			fmt.Printf("Found %d servers in Scaleway. Waiting for %d", len(response.Servers), instanceCount)
+
 			return false, nil
 		}
+
 		if len(response.Servers) == instanceCount {
-			println(fmt.Sprintf("Found %d servers in Scaleway", len(response.Servers)))
+			fmt.Printf("Found %d servers in Scaleway", len(response.Servers))
+
 			return true, nil
 		}
+
 		if len(response.Servers) > instanceCount {
 			return false, fmt.Errorf("found more servers (%d) than expected (%d) in Scaleway", len(response.Servers), instanceCount)
 		}
 
-		return false, fmt.Errorf("This shouldn't happen")
+		return false, fmt.Errorf("this shouldn't happen")
 	})
-
 	if err != nil {
-		return fmt.Errorf("%d servers not found in Scaleway within timeout: %v", instanceCount, err)
+		return fmt.Errorf("%d servers not found in Scaleway within timeout: %w", instanceCount, err)
 	}
 
 	return nil
@@ -55,7 +58,7 @@ func WaitForScalewayServers(clusterName, scalewayAccessKey, scalewaySecretKey, s
 
 // WaitForScalewayServersDeletion waits until all servers in Scaleway are deleted using the provided credentials.
 func WaitForScalewayServersDeletion(clusterName, scalewayAccessKey, scalewaySecretKey, scalewayDefaultRegion, scalewayDefaultZone, scalewayProjectID string, timeout time.Duration) error {
-	instanceApi, err := getInstanceAPI(scalewayAccessKey, scalewaySecretKey, scalewayDefaultRegion, scalewayDefaultZone, scalewayProjectID)
+	instanceAPI, err := getInstanceAPI(scalewayAccessKey, scalewaySecretKey, scalewayDefaultRegion, scalewayDefaultZone, scalewayProjectID)
 	if err != nil {
 		return fmt.Errorf("failed to get instance API: %w", err)
 	}
@@ -64,11 +67,11 @@ func WaitForScalewayServersDeletion(clusterName, scalewayAccessKey, scalewaySecr
 	defer cancel()
 
 	requestOptions := instance.ListServersRequest{
-		Tags: []string{fmt.Sprintf("caps-scalewaycluster=%s", clusterName)},
+		Tags: []string{"caps-scalewaycluster=" + clusterName},
 	}
 
-	err = k8s_wait.PollUntilContextTimeout(ctx, 5*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
-		response, err := instanceApi.ListServers(&requestOptions)
+	err = k8s_wait.PollUntilContextTimeout(ctx, pollInterval, timeout, true, func(_ context.Context) (bool, error) {
+		response, err := instanceAPI.ListServers(&requestOptions)
 		if err != nil {
 			return false, fmt.Errorf("failed to list Scaleway servers: %w", err)
 		}
@@ -76,7 +79,8 @@ func WaitForScalewayServersDeletion(clusterName, scalewayAccessKey, scalewaySecr
 		serverCount := len(response.Servers)
 
 		if serverCount == 0 {
-			log.Println("All Scaleway servers have been deleted")
+			fmt.Println("All Scaleway servers have been deleted")
+
 			return true, nil
 		}
 
@@ -85,37 +89,36 @@ func WaitForScalewayServersDeletion(clusterName, scalewayAccessKey, scalewaySecr
 		return false, nil
 	})
 	if err != nil {
-		return fmt.Errorf("Scaleway servers were not deleted within the timeout: %w", err)
+		return fmt.Errorf("scaleway servers were not deleted within the timeout: %w", err)
 	}
 
 	return nil
 }
 
-// Not used but keeping if needed in the future.
 // DeleteAllScalewayServers deletes all servers in a Scaleway Project using the provided credentials.
 func DeleteAllScalewayServers(scalewayAccessKey, scalewaySecretKey, scalewayDefaultRegion, scalewayProjectID string) error {
-
 	// Get available zones in the region
 	region, err := scw.ParseRegion(scalewayDefaultRegion)
 	if err != nil {
 		return fmt.Errorf("invalid region provided: %s", scalewayDefaultRegion)
 	}
+
 	zones := region.GetZones()
 
 	for _, zone := range zones {
-		instanceApi, err := getInstanceAPI(scalewayAccessKey, scalewaySecretKey, scalewayDefaultRegion, string(zone), scalewayProjectID)
+		instanceAPI, err := getInstanceAPI(scalewayAccessKey, scalewaySecretKey, scalewayDefaultRegion, string(zone), scalewayProjectID)
 		if err != nil {
 			return fmt.Errorf("failed to get instance API for zone %s: %w", zone, err)
 		}
 
-		response, err := instanceApi.ListServers(&instance.ListServersRequest{})
+		response, err := instanceAPI.ListServers(&instance.ListServersRequest{})
 		if err != nil {
 			return fmt.Errorf("failed to list Scaleway servers in zone %s: %w", zone, err)
 		}
 
 		for _, server := range response.Servers {
 			if server.State == instance.ServerStateRunning {
-				err := instanceApi.ServerActionAndWait(&instance.ServerActionAndWaitRequest{
+				err := instanceAPI.ServerActionAndWait(&instance.ServerActionAndWaitRequest{
 					ServerID: server.ID,
 					Action:   instance.ServerActionPoweroff,
 					Zone:     zone,
@@ -125,12 +128,13 @@ func DeleteAllScalewayServers(scalewayAccessKey, scalewaySecretKey, scalewayDefa
 				}
 			}
 
-			err = instanceApi.DeleteServer(&instance.DeleteServerRequest{
+			err = instanceAPI.DeleteServer(&instance.DeleteServerRequest{
 				ServerID: server.ID,
 			})
 			if err != nil {
 				return fmt.Errorf("failed to delete Scaleway server %s in zone %s: %w", server.ID, zone, err)
 			}
+
 			log.Printf("Deleted Scaleway server %s in zone %s", server.ID, zone)
 		}
 	}
@@ -159,7 +163,7 @@ func getInstanceAPI(scalewayAccessKey, scalewaySecretKey, scalewayDefaultRegion,
 		return nil, fmt.Errorf("failed to create Scaleway client: %w", err)
 	}
 
-	instanceApi := instance.NewAPI(scwClient)
+	instanceAPI := instance.NewAPI(scwClient)
 
-	return instanceApi, nil
+	return instanceAPI, nil
 }

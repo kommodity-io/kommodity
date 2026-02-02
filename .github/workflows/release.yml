@@ -210,7 +210,7 @@ jobs:
           cover-pkg: ./...
 
       - name: Run integration tests
-        run: run-integration-test
+        run: make run-integration-test
         env:
           SCW_ACCESS_KEY: ${{ secrets.SCW_ACCESS_KEY }}
           SCW_SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
