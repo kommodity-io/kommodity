@@ -2,9 +2,22 @@
 set -e
 
 CLUSTER_NAME=$1
+SOURCE_KUBECONFIG=$2
+
 if [ -z "$CLUSTER_NAME" ]; then
-  echo "Usage: $0 <cluster-name>"
+  echo "Usage: $0 <cluster-name> [kubeconfig]"
+  echo "  kubeconfig: Optional path to kubeconfig for fetching the secret"
   exit 1
+fi
+
+# Build kubectl args for source kubeconfig
+KUBECTL_ARGS=""
+if [ -n "$SOURCE_KUBECONFIG" ]; then
+  if [ ! -f "$SOURCE_KUBECONFIG" ]; then
+    echo "Error: Source kubeconfig '$SOURCE_KUBECONFIG' not found"
+    exit 1
+  fi
+  KUBECTL_ARGS="--kubeconfig=$SOURCE_KUBECONFIG"
 fi
 
 TEMP_KUBECONFIG=$(mktemp)
@@ -12,14 +25,14 @@ KUBE_DIR="$HOME/.kube"
 KUBE_CONFIG="$KUBE_DIR/config"
 
 # Fetch the kubeconfig from the secret
-if ! kubectl get secrets "${CLUSTER_NAME}-kubeconfig" &>/dev/null; then
+if ! kubectl $KUBECTL_ARGS get secrets "${CLUSTER_NAME}-kubeconfig" &>/dev/null; then
   echo "Error: Could not find secret '${CLUSTER_NAME}-kubeconfig'"
   echo "Make sure you are on the Kommodity context."
   rm -f "$TEMP_KUBECONFIG"
   exit 1
 fi
 
-kubectl get secrets "${CLUSTER_NAME}-kubeconfig" -ojson | jq -r '.data.value' | base64 -d > "$TEMP_KUBECONFIG"
+kubectl $KUBECTL_ARGS get secrets "${CLUSTER_NAME}-kubeconfig" -ojson | jq -r '.data.value' | base64 -d > "$TEMP_KUBECONFIG"
 
 # Check if context already exists
 if [ -f "$KUBE_CONFIG" ]; then
