@@ -24,13 +24,28 @@ kommodity:
       fullnameOverride: "cluster-autoscaler"
       clusterScoped: true
 
+  # Cluster networking configuration using CG-NAT ranges: pods 10.64.0.0/11 (~2M IPs), nodes 10.200.0.0/20 (~4K IPs), services 100.96.0.0/12 (~1M IPs)
   network:
     ipv4:
-      enabled: false
+      enabled: true
+      # Setting public to false will prevent the creation of a public network interface
       public: false
+      # Setting nodeCIDR to an empty string will prevent the creation of a private network
+      # Scaleway Private Networks require a prefix between /20 and /29
+      nodeCIDR: 10.200.0.0/20
+    publicGateway:
+      enabled: false
+      # Optional: Commercial offer type (default: VPC-GW-S on Scaleway)
+      # type: VPC-GW-S
+      # Optional: Zone for the gateway (defaults to first zone in region)
+      # zone: fr-par-1
+      # Optional: Pre-existing IP to use for the gateway
+      # ip: ""
     cluster:
       podCIDR:
-        - 10.244.0.0/16
+        - 100.64.0.0/11
+      serviceCIDR:
+        - 100.96.0.0/12
 
   extraSecrets:
     {}
@@ -287,10 +302,28 @@ kommodity:
     #       status: "False"
     #       timeout: 300s
 
+  # Logging verbosity: debug, info, warn, error (set as LOG_LEVEL env var)
+  logLevel: warn
+
 # Configurations related to Talos
 talos:
   version: v1.11.3
   imageName: my-talos-image
+  # installer:
+  #   imageName: kommodity-talos-installer:v1.11.3
+  #   repository: ghcr.io/kommodity-io
+  # autoBootstrap:
+  #   # Network discovery frequency
+  #   scanInterval: 30s
+  #   # Expected number of control plane nodes required for quorum before bootstrapping
+  #   quorumNodes: 1
+  #   # Leader wait time before executing bootstrap
+  #   preBootstrapDelay: 10s
+  #   # Maximum retry backoff period
+  #   maxBackoff: 2m
+  #   # Node probe timeout
+  #   scanTimeout: 2s
+
   # If true, the Talos CNI will be disabled. Useful when using a different CNI such as Cilium.
   disableCNI: true
   # If true, the Talos built-in kube-proxy will be disabled. Useful when using a different CNI such as Cilium.

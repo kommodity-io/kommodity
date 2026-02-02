@@ -25,7 +25,7 @@ on:
         type: boolean
 
 env:
-  REGISTRY: ghcr.io
+  REGISTRY: ghcr.io/kommodity-io
   IMAGE_NAME: kommodity-talos-installer
 
 jobs:

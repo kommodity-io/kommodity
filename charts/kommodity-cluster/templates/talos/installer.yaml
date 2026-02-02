@@ -1,0 +1,17 @@
+{{/*
+Returns the Talos installer image URL as a string.
+See: https://docs.siderolabs.com/talos/v1.12/reference/configuration/v1alpha1/config#install
+*/}}
+{{- define "kommodity.talos.installer.image" -}}
+{{- $installer := .installer -}}
+{{- printf "%s/%s" $installer.repository $installer.imageName -}}
+{{- end -}}
+
+{{/*
+Returns global Kommodity environment variables as JSON.
+Used by combinedConfigPatches to merge with other machine.env patches.
+*/}}
+{{- define "kommodity.talos.globalEnv" -}}
+{{- $env := dict "LOG_LEVEL" .logLevel -}}
+{{- $env | toJson -}}
+{{- end -}}

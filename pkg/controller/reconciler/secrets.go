@@ -8,6 +8,7 @@ import (
 	"github.com/kommodity-io/kommodity/pkg/logging"
 	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/cluster-api/util/predicates"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -41,6 +42,7 @@ func (r *ExtraSecretsManagerReconciler) SetupWithManager(ctx context.Context,
 	return nil
 }
 
+//nolint:funlen // Handles multiple validation and error conditions for secret reconciliation.
 // Reconcile reconciles ExtraSecretsManagerReconciler resources.
 func (r *ExtraSecretsManagerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := logging.FromContext(ctx)
@@ -67,10 +69,25 @@ func (r *ExtraSecretsManagerReconciler) Reconcile(ctx context.Context, req ctrl.
 		ClusterName: clusterName,
 	}).FetchDownstreamKubernetesClient(ctx)
 	if err != nil {
-		return ctrl.Result{
-			Requeue:      true,
-			RequeueAfter: RequeueAfter,
-		}, fmt.Errorf("failed to fetch kubeconfig from secret: %w", err)
+		if apierrors.IsNotFound(err) {
+			logger.Info("Cluster kubeconfig not ready yet, requeuing",
+				zap.String("clusterName", clusterName),
+				zap.Duration("requeueAfter", RequeueAfter))
+
+			return ctrl.Result{RequeueAfter: RequeueAfter}, nil
+		}
+
+		return ctrl.Result{}, fmt.Errorf("failed to fetch kubeconfig from secret: %w", err)
+	}
+
+	err = CheckClusterReady(ctx, kubeClient)
+	if err != nil {
+		logger.Info("Downstream cluster not ready yet, requeuing",
+			zap.String("clusterName", clusterName),
+			zap.Duration("requeueAfter", RequeueAfter))
+
+		//nolint:nilerr // intentionally return nil to avoid exponential backoff
+		return ctrl.Result{RequeueAfter: RequeueAfter}, nil
 	}
 
 	for key, value := range extraSecretSecret.StringData {
@@ -89,12 +106,12 @@ func (r *ExtraSecretsManagerReconciler) Reconcile(ctx context.Context, req ctrl.
 		if err != nil {
 			logger.Error("Failed to apply Extra Secret to client", zap.String("key", key), zap.Error(err))
 
-			return ctrl.Result{
-				Requeue:      true,
-				RequeueAfter: RequeueAfter,
-			}, fmt.Errorf("failed to apply Extra Secret to client for key %s: %w", key, err)
+			return ctrl.Result{}, fmt.Errorf("failed to apply Extra Secret to client for key %s: %w", key, err)
 		}
 	}
+
+	logger.Info("Successfully reconciled ExtraSecrets for cluster",
+		zap.String("clusterName", clusterName))
 
 	return ctrl.Result{}, nil
 }

@@ -1,0 +1,19 @@
+{{/*
+Returns the autoBootstrap ExtensionServiceConfig as a strategic merge patch.
+This configures environment variables for the kommodity-autobootstrap extension service.
+*/}}
+{{- define "kommodity.talos.autoBootstrapExtensionServiceConfig" -}}
+{{- $autoBootstrap := .autoBootstrap -}}
+{{- $logLevel := .logLevel -}}
+- |
+  apiVersion: v1alpha1
+  kind: ExtensionServiceConfig
+  name: kommodity-autobootstrap
+  environment:
+    - LOG_LEVEL={{ $logLevel }}
+    - TALOS_AUTO_BOOTSTRAP_SCAN_INTERVAL={{ $autoBootstrap.scanInterval }}
+    - TALOS_AUTO_BOOTSTRAP_QUORUM_NODES={{ $autoBootstrap.quorumNodes }}
+    - TALOS_AUTO_BOOTSTRAP_PRE_BOOTSTRAP_DELAY={{ $autoBootstrap.preBootstrapDelay }}
+    - TALOS_AUTO_BOOTSTRAP_MAX_BACKOFF={{ $autoBootstrap.maxBackoff }}
+    - TALOS_AUTO_BOOTSTRAP_SCAN_TIMEOUT={{ $autoBootstrap.scanTimeout }}
+{{- end -}}
