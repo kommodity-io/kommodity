@@ -2,6 +2,7 @@ package helpers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"time"
@@ -12,8 +13,15 @@ import (
 )
 
 // WaitForScalewayServers checks for the existence of servers in Scaleway using the provided credentials.
-func WaitForScalewayServers(clusterName, scalewayAccessKey, scalewaySecretKey, scalewayDefaultRegion, scalewayDefaultZone, scalewayProjectID string, instanceCount int, timeout time.Duration) error {
-	instanceAPI, err := getInstanceAPI(scalewayAccessKey, scalewaySecretKey, scalewayDefaultRegion, scalewayDefaultZone, scalewayProjectID)
+func WaitForScalewayServers(
+	clusterName, scalewayAccessKey, scalewaySecretKey, scalewayDefaultRegion string,
+	scalewayDefaultZone, scalewayProjectID string,
+	instanceCount int,
+	timeout time.Duration,
+) error {
+	instanceAPI, err := getInstanceAPI(
+		scalewayAccessKey, scalewaySecretKey, scalewayDefaultRegion, scalewayDefaultZone, scalewayProjectID,
+	)
 	if err != nil {
 		return fmt.Errorf("failed to get instance API: %w", err)
 	}
@@ -32,13 +40,13 @@ func WaitForScalewayServers(clusterName, scalewayAccessKey, scalewaySecretKey, s
 		}
 
 		if len(response.Servers) < instanceCount {
-			fmt.Printf("Found %d servers in Scaleway. Waiting for %d", len(response.Servers), instanceCount)
+			log.Printf("Found %d servers in Scaleway. Waiting for %d", len(response.Servers), instanceCount)
 
 			return false, nil
 		}
 
 		if len(response.Servers) == instanceCount {
-			fmt.Printf("Found %d servers in Scaleway", len(response.Servers))
+			log.Printf("Found %d servers in Scaleway", len(response.Servers))
 
 			return true, nil
 		}
@@ -47,7 +55,7 @@ func WaitForScalewayServers(clusterName, scalewayAccessKey, scalewaySecretKey, s
 			return false, fmt.Errorf("found more servers (%d) than expected (%d) in Scaleway", len(response.Servers), instanceCount)
 		}
 
-		return false, fmt.Errorf("this shouldn't happen")
+		return false, errors.New("this shouldn't happen")
 	})
 	if err != nil {
 		return fmt.Errorf("%d servers not found in Scaleway within timeout: %w", instanceCount, err)
@@ -57,8 +65,14 @@ func WaitForScalewayServers(clusterName, scalewayAccessKey, scalewaySecretKey, s
 }
 
 // WaitForScalewayServersDeletion waits until all servers in Scaleway are deleted using the provided credentials.
-func WaitForScalewayServersDeletion(clusterName, scalewayAccessKey, scalewaySecretKey, scalewayDefaultRegion, scalewayDefaultZone, scalewayProjectID string, timeout time.Duration) error {
-	instanceAPI, err := getInstanceAPI(scalewayAccessKey, scalewaySecretKey, scalewayDefaultRegion, scalewayDefaultZone, scalewayProjectID)
+func WaitForScalewayServersDeletion(
+	clusterName, scalewayAccessKey, scalewaySecretKey, scalewayDefaultRegion string,
+	scalewayDefaultZone, scalewayProjectID string,
+	timeout time.Duration,
+) error {
+	instanceAPI, err := getInstanceAPI(
+		scalewayAccessKey, scalewaySecretKey, scalewayDefaultRegion, scalewayDefaultZone, scalewayProjectID,
+	)
 	if err != nil {
 		return fmt.Errorf("failed to get instance API: %w", err)
 	}
@@ -79,7 +93,7 @@ func WaitForScalewayServersDeletion(clusterName, scalewayAccessKey, scalewaySecr
 		serverCount := len(response.Servers)
 
 		if serverCount == 0 {
-			fmt.Println("All Scaleway servers have been deleted")
+			log.Printf("All Scaleway servers have been deleted")
 
 			return true, nil
 		}
@@ -96,7 +110,9 @@ func WaitForScalewayServersDeletion(clusterName, scalewayAccessKey, scalewaySecr
 }
 
 // DeleteAllScalewayServers deletes all servers in a Scaleway Project using the provided credentials.
-func DeleteAllScalewayServers(scalewayAccessKey, scalewaySecretKey, scalewayDefaultRegion, scalewayProjectID string) error {
+func DeleteAllScalewayServers(
+	scalewayAccessKey, scalewaySecretKey, scalewayDefaultRegion, scalewayProjectID string,
+) error {
 	// Get available zones in the region
 	region, err := scw.ParseRegion(scalewayDefaultRegion)
 	if err != nil {
@@ -106,7 +122,9 @@ func DeleteAllScalewayServers(scalewayAccessKey, scalewaySecretKey, scalewayDefa
 	zones := region.GetZones()
 
 	for _, zone := range zones {
-		instanceAPI, err := getInstanceAPI(scalewayAccessKey, scalewaySecretKey, scalewayDefaultRegion, string(zone), scalewayProjectID)
+		instanceAPI, err := getInstanceAPI(
+			scalewayAccessKey, scalewaySecretKey, scalewayDefaultRegion, string(zone), scalewayProjectID,
+		)
 		if err != nil {
 			return fmt.Errorf("failed to get instance API for zone %s: %w", zone, err)
 		}
@@ -142,7 +160,9 @@ func DeleteAllScalewayServers(scalewayAccessKey, scalewaySecretKey, scalewayDefa
 	return nil
 }
 
-func getInstanceAPI(scalewayAccessKey, scalewaySecretKey, scalewayDefaultRegion, scalewayDefaultZone, scalewayProjectID string) (*instance.API, error) {
+func getInstanceAPI(
+	scalewayAccessKey, scalewaySecretKey, scalewayDefaultRegion, scalewayDefaultZone, scalewayProjectID string,
+) (*instance.API, error) {
 	// Convert SCW_DEFAULT_REGION to instance.Region
 	region, err := scw.ParseRegion(scalewayDefaultRegion)
 	if err != nil {

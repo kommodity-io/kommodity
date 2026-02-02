@@ -2,7 +2,6 @@ package integration_test
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"os"
 	"testing"
@@ -30,7 +29,7 @@ func TestMain(m *testing.M) {
 
 	env, err = helpers.SetupContainers()
 	if err != nil {
-		fmt.Println("Failed to set up test containers:", err)
+		log.Println("Failed to set up test containers:", err)
 		env.Teardown()
 		os.Exit(1)
 	}
@@ -129,14 +128,17 @@ func TestCreateScalewayCluster(t *testing.T) {
 	log.Printf("Using project ID %s", scalewayProjectID)
 
 	// Install Scaleway cluster helm chart in Kommodity
-	scalewayDefaultZone := helpers.InstallKommodityClusterChart(t, env, clusterName, "default", "values.scaleway.yaml", scalewayProjectID)
+	scalewayDefaultZone := helpers.InstallKommodityClusterChart(t, env,
+		clusterName, "default", "values.scaleway.yaml", scalewayProjectID)
 
 	// Check that CAPI resources are created in Kommodity
-	err = helpers.WaitForK8sResource(env.KommodityCfg, "default", "worker", "cluster.x-k8s.io", "v1beta1", "machines", "", "", 2*time.Minute)
+	err = helpers.WaitForK8sResource(env.KommodityCfg, "default", "worker",
+		"cluster.x-k8s.io", "v1beta1", "machines", "", "", 2*time.Minute)
 	require.NoError(t, err)
 
 	// Check that Scaleway resources are created
-	err = helpers.WaitForScalewayServers(clusterName, scalewayAccessKey, scalewaySecretKey, scalewayDefaultRegion, scalewayDefaultZone, scalewayProjectID, 2, 3*time.Minute)
+	err = helpers.WaitForScalewayServers(clusterName, scalewayAccessKey,
+		scalewaySecretKey, scalewayDefaultRegion, scalewayDefaultZone, scalewayProjectID, 2, 3*time.Minute)
 	require.NoError(t, err)
 
 	// Uninstall cluster chart
@@ -144,6 +146,7 @@ func TestCreateScalewayCluster(t *testing.T) {
 	helpers.UninstallKommodityClusterChart(t, env, clusterName, "default")
 
 	// Check that Scaleway resources are deleted
-	err = helpers.WaitForScalewayServersDeletion(clusterName, scalewayAccessKey, scalewaySecretKey, scalewayDefaultRegion, scalewayDefaultZone, scalewayProjectID, 3*time.Minute)
+	err = helpers.WaitForScalewayServersDeletion(clusterName, scalewayAccessKey,
+		scalewaySecretKey, scalewayDefaultRegion, scalewayDefaultZone, scalewayProjectID, 3*time.Minute)
 	require.NoError(t, err)
 }

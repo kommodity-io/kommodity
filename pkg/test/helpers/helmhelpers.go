@@ -12,7 +12,8 @@ import (
 )
 
 // InstallKommodityClusterChart installs the kommodity-cluster helm chart with the specified parameters.
-func InstallKommodityClusterChart(t *testing.T, env TestEnvironment, releaseName string, namespace string, valuesFile string, scalewayProjectID string) string {
+func InstallKommodityClusterChart(t *testing.T, env TestEnvironment,
+	releaseName string, namespace string, valuesFile string, scalewayProjectID string) string {
 	t.Helper()
 
 	repoRoot, err := FindRepoRoot()

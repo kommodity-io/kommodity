@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"os"
 	"path/filepath"
@@ -186,7 +187,8 @@ func WaitForK8sResource(config *rest.Config, namespace string, nameContains stri
 	defer cancel()
 
 	err = k8s_wait.PollUntilContextTimeout(ctx, pollInterval, timeout, true, func(ctx context.Context) (bool, error) {
-		println(fmt.Sprintf("Waiting for resource %s/%s/%s in namespace %s (name contains: %q, field %q=%q)", group, version, kind, namespace, nameContains, fieldPath, fieldValue))
+		log.Printf("Waiting for resource %s/%s/%s in namespace %s (name contains: %q, field %q=%q)",
+			group, version, kind, namespace, nameContains, fieldPath, fieldValue)
 
 		list, err := client.Resource(gvr).Namespace(namespace).List(ctx, metav1.ListOptions{})
 		if err != nil {
@@ -217,10 +219,12 @@ func WaitForK8sResource(config *rest.Config, namespace string, nameContains stri
 		return false, nil
 	})
 	if err != nil {
-		return fmt.Errorf("resource %s/%s/%s not found in namespace %s within timeout (name contains: %q, field %q=%q): %w", group, version, kind, namespace, nameContains, fieldPath, fieldValue, err)
+		return fmt.Errorf("resource %s/%s/%s not found in namespace %s within timeout (name contains: %q, field %q=%q): %w",
+			group, version, kind, namespace, nameContains, fieldPath, fieldValue, err)
 	}
 
-	println(fmt.Sprintf("Resource %s/%s/%s found in namespace %s (name contains: %q, field %q=%q)", group, version, kind, namespace, nameContains, fieldPath, fieldValue))
+	log.Printf("Resource %s/%s/%s found in namespace %s (name contains: %q, field %q=%q)",
+		group, version, kind, namespace, nameContains, fieldPath, fieldValue)
 
 	return nil
 }
