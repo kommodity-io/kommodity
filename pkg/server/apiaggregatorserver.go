@@ -171,7 +171,7 @@ func applyCRDsHook(cfg *config.KommodityConfig,
 		go func() {
 			webhookURL := fmt.Sprintf("https://localhost:%d", cfg.WebhookPort)
 
-			crt, _, err := getServingCertAndKeyFromFiles(genericServerConfig)
+			crt, err := getServingCertFromFiles(genericServerConfig)
 			if err != nil {
 				errCh <- fmt.Errorf("failed to get serving PEM from files: %w", err)
 
@@ -282,7 +282,7 @@ func startTokenControllerHook(genericServerConfig *genericapiserver.RecommendedC
 		}
 
 		// Get the CA certificate from the serving certificate (used for ca.crt in secrets)
-		cert, _, err := getServingCertAndKeyFromFiles(genericServerConfig)
+		cert, err := getServingCertFromFiles(genericServerConfig)
 		if err != nil {
 			return fmt.Errorf("failed to get serving cert from files: %w", err)
 		}

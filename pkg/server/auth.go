@@ -217,7 +217,9 @@ func applyAuth(ctx context.Context, cfg *config.KommodityConfig, config *generic
 // setupServiceAccountAuth creates a ServiceAccount token authenticator using a dedicated signing key.
 // It validates that the ServiceAccount and Secret referenced in the token actually exist in Kommodity.
 // The signing key is stored in a secret to survive TLS certificate rotation.
-func setupServiceAccountAuth(ctx context.Context, config *genericapiserver.RecommendedConfig) (authenticator.Token, error) {
+func setupServiceAccountAuth(
+	ctx context.Context, config *genericapiserver.RecommendedConfig,
+) (authenticator.Token, error) {
 	kubeClient, err := kubernetes.NewForConfig(config.LoopbackClientConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create kubernetes client for SA auth: %w", err)

@@ -58,7 +58,7 @@ func SetupReconcilers(ctx context.Context,
 		}
 	}
 
-	err = setUpExtraReconcilers(ctx, cfg, manager, clusterCache, controllerOpts, signingKeyDeps)
+	err = setUpExtraReconcilers(ctx, cfg, manager, controllerOpts, signingKeyDeps)
 	if err != nil {
 		return fmt.Errorf("failed to setup extra reconcilers: %w", err)
 	}
@@ -69,7 +69,6 @@ func SetupReconcilers(ctx context.Context,
 func setUpExtraReconcilers(ctx context.Context,
 	cfg *config.KommodityConfig,
 	manager *ctrl.Manager,
-	clusterCache clustercache.ClusterCache,
 	controllerOpts controller.Options,
 	signingKeyDeps SigningKeyDeps) error {
 	err := (&CloudControllerManagerReconciler{
