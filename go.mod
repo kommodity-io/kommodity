@@ -53,9 +53,6 @@ require (
 	github.com/moby/sys/atomicwriter v0.1.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.32.0 // indirect
 	gotest.tools/v3 v3.5.2 // indirect
-)
-
-require (
 	cel.dev/expr v0.24.0 // indirect
 	dario.cat/mergo v1.0.2 // indirect
 	filippo.io/edwards25519 v1.1.0 // indirect
