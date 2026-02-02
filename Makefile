@@ -107,9 +107,11 @@ test: ## Run the tests.
 
 lint: $(LINTER) ## Run the linter.
 	$(LINTER) run
+	cd pkg/test && ../../$(LINTER) run
 
 lint-fix: $(LINTER) ## Run the linter and fix issues.
 	$(LINTER) run --fix
+	cd pkg/test && ../../$(LINTER) run --fix
 
 generate: .env fetch-providers ## Run code generation.
 	go generate ./...
@@ -146,8 +148,8 @@ delete-kind-management-cluster:
 	kind delete cluster --name kind-management
 
 .PHONY: run-integration-test
-run-integration-test: 
-	go test -v ./pkg/test
+run-integration-test:
+	cd pkg/test && go test ./... -v
 
 .PHONY: run-helm-unit-tests
 run-helm-unit-tests:
