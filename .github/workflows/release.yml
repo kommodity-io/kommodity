@@ -210,13 +210,14 @@ jobs:
           cover-pkg: ./...
 
       - name: Run integration tests
-        run: make run-integration-test
+        run: |
+          export CLUSTER_NAME="ci-cluster-${GITHUB_SHA::5}"
+          make run-integration-test
         env:
           SCW_ACCESS_KEY: ${{ secrets.SCW_ACCESS_KEY }}
           SCW_SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
           SCW_DEFAULT_REGION: fr-par
           SCW_DEFAULT_PROJECT_ID: ${{ secrets.SCW_DEFAULT_PROJECT_ID }}
-          CLUSTER_NAME: "ci-cluster-${{ github.sha }}"
 
       - name: Upload kommodity test logs on failure
         if: failure()

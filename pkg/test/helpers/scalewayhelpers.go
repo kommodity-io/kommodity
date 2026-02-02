@@ -12,6 +12,13 @@ import (
 	k8s_wait "k8s.io/apimachinery/pkg/util/wait"
 )
 
+var (
+	errMoreServersThanExpected = errors.New("found more servers than expected in Scaleway")
+	errUnexpectedState         = errors.New("unexpected state")
+	errInvalidRegion           = errors.New("invalid region provided")
+	errInvalidZone             = errors.New("invalid zone provided")
+)
+
 // WaitForScalewayServers checks for the existence of servers in Scaleway using the provided credentials.
 func WaitForScalewayServers(
 	clusterName, scalewayAccessKey, scalewaySecretKey, scalewayDefaultRegion string,
@@ -52,10 +59,11 @@ func WaitForScalewayServers(
 		}
 
 		if len(response.Servers) > instanceCount {
-			return false, fmt.Errorf("found more servers (%d) than expected (%d) in Scaleway", len(response.Servers), instanceCount)
+			return false, fmt.Errorf("%w: found %d, expected %d",
+				errMoreServersThanExpected, len(response.Servers), instanceCount)
 		}
 
-		return false, errors.New("this shouldn't happen")
+		return false, errUnexpectedState
 	})
 	if err != nil {
 		return fmt.Errorf("%d servers not found in Scaleway within timeout: %w", instanceCount, err)
@@ -116,7 +124,7 @@ func DeleteAllScalewayServers(
 	// Get available zones in the region
 	region, err := scw.ParseRegion(scalewayDefaultRegion)
 	if err != nil {
-		return fmt.Errorf("invalid region provided: %s", scalewayDefaultRegion)
+		return fmt.Errorf("%w: %s", errInvalidRegion, scalewayDefaultRegion)
 	}
 
 	zones := region.GetZones()
@@ -166,12 +174,12 @@ func getInstanceAPI(
 	// Convert SCW_DEFAULT_REGION to instance.Region
 	region, err := scw.ParseRegion(scalewayDefaultRegion)
 	if err != nil {
-		return nil, fmt.Errorf("invalid region provided: %s", scalewayDefaultRegion)
+		return nil, fmt.Errorf("%w: %s", errInvalidRegion, scalewayDefaultRegion)
 	}
 
 	zone, err := scw.ParseZone(scalewayDefaultZone)
 	if err != nil {
-		return nil, fmt.Errorf("invalid zone provided: %s", scalewayDefaultZone)
+		return nil, fmt.Errorf("%w: %s", errInvalidZone, scalewayDefaultZone)
 	}
 
 	scwClient, err := scw.NewClient(scw.WithAuth(scalewayAccessKey, scalewaySecretKey),

@@ -12,6 +12,7 @@ import (
 )
 
 // InstallKommodityClusterChart installs the kommodity-cluster helm chart with the specified parameters.
+//nolint:funlen // Function length is acceptable for a test helper.
 func InstallKommodityClusterChart(t *testing.T, env TestEnvironment,
 	releaseName string, namespace string, valuesFile string, scalewayProjectID string) string {
 	t.Helper()
@@ -38,14 +39,17 @@ func InstallKommodityClusterChart(t *testing.T, env TestEnvironment,
 	require.NoError(t, err)
 
 	scalewayDefaultZone := ""
-
+	
+	//nolint:nestif // Nested ifs are acceptable in this case for clarity.
 	if kommoditySection, ok := values["kommodity"].(map[string]interface{}); ok {
 		if nodepools, ok := kommoditySection["nodepools"].(map[string]interface{}); ok {
 			if defaultPool, ok := nodepools["default"].(map[string]interface{}); ok {
 				// Set SKU for default nodepool to cheapest one
 				defaultPool["sku"] = "DEV1-S"
 				// Get Scaleway zone for later verification
-				scalewayDefaultZone = defaultPool["zone"].(string)
+				if zone, ok := defaultPool["zone"].(string); ok {
+					scalewayDefaultZone = zone
+				}
 			}
 		}
 		// Set SKU for control plane to cheapest one

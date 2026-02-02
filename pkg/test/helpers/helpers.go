@@ -32,6 +32,11 @@ const (
 	filePermission      = 0o600
 )
 
+var (
+	errRepoRootNotFound = errors.New("repo root not found")
+	errContainerNil     = errors.New("container is nil")
+)
+
 // TestEnvironment holds the containers and connection info for the test setup.
 type TestEnvironment struct {
 	Postgres     tc.Container
@@ -94,7 +99,7 @@ func startPostgresContainer(ctx context.Context, networkName string) (tc.Contain
 		Started: true,
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create postgres container: %w", err)
 	}
 
 	return postgres, nil
@@ -107,7 +112,8 @@ func startKommodityContainer(ctx context.Context, networkName string) (tc.Contai
 			Networks:     []string{networkName},
 			ExposedPorts: []string{"5000/tcp"},
 			Env: map[string]string{
-				"KOMMODITY_DB_URI":                          "postgres://kommodity:kommodity@postgres:" + postgresDefaultPort + "/kommodity?sslmode=disable",
+				"KOMMODITY_DB_URI": "postgres://kommodity:kommodity@postgres:" +
+					postgresDefaultPort + "/kommodity?sslmode=disable",
 				"KOMMODITY_INSECURE_DISABLE_AUTHENTICATION": "true",
 				"KOMMODITY_INFRASTRUCTURE_PROVIDERS":        "kubevirt,scaleway,azure",
 				"KOMMODITY_KINE_URI":                        "unix:///tmp/kine.sock",
@@ -158,7 +164,7 @@ func FindRepoRoot() (string, error) {
 		dir = parent
 	}
 
-	return "", fmt.Errorf("go.mod not found in any parent directory of %s", dir)
+	return "", fmt.Errorf("%w: searched from %s", errRepoRootNotFound, dir)
 }
 
 // Teardown stops and removes the containers and network used in the test environment.
@@ -171,7 +177,10 @@ func (e TestEnvironment) Teardown() {
 }
 
 // WaitForK8sResource waits for a Kubernetes resource to be created that matches the given criteria.
-func WaitForK8sResource(config *rest.Config, namespace string, nameContains string, group string, version string, kind string, fieldPath string, fieldValue string, timeout time.Duration) error {
+//
+//nolint:cyclop // Cyclomatic complexity is acceptable for this function.
+func WaitForK8sResource(config *rest.Config, namespace string, nameContains string, group string,
+	version string, kind string, fieldPath string, fieldValue string, timeout time.Duration) error {
 	client, err := dynamic.NewForConfig(config)
 	if err != nil {
 		return fmt.Errorf("failed to create dynamic client: %w", err)
@@ -192,7 +201,7 @@ func WaitForK8sResource(config *rest.Config, namespace string, nameContains stri
 
 		list, err := client.Resource(gvr).Namespace(namespace).List(ctx, metav1.ListOptions{})
 		if err != nil {
-			return false, err
+			return false, fmt.Errorf("failed to list resources: %w", err)
 		}
 
 		for _, item := range list.Items {
@@ -232,7 +241,7 @@ func WaitForK8sResource(config *rest.Config, namespace string, nameContains stri
 // WriteKommodityLogsToFile retrieves the logs from the Kommodity container and writes them to the specified file.
 func WriteKommodityLogsToFile(container tc.Container, filePath string) error {
 	if container == nil {
-		return errors.New("container is nil")
+		return errContainerNil
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), writeTimeout)
@@ -242,7 +251,8 @@ func WriteKommodityLogsToFile(container tc.Container, filePath string) error {
 	if err != nil {
 		return fmt.Errorf("failed to get Kommodity container logs: %w", err)
 	}
-	defer logsReader.Close()
+
+	defer func() { _ = logsReader.Close() }()
 
 	data, err := io.ReadAll(logsReader)
 	if err != nil {

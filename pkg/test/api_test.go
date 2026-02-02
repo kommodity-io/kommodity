@@ -75,6 +75,7 @@ func TestAPIIntegration(t *testing.T) {
 	require.Contains(t, coreGroupVersions, "v1")
 }
 
+//nolint:funlen // Test function length is acceptable.
 func TestCreateScalewayCluster(t *testing.T) {
 	t.Parallel()
 
