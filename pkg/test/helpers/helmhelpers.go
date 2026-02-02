@@ -58,6 +58,13 @@ func InstallKommodityClusterChart(t *testing.T, env TestEnvironment, releaseName
 
 			}
 		}
+
+		// Unset nodeCIDR to enable public IPv4
+		if network, ok := kommoditySection["network"].(map[string]interface{}); ok {
+			if ipv4, ok := network["ipv4"].(map[string]interface{}); ok {
+				ipv4["nodeCIDR"] = nil
+			}
+		}
 	}
 
 	require.NotEmpty(t, scalewayDefaultZone, "kommodity.nodepools.default.zone must be set in %s", valuesFile)
