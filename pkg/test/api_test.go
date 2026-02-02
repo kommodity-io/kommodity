@@ -20,8 +20,8 @@ import (
 var env helpers.TestEnvironment
 
 const (
-	clusterName      = "ci-test-cluster"
-	kommodityLogFile = "kommodity_container.log"
+	defaultClusterName = "ci-test-cluster"
+	kommodityLogFile   = "kommodity_container.log"
 )
 
 func TestMain(m *testing.M) {
@@ -76,7 +76,6 @@ func TestCreateScalewayCluster(t *testing.T) {
 	ctx := context.Background()
 
 	// Ensure default namespace exists
-
 	_, err = client.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "default",
@@ -91,11 +90,18 @@ func TestCreateScalewayCluster(t *testing.T) {
 	scalewaySecretKey := os.Getenv("SCW_SECRET_KEY")
 	scalewayDefaultRegion := os.Getenv("SCW_DEFAULT_REGION")
 	scalewayProjectID := os.Getenv("SCW_DEFAULT_PROJECT_ID")
+	clusterName := os.Getenv("CLUSTER_NAME")
 
 	require.NotEmpty(t, scalewayAccessKey, "SCW_ACCESS_KEY environment variable must be set")
 	require.NotEmpty(t, scalewaySecretKey, "SCW_SECRET_KEY environment variable must be set")
 	require.NotEmpty(t, scalewayDefaultRegion, "SCW_DEFAULT_REGION environment variable must be set")
 	require.NotEmpty(t, scalewayProjectID, "SCW_DEFAULT_PROJECT_ID environment variable must be set")
+
+	if clusterName == "" {
+		clusterName = defaultClusterName
+	}
+
+	log.Printf("cluster name set to '%s'", clusterName)
 
 	_, err = client.CoreV1().Secrets("default").Create(ctx, &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
@@ -109,10 +115,6 @@ func TestCreateScalewayCluster(t *testing.T) {
 			"SCW_DEFAULT_PROJECT_ID": []byte(scalewayProjectID),
 		},
 	}, metav1.CreateOptions{})
-	require.NoError(t, err)
-
-	// Ensure no Scaleway servers are present before starting the test
-	err = helpers.DeleteAllScalewayServers(scalewayAccessKey, scalewaySecretKey, scalewayDefaultRegion, scalewayProjectID)
 	require.NoError(t, err)
 
 	log.Printf("Using project ID %s", scalewayProjectID)

@@ -36,36 +36,31 @@ func InstallKommodityClusterChart(t *testing.T, env TestEnvironment, releaseName
 	values, err := chartutil.ReadValuesFile(valuesPath)
 	require.NoError(t, err)
 
-	// Read default zone from values file to reuse in Scaleway verification.
 	scalewayDefaultZone := ""
+
 	if kommoditySection, ok := values["kommodity"].(map[string]interface{}); ok {
 		if nodepools, ok := kommoditySection["nodepools"].(map[string]interface{}); ok {
 			if defaultPool, ok := nodepools["default"].(map[string]interface{}); ok {
-				if zone, ok := defaultPool["zone"].(string); ok {
-					scalewayDefaultZone = zone
-				}
+				// Set SKU for default nodepool to cheapest one
+				defaultPool["sku"] = "DEV1-S"
+				// Get Scaleway zone for later verification
+				scalewayDefaultZone = defaultPool["zone"].(string)
+			}
+		}
+		// Set SKU for control plane to cheapest one
+		if controlplane, ok := kommoditySection["controlplane"].(map[string]interface{}); ok {
+				controlplane["sku"] = "DEV1-S"
+		}
+		// Set projectID in provider config
+		if provider, ok := kommoditySection["provider"].(map[string]interface{}); ok {
+			if config, ok := provider["config"].(map[string]interface{}); ok {
+				config["projectID"] = scalewayProjectID
+
 			}
 		}
 	}
-	require.NotEmpty(t, scalewayDefaultZone, "kommodity.nodepools.default.zone must be set in %s", valuesFile)
 
-	// Override projectID with the value provided via environment to avoid hard-coded data in the values file.
-	kommodityVals, ok := values["kommodity"].(map[string]interface{})
-	if !ok || kommodityVals == nil {
-		kommodityVals = map[string]interface{}{}
-		values["kommodity"] = kommodityVals
-	}
-	providerVals, ok := kommodityVals["provider"].(map[string]interface{})
-	if !ok || providerVals == nil {
-		providerVals = map[string]interface{}{}
-		kommodityVals["provider"] = providerVals
-	}
-	configVals, ok := providerVals["config"].(map[string]interface{})
-	if !ok || configVals == nil {
-		configVals = map[string]interface{}{}
-		providerVals["config"] = configVals
-	}
-	configVals["projectID"] = scalewayProjectID
+	require.NotEmpty(t, scalewayDefaultZone, "kommodity.nodepools.default.zone must be set in %s", valuesFile)
 
 	installer := action.NewInstall(cfg)
 	installer.ReleaseName = releaseName

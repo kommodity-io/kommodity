@@ -209,6 +209,22 @@ jobs:
           coverage-threshold: 0
           cover-pkg: ./...
 
+      - name: Run integrationtests
+        run: run-integration-test
+        env:
+          SCW_ACCESS_KEY: ${{ secrets.SCW_ACCESS_KEY }}
+          SCW_SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
+          SCW_DEFAULT_REGION: fr-par
+          SCW_DEFAULT_PROJECT_ID: ${{ secrets.SCW_DEFAULT_PROJECT_ID }}
+          CLUSTER_NAME: "ci-cluster-${{ github.sha }}"
+
+      - name: Upload kommodity logs on failure
+        if: failure()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: kommodity-logs
+          path: pkg/test/kommodity_container.log
+
   build:
     name: Build binary
     runs-on: ubuntu-latest

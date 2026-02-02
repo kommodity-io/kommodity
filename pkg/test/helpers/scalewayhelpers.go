@@ -91,6 +91,7 @@ func WaitForScalewayServersDeletion(clusterName, scalewayAccessKey, scalewaySecr
 	return nil
 }
 
+// Not used but keeping if needed in the future.
 // DeleteAllScalewayServers deletes all servers in a Scaleway Project using the provided credentials.
 func DeleteAllScalewayServers(scalewayAccessKey, scalewaySecretKey, scalewayDefaultRegion, scalewayProjectID string) error {
 
