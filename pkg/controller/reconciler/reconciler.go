@@ -69,7 +69,7 @@ func SetupReconcilers(ctx context.Context,
 func setUpExtraReconcilers(ctx context.Context,
 	cfg *config.KommodityConfig,
 	manager *ctrl.Manager,
-	clusterCache clustercache.ClusterCache,
+	_ clustercache.ClusterCache,
 	controllerOpts controller.Options,
 	signingKeyDeps SigningKeyDeps) error {
 	err := (&CloudControllerManagerReconciler{
