@@ -8,6 +8,7 @@ replace github.com/google/cel-go => github.com/google/cel-go v0.22.0
 
 require (
 	github.com/Masterminds/sprig/v3 v3.3.0
+	github.com/cosi-project/runtime v1.10.7
 	github.com/go-logr/logr v1.4.3
 	github.com/go-logr/zapr v1.3.0
 	github.com/google/go-tpm v0.9.5
@@ -119,7 +120,6 @@ require (
 	github.com/coreos/go-semver v0.3.1 // indirect
 	github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf // indirect
 	github.com/coreos/go-systemd/v22 v22.5.0 // indirect
-	github.com/cosi-project/runtime v1.10.7 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.7 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/dimchansky/utfbom v1.1.1 // indirect
@@ -279,7 +279,6 @@ require (
 	golang.org/x/sys v0.38.0 // indirect
 	golang.org/x/term v0.37.0 // indirect
 	golang.org/x/text v0.31.0 // indirect
-	golang.org/x/tools v0.38.0 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.5.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250715232539-7130f93afb79 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250715232539-7130f93afb79 // indirect
@@ -295,7 +294,6 @@ require (
 	k8s.io/cluster-bootstrap v0.32.3 // indirect
 	k8s.io/component-helpers v0.32.3 // indirect
 	k8s.io/controller-manager v0.32.2 // indirect
-	k8s.io/gengo/v2 v2.0.0-20240911193312-2b36238f13e9 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
 	k8s.io/kms v0.32.6 // indirect
 	k8s.io/kubectl v0.32.3 // indirect
