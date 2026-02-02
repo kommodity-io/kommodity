@@ -1,1 +1,46 @@
-{"schemes":["http"],"swagger":"2.0","info":{"description":"Metadata service endpoints for Kommodity.","title":"Kommodity Metadata API","contact":{},"version":"0.1.0"},"basePath":"/","paths":{"/configs/user-data":{"get":{"produces":["application/x-yaml"],"tags":["Metadata"],"summary":"Get user-data for Talos machine config","responses":{"200":{"description":"YAML config for Talos machine config","schema":{"type":"string"}},"404":{"description":"If the machine is not found","schema":{"type":"string"}},"500":{"description":"If there is a server error","schema":{"type":"string"}}}}}}}
+{
+    "schemes": [
+        "http"
+    ],
+    "swagger": "2.0",
+    "info": {
+        "description": "Metadata service endpoints for Kommodity.",
+        "title": "Kommodity Metadata API",
+        "contact": {},
+        "version": "0.1.0"
+    },
+    "basePath": "/",
+    "paths": {
+        "/configs/user-data": {
+            "get": {
+                "produces": [
+                    "application/x-yaml"
+                ],
+                "tags": [
+                    "Metadata"
+                ],
+                "summary": "Get user-data for Talos machine config",
+                "responses": {
+                    "200": {
+                        "description": "YAML config for Talos machine config",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "If the machine is not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "If there is a server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

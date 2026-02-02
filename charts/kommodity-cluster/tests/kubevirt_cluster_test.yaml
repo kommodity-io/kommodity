@@ -83,12 +83,8 @@ tests:
       - equal:
           path: spec.template.spec.virtualMachineTemplate.spec.dataVolumeTemplates[0].spec.source.http.url
           value: "controlplane-talos-image"
-        documentSelector:
-          path: metadata.name
-          value: test-cluster-controlplane
+        documentIndex: 0
       - equal:
           path: spec.template.spec.virtualMachineTemplate.spec.dataVolumeTemplates[0].spec.source.http.url
           value: "global-talos-image"
-        documentSelector:
-          path: metadata.name
-          value: test-cluster-worker-default
+        documentIndex: 1

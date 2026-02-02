@@ -1,1 +1,258 @@
-{"schemes":["http"],"swagger":"2.0","info":{"description":"Attestation endpoints for Talos machines.","title":"Kommodity Attestation API","contact":{},"version":"0.1.0"},"basePath":"/","paths":{"/nonce":{"get":{"tags":["Attestation"],"summary":"Obtain an attestation nonce","responses":{"200":{"description":"OK","schema":{"$ref":"#/definitions/nonce.NonceResponse"}},"400":{"description":"If the request is invalid","schema":{"type":"string"}},"405":{"description":"If the method is not allowed","schema":{"type":"string"}},"429":{"description":"If the rate limit is exceeded","schema":{"type":"string"}},"500":{"description":"If there is a server error","schema":{"type":"string"}}}}},"/report":{"post":{"consumes":["application/json"],"produces":["application/json"],"tags":["Attestation"],"summary":"Submit attestation report","parameters":[{"description":"Report","name":"payload","in":"body","required":true,"schema":{"$ref":"#/definitions/report.AttestationReportRequest"}}],"responses":{"200":{"description":"No content","schema":{"type":"string"}},"400":{"description":"If the request is invalid","schema":{"type":"string"}},"401":{"description":"If the nonce is invalid","schema":{"type":"string"}},"405":{"description":"If the method is not allowed","schema":{"type":"string"}},"500":{"description":"If there is a server error","schema":{"type":"string"}}}}},"/report/{ip}/trust":{"get":{"tags":["Attestation"],"summary":"Check trust status for a machine","parameters":[{"type":"string","description":"IPv4 or IPv6","name":"ip","in":"path","required":true}],"responses":{"200":{"description":"No content","schema":{"type":"string"}},"400":{"description":"If the request is invalid","schema":{"type":"string"}},"401":{"description":"No content","schema":{"type":"string"}},"404":{"description":"If the machine is not found","schema":{"type":"string"}},"405":{"description":"If the method is not allowed","schema":{"type":"string"}},"500":{"description":"If there is a server error","schema":{"type":"string"}}}}}},"definitions":{"nonce.NonceResponse":{"type":"object","properties":{"expiresAt":{"type":"string","format":"date-time"},"nonce":{"type":"string","example":"884f2638c74645b859f87e76560748cc"}}},"report.AttestationReportRequest":{"type":"object","properties":{"node":{"$ref":"#/definitions/report.NodeInfo"},"nonce":{"type":"string","example":"884f2638c74645b859f87e76560748cc"},"report":{"$ref":"#/definitions/rest.Report"}}},"report.NodeInfo":{"type":"object","properties":{"ip":{"type":"string"},"uuid":{"type":"string"}}},"rest.ComponentReport":{"type":"object","properties":{"evidence":{"type":"object","additionalProperties":{"type":"string"}},"measurement":{"description":"SHA512 of the component","type":"string"},"name":{"type":"string"}}},"rest.Report":{"type":"object","properties":{"components":{"type":"array","items":{"$ref":"#/definitions/rest.ComponentReport"}},"pcrs":{"type":"object","additionalProperties":{"type":"string"}},"quote":{"description":"Hex encoded TPM quote over the PCRs, with nonce","type":"string"},"signature":{"description":"Hex encoded TPM signature over quote","type":"string"},"timestamp":{"type":"string"},"tpmPublicKey":{"description":"Hex encoded TPM public key","type":"string"}}}}}
+{
+    "schemes": [
+        "http"
+    ],
+    "swagger": "2.0",
+    "info": {
+        "description": "Attestation endpoints for Talos machines.",
+        "title": "Kommodity Attestation API",
+        "contact": {},
+        "version": "0.1.0"
+    },
+    "basePath": "/",
+    "paths": {
+        "/nonce": {
+            "get": {
+                "tags": [
+                    "Attestation"
+                ],
+                "summary": "Obtain an attestation nonce",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/nonce.NonceResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "If the request is invalid",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "405": {
+                        "description": "If the method is not allowed",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "429": {
+                        "description": "If the rate limit is exceeded",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "If there is a server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/report": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Attestation"
+                ],
+                "summary": "Submit attestation report",
+                "parameters": [
+                    {
+                        "description": "Report",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/report.AttestationReportRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No content",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "If the request is invalid",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "If the nonce is invalid",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "405": {
+                        "description": "If the method is not allowed",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "If there is a server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/report/{ip}/trust": {
+            "get": {
+                "tags": [
+                    "Attestation"
+                ],
+                "summary": "Check trust status for a machine",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "IPv4 or IPv6",
+                        "name": "ip",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "No content",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "If the request is invalid",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "No content",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "If the machine is not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "405": {
+                        "description": "If the method is not allowed",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "If there is a server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "nonce.NonceResponse": {
+            "type": "object",
+            "properties": {
+                "expiresAt": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "nonce": {
+                    "type": "string",
+                    "example": "884f2638c74645b859f87e76560748cc"
+                }
+            }
+        },
+        "report.AttestationReportRequest": {
+            "type": "object",
+            "properties": {
+                "node": {
+                    "$ref": "#/definitions/report.NodeInfo"
+                },
+                "nonce": {
+                    "type": "string",
+                    "example": "884f2638c74645b859f87e76560748cc"
+                },
+                "report": {
+                    "$ref": "#/definitions/rest.Report"
+                }
+            }
+        },
+        "report.NodeInfo": {
+            "type": "object",
+            "properties": {
+                "ip": {
+                    "type": "string"
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "rest.ComponentReport": {
+            "type": "object",
+            "properties": {
+                "evidence": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "measurement": {
+                    "description": "SHA512 of the component",
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "rest.Report": {
+            "type": "object",
+            "properties": {
+                "components": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/rest.ComponentReport"
+                    }
+                },
+                "pcrs": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "quote": {
+                    "description": "Hex encoded TPM quote over the PCRs, with nonce",
+                    "type": "string"
+                },
+                "signature": {
+                    "description": "Hex encoded TPM signature over quote",
+                    "type": "string"
+                },
+                "timestamp": {
+                    "type": "string"
+                },
+                "tpmPublicKey": {
+                    "description": "Hex encoded TPM public key",
+                    "type": "string"
+                }
+            }
+        }
+    }
+}
