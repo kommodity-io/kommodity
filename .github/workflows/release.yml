@@ -227,6 +227,7 @@ jobs:
           path: pkg/test/kommodity_container.log
 
       - name: Install CLI
+        if: failure()
         uses: scaleway/action-scw@v0
         with:
           version: v2.51.0
