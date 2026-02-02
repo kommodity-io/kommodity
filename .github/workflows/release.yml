@@ -232,12 +232,12 @@ jobs:
           version: v2.51.0
       # Remove all instances after tests
       - name: Clean up Scaleway instances
-        if: always()
+        if: failure()
         run: |
           export CLUSTER_NAME="ci-cluster-${GITHUB_SHA::5}"
 
           # List all server IDs with tag 'caps-scalewaycluster=$CLUSTER_NAME'
-          server_ids=$(scw instance server list tags.0=caps-scalewaycluster=$CLUSTER_NAME -o json | jq -r '.[].id')
+          server_ids=$(scw instance server list tags.0=caps-scalewaycluster=$CLUSTER_NAME zone=fr-par-2 -o json | jq -r '.[].id')
 
           if [[ -z "$server_ids" ]]; then
             echo "No instances found with tag 'caps-scalewaycluster=$CLUSTER_NAME'"
