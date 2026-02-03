@@ -9,7 +9,6 @@ import (
 
 	"github.com/kommodity-io/kommodity/pkg/test/helpers"
 	"github.com/stretchr/testify/require"
-	"github.com/testcontainers/testcontainers-go/internal/config"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -98,7 +97,7 @@ func TestCreateScalewayCluster(t *testing.T) {
 	// Ensure kommodity namespace exists
 	_, err = client.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: config.KommodityNamespace,
+			Name: "kommodity-system",
 		},
 	}, metav1.CreateOptions{})
 	if err != nil && !apierrors.IsAlreadyExists(err) {
