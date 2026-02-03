@@ -133,7 +133,7 @@ func TestCreateScalewayCluster(t *testing.T) {
 		clusterName, "default", "values.scaleway.yaml", scalewayProjectID)
 
 	// Check that CAPI resources are created in Kommodity
-	err = helpers.WaitForK8sResource(env.KommodityCfg, "default", "worker",
+	err = helpers.WaitForK8sResourceCreation(env.KommodityCfg, "default", "worker",
 		"cluster.x-k8s.io", "v1beta1", "machines", "", "", 2*time.Minute)
 	require.NoError(t, err)
 
@@ -143,11 +143,15 @@ func TestCreateScalewayCluster(t *testing.T) {
 	require.NoError(t, err)
 
 	// Uninstall cluster chart
-	log.Println("Uninstalling kommodity-cluster helm chart...")
+	log.Println("Uninstalling kommodity-cluster helm chart..")
 	helpers.UninstallKommodityClusterChart(t, env, clusterName, "default")
 
 	// Check that Scaleway resources are deleted
 	err = helpers.WaitForScalewayServersDeletion(clusterName, scalewayAccessKey,
 		scalewaySecretKey, scalewayDefaultRegion, scalewayDefaultZone, scalewayProjectID, 3*time.Minute)
+	require.NoError(t, err)
+
+	err = helpers.WaitForK8sResourceDeletion(env.KommodityCfg, "default", clusterName,
+		"cluster.x-k8s.io", "v1beta1", "clusters", "", "", 2*time.Minute)
 	require.NoError(t, err)
 }
