@@ -1,0 +1,90 @@
+suite: test creation of resources for Kubevirt cluster
+values:
+  - ../values.kubevirt.yaml
+release:
+  name: test-cluster
+  namespace: default
+set:
+  kommodity.controlplane.talos.version: "controlplane-talos-version"
+  kommodity.controlplane.talos.imageName: "controlplane-talos-image"
+  kommodity.controlplane.kubernetes.version: "controlplane-kubernetes-version"
+  talos.imageName: "global-talos-image"
+  talos.version: "global-talos-version"
+  kubernetes.version: "global-kubernetes-version"
+templates:
+  - templates/*
+tests:
+  - it: should make sure a Cluster is created
+    template: templates/provider/capi/cluster.yaml
+    asserts:
+      - isKind:
+          of: Cluster
+      - equal:
+          path: spec.infrastructureRef.kind
+          value: KubevirtCluster
+      - hasDocuments:
+          count: 1
+  - it: should make sure a MachineDeployment is created
+    template: templates/provider/capi/machinedeployment.yaml
+    asserts:
+      - isKind:
+          of: MachineDeployment
+      - equal:
+          path: spec.template.spec.infrastructureRef.kind
+          value: KubevirtMachineTemplate
+      - equal:
+          path: spec.template.spec.version
+          value: "global-kubernetes-version"
+      - hasDocuments:
+          count: 1
+  - it: should make sure a TalosControlPlane is created
+    template: templates/talos/controlplane.yaml
+    asserts:
+      - isKind:
+          of: TalosControlPlane
+      - equal:
+          path: spec.infrastructureTemplate.kind
+          value: KubevirtMachineTemplate
+      - equal:
+          path: spec.controlPlaneConfig.controlplane.talosVersion
+          value: "controlplane-talos-version"
+      - equal:
+          path: spec.version
+          value: "controlplane-kubernetes-version"
+      - hasDocuments:
+          count: 1
+  - it: should make sure a TalosConfigTemplate is created
+    template: templates/talos/configtemplate.yaml
+    asserts:
+      - isKind:
+          of: TalosConfigTemplate
+      - matchRegex:
+          path: metadata.name
+          pattern: ".*-worker-.*"
+      - equal:
+          path: spec.template.spec.talosVersion
+          value: "global-talos-version"
+      - hasDocuments:
+          count: 1
+  - it: should make sure a KubevirtCluster is created
+    template: templates/provider/kubevirt/cluster.yaml
+    asserts:
+      - isKind:
+          of: KubevirtCluster
+      - hasDocuments:
+          count: 1
+  - it: should make sure a KubevirtMachineTemplate is created
+    template: templates/provider/kubevirt/machinetemplate.yaml
+    asserts:
+      - isKind:
+          of: KubevirtMachineTemplate
+      - hasDocuments:
+          count: 2
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.dataVolumeTemplates[0].spec.source.http.url
+          value: "controlplane-talos-image"
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.dataVolumeTemplates[0].spec.source.http.url
+          value: "global-talos-image"
+        documentIndex: 1
