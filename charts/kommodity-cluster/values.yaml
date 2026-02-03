@@ -47,8 +47,7 @@ kommodity:
       serviceCIDR:
         - 100.96.0.0/12
 
-  extraSecrets:
-    {}
+  extraSecrets: {}
     # Examples of extra secrets to be created in the downstream cluster, type default to Opaque
     # my-namespace:
     #   my-string-data-secret:
@@ -260,8 +259,7 @@ kommodity:
     #     status: "False"
     #     timeout: 300s
 
-  nodepools:
-    {}
+  nodepools: {}
     ## Example of nodepool configuration
     # default:
     #   # Replicas for this nodepool, default is 1, not used if clusterAutoscaler is enabled
@@ -271,15 +269,11 @@ kommodity:
     #     minReplicas: 1
     #     maxReplicas: 3
 
-    #   # Enable system extensions for this nodepool (set kernel modules and parameters, set default runtime to 'nvidia')
-    #   gpus:
-    #     enabled: true
-
     #   # Configurations related the specific nodepool
     #   # Using RFC6902 JSON Patch format: https://docs.siderolabs.com/talos/v1.11/configure-your-talos-cluster/system-configuration/patching#rfc6902-json-patches
     #   configPatches: []
-
     #   # Kubernetes version can be overridden here, otherwise the top-level kubernetes.version is used
+
     #   kubernetes:
     #     version: v1.33.4
     #   # Talos version and imageName can be overridden here, otherwise the top-level talos.version and talos.imageName are used
