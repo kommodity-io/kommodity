@@ -79,7 +79,7 @@ func (v *validatingResources) hasSameAPIGroupResources(apiGroupResources []*meta
 	return true
 }
 
-//nolint:funlen
+//nolint:funlen,cyclop
 func newAPIAggregatorServer(cfg *config.KommodityConfig,
 	genericServerConfig *genericapiserver.RecommendedConfig,
 	providerCache *provider.Cache,
