@@ -1,30 +1,11 @@
 {{- define "kommodity.gpuConfigs.kernel" -}}
-# Enable the NVIDIA OSS modules (https://docs.siderolabs.com/talos/v1.12/configure-your-talos-cluster/hardware-and-drivers/nvidia-gpu#enabling-the-nvidia-oss-modules)
-- op: add
-  path: /machine/kernel
-  value:
-    modules:
-      - name: nvidia
-      - name: nvidia_uvm
-      - name: nvidia_drm
-      - name: nvidia_modeset
-{{- end}}
+{{- /* Enable the NVIDIA OSS modules (https://docs.siderolabs.com/talos/v1.12/configure-your-talos-cluster/hardware-and-drivers/nvidia-gpu#enabling-the-nvidia-oss-modules) */ -}}
+{"modules": [{"name": "nvidia"}, {"name": "nvidia_uvm"}, {"name": "nvidia_drm"}, {"name": "nvidia_modeset"}]}
+{{- end -}}
 {{- define "kommodity.gpuConfigs.sysctls" -}}
-- op: add
-  path: /machine/sysctls
-  value:
-    net.core.bpf_jit_harden: 1
-{{- end}}
+{"net.core.bpf_jit_harden": 1}
+{{- end -}}
 {{- define "kommodity.gpuConfigs.files" -}}
-# Set the default runtime class as nvidia
-- op: add
-  path: /machine/files
-  value:
-    - content: |
-        [plugins]
-          [plugins."io.containerd.cri.v1.runtime"]
-            [plugins."io.containerd.cri.v1.runtime".containerd]
-              default_runtime_name = "nvidia"
-      path: /etc/cri/conf.d/20-customization.part
-      op: create
-{{- end}}
+{{- /* Set the default runtime class as nvidia */ -}}
+{"items": [{"content": "[plugins]\n  [plugins.\"io.containerd.cri.v1.runtime\"]\n    [plugins.\"io.containerd.cri.v1.runtime\".containerd]\n      default_runtime_name = \"nvidia\"\n", "path": "/etc/cri/conf.d/20-customization.part", "op": "create"}]}
+{{- end -}}

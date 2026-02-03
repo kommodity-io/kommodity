@@ -208,9 +208,9 @@ to preserve YAML block scalar formatting for multi-line contents.
 {{- end -}}
 {{- /* Add GPU config */ -}}
 {{- if and .gpus .gpus.enabled -}}
-{{- $gpuConfigsKernel := include "kommodity.gpuConfigs.kernel" -}}
-{{- $gpuConfigsSysctls := include "kommodity.gpuConfigs.sysctls" -}}
-{{- $gpuConfigsFiles := include "kommodity.gpuConfigs.files" -}}
+{{- $gpuConfigsKernel := include "kommodity.gpuConfigs.kernel" . | fromJson -}}
+{{- $gpuConfigsSysctls := include "kommodity.gpuConfigs.sysctls" . | fromJson -}}
+{{- $gpuConfigsFiles := (include "kommodity.gpuConfigs.files" . | fromJson).items -}}
 {{- include "kommodity-cluster.addOrMergePatch" (dict "patches" $patches "op" "add" "path" "/machine/kernel" "value" $gpuConfigsKernel) -}}
 {{- include "kommodity-cluster.addOrMergePatch" (dict "patches" $patches "op" "add" "path" "/machine/sysctls" "value" $gpuConfigsSysctls) -}}
 {{- include "kommodity-cluster.addOrMergePatch" (dict "patches" $patches "op" "add" "path" "/machine/files" "value" $gpuConfigsFiles) -}}
