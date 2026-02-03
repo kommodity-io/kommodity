@@ -97,7 +97,7 @@ Any values that should trigger a new Talos config template when changed should b
 {{- $_ := set $data "kmsEnabled" .allValues.kommodity.kms.enabled -}}
 {{- if .allValues.kommodity.kms.enabled -}}
 	{{- with .allValues.kommodity.kms.endpoint -}}
-		{{- $_ := set $data "kmsEndpoint" . -}}  
+		{{- $_ := set $data "kmsEndpoint" . -}}
 	{{- end -}}
 {{- end -}}
 {{- $_ := set $data "labels" (dig "labels" "" .poolValues) -}}

@@ -47,8 +47,7 @@ kommodity:
       serviceCIDR:
         - 100.96.0.0/12
 
-  extraSecrets:
-    {}
+  extraSecrets: {}
     # Examples of extra secrets to be created in the downstream cluster, type default to Opaque
     # my-namespace:
     #   my-string-data-secret:
@@ -260,8 +259,7 @@ kommodity:
     #     status: "False"
     #     timeout: 300s
 
-  nodepools:
-    {}
+  nodepools: {}
     ## Example of nodepool configuration
     # default:
     #   # Replicas for this nodepool, default is 1, not used if clusterAutoscaler is enabled

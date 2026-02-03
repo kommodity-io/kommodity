@@ -15,7 +15,9 @@ import (
 	"github.com/kommodity-io/kommodity/pkg/logging"
 	"github.com/kommodity-io/kommodity/pkg/provider"
 	"go.uber.org/zap"
+	corev1 "k8s.io/api/core/v1"
 	apiextensionsinformers "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions/apiextensions/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -79,7 +81,7 @@ func (v *validatingResources) hasSameAPIGroupResources(apiGroupResources []*meta
 	return true
 }
 
-//nolint:funlen
+//nolint:funlen,cyclop
 func newAPIAggregatorServer(cfg *config.KommodityConfig,
 	genericServerConfig *genericapiserver.RecommendedConfig,
 	providerCache *provider.Cache,
@@ -135,6 +137,12 @@ func newAPIAggregatorServer(cfg *config.KommodityConfig,
 	}
 
 	err = aggregatorServer.GenericAPIServer.AddPostStartHook(
+		"bootstrap-required-resources", bootstrapRequiredResourcesHook(genericServerConfig))
+	if err != nil {
+		return nil, fmt.Errorf("failed to add post start hook for bootstrapping required resources: %w", err)
+	}
+
+	err = aggregatorServer.GenericAPIServer.AddPostStartHook(
 		"apply-crds", applyCRDsHook(cfg, genericServerConfig, providerCache, crds))
 	if err != nil {
 		return nil, fmt.Errorf("failed to add post start hook for applying CRDs: %w", err)
@@ -153,6 +161,39 @@ func newAPIAggregatorServer(cfg *config.KommodityConfig,
 	}
 
 	return aggregatorServer, nil
+}
+
+func bootstrapRequiredResourcesHook(
+	genericServerConfig *genericapiserver.RecommendedConfig) genericapiserver.PostStartHookFunc {
+	return func(ctx genericapiserver.PostStartHookContext) error {
+		logger := logging.FromContext(ctx)
+
+		kubeClient, err := kubernetes.NewForConfig(genericServerConfig.LoopbackClientConfig)
+		if err != nil {
+			return fmt.Errorf("failed to create kubernetes client for bootstrapping: %w", err)
+		}
+
+		requiredNamespaces := []string{"default", config.KommodityNamespace}
+
+		for _, name := range requiredNamespaces {
+			_, err = kubeClient.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: name,
+				},
+			}, metav1.CreateOptions{})
+			if err != nil {
+				if !apierrors.IsAlreadyExists(err) {
+					return fmt.Errorf("failed to create namespace %q: %w", name, err)
+				}
+
+				logger.Info("Namespace already exists", zap.String("namespace", name))
+			} else {
+				logger.Info("Created namespace", zap.String("namespace", name))
+			}
+		}
+
+		return nil
+	}
 }
 
 //nolint:funlen // Not possible to shorten this function in a meaningful way due to go routine.
