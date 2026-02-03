@@ -143,7 +143,7 @@ func TestCreateScalewayCluster(t *testing.T) {
 	require.NoError(t, err)
 
 	// Uninstall cluster chart
-	log.Println("Uninstalling kommodity-cluster helm chart..")
+	log.Println("Uninstalling kommodity-cluster helm chart...")
 	helpers.UninstallKommodityClusterChart(t, env, clusterName, "default")
 
 	// Check that Scaleway resources are deleted

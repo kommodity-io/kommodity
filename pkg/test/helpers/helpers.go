@@ -177,72 +177,19 @@ func (e TestEnvironment) Teardown() {
 }
 
 // WaitForK8sResourceCreation waits for a Kubernetes resource to be created that matches the given criteria.
-//
-//nolint:cyclop // Cyclomatic complexity is acceptable for this function.
 func WaitForK8sResourceCreation(config *rest.Config, namespace string, nameContains string, group string,
 	version string, kind string, fieldPath string, fieldValue string, timeout time.Duration) error {
-	client, err := dynamic.NewForConfig(config)
-	if err != nil {
-		return fmt.Errorf("failed to create dynamic client: %w", err)
-	}
-
-	gvr := schema.GroupVersionResource{
-		Group:    group,
-		Version:  version,
-		Resource: kind,
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
-	err = k8s_wait.PollUntilContextTimeout(ctx, pollInterval, timeout, true, func(ctx context.Context) (bool, error) {
-		log.Printf("Waiting for resource %s/%s/%s in namespace %s (name contains: %q, field %q=%q)",
-			group, version, kind, namespace, nameContains, fieldPath, fieldValue)
-
-		list, err := client.Resource(gvr).Namespace(namespace).List(ctx, metav1.ListOptions{})
-		if err != nil {
-			return false, fmt.Errorf("failed to list resources: %w", err)
-		}
-
-		for _, item := range list.Items {
-			if nameContains != "" && !strings.Contains(item.GetName(), nameContains) {
-				continue
-			}
-
-			if fieldPath != "" {
-				parts := strings.Split(fieldPath, ".")
-
-				value, found, err := unstructured.NestedString(item.Object, parts...)
-				if err != nil || !found || value != fieldValue {
-					continue
-				}
-			}
-
-			if fieldValue != "" && fieldPath == "" {
-				continue
-			}
-
-			return true, nil
-		}
-
-		return false, nil
-	})
-	if err != nil {
-		return fmt.Errorf("resource %s/%s/%s not found in namespace %s within timeout (name contains: %q, field %q=%q): %w",
-			group, version, kind, namespace, nameContains, fieldPath, fieldValue, err)
-	}
-
-	log.Printf("Resource %s/%s/%s found in namespace %s (name contains: %q, field %q=%q)",
-		group, version, kind, namespace, nameContains, fieldPath, fieldValue)
-
-	return nil
+	return waitForK8sResource(config, namespace, nameContains, group, version, kind, fieldPath, fieldValue, timeout, true)
 }
 
 // WaitForK8sResourceDeletion waits for a Kubernetes resource to be deleted that matches the given criteria.
-//
-//nolint:cyclop // Cyclomatic complexity is acceptable for this function.
 func WaitForK8sResourceDeletion(config *rest.Config, namespace string, nameContains string, group string,
 	version string, kind string, fieldPath string, fieldValue string, timeout time.Duration) error {
+	return waitForK8sResource(config, namespace, nameContains, group, version, kind, fieldPath, fieldValue, timeout, false)
+}
+
+func waitForK8sResource(config *rest.Config, namespace string, nameContains string, group string,
+	version string, kind string, fieldPath string, fieldValue string, timeout time.Duration, waitForExistence bool) error {
 	client, err := dynamic.NewForConfig(config)
 	if err != nil {
 		return fmt.Errorf("failed to create dynamic client: %w", err)
@@ -257,49 +204,77 @@ func WaitForK8sResourceDeletion(config *rest.Config, namespace string, nameConta
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
+	action := "creation"
+	if !waitForExistence {
+		action = "deletion"
+	}
+
 	err = k8s_wait.PollUntilContextTimeout(ctx, pollInterval, timeout, true, func(ctx context.Context) (bool, error) {
-		log.Printf("Waiting for deletion of resource %s/%s/%s in namespace %s (name contains: %q, field %q=%q)",
-			group, version, kind, namespace, nameContains, fieldPath, fieldValue)
+		log.Printf("Waiting for %s of resource %s/%s/%s in namespace %s (name contains: %q, field %q=%q)",
+			action, group, version, kind, namespace, nameContains, fieldPath, fieldValue)
 
-		list, err := client.Resource(gvr).Namespace(namespace).List(ctx, metav1.ListOptions{})
+		found, err := hasMatchingResource(ctx, client, gvr, namespace, nameContains, fieldPath, fieldValue)
 		if err != nil {
-			return false, fmt.Errorf("failed to list resources: %w", err)
+			return false, err
 		}
 
-		for _, item := range list.Items {
-			if nameContains != "" && !strings.Contains(item.GetName(), nameContains) {
-				continue
-			}
-
-			if fieldPath != "" {
-				parts := strings.Split(fieldPath, ".")
-
-				value, found, err := unstructured.NestedString(item.Object, parts...)
-				if err != nil || !found || value != fieldValue {
-					continue
-				}
-			}
-
-			if fieldValue != "" && fieldPath == "" {
-				continue
-			}
-
-			// Resource still exists, keep polling
-			return false, nil
+		if waitForExistence {
+			return found, nil
 		}
 
-		// No matching resources found, deletion complete
-		return true, nil
+		return !found, nil
 	})
 	if err != nil {
+		if waitForExistence {
+			return fmt.Errorf("resource %s/%s/%s not found in namespace %s within timeout (name contains: %q, field %q=%q): %w",
+				group, version, kind, namespace, nameContains, fieldPath, fieldValue, err)
+		}
+
 		return fmt.Errorf("resource %s/%s/%s still exists in namespace %s after timeout (name contains: %q, field %q=%q): %w",
 			group, version, kind, namespace, nameContains, fieldPath, fieldValue, err)
 	}
 
-	log.Printf("Resource %s/%s/%s deleted in namespace %s (name contains: %q, field %q=%q)",
-		group, version, kind, namespace, nameContains, fieldPath, fieldValue)
+	result := "found"
+	if !waitForExistence {
+		result = "deleted"
+	}
+
+	log.Printf("Resource %s/%s/%s %s in namespace %s (name contains: %q, field %q=%q)",
+		group, version, kind, result, namespace, nameContains, fieldPath, fieldValue)
 
 	return nil
+}
+
+//nolint:cyclop // Function complexity is acceptable for this utility.
+func hasMatchingResource(ctx context.Context, client dynamic.Interface, gvr schema.GroupVersionResource,
+	namespace string, nameContains string, fieldPath string, fieldValue string) (bool, error) {
+	list, err := client.Resource(gvr).Namespace(namespace).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return false, fmt.Errorf("failed to list resources: %w", err)
+	}
+
+	for _, item := range list.Items {
+		if nameContains != "" && !strings.Contains(item.GetName(), nameContains) {
+			continue
+		}
+
+		if fieldPath != "" {
+			parts := strings.Split(fieldPath, ".")
+
+			value, found, err := unstructured.NestedString(item.Object, parts...)
+			if err != nil || !found || value != fieldValue {
+				continue
+			}
+		}
+
+		if fieldValue != "" && fieldPath == "" {
+			continue
+		}
+
+		return true, nil
+	}
+
+	return false, nil
 }
 
 // WriteKommodityLogsToFile retrieves the logs from the Kommodity container and writes them to the specified file.
