@@ -19,11 +19,10 @@ spec:
       {{- $hasAnnotations := and $np.annotations (gt (len $np.annotations) 0) }}
       {{- $hasInstaller := $.Values.talos.installer }}
       {{- $hasLogLevel := $.Values.kommodity.logLevel }}
-      {{- $hasGPUs := and $np.gpus (and $np.gpus.enabled (eq $np.gpus.enabled true)) }}
       {{- /* Note: /cluster/inlineManifests is skipped for workers - only control plane nodes apply inline manifests during bootstrap */ -}}
-      {{- if or $hasNpConfigPatches $hasGlobalConfigPatches $hasTaints $hasLabels $hasAnnotations $hasInstaller $hasLogLevel $hasGPUs }}
+      {{- if or $hasNpConfigPatches $hasGlobalConfigPatches $hasTaints $hasLabels $hasAnnotations $hasInstaller $hasLogLevel }}
       configPatches:
-{{- include "kommodity-cluster.combinedConfigPatches" (dict "globalConfigPatches" $.Values.kommodity.global.configPatches "nodepoolConfigPatches" $np.configPatches "taints" $np.taints "labels" $np.labels "annotations" $np.annotations "installer" $.Values.talos.installer "logLevel" $.Values.kommodity.logLevel "gpus" $np.gpus) | trim | nindent 8 }}
+{{- include "kommodity-cluster.combinedConfigPatches" (dict "globalConfigPatches" $.Values.kommodity.global.configPatches "nodepoolConfigPatches" $np.configPatches "taints" $np.taints "labels" $np.labels "annotations" $np.annotations "installer" $.Values.talos.installer "logLevel" $.Values.kommodity.logLevel) | trim | nindent 8 }}
       {{- end }}
       {{- if or $.Values.kommodity.kms.enabled $.Values.kommodity.security.enabled }}
       strategicPatches:

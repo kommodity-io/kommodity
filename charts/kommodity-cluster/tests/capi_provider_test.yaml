@@ -33,9 +33,9 @@ tests:
       - equal:
           path: spec.template.spec.bootstrap.configRef.kind
           value: "TalosConfigTemplate"
-      - matchRegex:
+      - equal:
           path: spec.template.spec.bootstrap.configRef.name
-          pattern: ^test-cluster-worker-default-[a-f0-9]{6}$
+          value: "test-cluster-worker-default-4c4a8b"
 
   # Test Kubernetes version precedence
   - it: should make sure Kubernetes version defined in nodepool's config take precedence
