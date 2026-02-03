@@ -271,7 +271,7 @@ kommodity:
     #     minReplicas: 1
     #     maxReplicas: 3
 
-    #   # Enable system extensions for this nodepool (kernel modules and parameters, set default runtime to 'nvidia')
+    #   # Enable system extensions for this nodepool (set kernel modules and parameters, set default runtime to 'nvidia')
     #   gpus:
     #     enabled: true
 
