@@ -1,6 +1,8 @@
 package server
 
 import (
+	"context"
+	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
@@ -11,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/kommodity-io/kommodity/pkg/config"
+	"github.com/kommodity-io/kommodity/pkg/controller/reconciler"
 	admissionv1 "k8s.io/api/admission/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -38,12 +41,19 @@ import (
 	"k8s.io/apiserver/pkg/apis/audit"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	"k8s.io/apiserver/pkg/server/options"
+	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
 	apiregistration "k8s.io/kube-aggregator/pkg/apis/apiregistration"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 )
 
 const (
 	expectedCertSplitCount = 3
+	// signingKeySecretName is the name of the secret that stores the service account signing key.
+	signingKeySecretName = "service-account-signing-key"
+	// signingKeyDataKey is the key in the secret data that stores the private key PEM.
+	signingKeyDataKey = "key"
+	// rsaKeySize is the size of the RSA key to generate.
+	rsaKeySize = 4096
 )
 
 func enhanceScheme(scheme *runtime.Scheme) error {
@@ -147,15 +157,15 @@ func setupSecureServingWithSelfSigned(cfg *config.KommodityConfig) (*options.Sec
 	return secureServing, nil
 }
 
-func getServingCertAndKeyFromFiles(genericServerConfig *genericapiserver.RecommendedConfig) ([]byte, []byte, error) {
+func getServingCertFromFiles(genericServerConfig *genericapiserver.RecommendedConfig) ([]byte, error) {
 	combinedCertName := genericServerConfig.SecureServing.Cert.Name()
 	if combinedCertName == "" {
-		return nil, nil, ErrWebhookServerCertsNotConfigured
+		return nil, ErrWebhookServerCertsNotConfigured
 	}
 
 	certNames := strings.Split(combinedCertName, "::")
 	if len(certNames) != expectedCertSplitCount {
-		return nil, nil, ErrWebhookServerCertKeyNotConfigured
+		return nil, ErrWebhookServerCertKeyNotConfigured
 	}
 
 	certDir, certFile := filepath.Split(certNames[1])
@@ -163,18 +173,10 @@ func getServingCertAndKeyFromFiles(genericServerConfig *genericapiserver.Recomme
 	//nolint:gosec // We know that the certFile is a file path.
 	crt, err := os.ReadFile(filepath.Join(certDir, certFile))
 	if err != nil {
-		return nil, nil, fmt.Errorf("read webhook serving cert: %w", err)
+		return nil, fmt.Errorf("read webhook serving cert: %w", err)
 	}
 
-	keyDir, keyFile := filepath.Split(certNames[2])
-
-	//nolint:gosec // We know that the certFile is a file path.
-	key, err := os.ReadFile(filepath.Join(keyDir, keyFile))
-	if err != nil {
-		return nil, nil, fmt.Errorf("read webhook serving key: %w", err)
-	}
-
-	return crt, key, nil
+	return crt, nil
 }
 
 func convertPEMToRSAKey(pemBytes []byte) (*rsa.PrivateKey, error) {
@@ -199,6 +201,70 @@ func convertPEMToRSAKey(pemBytes []byte) (*rsa.PrivateKey, error) {
 	}
 
 	return rsaKey, nil
+}
+
+// generateRSAPrivateKey generates a new RSA private key.
+func generateRSAPrivateKey() (*rsa.PrivateKey, error) {
+	key, err := rsa.GenerateKey(rand.Reader, rsaKeySize)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate RSA key: %w", err)
+	}
+
+	return key, nil
+}
+
+// convertRSAKeyToPEM converts an RSA private key to PEM format.
+func convertRSAKeyToPEM(key *rsa.PrivateKey) []byte {
+	keyBytes := x509.MarshalPKCS1PrivateKey(key)
+
+	return pem.EncodeToMemory(&pem.Block{
+		Type:  "RSA PRIVATE KEY",
+		Bytes: keyBytes,
+	})
+}
+
+// getOrCreateSigningKey retrieves the service account signing key from a secret,
+// or generates a new one if the secret doesn't exist.
+func getOrCreateSigningKey(ctx context.Context, client corev1client.CoreV1Interface) (*rsa.PrivateKey, error) {
+	secret, err := client.Secrets(config.KommodityNamespace).Get(ctx, signingKeySecretName, metav1.GetOptions{})
+	if err == nil {
+		// Secret exists, load the key
+		keyPEM, ok := secret.Data[signingKeyDataKey]
+		if !ok {
+			return nil, fmt.Errorf("%w: signing key secret exists but missing: %s", ErrDataMissingFromSecret, signingKeyDataKey)
+		}
+
+		return convertPEMToRSAKey(keyPEM)
+	}
+
+	// Secret doesn't exist, generate a new key
+	key, err := generateRSAPrivateKey()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate signing key: %w", err)
+	}
+
+	// Store the key in a secret
+	keyPEM := convertRSAKeyToPEM(key)
+	newSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      signingKeySecretName,
+			Namespace: config.KommodityNamespace,
+			Labels: map[string]string{
+				"cluster.x-k8s.io/watch-filter": reconciler.SigningKeyControllerName,
+			},
+		},
+		Data: map[string][]byte{
+			signingKeyDataKey: keyPEM,
+		},
+		Type: corev1.SecretTypeOpaque,
+	}
+
+	_, err = client.Secrets(config.KommodityNamespace).Create(ctx, newSecret, metav1.CreateOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create signing key secret: %w", err)
+	}
+
+	return key, nil
 }
 
 func getSupportedGroupKindVersions() []schema.GroupVersion {

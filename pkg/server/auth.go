@@ -150,8 +150,8 @@ func applyAuth(ctx context.Context, cfg *config.KommodityConfig, config *generic
 		return nil
 	}
 
-	// Set up ServiceAccount token authenticator using the server's signing key
-	saAuthenticator, err := setupServiceAccountAuth(config)
+	// Set up ServiceAccount token authenticator using a dedicated signing key
+	saAuthenticator, err := setupServiceAccountAuth(ctx, config)
 	if err != nil {
 		return fmt.Errorf("failed to setup serviceaccount authenticator: %w", err)
 	}
@@ -214,24 +214,25 @@ func applyAuth(ctx context.Context, cfg *config.KommodityConfig, config *generic
 	return nil
 }
 
-// setupServiceAccountAuth creates a ServiceAccount token authenticator using the server's signing key.
+// setupServiceAccountAuth creates a ServiceAccount token authenticator using a dedicated signing key.
 // It validates that the ServiceAccount and Secret referenced in the token actually exist in Kommodity.
-func setupServiceAccountAuth(config *genericapiserver.RecommendedConfig) (authenticator.Token, error) {
-	_, key, err := getServingCertAndKeyFromFiles(config)
+// The signing key is stored in a secret to survive TLS certificate rotation.
+func setupServiceAccountAuth(
+	ctx context.Context, config *genericapiserver.RecommendedConfig,
+) (authenticator.Token, error) {
+	kubeClient, err := kubernetes.NewForConfig(config.LoopbackClientConfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get serving key for SA auth: %w", err)
+		return nil, fmt.Errorf("failed to create kubernetes client for SA auth: %w", err)
 	}
 
-	rsaKey, err := convertPEMToRSAKey(key)
+	// Get or create the dedicated signing key (separate from TLS cert to survive rotation)
+	rsaKey, err := getOrCreateSigningKey(ctx, kubeClient.CoreV1())
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert PEM to RSA key: %w", err)
+		return nil, fmt.Errorf("failed to get or create signing key for SA auth: %w", err)
 	}
-
-	// Use the public key from the RSA private key for token validation
-	publicKey := &rsaKey.PublicKey
 
 	// Create a static public keys getter for the authenticator
-	keysGetter, err := serviceaccount.StaticPublicKeysGetter([]interface{}{publicKey})
+	keysGetter, err := serviceaccount.StaticPublicKeysGetter([]interface{}{&rsaKey.PublicKey})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create static public keys getter: %w", err)
 	}

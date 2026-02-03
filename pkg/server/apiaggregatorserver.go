@@ -10,6 +10,7 @@ import (
 
 	"github.com/kommodity-io/kommodity/pkg/config"
 	"github.com/kommodity-io/kommodity/pkg/controller"
+	"github.com/kommodity-io/kommodity/pkg/controller/reconciler"
 	"github.com/kommodity-io/kommodity/pkg/kine"
 	"github.com/kommodity-io/kommodity/pkg/logging"
 	"github.com/kommodity-io/kommodity/pkg/provider"
@@ -26,6 +27,7 @@ import (
 	"k8s.io/client-go/discovery"
 	restclientdynamic "k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
+	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
@@ -210,7 +212,7 @@ func applyCRDsHook(cfg *config.KommodityConfig,
 		go func() {
 			webhookURL := fmt.Sprintf("https://localhost:%d", cfg.WebhookPort)
 
-			crt, _, err := getServingCertAndKeyFromFiles(genericServerConfig)
+			crt, err := getServingCertFromFiles(genericServerConfig)
 			if err != nil {
 				errCh <- fmt.Errorf("failed to get serving PEM from files: %w", err)
 
@@ -278,7 +280,20 @@ func startControllerManagersHook(cfg *config.KommodityConfig,
 			return fmt.Errorf("failed to waiting for provider CRDs are established: %w", err)
 		}
 
-		ctlMgr, err := controller.NewAggregatedControllerManager(ctx, cfg, genericServerConfig, scheme)
+		// Create kubernetes client for SigningKeyReconciler
+		kubeClient, err := kubernetes.NewForConfig(genericServerConfig.LoopbackClientConfig)
+		if err != nil {
+			return fmt.Errorf("failed to create kubernetes client for signing key reconciler: %w", err)
+		}
+
+		signingKeyDeps := reconciler.SigningKeyDeps{
+			CoreV1Client: kubeClient.CoreV1(),
+			GetOrCreateSigningKey: func(ctx context.Context, client v1.CoreV1Interface) (any, error) {
+				return getOrCreateSigningKey(ctx, client)
+			},
+		}
+
+		ctlMgr, err := controller.NewAggregatedControllerManager(ctx, cfg, genericServerConfig, scheme, signingKeyDeps)
 		if err != nil {
 			return fmt.Errorf("failed to create controller manager: %w", err)
 		}
@@ -307,14 +322,16 @@ func startTokenControllerHook(genericServerConfig *genericapiserver.RecommendedC
 			return fmt.Errorf("failed to create kubernetes client for tokens controller: %w", err)
 		}
 
-		cert, key, err := getServingCertAndKeyFromFiles(genericServerConfig)
+		// Get the CA certificate from the serving certificate (used for ca.crt in secrets)
+		cert, err := getServingCertFromFiles(genericServerConfig)
 		if err != nil {
-			return fmt.Errorf("failed to get serving key from files: %w", err)
+			return fmt.Errorf("failed to get serving cert from files: %w", err)
 		}
 
-		rsaKey, err := convertPEMToRSAKey(key)
+		// Get or create the dedicated signing key (separate from TLS cert to survive rotation)
+		rsaKey, err := getOrCreateSigningKey(ctx, kubeClient.CoreV1())
 		if err != nil {
-			return fmt.Errorf("failed to convert PEM to RSA key: %w", err)
+			return fmt.Errorf("failed to get or create signing key: %w", err)
 		}
 
 		tokenGenerator, err := serviceaccount.JWTTokenGenerator(serviceaccount.LegacyIssuer, rsaKey)
