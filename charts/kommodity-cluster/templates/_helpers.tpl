@@ -97,12 +97,13 @@ Any values that should trigger a new Talos config template when changed should b
 {{- $_ := set $data "kmsEnabled" .allValues.kommodity.kms.enabled -}}
 {{- if .allValues.kommodity.kms.enabled -}}
 	{{- with .allValues.kommodity.kms.endpoint -}}
-		{{- $_ := set $data "kmsEndpoint" . -}}  
+		{{- $_ := set $data "kmsEndpoint" . -}}
 	{{- end -}}
 {{- end -}}
 {{- $_ := set $data "labels" (dig "labels" "" .poolValues) -}}
 {{- $_ := set $data "annotations" (dig "annotations" "" .poolValues) -}}
 {{- $_ := set $data "taints" (dig "taints" "" .poolValues) -}}
+{{- $_ := set $data "gpus" (dig "gpus" "" .poolValues) -}}
 {{- toJson $data | sha256sum | trunc 6 -}}
 {{- end -}}
 
@@ -204,6 +205,15 @@ to preserve YAML block scalar formatting for multi-line contents.
 {{- if .logLevel -}}
 {{- $globalEnv := include "kommodity.talos.globalEnv" (dict "logLevel" .logLevel) | fromJson -}}
 {{- include "kommodity-cluster.addOrMergePatch" (dict "patches" $patches "op" "add" "path" "/machine/env" "value" $globalEnv) -}}
+{{- end -}}
+{{- /* Add GPU config */ -}}
+{{- if and .gpus .gpus.enabled -}}
+{{- $gpuConfigsKernel := include "kommodity.gpuConfigs.kernel" . | fromJson -}}
+{{- $gpuConfigsSysctls := include "kommodity.gpuConfigs.sysctls" . | fromJson -}}
+{{- $gpuConfigsFiles := (include "kommodity.gpuConfigs.files" . | fromJson).items -}}
+{{- include "kommodity-cluster.addOrMergePatch" (dict "patches" $patches "op" "add" "path" "/machine/kernel" "value" $gpuConfigsKernel) -}}
+{{- include "kommodity-cluster.addOrMergePatch" (dict "patches" $patches "op" "add" "path" "/machine/sysctls" "value" $gpuConfigsSysctls) -}}
+{{- include "kommodity-cluster.addOrMergePatch" (dict "patches" $patches "op" "add" "path" "/machine/files" "value" $gpuConfigsFiles) -}}
 {{- end -}}
 {{- /* Output all combined patches */ -}}
 {{- range $key, $patch := $patches }}
