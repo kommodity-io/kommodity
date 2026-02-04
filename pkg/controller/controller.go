@@ -37,7 +37,8 @@ const (
 func NewAggregatedControllerManager(ctx context.Context,
 	kommodityConfig *config.KommodityConfig,
 	genericServerConfig *genericapiserver.RecommendedConfig,
-	scheme *runtime.Scheme) (ctrl.Manager, error) {
+	scheme *runtime.Scheme,
+	signingKeyDeps reconciler.SigningKeyDeps) (ctrl.Manager, error) {
 	logger := zapr.NewLogger(logging.FromContext(ctx))
 	ctrl.SetLogger(logger)
 
@@ -96,7 +97,7 @@ func NewAggregatedControllerManager(ctx context.Context,
 
 	logger.Info("Setting up reconcilers")
 
-	err = reconciler.SetupReconcilers(ctx, kommodityConfig, &manager, clusterCache, controllerOpts)
+	err = reconciler.SetupReconcilers(ctx, kommodityConfig, &manager, clusterCache, controllerOpts, signingKeyDeps)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup reconcilers: %w", err)
 	}

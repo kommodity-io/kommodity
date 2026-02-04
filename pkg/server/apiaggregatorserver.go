@@ -10,11 +10,14 @@ import (
 
 	"github.com/kommodity-io/kommodity/pkg/config"
 	"github.com/kommodity-io/kommodity/pkg/controller"
+	"github.com/kommodity-io/kommodity/pkg/controller/reconciler"
 	"github.com/kommodity-io/kommodity/pkg/kine"
 	"github.com/kommodity-io/kommodity/pkg/logging"
 	"github.com/kommodity-io/kommodity/pkg/provider"
 	"go.uber.org/zap"
+	corev1 "k8s.io/api/core/v1"
 	apiextensionsinformers "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions/apiextensions/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -24,6 +27,7 @@ import (
 	"k8s.io/client-go/discovery"
 	restclientdynamic "k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
+	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
@@ -77,7 +81,7 @@ func (v *validatingResources) hasSameAPIGroupResources(apiGroupResources []*meta
 	return true
 }
 
-//nolint:funlen
+//nolint:funlen,cyclop
 func newAPIAggregatorServer(cfg *config.KommodityConfig,
 	genericServerConfig *genericapiserver.RecommendedConfig,
 	providerCache *provider.Cache,
@@ -133,6 +137,12 @@ func newAPIAggregatorServer(cfg *config.KommodityConfig,
 	}
 
 	err = aggregatorServer.GenericAPIServer.AddPostStartHook(
+		"bootstrap-required-resources", bootstrapRequiredResourcesHook(genericServerConfig))
+	if err != nil {
+		return nil, fmt.Errorf("failed to add post start hook for bootstrapping required resources: %w", err)
+	}
+
+	err = aggregatorServer.GenericAPIServer.AddPostStartHook(
 		"apply-crds", applyCRDsHook(cfg, genericServerConfig, providerCache, crds))
 	if err != nil {
 		return nil, fmt.Errorf("failed to add post start hook for applying CRDs: %w", err)
@@ -153,6 +163,39 @@ func newAPIAggregatorServer(cfg *config.KommodityConfig,
 	return aggregatorServer, nil
 }
 
+func bootstrapRequiredResourcesHook(
+	genericServerConfig *genericapiserver.RecommendedConfig) genericapiserver.PostStartHookFunc {
+	return func(ctx genericapiserver.PostStartHookContext) error {
+		logger := logging.FromContext(ctx)
+
+		kubeClient, err := kubernetes.NewForConfig(genericServerConfig.LoopbackClientConfig)
+		if err != nil {
+			return fmt.Errorf("failed to create kubernetes client for bootstrapping: %w", err)
+		}
+
+		requiredNamespaces := []string{"default", config.KommodityNamespace}
+
+		for _, name := range requiredNamespaces {
+			_, err = kubeClient.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: name,
+				},
+			}, metav1.CreateOptions{})
+			if err != nil {
+				if !apierrors.IsAlreadyExists(err) {
+					return fmt.Errorf("failed to create namespace %q: %w", name, err)
+				}
+
+				logger.Info("Namespace already exists", zap.String("namespace", name))
+			} else {
+				logger.Info("Created namespace", zap.String("namespace", name))
+			}
+		}
+
+		return nil
+	}
+}
+
 //nolint:funlen // Not possible to shorten this function in a meaningful way due to go routine.
 func applyCRDsHook(cfg *config.KommodityConfig,
 	genericServerConfig *genericapiserver.RecommendedConfig,
@@ -169,7 +212,7 @@ func applyCRDsHook(cfg *config.KommodityConfig,
 		go func() {
 			webhookURL := fmt.Sprintf("https://localhost:%d", cfg.WebhookPort)
 
-			crt, _, err := getServingCertAndKeyFromFiles(genericServerConfig)
+			crt, err := getServingCertFromFiles(genericServerConfig)
 			if err != nil {
 				errCh <- fmt.Errorf("failed to get serving PEM from files: %w", err)
 
@@ -237,7 +280,20 @@ func startControllerManagersHook(cfg *config.KommodityConfig,
 			return fmt.Errorf("failed to waiting for provider CRDs are established: %w", err)
 		}
 
-		ctlMgr, err := controller.NewAggregatedControllerManager(ctx, cfg, genericServerConfig, scheme)
+		// Create kubernetes client for SigningKeyReconciler
+		kubeClient, err := kubernetes.NewForConfig(genericServerConfig.LoopbackClientConfig)
+		if err != nil {
+			return fmt.Errorf("failed to create kubernetes client for signing key reconciler: %w", err)
+		}
+
+		signingKeyDeps := reconciler.SigningKeyDeps{
+			CoreV1Client: kubeClient.CoreV1(),
+			GetOrCreateSigningKey: func(ctx context.Context, client v1.CoreV1Interface) (any, error) {
+				return getOrCreateSigningKey(ctx, client)
+			},
+		}
+
+		ctlMgr, err := controller.NewAggregatedControllerManager(ctx, cfg, genericServerConfig, scheme, signingKeyDeps)
 		if err != nil {
 			return fmt.Errorf("failed to create controller manager: %w", err)
 		}
@@ -266,14 +322,16 @@ func startTokenControllerHook(genericServerConfig *genericapiserver.RecommendedC
 			return fmt.Errorf("failed to create kubernetes client for tokens controller: %w", err)
 		}
 
-		cert, key, err := getServingCertAndKeyFromFiles(genericServerConfig)
+		// Get the CA certificate from the serving certificate (used for ca.crt in secrets)
+		cert, err := getServingCertFromFiles(genericServerConfig)
 		if err != nil {
-			return fmt.Errorf("failed to get serving key from files: %w", err)
+			return fmt.Errorf("failed to get serving cert from files: %w", err)
 		}
 
-		rsaKey, err := convertPEMToRSAKey(key)
+		// Get or create the dedicated signing key (separate from TLS cert to survive rotation)
+		rsaKey, err := getOrCreateSigningKey(ctx, kubeClient.CoreV1())
 		if err != nil {
-			return fmt.Errorf("failed to convert PEM to RSA key: %w", err)
+			return fmt.Errorf("failed to get or create signing key: %w", err)
 		}
 
 		tokenGenerator, err := serviceaccount.JWTTokenGenerator(serviceaccount.LegacyIssuer, rsaKey)
