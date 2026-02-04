@@ -97,8 +97,10 @@ func (s *server) ListenAndServe(ctx context.Context) error {
 	if err != nil {
 		if errors.Is(err, http.ErrServerClosed) {
 			logger.Info("Server closed", zap.Int("port", s.Port))
+
 			return nil
 		}
+
 		return fmt.Errorf("failed to serve: %w", err)
 	}
 
