@@ -2,7 +2,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: cluster-autoscaler-config
+  name: {{ .Release.Name }}-cluster-autoscaler-config
   labels:
     cluster.x-k8s.io/cluster-name: {{ .Release.Name }}
     app.kubernetes.io/managed-by: kommodity

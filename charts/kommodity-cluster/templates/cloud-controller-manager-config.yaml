@@ -2,7 +2,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ .Values.kommodity.provider.name | lower }}-cloud-controller-manager-config
+  name: {{ .Release.Name }}-{{ .Values.kommodity.provider.name | lower }}-cloud-controller-manager-config
   labels:
     cluster.x-k8s.io/cluster-name: {{ .Release.Name }}
     app.kubernetes.io/managed-by: kommodity
