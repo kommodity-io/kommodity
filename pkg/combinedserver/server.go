@@ -5,13 +5,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/kommodity-io/kommodity/pkg/logging"
-	"github.com/soheilhy/cmux"
 	"go.uber.org/zap"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
@@ -35,11 +34,9 @@ type ServerConfig struct {
 type server struct {
 	*ServerConfig
 
-	cmuxServer   cmux.CMux
-	grpcServer   *grpc.Server
-	grpcListener net.Listener
-	httpServer   *http.Server
-	httpListener net.Listener
+	grpcServer *grpc.Server
+	httpMux    *http.ServeMux
+	httpServer *http.Server
 }
 
 // New creates a new combined server with gRPC listener and HTTP proxy.
@@ -55,51 +52,56 @@ func New(config ServerConfig) (*server, error) {
 func (s *server) ListenAndServe(ctx context.Context) error {
 	logger := logging.FromContext(ctx)
 
-	listenerConfig := net.ListenConfig{}
+	// Initialize gRPC server
+	s.grpcServer = grpc.NewServer()
+	reflection.Register(s.grpcServer)
 
-	muxListener, err := listenerConfig.Listen(ctx, "tcp", ":"+strconv.Itoa(s.Port))
+	err := s.GRPCFactory(s.grpcServer)
 	if err != nil {
-		return fmt.Errorf("failed to start cmux listener: %w", err)
+		return fmt.Errorf("failed to create gRPC factory: %w", err)
 	}
 
-	s.cmuxServer = cmux.New(muxListener)
-	s.grpcListener = s.cmuxServer.MatchWithWriters(
-		cmux.HTTP2MatchHeaderFieldPrefixSendSettings("content-type", "application/grpc"),
-	)
-
-	go func() {
-		runCtx, cancel := context.WithCancelCause(ctx)
-		defer cancel(nil)
-
-		err := s.serveHTTP(runCtx)
+	// Initialize HTTP mux
+	s.httpMux = http.NewServeMux()
+	for _, factory := range s.HTTPFactories {
+		err := factory(s.httpMux)
 		if err != nil {
-			errorMsg := "failed to start HTTP server:"
-			logger.Error(errorMsg, zap.Error(err))
-			cancel(fmt.Errorf("%s %w", errorMsg, err))
+			return fmt.Errorf("failed to create HTTP mux: %w", err)
 		}
-	}()
+	}
 
-	go func() {
-		runCtx, cancel := context.WithCancelCause(ctx)
-		defer cancel(nil)
-
-		err := s.serveGRPC(runCtx)
-		if err != nil {
-			errorMsg := "failed to start gRPC server:"
-			logger.Error(errorMsg, zap.Error(err))
-			cancel(fmt.Errorf("%s %w", errorMsg, err))
+	// Create a handler that routes based on Content-Type header.
+	// gRPC requests have Content-Type starting with "application/grpc".
+	// This allows both gRPC and HTTP to be served on the same port,
+	// which is necessary when running behind a reverse proxy that
+	// terminate TLS and forward HTTP/2.
+	mixedHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		contentType := r.Header.Get("Content-Type")
+		if r.ProtoMajor == 2 && strings.HasPrefix(contentType, "application/grpc") {
+			s.grpcServer.ServeHTTP(w, r)
+		} else {
+			s.httpMux.ServeHTTP(w, r)
 		}
-	}()
+	})
 
-	err = s.cmuxServer.Serve()
+	// Create HTTP server with h2c support for HTTP/2 without TLS
+	s.httpServer = &http.Server{
+		Addr:              ":" + strconv.Itoa(s.Port),
+		Handler:           h2c.NewHandler(mixedHandler, &http2.Server{}),
+		ReadHeaderTimeout: 1 * time.Second,
+	}
+
+	logger.Info("Starting combined HTTP/gRPC server", zap.Int("port", s.Port))
+
+	err = s.httpServer.ListenAndServe()
 	if err != nil {
-		// This is expected when the server is shut down gracefully.
-		// Reference: https://github.com/soheilhy/cmux/pull/92
-		if !errors.Is(err, net.ErrClosed) {
-			return fmt.Errorf("failed to run cmux server: %w", err)
+		if errors.Is(err, http.ErrServerClosed) {
+			logger.Info("Server closed", zap.Int("port", s.Port))
+
+			return nil
 		}
 
-		logger.Info("Closed cmux listener", zap.Int("port", s.Port))
+		return fmt.Errorf("failed to serve: %w", err)
 	}
 
 	return nil
@@ -108,17 +110,9 @@ func (s *server) ListenAndServe(ctx context.Context) error {
 func (s *server) Shutdown(ctx context.Context) error {
 	logger := logging.FromContext(ctx)
 
-	if s.cmuxServer != nil {
-		logger.Info("Shutting down cmux server", zap.Int("port", s.Port))
-
-		s.cmuxServer.Close()
-	}
-
 	if s.grpcServer != nil {
 		logger.Info("Shutting down gRPC server", zap.Int("port", s.Port))
-
 		s.grpcServer.GracefulStop()
-
 		logger.Info("Shut down gRPC server", zap.Int("port", s.Port))
 	}
 
@@ -129,72 +123,10 @@ func (s *server) Shutdown(ctx context.Context) error {
 
 		err := s.httpServer.Shutdown(ctx)
 		if err != nil {
-			// This is expected when the server is shut down via cmux.
-			// Reference: https://github.com/soheilhy/cmux/pull/92
-			if errors.Is(err, net.ErrClosed) {
-				logger.Info("Shut down HTTP server", zap.Int("port", s.Port))
-
-				return nil
-			}
+			return fmt.Errorf("failed to shutdown HTTP server: %w", err)
 		}
 
 		logger.Info("Shut down HTTP server", zap.Int("port", s.Port))
-	}
-
-	return nil
-}
-
-func (s *server) serveHTTP(_ context.Context) error {
-	s.httpListener = s.cmuxServer.Match(cmux.Any())
-	httpMux := http.NewServeMux()
-
-	s.httpServer = &http.Server{
-		Handler:           h2c.NewHandler(httpMux, &http2.Server{}),
-		ReadHeaderTimeout: 1 * time.Second,
-	}
-
-	for _, factory := range s.HTTPFactories {
-		err := factory(httpMux)
-		if err != nil {
-			return fmt.Errorf("failed to create HTTP mux: %w", err)
-		}
-	}
-
-	err := s.httpServer.Serve(s.httpListener)
-	if err != nil {
-		if errors.Is(err, http.ErrServerClosed) {
-			// This is expected when the server is shut down gracefully.
-			return nil
-		}
-
-		if errors.Is(err, cmux.ErrServerClosed) {
-			// This is expected when the server is shut down via cmux.
-			return nil
-		}
-
-		return fmt.Errorf("failed to serve HTTP: %w", err)
-	}
-
-	return nil
-}
-
-func (s *server) serveGRPC(_ context.Context) error {
-	s.grpcServer = grpc.NewServer()
-
-	// Allow reflection to enable tools like grpcurl.
-	reflection.Register(s.grpcServer)
-
-	err := s.GRPCFactory(s.grpcServer)
-	if err != nil {
-		return fmt.Errorf("failed to create gRPC factory: %w", err)
-	}
-
-	err = s.grpcServer.Serve(s.grpcListener)
-	if err != nil {
-		// This is expected when the server is shut down gracefully.
-		if !errors.Is(err, grpc.ErrServerStopped) {
-			return fmt.Errorf("failed to serve gRPC: %w", err)
-		}
 	}
 
 	return nil

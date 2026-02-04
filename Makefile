@@ -51,7 +51,7 @@ $(LINTER):
 
 generate-caddyfile: # Generate a Caddyfile for local development. Make sure to source the .env file first.
 	touch Caddyfile
-	echo "$(KOMMODITY_BASE_URL) {\n  reverse_proxy host.docker.internal:$(KOMMODITY_PORT)\n  tls internal\n}" > Caddyfile
+	echo "$(KOMMODITY_BASE_URL) {\n  reverse_proxy host.docker.internal:$(KOMMODITY_PORT) {\n    transport http {\n      versions h2c\n    }\n  }\n  tls internal\n}" > Caddyfile
 
 .PHONY: compose-up
 compose-up: generate-caddyfile
