@@ -141,7 +141,7 @@ resource "azurerm_container_app" "kommodity-app" {
   ingress {
     external_enabled = true
     target_port      = var.kommodity_container.port
-    transport        = "auto"
+    transport        = "http2"
     # traffic_weight block only applies when revision_mode is set to Multiple
     traffic_weight {
       percentage      = 100
