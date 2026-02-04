@@ -73,7 +73,7 @@ func (s *server) ListenAndServe(ctx context.Context) error {
 	// Create a handler that routes based on Content-Type header.
 	// gRPC requests have Content-Type starting with "application/grpc".
 	// This allows both gRPC and HTTP to be served on the same port,
-	// which is necessary when running behind a reverse proxies that
+	// which is necessary when running behind a reverse proxy that
 	// terminate TLS and forward HTTP/2.
 	mixedHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		contentType := r.Header.Get("Content-Type")
@@ -123,9 +123,7 @@ func (s *server) Shutdown(ctx context.Context) error {
 
 		err := s.httpServer.Shutdown(ctx)
 		if err != nil {
-			if !errors.Is(err, http.ErrServerClosed) {
-				return fmt.Errorf("failed to shutdown HTTP server: %w", err)
-			}
+			return fmt.Errorf("failed to shutdown HTTP server: %w", err)
 		}
 
 		logger.Info("Shut down HTTP server", zap.Int("port", s.Port))
