@@ -140,12 +140,12 @@ func mapInternalAliases(scheme *runtime.Scheme) {
 func setupSecureServingWithSelfSigned(cfg *config.KommodityConfig) (*options.SecureServingOptions, error) {
 	secureServing := options.NewSecureServingOptions()
 	secureServing.BindAddress = net.ParseIP("0.0.0.0")
+	secureServing.BindNetwork = "tcp4"
 	secureServing.BindPort = cfg.APIServerPort
 
 	// Generate self-signed certs for "localhost"
 	alternateIPs := []net.IP{
 		net.ParseIP("127.0.0.1"), // IPv4
-		net.ParseIP("::1"),       // IPv6
 	}
 	alternateDNS := []string{"localhost", "apiserver-loopback-client"}
 
