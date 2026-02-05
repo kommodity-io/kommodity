@@ -74,10 +74,10 @@ func (s *server) ListenAndServe(ctx context.Context) error {
 	// gRPC requests have Content-Type starting with "application/grpc".
 	// This allows both gRPC and HTTP to be served on the same port,
 	// which is necessary when running behind a reverse proxy that
-	// terminate TLS and forward HTTP/2.
+	// terminates TLS and forwards HTTP/2.
 	mixedHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		contentType := r.Header.Get("Content-Type")
-		if r.ProtoMajor == 2 && strings.HasPrefix(contentType, "application/grpc") {
+		if strings.HasPrefix(contentType, "application/grpc") {
 			s.grpcServer.ServeHTTP(w, r)
 		} else {
 			s.httpMux.ServeHTTP(w, r)
