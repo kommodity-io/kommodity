@@ -62,7 +62,7 @@ func setupAPIServerConfig(ctx context.Context,
 	}
 
 	loopbackConfig, err := setupNewLoopbackClientConfig(
-		genericServerConfig.SecureServing, secureServing.ServerCert.CertKey, cfg.APIServerPort)
+		genericServerConfig.SecureServing, secureServing.ServerCert.CertKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup loopback client config: %w", err)
 	}
@@ -97,7 +97,7 @@ func setupAPIServerConfig(ctx context.Context,
 }
 
 func setupNewLoopbackClientConfig(secureServing *genericapiserver.SecureServingInfo,
-	certKey options.CertKey, port int) (*restclient.Config, error) {
+	certKey options.CertKey) (*restclient.Config, error) {
 	// Generate a random loopback token
 	//nolint:mnd
 	tokenBytes := make([]byte, 16)
@@ -120,10 +120,6 @@ func setupNewLoopbackClientConfig(secureServing *genericapiserver.SecureServingI
 	if err != nil {
 		return nil, fmt.Errorf("failed to create loopback client config: %w", err)
 	}
-
-	// Force IPv4 loopback address. The Kubernetes library may choose IPv6 (::1) which
-	// doesn't work in some environments like Azure Container Apps that don't support IPv6.
-	loopbackConfig.Host = fmt.Sprintf("https://127.0.0.1:%d", port)
 
 	return loopbackConfig, nil
 }
