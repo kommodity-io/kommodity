@@ -415,7 +415,7 @@ jobs:
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           path: release
-          pattern: kommodity-*
+          pattern: kommodity-*-*
           merge-multiple: true
 
       - name: Download container image

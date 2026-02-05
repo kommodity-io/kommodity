@@ -153,7 +153,7 @@ func setupSecureServingWithSelfSigned(cfg *config.KommodityConfig) (*options.Sec
 
 	err := secureServing.MaybeDefaultWithSelfSignedCerts("localhost", alternateDNS, alternateIPs)
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate self-signed certs: %w", err)
+		return nil, fmt.Errorf("failed to generate self-signed certificates: %w", err)
 	}
 
 	return secureServing, nil
