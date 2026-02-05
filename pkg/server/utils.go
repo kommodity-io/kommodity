@@ -54,6 +54,8 @@ const (
 	signingKeyDataKey = "key"
 	// rsaKeySize is the size of the RSA key to generate.
 	rsaKeySize = 4096
+	// loopbackBindAddress is the IP address to use for the API server's loopback client.
+	loopbackBindAddress = "127.0.0.1"
 )
 
 func enhanceScheme(scheme *runtime.Scheme) error {
@@ -139,13 +141,13 @@ func mapInternalAliases(scheme *runtime.Scheme) {
 
 func setupSecureServingWithSelfSigned(cfg *config.KommodityConfig) (*options.SecureServingOptions, error) {
 	secureServing := options.NewSecureServingOptions()
-	secureServing.BindAddress = net.ParseIP("0.0.0.0")
+	secureServing.BindAddress = net.ParseIP(loopbackBindAddress)
 	secureServing.BindNetwork = "tcp4"
 	secureServing.BindPort = cfg.APIServerPort
 
 	// Generate self-signed certs for "localhost"
 	alternateIPs := []net.IP{
-		net.ParseIP("127.0.0.1"), // IPv4
+		net.ParseIP(loopbackBindAddress), // IPv4
 	}
 	alternateDNS := []string{"localhost", "apiserver-loopback-client"}
 
