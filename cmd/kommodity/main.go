@@ -95,6 +95,11 @@ func main() {
 		err = server.ListenAndServe(ctx)
 		if err != nil {
 			logger.Error("Failed to run combined server", zap.Error(err))
+
+			// Ensure that the server is shut down gracefully when an error occurs.
+			signals <- syscall.SIGTERM
+
+			return
 		}
 
 		logger.Info("API Server started successfully")
