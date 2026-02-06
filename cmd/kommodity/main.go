@@ -43,7 +43,7 @@ func main() {
 
 	cfg, err := config.LoadConfig(ctx)
 	if err != nil {
-		logger.Error("Failed to load config", zap.Error(err))
+		logger.Error("Failed to load configuration", zap.Error(err))
 
 		return
 	}
