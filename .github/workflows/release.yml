@@ -472,11 +472,12 @@ jobs:
         run: |
           mkdir -p /tmp/image
           tar -xf /tmp/image.tar -C /tmp/image
-          oras copy --from-oci-layout /tmp/image:latest \
+          digest=$(jq -r '.manifests[0].digest' /tmp/image/index.json)
+          oras copy --from-oci-layout "/tmp/image@${digest}" \
             ghcr.io/${{ github.repository }}:${{ steps.check.outputs.version }}
-          oras copy --from-oci-layout /tmp/image:latest \
+          oras copy --from-oci-layout "/tmp/image@${digest}" \
             ghcr.io/${{ github.repository }}:latest
-          oras copy --from-oci-layout /tmp/image:latest \
+          oras copy --from-oci-layout "/tmp/image@${digest}" \
             ghcr.io/${{ github.repository }}:${{ github.sha }}
 
       # Create GitHub release (only after Docker push succeeds)
