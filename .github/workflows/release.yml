@@ -473,11 +473,11 @@ jobs:
           mkdir -p /tmp/image
           tar -xf /tmp/image.tar -C /tmp/image
           oras copy --from-oci-layout /tmp/image:latest \
-            docker://ghcr.io/${{ github.repository }}:${{ steps.check.outputs.version }}
+            ghcr.io/${{ github.repository }}:${{ steps.check.outputs.version }}
           oras copy --from-oci-layout /tmp/image:latest \
-            docker://ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ github.repository }}:latest
           oras copy --from-oci-layout /tmp/image:latest \
-            docker://ghcr.io/${{ github.repository }}:${{ github.sha }}
+            ghcr.io/${{ github.repository }}:${{ github.sha }}
 
       # Create GitHub release (only after Docker push succeeds)
       - name: Create GitHub release
