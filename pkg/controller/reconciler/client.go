@@ -64,7 +64,7 @@ func (c *DownstreamClientConfig) FetchDownstreamKubernetesClient(ctx context.Con
 
 	restConfig, err := clientcmd.RESTConfigFromKubeConfig(kubeConfigBytes)
 	if err != nil {
-		logging.FromContext(ctx).Error("Failed to create REST config from kubeconfig", zap.Error(err))
+		logging.FromContext(ctx).Error("Failed to create REST configuration from kubeconfig", zap.Error(err))
 
 		return nil, fmt.Errorf("failed to create REST config from kubeconfig: %w", err)
 	}
