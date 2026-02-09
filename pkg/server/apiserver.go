@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"crypto/rand"
+	"crypto/rsa"
 	"encoding/base64"
 	"fmt"
 	"os"
@@ -29,8 +30,17 @@ func setupAPIServerConfig(ctx context.Context,
 	cfg *config.KommodityConfig,
 	openAPISpec *generatedopenapi.Spec,
 	scheme *runtime.Scheme,
-	codecs serializer.CodecFactory) (*genericapiserver.RecommendedConfig, error) {
+	codecs serializer.CodecFactory) (*genericapiserver.RecommendedConfig, *rsa.PrivateKey, error) {
 	genericServerConfig := genericapiserver.NewRecommendedConfig(codecs)
+
+	// Generate the service account signing key in-memory. This key is used for both
+	// the SA token authenticator and the token controller. It is persisted to a Secret
+	// by a PostStartHook once the server is listening, avoiding a chicken-and-egg problem
+	// where the loopback client would need to connect to the server before it starts.
+	signingKey, err := generateRSAPrivateKey()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to generate signing key: %w", err)
+	}
 
 	genericServerConfig.FeatureGate = feature.DefaultFeatureGate
 	genericServerConfig.EquivalentResourceRegistry = runtime.NewEquivalentResourceRegistry()
@@ -43,7 +53,7 @@ func setupAPIServerConfig(ctx context.Context,
 
 	policyEvaluator, err := loadPolicyRuleEvaluator(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load audit policy rule evaluator: %w", err)
+		return nil, nil, fmt.Errorf("failed to load audit policy rule evaluator: %w", err)
 	}
 
 	if policyEvaluator != nil {
@@ -53,18 +63,18 @@ func setupAPIServerConfig(ctx context.Context,
 
 	secureServing, err := setupSecureServingWithSelfSigned(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("failed to setup secure serving config: %w", err)
+		return nil, nil, fmt.Errorf("failed to setup secure serving config: %w", err)
 	}
 
 	err = secureServing.ApplyTo(&genericServerConfig.SecureServing)
 	if err != nil {
-		return nil, fmt.Errorf("failed to apply secure serving config: %w", err)
+		return nil, nil, fmt.Errorf("failed to apply secure serving config: %w", err)
 	}
 
 	loopbackConfig, err := setupNewLoopbackClientConfig(
 		genericServerConfig.SecureServing, secureServing.ServerCert.CertKey)
 	if err != nil {
-		return nil, fmt.Errorf("failed to setup loopback client config: %w", err)
+		return nil, nil, fmt.Errorf("failed to setup loopback client config: %w", err)
 	}
 
 	cfg.ClientConfig.LoopbackClientConfig = loopbackConfig
@@ -75,14 +85,14 @@ func setupAPIServerConfig(ctx context.Context,
 	resourceConfig.EnableVersions(getSupportedGroupKindVersions()...)
 	genericServerConfig.MergedResourceConfig = resourceConfig
 
-	err = applyAuth(ctx, cfg, genericServerConfig)
+	err = applyAuth(ctx, cfg, genericServerConfig, signingKey)
 	if err != nil {
-		return nil, fmt.Errorf("failed to apply authentication/authorization config: %w", err)
+		return nil, nil, fmt.Errorf("failed to apply authentication/authorization config: %w", err)
 	}
 
 	kubeClient, err := clientgoclientset.NewForConfig(loopbackConfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create kube client: %w", err)
+		return nil, nil, fmt.Errorf("failed to create kube client: %w", err)
 	}
 
 	genericServerConfig.SharedInformerFactory = clientgoinformers.NewSharedInformerFactory(
@@ -90,10 +100,10 @@ func setupAPIServerConfig(ctx context.Context,
 
 	err = applyAdmission(genericServerConfig, kubeClient)
 	if err != nil {
-		return nil, fmt.Errorf("failed to apply admission config: %w", err)
+		return nil, nil, fmt.Errorf("failed to apply admission config: %w", err)
 	}
 
-	return genericServerConfig, nil
+	return genericServerConfig, signingKey, nil
 }
 
 func setupNewLoopbackClientConfig(secureServing *genericapiserver.SecureServingInfo,

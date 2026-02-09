@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"crypto/rsa"
 	"fmt"
 	"maps"
 	"slices"
@@ -88,7 +89,8 @@ func newAPIAggregatorServer(cfg *config.KommodityConfig,
 	scheme *runtime.Scheme,
 	codecs serializer.CodecFactory,
 	delegationTarget genericapiserver.DelegationTarget,
-	crds apiextensionsinformers.CustomResourceDefinitionInformer) (*aggregatorapiserver.APIAggregator, error) {
+	crds apiextensionsinformers.CustomResourceDefinitionInformer,
+	signingKey *rsa.PrivateKey) (*aggregatorapiserver.APIAggregator, error) {
 	config, err := setupAPIAggregatorConfig(cfg, genericServerConfig, codecs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup API aggregator config: %w", err)
@@ -155,9 +157,17 @@ func newAPIAggregatorServer(cfg *config.KommodityConfig,
 	}
 
 	err = aggregatorServer.GenericAPIServer.AddPostStartHook(
-		"start-token-controller", startTokenControllerHook(genericServerConfig))
+		"start-token-controller", startTokenControllerHook(genericServerConfig, signingKey))
 	if err != nil {
 		return nil, fmt.Errorf("failed to add post start hook for starting token controller: %w", err)
+	}
+
+	if signingKey != nil {
+		err = aggregatorServer.GenericAPIServer.AddPostStartHook(
+			"persist-signing-key", persistSigningKeyHook(genericServerConfig, signingKey))
+		if err != nil {
+			return nil, fmt.Errorf("failed to add post start hook for persisting signing key: %w", err)
+		}
 	}
 
 	return aggregatorServer, nil
@@ -315,7 +325,7 @@ func startControllerManagersHook(cfg *config.KommodityConfig,
 }
 
 //nolint:lll // Not possible to shorten the signature
-func startTokenControllerHook(genericServerConfig *genericapiserver.RecommendedConfig) genericapiserver.PostStartHookFunc {
+func startTokenControllerHook(genericServerConfig *genericapiserver.RecommendedConfig, signingKey *rsa.PrivateKey) genericapiserver.PostStartHookFunc {
 	return func(ctx genericapiserver.PostStartHookContext) error {
 		kubeClient, err := kubernetes.NewForConfig(genericServerConfig.LoopbackClientConfig)
 		if err != nil {
@@ -328,13 +338,7 @@ func startTokenControllerHook(genericServerConfig *genericapiserver.RecommendedC
 			return fmt.Errorf("failed to get serving cert from files: %w", err)
 		}
 
-		// Get or create the dedicated signing key (separate from TLS cert to survive rotation)
-		rsaKey, err := getOrCreateSigningKey(ctx, kubeClient.CoreV1())
-		if err != nil {
-			return fmt.Errorf("failed to get or create signing key: %w", err)
-		}
-
-		tokenGenerator, err := serviceaccount.JWTTokenGenerator(serviceaccount.LegacyIssuer, rsaKey)
+		tokenGenerator, err := serviceaccount.JWTTokenGenerator(serviceaccount.LegacyIssuer, signingKey)
 		if err != nil {
 			return fmt.Errorf("failed to build token generator: %w", err)
 		}
@@ -361,6 +365,66 @@ func startTokenControllerHook(genericServerConfig *genericapiserver.RecommendedC
 
 			tokenController.Run(runCtx, 1)
 		}()
+
+		return nil
+	}
+}
+
+// persistSigningKeyHook persists the in-memory signing key to a Kubernetes Secret.
+// This runs after the server is listening, so the loopback client can connect.
+func persistSigningKeyHook(
+	genericServerConfig *genericapiserver.RecommendedConfig,
+	signingKey *rsa.PrivateKey,
+) genericapiserver.PostStartHookFunc {
+	return func(ctx genericapiserver.PostStartHookContext) error {
+		logger := logging.FromContext(ctx)
+
+		kubeClient, err := kubernetes.NewForConfig(genericServerConfig.LoopbackClientConfig)
+		if err != nil {
+			return fmt.Errorf("failed to create kubernetes client for persisting signing key: %w", err)
+		}
+
+		// Ensure namespace exists (may race with bootstrap-required-resources hook)
+		_, err = kubeClient.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{Name: config.KommodityNamespace},
+		}, metav1.CreateOptions{})
+		if err != nil && !apierrors.IsAlreadyExists(err) {
+			return fmt.Errorf("failed to ensure namespace %q exists: %w", config.KommodityNamespace, err)
+		}
+
+		keyPEM := convertRSAKeyToPEM(signingKey)
+		secret := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      signingKeySecretName,
+				Namespace: config.KommodityNamespace,
+				Labels: map[string]string{
+					"cluster.x-k8s.io/watch-filter": reconciler.SigningKeyControllerName,
+				},
+			},
+			Data: map[string][]byte{
+				signingKeyDataKey: keyPEM,
+			},
+			Type: corev1.SecretTypeOpaque,
+		}
+
+		_, err = kubeClient.CoreV1().Secrets(config.KommodityNamespace).Create(
+			ctx, secret, metav1.CreateOptions{})
+		if err != nil {
+			if !apierrors.IsAlreadyExists(err) {
+				return fmt.Errorf("failed to create signing key secret: %w", err)
+			}
+
+			// Secret exists from a previous run, update it with the current key
+			_, err = kubeClient.CoreV1().Secrets(config.KommodityNamespace).Update(
+				ctx, secret, metav1.UpdateOptions{})
+			if err != nil {
+				return fmt.Errorf("failed to update signing key secret: %w", err)
+			}
+
+			logger.Info("Updated signing key secret")
+		} else {
+			logger.Info("Created signing key secret")
+		}
 
 		return nil
 	}

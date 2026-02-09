@@ -15,10 +15,10 @@ import (
 	"github.com/kommodity-io/kommodity/pkg/storage/events"
 	"github.com/kommodity-io/kommodity/pkg/storage/namespaces"
 	"github.com/kommodity-io/kommodity/pkg/storage/rbac"
-	"github.com/kommodity-io/kommodity/pkg/storage/storage"
 	"github.com/kommodity-io/kommodity/pkg/storage/secrets"
 	"github.com/kommodity-io/kommodity/pkg/storage/serviceaccount"
 	"github.com/kommodity-io/kommodity/pkg/storage/services"
+	"github.com/kommodity-io/kommodity/pkg/storage/storage"
 	"github.com/kommodity-io/kommodity/pkg/storage/webhookconfigurations"
 	"go.uber.org/zap"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
@@ -75,7 +75,7 @@ func New(ctx context.Context, cfg *config.KommodityConfig) (*aggregatorapiserver
 
 	codecs := serializer.NewCodecFactory(scheme)
 
-	genericServerConfig, err := setupAPIServerConfig(ctx, cfg, openAPISpec, scheme, codecs)
+	genericServerConfig, signingKey, err := setupAPIServerConfig(ctx, cfg, openAPISpec, scheme, codecs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup config for the generic api server: %w", err)
 	}
@@ -169,6 +169,7 @@ func New(ctx context.Context, cfg *config.KommodityConfig) (*aggregatorapiserver
 		codecs,
 		genericServer,
 		crdServer.Informers.Apiextensions().V1().CustomResourceDefinitions(),
+		signingKey,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup API aggregator server: %w", err)
