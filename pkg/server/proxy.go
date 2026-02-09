@@ -20,7 +20,7 @@ import (
 // NewHTTPMuxFactory creates a new HTTP mux proxy factory for the API server.
 func NewHTTPMuxFactory(ctx context.Context, cfg *config.KommodityConfig) combinedserver.HTTPMuxFactory {
 	return func(mux *http.ServeMux) error {
-		server, err := New(ctx, cfg)
+		server, _, err := New(ctx, cfg)
 		if err != nil {
 			return fmt.Errorf("failed to create server: %w", err)
 		}

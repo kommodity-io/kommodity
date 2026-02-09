@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"crypto/rsa"
 	"fmt"
 	"net/http"
 	"slices"
@@ -142,7 +143,8 @@ func NewSelfSubjectAccessReviewREST(cfg *config.KommodityConfig) *selfsubjectacc
 }
 
 //nolint:funlen
-func applyAuth(ctx context.Context, cfg *config.KommodityConfig, config *genericapiserver.RecommendedConfig) error {
+func applyAuth(ctx context.Context, cfg *config.KommodityConfig,
+	config *genericapiserver.RecommendedConfig, signingKey *rsa.PrivateKey) error {
 	if !cfg.AuthConfig.Apply {
 		config.Authentication.Authenticator = authunion.New(anonymousReqAuth{})
 		config.Authorization.Authorizer = authorizerfactory.NewAlwaysAllowAuthorizer()
@@ -150,8 +152,8 @@ func applyAuth(ctx context.Context, cfg *config.KommodityConfig, config *generic
 		return nil
 	}
 
-	// Set up ServiceAccount token authenticator using a dedicated signing key
-	saAuthenticator, err := setupServiceAccountAuth(ctx, config)
+	// Set up ServiceAccount token authenticator using the in-memory signing key
+	saAuthenticator, err := setupServiceAccountAuth(config, signingKey)
 	if err != nil {
 		return fmt.Errorf("failed to setup serviceaccount authenticator: %w", err)
 	}
@@ -214,25 +216,14 @@ func applyAuth(ctx context.Context, cfg *config.KommodityConfig, config *generic
 	return nil
 }
 
-// setupServiceAccountAuth creates a ServiceAccount token authenticator using a dedicated signing key.
+// setupServiceAccountAuth creates a ServiceAccount token authenticator using the provided signing key.
 // It validates that the ServiceAccount and Secret referenced in the token actually exist in Kommodity.
-// The signing key is stored in a secret to survive TLS certificate rotation.
+// The signing key is generated in-memory and persisted to a Secret by a PostStartHook.
 func setupServiceAccountAuth(
-	ctx context.Context, config *genericapiserver.RecommendedConfig,
+	config *genericapiserver.RecommendedConfig, signingKey *rsa.PrivateKey,
 ) (authenticator.Token, error) {
-	kubeClient, err := kubernetes.NewForConfig(config.LoopbackClientConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create kubernetes client for SA auth: %w", err)
-	}
-
-	// Get or create the dedicated signing key (separate from TLS cert to survive rotation)
-	rsaKey, err := getOrCreateSigningKey(ctx, kubeClient.CoreV1())
-	if err != nil {
-		return nil, fmt.Errorf("failed to get or create signing key for SA auth: %w", err)
-	}
-
 	// Create a static public keys getter for the authenticator
-	keysGetter, err := serviceaccount.StaticPublicKeysGetter([]interface{}{&rsaKey.PublicKey})
+	keysGetter, err := serviceaccount.StaticPublicKeysGetter([]interface{}{&signingKey.PublicKey})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create static public keys getter: %w", err)
 	}

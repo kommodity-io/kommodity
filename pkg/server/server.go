@@ -3,6 +3,7 @@ package server
 
 import (
 	"context"
+	"crypto/rsa"
 	"fmt"
 
 	"github.com/kommodity-io/kommodity/pkg/config"
@@ -15,10 +16,10 @@ import (
 	"github.com/kommodity-io/kommodity/pkg/storage/events"
 	"github.com/kommodity-io/kommodity/pkg/storage/namespaces"
 	"github.com/kommodity-io/kommodity/pkg/storage/rbac"
-	"github.com/kommodity-io/kommodity/pkg/storage/storage"
 	"github.com/kommodity-io/kommodity/pkg/storage/secrets"
 	"github.com/kommodity-io/kommodity/pkg/storage/serviceaccount"
 	"github.com/kommodity-io/kommodity/pkg/storage/services"
+	"github.com/kommodity-io/kommodity/pkg/storage/storage"
 	"github.com/kommodity-io/kommodity/pkg/storage/webhookconfigurations"
 	"go.uber.org/zap"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
@@ -44,65 +45,66 @@ const (
 // New creates a new Kubernetes API Server.
 //
 //nolint:cyclop, funlen // Too long or too complex due to many error checks and setup steps, no real complexity here
-func New(ctx context.Context, cfg *config.KommodityConfig) (*aggregatorapiserver.APIAggregator, error) {
+func New(ctx context.Context, cfg *config.KommodityConfig) (*aggregatorapiserver.APIAggregator,
+	*rsa.PrivateKey, error) {
 	logger := logging.FromContext(ctx)
 
 	logger.Info("Setting up Open API Specs")
 
 	openAPISpec, err := generatedopenapi.NewOpenAPISpec()
 	if err != nil {
-		return nil, fmt.Errorf("failed to extract desired OpenAPI spec for server: %w", err)
+		return nil, nil, fmt.Errorf("failed to extract desired OpenAPI spec for server: %w", err)
 	}
 
 	scheme := runtime.NewScheme()
 
 	err = enhanceScheme(scheme)
 	if err != nil {
-		return nil, fmt.Errorf("failed to enhance local scheme: %w", err)
+		return nil, nil, fmt.Errorf("failed to enhance local scheme: %w", err)
 	}
 
 	mapInternalAliases(scheme)
 
 	providerCache, err := provider.NewProviderCache(scheme)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create provider cache: %w", err)
+		return nil, nil, fmt.Errorf("failed to create provider cache: %w", err)
 	}
 
 	err = providerCache.LoadCache(ctx, cfg)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load provider cache: %w", err)
+		return nil, nil, fmt.Errorf("failed to load provider cache: %w", err)
 	}
 
 	codecs := serializer.NewCodecFactory(scheme)
 
-	genericServerConfig, err := setupAPIServerConfig(ctx, cfg, openAPISpec, scheme, codecs)
+	genericServerConfig, signingKey, err := setupAPIServerConfig(ctx, cfg, openAPISpec, scheme, codecs)
 	if err != nil {
-		return nil, fmt.Errorf("failed to setup config for the generic api server: %w", err)
+		return nil, nil, fmt.Errorf("failed to setup config for the generic api server: %w", err)
 	}
 
 	crdServer, err := newAPIExtensionServer(cfg, genericServerConfig, codecs, genericapiserver.NewEmptyDelegate())
 	if err != nil {
-		return nil, fmt.Errorf("failed to create apiextensions (CRD) server: %w", err)
+		return nil, nil, fmt.Errorf("failed to create apiextensions (CRD) server: %w", err)
 	}
 
 	// Creates a new API Server with self-signed certs settings
 	genericServer, err := genericServerConfig.Complete().New("kommodity-api-server", crdServer.GenericAPIServer)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build the generic api server: %w", err)
+		return nil, nil, fmt.Errorf("failed to build the generic api server: %w", err)
 	}
 
 	logger.Info("Setting up legacy API")
 
 	legacyAPI, err := setupLegacyAPI(cfg, scheme, codecs, logger)
 	if err != nil {
-		return nil, fmt.Errorf("failed to setup legacy API group info for the generic API server: %w", err)
+		return nil, nil, fmt.Errorf("failed to setup legacy API group info for the generic API server: %w", err)
 	}
 
 	logger.Info("Installing legacy API group")
 
 	err = genericServer.InstallLegacyAPIGroup("/api", legacyAPI)
 	if err != nil {
-		return nil, fmt.Errorf("failed to install legacy API group into the generic API server: %w", err)
+		return nil, nil, fmt.Errorf("failed to install legacy API group into the generic API server: %w", err)
 	}
 
 	logger.Info("Installing authorization API group")
@@ -111,39 +113,39 @@ func New(ctx context.Context, cfg *config.KommodityConfig) (*aggregatorapiserver
 
 	err = genericServer.InstallAPIGroup(authorizationAPI)
 	if err != nil {
-		return nil, fmt.Errorf("failed to install authorization API group into the generic API server: %w", err)
+		return nil, nil, fmt.Errorf("failed to install authorization API group into the generic API server: %w", err)
 	}
 
 	logger.Info("Installing rbac API group")
 
 	rbacAPI, err := setupRBACAPIGroupInfo(cfg, scheme, codecs)
 	if err != nil {
-		return nil, fmt.Errorf("failed to setup rbac API group info: %w", err)
+		return nil, nil, fmt.Errorf("failed to setup rbac API group info: %w", err)
 	}
 
 	err = genericServer.InstallAPIGroup(rbacAPI)
 	if err != nil {
-		return nil, fmt.Errorf("failed to install rbac API group into the generic API server: %w", err)
+		return nil, nil, fmt.Errorf("failed to install rbac API group into the generic API server: %w", err)
 	}
 
 	storageAPI, err := setupStorageAPIGroupInfo(cfg, scheme, codecs)
 	if err != nil {
-		return nil, fmt.Errorf("failed to setup storage API group info: %w", err)
+		return nil, nil, fmt.Errorf("failed to setup storage API group info: %w", err)
 	}
 
 	err = genericServer.InstallAPIGroup(storageAPI)
 	if err != nil {
-		return nil, fmt.Errorf("failed to install storage API group into the generic API server: %w", err)
+		return nil, nil, fmt.Errorf("failed to install storage API group into the generic API server: %w", err)
 	}
 
 	admissionRegistrationAPI, err := setupAdmissionRegistrationAPIGroupInfo(cfg, scheme, codecs)
 	if err != nil {
-		return nil, fmt.Errorf("failed to setup admissionregistration API group info: %w", err)
+		return nil, nil, fmt.Errorf("failed to setup admissionregistration API group info: %w", err)
 	}
 
 	err = genericServer.InstallAPIGroup(admissionRegistrationAPI)
 	if err != nil {
-		return nil, fmt.Errorf("failed to install admissionregistration API group into the generic API server: %w", err)
+		return nil, nil, fmt.Errorf("failed to install admissionregistration API group into the generic API server: %w", err)
 	}
 
 	logger.Info("Creating new API aggregator server")
@@ -152,12 +154,12 @@ func New(ctx context.Context, cfg *config.KommodityConfig) (*aggregatorapiserver
 
 	err = enhanceScheme(controllerScheme)
 	if err != nil {
-		return nil, fmt.Errorf("failed to enhance controller scheme: %w", err)
+		return nil, nil, fmt.Errorf("failed to enhance controller scheme: %w", err)
 	}
 
 	err = provider.AddAllProvidersToScheme(controllerScheme)
 	if err != nil {
-		return nil, fmt.Errorf("failed to add providers to controller scheme: %w", err)
+		return nil, nil, fmt.Errorf("failed to add providers to controller scheme: %w", err)
 	}
 
 	//nolint:contextcheck // No need to pass context here as its not used in the function call
@@ -169,12 +171,13 @@ func New(ctx context.Context, cfg *config.KommodityConfig) (*aggregatorapiserver
 		codecs,
 		genericServer,
 		crdServer.Informers.Apiextensions().V1().CustomResourceDefinitions(),
+		signingKey,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to setup API aggregator server: %w", err)
+		return nil, nil, fmt.Errorf("failed to setup API aggregator server: %w", err)
 	}
 
-	return aggregatorServer, nil
+	return aggregatorServer, signingKey, nil
 }
 
 //nolint:funlen // Too long or too complex due to many error checks and setup steps, no real complexity here
