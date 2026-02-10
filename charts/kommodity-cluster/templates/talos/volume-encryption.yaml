@@ -9,9 +9,7 @@ See: https://docs.siderolabs.com/talos/v1.12/reference/configuration/block/volum
   apiVersion: v1alpha1
   kind: VolumeConfig
   name: STATE
-  provisioning:
-    diskSelector:
-      match: 'system_disk'
+  # provisioning config is not allowed for the STATE volume
   encryption:
     provider: luks2
     keys:
