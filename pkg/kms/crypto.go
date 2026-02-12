@@ -7,7 +7,7 @@ import (
 	"fmt"
 )
 
-func encrypt(key, plaintext []byte) ([]byte, error) {
+func encrypt(key, plaintext, aad []byte) ([]byte, error) {
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create AES cipher: %w", err)
@@ -25,7 +25,7 @@ func encrypt(key, plaintext []byte) ([]byte, error) {
 		return nil, fmt.Errorf("failed to generate nonce: %w", err)
 	}
 
-	ct := gcm.Seal(nil, nonce, plaintext, nil)
+	ct := gcm.Seal(nil, nonce, plaintext, aad)
 
 	result := make([]byte, 0, len(nonce)+len(ct))
 	result = append(result, nonce...)
@@ -34,7 +34,7 @@ func encrypt(key, plaintext []byte) ([]byte, error) {
 	return result, nil
 }
 
-func decrypt(key, encryptedtext []byte) ([]byte, error) {
+func decrypt(key, encryptedtext, aad []byte) ([]byte, error) {
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create AES cipher: %w", err)
@@ -50,7 +50,7 @@ func decrypt(key, encryptedtext []byte) ([]byte, error) {
 		return nil, ErrCipherTooShort
 	}
 
-	data, err := gcm.Open(nil, encryptedtext[:ns], encryptedtext[ns:], nil)
+	data, err := gcm.Open(nil, encryptedtext[:ns], encryptedtext[ns:], aad)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt data: %w", err)
 	}
