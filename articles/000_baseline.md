@@ -58,7 +58,7 @@ Kommodity packages several proven components into a single binary:
 
 One port. One process. PostgreSQL for state.
 
-![Kommodity Architecture](images/kommodity-architecture.excalidraw.png)
+![Kommodity Architecture](../images/kommodity-architecture.excalidraw.png)
 
 ---
 
@@ -95,7 +95,7 @@ We wanted hardware-rooted trust: a machine proves its identity using its TPM bef
 
 **The short version**: Before a machine gets any secrets, it must cryptographically prove it's running the exact software you expect, using tamper-proof hardware. If anything is wrong - different kernel, unauthorized extension, security controls disabled - no secrets are delivered.
 
-![Machine Trust Flow](images/machine-trust.excalidraw.png)
+![Machine Trust Flow](../images/machine-trust.excalidraw.png)
 
 **The detailed sequence**:
 
