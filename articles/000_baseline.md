@@ -229,7 +229,7 @@ With Kommodity, this becomes three YAML files and a single operational model. Ea
 - The same `kubectl` and Helm workflows across all environments
 - Unified audit logging for compliance reporting
 
-No cloud-specific tooling. No vendor-specific key management. No "works differently in production than in DR."
+No cloud-specific tooling. No vendor-specific key management. No "works differently in production than in non-production."
 
 That's what we mean by making sovereign cloud boring.
 
