@@ -452,7 +452,7 @@ Kommodity uses standard Kubernetes API versioning. CRDs are embedded in the bina
 3. Controllers reconcile with new logic
 
 There's no separate migration step, but you should:
-- Test upgrades in staging first
+- Test upgrades in lower environment(s) first
 - Review CRD changes between versions
 - Plan for controller behavior changes
 
