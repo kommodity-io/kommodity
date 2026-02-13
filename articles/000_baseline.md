@@ -533,10 +533,12 @@ make run
 kubectl --kubeconfig kommodity.yaml get clusters
 ```
 
-For production:
-- Helm chart for clusters: `charts/kommodity`
-- Azure Terraform module for Kommodity: `terraform/modules/azure`
-- Container images: `ghcr.io/kommodity-io/kommodity`
+For production, see the resources in the repository:
+- Helm chart for clusters: [`charts/kommodity`](https://github.com/kommodity-io/kommodity/tree/main/charts/kommodity)  
+  Example:  
+  ```bash
+  helm repo add kommodity https://kommodity-io.github.io/kommodity
+  helm install kommodity kommodity/kommodity -f values.yaml
 
 ---
 
