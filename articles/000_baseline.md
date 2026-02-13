@@ -56,7 +56,7 @@ Kommodity packages several proven components into a single binary:
 - **Attestation service** for TPM-based machine verification
 - **Metadata service** for secure machine configuration delivery
 
-One port. One process. PostgreSQL for state.
+One port. One executable. PostgreSQL for state.
 
 ![Kommodity Architecture](../images/kommodity-architecture.excalidraw.png)
 
