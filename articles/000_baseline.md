@@ -159,7 +159,7 @@ Common approaches and their tradeoffs:
 Kommodity implements a network-based KMS that ties encryption keys to machine identity:
 
 ```go
-// From pkg/kms/server.go - actual implementation
+// Simplified example based on pkg/kms/server.go (error handling and some steps omitted)
 func (s *ServiceServer) Seal(ctx context.Context, req *kms.Request) (*kms.Response, error) {
     nodeUUID, err := validateNodeUUID(req)
     if err != nil {
