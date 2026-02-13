@@ -317,7 +317,7 @@ The [auto-bootstrap extension](https://github.com/kommodity-io/kommodity-autoboo
 machine:
   install:
     extensions:
-      - image: ghcr.io/kommodity-io/kommodity-autobootstrap-extension:v1.0.0
+      - image: ghcr.io/kommodity-io/kommodity-autobootstrap-extension:vX.Y.Z # Use the latest release tag from GitHub
   env:
     KOMMODITY_AUTOBOOTSTRAP_NETWORK_CIDR: "10.0.0.0/24"
     KOMMODITY_AUTOBOOTSTRAP_QUORUM: "3"
