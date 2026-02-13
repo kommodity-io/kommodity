@@ -343,8 +343,7 @@ func getInfrastructureProviders(ctx context.Context) []Provider {
 
 		providers = defaultProviders
 	} else {
-		providerStrings := strings.Split(providersEnv, ",")
-		for _, p := range providerStrings {
+		for p := range strings.SplitSeq(providersEnv, ",") {
 			provider := Provider(strings.TrimSpace(p))
 			providers = append(providers, provider)
 		}

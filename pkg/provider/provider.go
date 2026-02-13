@@ -186,11 +186,11 @@ func (pc *Cache) updateWebhooks(webhook *unstructured.Unstructured, webhookURL s
 		}
 
 		if _, exists := webhook["namespaceSelector"]; !exists {
-			webhook["namespaceSelector"] = map[string]interface{}{}
+			webhook["namespaceSelector"] = map[string]any{}
 		}
 
 		if _, exists := webhook["objectSelector"]; !exists {
-			webhook["objectSelector"] = map[string]interface{}{}
+			webhook["objectSelector"] = map[string]any{}
 		}
 
 		err := pc.updateWebhookWithClientData(webhook, webhookURL, webhookCRT)
@@ -220,7 +220,7 @@ func (pc *Cache) updateWebhookWithClientData(webhook map[string]any, webhookURL 
 		CABundle: webhookCRT,
 	}
 
-	var clientConfigMap map[string]interface{}
+	var clientConfigMap map[string]any
 
 	b, err := json.Marshal(clientConfig)
 	if err != nil {

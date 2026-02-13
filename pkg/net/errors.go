@@ -1,4 +1,3 @@
-// Package net provides error definitions for network utilities.
 package net
 
 import "errors"

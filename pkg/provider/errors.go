@@ -1,4 +1,3 @@
-// Package provider provides error definitions for provider operations.
 package provider
 
 import "errors"

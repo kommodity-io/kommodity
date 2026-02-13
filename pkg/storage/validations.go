@@ -1,4 +1,3 @@
-// Package storage provides validation functions for storage operations.
 package storage
 
 import (

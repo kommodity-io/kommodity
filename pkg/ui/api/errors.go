@@ -1,4 +1,3 @@
-// Package api provides error definitions for metadata API operations.
 package api
 
 import "errors"
