@@ -23,7 +23,7 @@ We wanted a third option: make sovereign cloud *boring*. As routine as deploying
 
 ## Our Starting Point: Healthcare AI with Nowhere to Hide
 
-At Corti, we build AI that assists healthcare professionals in emergency calls. Our infrastructure requirements are driven by regulation, not architecture astronautics:
+At Corti, we build AI tools that assist healthcare professionals. Our infrastructure requirements are driven by regulation, not architecture astronautics:
 
 - **Data sovereignty**: Patient data must stay in specific jurisdictions. Some customers require on-premise deployments
 - **Compliance**: GDPR, ISO 27001, SOC 2. Encryption at rest isn't optional - it's legally required
