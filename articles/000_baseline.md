@@ -166,12 +166,12 @@ func (s *ServiceServer) Seal(ctx context.Context, req *kms.Request) (*kms.Respon
         return nil, fmt.Errorf("failed to validate node UUID: %w", err)
     }
 
-    // Extract client IP from gRPC peer context
-    client, ok := peer.FromContext(ctx)
+    // Extract peer (client connection) IP from gRPC peer context
+    peerInfo, ok := peer.FromContext(ctx)
     if !ok {
         return nil, ErrEmptyClientContext
     }
-    host, _, err := net.SplitHostPort(client.Addr.String())
+    host, _, err := net.SplitHostPort(peerInfo.Addr.String())
 
     // Get or create encryption key for this node
     kubeClient, _ := clientgoclientset.NewForConfig(s.config.ClientConfig.LoopbackClientConfig)
