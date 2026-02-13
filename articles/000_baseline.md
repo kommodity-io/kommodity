@@ -533,12 +533,60 @@ make run
 kubectl --kubeconfig kommodity.yaml get clusters
 ```
 
-For production, see the resources in the repository:
-- Helm chart for clusters: [`charts/kommodity`](https://github.com/kommodity-io/kommodity/tree/main/charts/kommodity)  
-  Example:  
-  ```bash
-  helm repo add kommodity https://kommodity-io.github.io/kommodity
-  helm install kommodity kommodity/kommodity -f values.yaml
+### Kommodity Terraform Module
+
+For Azure deployments, use the Terraform module to provision Kommodity itself:
+
+```hcl
+module "kommodity_azure_deployment" {
+  source = "github.com/kommodity-io/kommodity//terraform/modules/kommodity_azure_deployment?ref=<tag>"
+
+  oidc_configuration = {
+    issuer_url  = "https://login.microsoftonline.com/<tenant-id>/v2.0"
+    client_id   = "<client-id>"
+    admin_group = "platform-team@yourcompany.com"
+  }
+}
+```
+
+This provisions a complete Azure environment: VNet, PostgreSQL Flexible Server, Container App, and Log Analytics. See [`terraform/modules/kommodity_azure_deployment`](https://github.com/kommodity-io/kommodity/tree/main/terraform/modules/kommodity_azure_deployment) for all options.
+
+### Kommodity Cluster Helm Chart
+
+Once Kommodity is running, deploy clusters using the Helm chart:
+
+```bash
+# Add your cloud provider credentials (example for Scaleway here):
+kubectl --kubeconfig kommodity.yaml create secret generic scaleway-secret \
+  --from-literal=SCW_ACCESS_KEY=<key> \
+  --from-literal=SCW_SECRET_KEY=<secret> \
+  --from-literal=SCW_DEFAULT_REGION=fr-par \
+  --from-literal=SCW_DEFAULT_PROJECT_ID=<project-id>
+
+# Deploy a cluster
+helm template my-cluster oci://ghcr.io/kommodity-io/charts/kommodity-cluster \
+  -f values.scaleway.yaml | kubectl --kubeconfig kommodity.yaml apply -f -
+```
+
+Example `values.scaleway.yaml`:
+
+```yaml
+kommodity:
+  provider:
+    name: Scaleway
+    secret:
+      name: scaleway-secret
+  region: fr-par
+  controlplane:
+    replicas: 3
+    sku: PLAY2-NANO
+  nodepools:
+    default:
+      replicas: 2
+      sku: PLAY2-NANO
+```
+
+See [`charts/kommodity-cluster`](https://github.com/kommodity-io/kommodity/tree/main/charts/kommodity-cluster) for provider-specific examples (Scaleway, Azure, KubeVirt, Docker).
 
 ---
 
