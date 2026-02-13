@@ -225,7 +225,7 @@ Imagine you're deploying a healthcare application that must comply with EU data 
 
 With Kommodity, this becomes three YAML files and a single operational model. Each cluster gets:
 - TPM-attested machines that prove their integrity before receiving secrets
-- Disk encryption with keys you control (not Azure, not Scaleway - you)
+- Disk encryption with keys you control (not Azure, not Scaleway - **you**)
 - The same `kubectl` and Helm workflows across all environments
 - Unified audit logging for compliance reporting
 
