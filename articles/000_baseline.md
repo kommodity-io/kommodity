@@ -53,7 +53,7 @@ Kommodity packages several proven components into a single binary:
 - **Talos Linux bootstrap/control plane providers** for immutable machine configuration
 - **[Kine](https://github.com/k3s-io/kine)** for database-backed storage (no etcd required)
 - **KMS service** for disk encryption key management
-- **Attestation service** for TPM-based machine verification
+- **Attestation service** for Trusted Platform Module (TPM) based machine verification
 - **Metadata service** for secure machine configuration delivery
 
 One port. One executable. PostgreSQL for state.
