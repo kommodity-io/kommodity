@@ -327,7 +327,7 @@ This enables fully declarative cluster creation: apply a manifest, and three nod
 
 ### Private Networks Only
 
-Auto-bootstrap is designed exclusively for private networks. Peer discovery scans the configured CIDR without TLS verification, which is appropriate for isolated infrastructure networks but not for shared or untrusted environments. The bootstrap process itself remains protected by Talos's certificate-based authentication once peers are discovered.
+Auto-bootstrap is designed exclusively for private networks. Peer discovery scans the configured CIDR without TLS verification, which is appropriate for isolated infrastructure networks but not for shared or untrusted environments. In production, you should enforce this at configuration time by validating that `KOMMODITY_AUTOBOOTSTRAP_NETWORK_CIDR` is restricted to private address space (for example, RFC1918 ranges), and treating any non-private CIDR (such as `0.0.0.0/0`) as a misconfiguration that requires an explicit, security-reviewed override. Never run the auto-bootstrap extension on nodes that are directly reachable from the public Internet. The bootstrap process itself remains protected by Talos's certificate-based authentication once peers are discovered.
 
 ---
 
