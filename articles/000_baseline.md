@@ -23,7 +23,7 @@ We wanted a third option: make sovereign cloud *boring*. As routine as deploying
 
 ## Our Starting Point: Healthcare AI with Nowhere to Hide
 
-At Corti, we build AI tools that assist healthcare professionals. Our infrastructure requirements are driven by regulation, not architecture astronautics:
+At Corti, we build AI infrastructure and tools that assist healthcare professionals. Our infrastructure requirements are driven by regulation, not architecture astronautics:
 
 - **Data sovereignty**: Patient data must stay in specific jurisdictions. Some customers require on-premise deployments
 - **Compliance**: GDPR, ISO 27001, SOC 2. Encryption at rest isn't optional - it's legally required
@@ -208,7 +208,7 @@ For production deployments, you need:
 - Network paths that survive individual node failures
 - Out-of-band network configuration for STATE partition encryption
 
-We'll discuss failure modes later.
+These constraints define the operational dependencies you need to plan for.
 
 ---
 
@@ -251,7 +251,7 @@ spec:
     services:
       cidrBlocks: ["10.96.0.0/12"]
   controlPlaneRef:
-    apiVersion: controlplane.cluster.x-k8s.io/v1alpha3
+    apiVersion: controlplane.cluster.x-k8s.io/v1beta1
     kind: TalosControlPlane
     name: production-paris-control-plane
   infrastructureRef:
@@ -435,7 +435,7 @@ Let's talk about what running Kommodity actually looks like.
 Kommodity is a single binary, which might sound like a single point of failure. In practice, it's less critical than you'd think:
 
 - **Existing clusters are independent**: Once bootstrapped, clusters don't depend on Kommodity for normal operation. Your workloads keep running.
-- **Reconciliation is periodic, not constant**: Cluster API controllers reconcile state, but they're not in a tight loop. An occasional Kommodity outage during normal business doesn't harm anything.
+- **Reconciliation is periodic, not constant**: Cluster API controllers reconcile state, but they're not in a tight loop. An occasional Kommodity outage during normal operations doesn't harm anything.
 - **Critical only during changes**: Kommodity availability matters when you're provisioning new clusters, scaling nodes, or performing upgrades. Outside of those operations, it can be down without impact.
 
 For production, we recommend:
@@ -511,7 +511,7 @@ Kommodity makes sense when:
 
 Kommodity probably isn't for you if:
 
-- You prefer click-ops over declarative infrastructure
+- You prefer click-ops (manual GUI-based operations) over declarative infrastructure
 - You don't have Kubernetes operational expertise (yet)
 - You're happy with your current managed Kubernetes and have no portability concerns
 
