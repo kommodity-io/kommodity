@@ -308,10 +308,10 @@ Traditional Kubernetes bootstrap requires designating a first control plane node
 The [auto-bootstrap extension](https://github.com/kommodity-io/kommodity-autobootstrap-extension) handles this automatically:
 
 1. **Control plane detection**: Extension only activates on nodes with etcd secrets configured
-2. **Peer discovery**: Scans local network CIDR for other Talos nodes
-3. **Deterministic leader election**: Based on boot time and IP address
-4. **Quorum wait**: Leader waits for configured number of peers
-5. **Bootstrap execution**: Leader initializes; others join as the cluster forms
+2. **Peer discovery**: Scans local network CIDR for other Talos nodes using the Talos API
+3. **Deterministic leader election**: Each node independently calculates who should be leader using the same algorithm - the node with the earliest boot time wins, with lowest IP address as tiebreaker. Since all nodes use identical logic on the same peer data, they all agree on the leader without any coordination protocol
+4. **Quorum wait**: Leader waits until the configured number of peers are discovered (e.g., 3 for HA)
+5. **Bootstrap execution**: Leader initializes etcd and the Kubernetes control plane; other nodes detect the initialized cluster and join automatically
 
 ```yaml
 machine:
