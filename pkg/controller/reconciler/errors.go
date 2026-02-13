@@ -1,4 +1,3 @@
-// Package reconciler provides error definitions for reconciler operations.
 package reconciler
 
 import "errors"

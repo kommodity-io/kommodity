@@ -1,4 +1,3 @@
-// Package config provides error definitions for configuration operations.
 package config
 
 import "errors"

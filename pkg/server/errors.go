@@ -1,4 +1,3 @@
-// Package server provides error definitions for server operations.
 package server
 
 import "errors"

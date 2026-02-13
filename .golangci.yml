@@ -12,3 +12,11 @@ linters:
     - gomoddirectives
     # Kubernetes objects are all interface based
     - ireturn
+  exclusions:
+    rules:
+      - path: "pkg/net/"
+        linters: [revive]
+        text: "avoid package names that conflict with Go standard library"
+      - path: "pkg/ui/api/"
+        linters: [revive]
+        text: "avoid meaningless package names"

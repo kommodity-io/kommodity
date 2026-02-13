@@ -1,4 +1,3 @@
-// Package metadata provides functionality for metadata services for the Talos machines.
 package metadata
 
 import (

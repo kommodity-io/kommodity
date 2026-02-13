@@ -12,7 +12,7 @@ import (
 type contextKey struct{}
 
 // GetContextKey returns the context key.
-func GetContextKey() interface{} {
+func GetContextKey() any {
 	return contextKey{}
 }
 

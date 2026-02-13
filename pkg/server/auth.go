@@ -223,7 +223,7 @@ func setupServiceAccountAuth(
 	config *genericapiserver.RecommendedConfig, signingKey *rsa.PrivateKey,
 ) (authenticator.Token, error) {
 	// Create a static public keys getter for the authenticator
-	keysGetter, err := serviceaccount.StaticPublicKeysGetter([]interface{}{&signingKey.PublicKey})
+	keysGetter, err := serviceaccount.StaticPublicKeysGetter([]any{&signingKey.PublicKey})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create static public keys getter: %w", err)
 	}
