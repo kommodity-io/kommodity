@@ -396,7 +396,7 @@ kommodity:
 ```
 
 This enables you to replace cloud-managed services with sovereign alternatives:
-- **[CNPG](https://cloudnative-pg.io/)** instead of RDS/Cloud SQL - your data, your database, your control
+- **[CNPG](https://cloudnative-pg.io/)** instead of RDS/Cloud SQL - your data, your database - under your control
 - **[Strimzi](https://strimzi.io/)** instead of managed Kafka
 - **[Rook/Ceph](https://rook.io/)** instead of managed object storage (when data must never leave your infrastructure)
 
