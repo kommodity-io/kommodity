@@ -25,10 +25,10 @@ We wanted a third option: make sovereign cloud *boring*. As routine as deploying
 
 At Corti, we build AI that assists healthcare professionals in emergency calls. Our infrastructure requirements are driven by regulation, not architecture astronautics:
 
-- **Data sovereignty**: Patient data must stay in specific jurisdictions. Some customers require on-premise deployments.
-- **Compliance**: GDPR, ISO 27001, SOC 2. Encryption at rest isn't optional - it's legally required.
-- **Auditability**: When regulators ask "who accessed what, when?", we need answers.
-- **Operational sanity**: A small platform team managing infrastructure across multiple environments.
+- **Data sovereignty**: Patient data must stay in specific jurisdictions. Some customers require on-premise deployments
+- **Compliance**: GDPR, ISO 27001, SOC 2. Encryption at rest isn't optional - it's legally required
+- **Auditability**: When regulators ask "who accessed what, when?", we need answers
+- **Operational sanity**: A small platform team managing infrastructure across multiple environments
 
 We evaluated the landscape honestly:
 
