@@ -72,7 +72,7 @@ func (s *ServiceServer) Seal(ctx context.Context, req *kms.Request) (*kms.Respon
 
 	peerIP, err := extractPeerIP(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to extract peer IP: %w", err)
 	}
 
 	kubeClient, err := clientgoclientset.NewForConfig(s.config.ClientConfig.LoopbackClientConfig)
@@ -117,7 +117,7 @@ func (s *ServiceServer) Unseal(ctx context.Context, req *kms.Request) (*kms.Resp
 
 	peerIP, err := extractPeerIP(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to extract peer IP: %w", err)
 	}
 
 	kubeClient, err := clientgoclientset.NewForConfig(s.config.ClientConfig.LoopbackClientConfig)
@@ -134,14 +134,13 @@ func (s *ServiceServer) Unseal(ctx context.Context, req *kms.Request) (*kms.Resp
 
 	storedIP := string(secret.Data[sealedFromIPKey])
 	if storedIP != peerIP {
-		//nolint:wrapcheck // we want a gRPC status error here
 		return nil, status.Errorf(codes.PermissionDenied,
 			"%v: sealed from %q, unseal requested from %q", ErrIPMismatch, storedIP, peerIP)
 	}
 
 	keySets := parseVolumeKeySets(secret.Data)
 	if len(keySets) == 0 {
-		return nil, fmt.Errorf("no volume key sets found in secret %s", secretName)
+		return nil, fmt.Errorf("%w: %s", ErrNoVolumeKeySets, secretName)
 	}
 
 	for _, ks := range keySets {
@@ -177,12 +176,16 @@ func createNodeSecret(ctx context.Context,
 	}
 
 	key := make([]byte, keySize)
-	if _, err = rand.Read(key); err != nil {
+
+	_, err = rand.Read(key)
+	if err != nil {
 		return nil, fmt.Errorf("failed to generate encryption key: %w", err)
 	}
 
 	aadNonce := make([]byte, aadNonceSize)
-	if _, err = rand.Read(aadNonce); err != nil {
+
+	_, err = rand.Read(aadNonce)
+	if err != nil {
 		return nil, fmt.Errorf("failed to generate AAD nonce: %w", err)
 	}
 
@@ -202,14 +205,15 @@ func createNodeSecret(ctx context.Context,
 		},
 		Type: corev1.SecretTypeOpaque,
 		Data: map[string][]byte{
-			sealedFromIPKey:          []byte(peerIP),
-			prefix + keySuffix:       key,
-			prefix + nonceSuffix:     aadNonce,
-			prefix + luksKeySuffix:   encryptedData,
+			sealedFromIPKey:        []byte(peerIP),
+			prefix + keySuffix:     key,
+			prefix + nonceSuffix:   aadNonce,
+			prefix + luksKeySuffix: encryptedData,
 		},
 	}
 
-	if _, err = getSecretsAPI(kubeClient).Create(ctx, secret, metav1.CreateOptions{}); err != nil {
+	_, err = getSecretsAPI(kubeClient).Create(ctx, secret, metav1.CreateOptions{})
+	if err != nil {
 		return nil, fmt.Errorf("failed to create secret %s: %w", secretName, err)
 	}
 
@@ -224,7 +228,6 @@ func addVolumeToSecret(ctx context.Context,
 ) ([]byte, error) {
 	storedIP := string(secret.Data[sealedFromIPKey])
 	if storedIP != peerIP {
-		//nolint:wrapcheck // we want a gRPC status error here
 		return nil, status.Errorf(codes.PermissionDenied,
 			"%v: sealed from %q, seal requested from %q", ErrIPMismatch, storedIP, peerIP)
 	}
@@ -235,12 +238,16 @@ func addVolumeToSecret(ctx context.Context,
 	}
 
 	key := make([]byte, keySize)
-	if _, err = rand.Read(key); err != nil {
+
+	_, err = rand.Read(key)
+	if err != nil {
 		return nil, fmt.Errorf("failed to generate encryption key: %w", err)
 	}
 
 	aadNonce := make([]byte, aadNonceSize)
-	if _, err = rand.Read(aadNonce); err != nil {
+
+	_, err = rand.Read(aadNonce)
+	if err != nil {
 		return nil, fmt.Errorf("failed to generate AAD nonce: %w", err)
 	}
 
@@ -255,7 +262,8 @@ func addVolumeToSecret(ctx context.Context,
 	secret.Data[prefix+nonceSuffix] = aadNonce
 	secret.Data[prefix+luksKeySuffix] = encryptedData
 
-	if _, err = getSecretsAPI(kubeClient).Update(ctx, secret, metav1.UpdateOptions{}); err != nil {
+	_, err = getSecretsAPI(kubeClient).Update(ctx, secret, metav1.UpdateOptions{})
+	if err != nil {
 		return nil, fmt.Errorf("failed to update secret %s: %w", secret.Name, err)
 	}
 
@@ -286,12 +294,14 @@ func extractPeerIP(ctx context.Context) (string, error) {
 }
 
 func generateVolumePrefix() (string, error) {
-	b := make([]byte, volumePrefixSize)
-	if _, err := rand.Read(b); err != nil {
+	randBytes := make([]byte, volumePrefixSize)
+
+	_, err := rand.Read(randBytes)
+	if err != nil {
 		return "", fmt.Errorf("failed to generate volume prefix: %w", err)
 	}
 
-	return hex.EncodeToString(b), nil
+	return hex.EncodeToString(randBytes), nil
 }
 
 func parseVolumeKeySets(secretData map[string][]byte) []volumeKeySet {
@@ -315,7 +325,7 @@ func parseVolumeKeySets(secretData map[string][]byte) []volumeKeySet {
 		nonce := secretData[prefix+nonceSuffix]
 		luksKey := secretData[prefix+luksKeySuffix]
 
-		if len(encKey) == 0 || len(nonce) == 0 || len(luksKey) == 0 {
+		if len(encKey) != keySize || len(nonce) != aadNonceSize || len(luksKey) == 0 {
 			continue
 		}
 

@@ -13,4 +13,6 @@ var (
 	ErrIPMismatch = errors.New("caller IP does not match sealed IP")
 	// ErrNoMatchingSecret is an error that indicates no volume group could decrypt the provided ciphertext.
 	ErrNoMatchingSecret = errors.New("no volume key set could decrypt the provided ciphertext")
+	// ErrNoVolumeKeySets is an error that indicates no volume key sets were found in the secret.
+	ErrNoVolumeKeySets = errors.New("no volume key sets found in secret")
 )
