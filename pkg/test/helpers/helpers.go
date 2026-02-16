@@ -112,6 +112,7 @@ func startKommodityContainer(ctx context.Context, networkName string) (tc.Contai
 			Image:        "kommodity:latest",
 			Networks:     []string{networkName},
 			ExposedPorts: []string{"5000/tcp"},
+			ExtraHosts:   []string{"host.docker.internal:host-gateway"},
 			Env: map[string]string{
 				"KOMMODITY_DB_URI": "postgres://kommodity:kommodity@postgres:" +
 					postgresDefaultPort + "/kommodity?sslmode=disable",

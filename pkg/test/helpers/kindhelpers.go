@@ -111,7 +111,16 @@ func createKindCluster() (*rest.Config, string, error) {
 
 	log.Printf("Creating kind cluster %q...", kindClusterName)
 
-	err := provider.Create(kindClusterName)
+	// Bind the API server to 0.0.0.0 so it's reachable from Docker containers
+	// via the bridge network (required on Linux/CI where host.docker.internal
+	// resolves to the Docker gateway IP, not localhost).
+	kindConfig := []byte(`kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+networking:
+  apiServerAddress: "0.0.0.0"
+`)
+
+	err := provider.Create(kindClusterName, cluster.CreateWithRawConfig(kindConfig))
 	if err != nil {
 		return nil, "", fmt.Errorf("%w: %w", errKindClusterCreation, err)
 	}
