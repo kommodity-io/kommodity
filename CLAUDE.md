@@ -51,7 +51,7 @@ The goal: make sovereign cloud as routine as any other Kubernetes deployment.
 
 **TPM Attestation**: Machines prove integrity using hardware TPM before receiving secrets. The attestation extension collects measurements (AppArmor, SELinux, Secure Boot, kernel lockdown, extensions) and submits signed TPM quotes. Failed attestation = no secrets delivered.
 
-**Network KMS**: Disk encryption keys are stored in Kommodity's database, retrieved via network on boot. Keys are per-volume (STATE, EPHEMERAL), bound to node UUID and peer IP. Key revocation = delete the Secret.
+**Network KMS**: Disk encryption keys are stored as Kubernetes Secrets in the API server (persisted in PostgreSQL via Kine) and retrieved via the network on boot. Keys are per-volume (STATE, EPHEMERAL), bound to node UUID and peer IP. Key revocation = delete the Kubernetes Secret.
 
 **Trade-off**: Machines cannot boot without network access to Kommodity when security features are enabled. This is intentional for revocation capability but requires HA deployment planning.
 
