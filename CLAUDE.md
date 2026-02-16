@@ -71,7 +71,7 @@ The goal: make sovereign cloud as routine as any other Kubernetes deployment.
 ## Making changes
 When proposing changes to Kommodity, consider the size of the change. If it's above a certain threshold, it may be best to break it into smaller, more manageable pieces. For example, if you're adding a new feature that requires changes to multiple components, consider submitting separate pull requests for each component rather than one large pull request.
 
-For larger changes, you should first create a PRD (Product Requirements Document) that outlines the proposed change, its rationale, and its impact on the system. The PRD should be approved before any code changes can be made. 
+For larger changes, you should first create a PRD (Product Requirements Document) that outlines the proposed change, its rationale, and its impact on the system. The PRD should be approved before any code changes can be made.
 
 The PRD phase should use `Plan Mode`.
 
