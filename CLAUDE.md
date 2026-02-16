@@ -87,7 +87,7 @@ Furthermore, make sure that:
 - Use errors.go file to define custom error types and error messages, the errors.go should be located in each sub package.
 - Use the `pkg/config` package to manage configuration settings for your changes.
 - Use wrapped errors to provide more context when an error occurs. This can be done using the `fmt.Errorf` function with the `%w` verb to wrap the original error with additional context.
-- Use `pkg/logging` for logging instead of printing directly to the console. Use `zap.Fields` to provide structured logging and make it easier to search and analyze logs.
+- Use `pkg/logging` for logging instead of printing directly to the console. Pass structured fields (for example, `zap.String`, `zap.Error`, and other `zap.Field` helpers) to `logger.Info`/`logger.Warn`/etc. to make logs easier to search and analyze; `zap.Fields(...)` is available when you need to group multiple fields.
 - Divide the code into smaller functions and make sure to reuse code where possible and its meaningful.
 - You don't need to write documentation for every function, you must for public functions. For private functions, do it where it makes sense and complexity is high.
 - When it makes sense and domain specific, please create a struct for the function parameters instead of passing multiple parameters.
