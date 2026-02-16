@@ -57,6 +57,7 @@ Kommodity packages several proven components into a single binary:
 - **KMS service** for disk encryption key management
 - **Attestation service** for Trusted Platform Module (TPM) based machine verification
 - **Metadata service** for secure machine configuration delivery
+- **Auto-bootstrap extension** for zero-touch HA cluster initialization
 
 One port. One executable. PostgreSQL for state.
 

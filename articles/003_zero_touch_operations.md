@@ -80,6 +80,8 @@ Kommodity's controllers reconcile the desired state:
 
 The same workflow applies regardless of provider. The YAML changes, but the operational model stays consistent.
 
+But wait - step 5 says "Bootstrap Kubernetes control plane." With three control plane nodes, which one goes first? We'll cover that in the Auto-Bootstrap section below.
+
 ### Multi-Cloud Reality Check
 
 I want to be honest about what "multi-cloud" means in practice.
@@ -258,7 +260,7 @@ There's no separate migration step, but you should:
 
 ### Network Dependencies
 
-When security features are enabled, machines depend on Kommodity for:
+As discussed in [Part 2](./002_hardware_rooted_trust.md), when security features are enabled, machines depend on Kommodity for:
 - Attestation verification
 - Metadata delivery (Talos configuration)
 - KMS key retrieval

@@ -2,7 +2,7 @@
 
 *Part 2 of 3 in the Kommodity series*
 
-*Trust is easy to claim, hard to prove. In sovereign infrastructure, "trust me" isn't good enough - you need cryptographic proof that machines are exactly what they claim to be, and encryption keys that never leave your control.*
+*Trust is easy to claim, hard to prove. In sovereign infrastructure, "trust me" isn't good enough - you need cryptographic proof that machines are exactly what they claim to be, and encryption keys that never leave your control. This article covers both: TPM-based hardware attestation and network-delivered disk encryption.*
 
 ---
 
@@ -45,7 +45,7 @@ We wanted hardware-rooted trust: a machine proves its identity using its TPM bef
    - Software measurements match expected fingerprint
 6. **Trust decision**: Pass → machine receives configuration. Fail → connection rejected.
 
-Only after attestation succeeds does the metadata service provide the Talos machine configuration. When machines later call the KMS service, it validates the node UUID format and uses it to look up appropriate keys - attestation itself is not re-validated on each KMS request, but is enforced earlier through the separate attestation flow.
+Only after attestation succeeds does the metadata service provide the Talos machine configuration. When machines later call the KMS service, it validates the node UUID format and uses it to look up appropriate keys - attestation itself is not re-validated on each KMS request, but is enforced earlier through the separate attestation flow. We'll see how these two mechanisms work together in the "Complete Trust Chain" section below.
 
 ---
 
