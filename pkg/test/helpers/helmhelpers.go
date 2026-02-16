@@ -29,7 +29,7 @@ func InstallKommodityClusterChart(t *testing.T, env TestEnvironment,
 	restGetter.APIServer = &apiServer
 	restGetter.Namespace = &namespace
 
-	err = cfg.Init(restGetter, namespace, "secret", func(string, ...interface{}) {})
+	err = cfg.Init(restGetter, namespace, "secret", func(string, ...any) {})
 	require.NoError(t, err)
 
 	chart, err := loader.Load(chartPath)
@@ -41,9 +41,9 @@ func InstallKommodityClusterChart(t *testing.T, env TestEnvironment,
 	scalewayDefaultZone := ""
 	
 	//nolint:nestif // Nested ifs are acceptable in this case for clarity.
-	if kommoditySection, ok := values["kommodity"].(map[string]interface{}); ok {
-		if nodepools, ok := kommoditySection["nodepools"].(map[string]interface{}); ok {
-			if defaultPool, ok := nodepools["default"].(map[string]interface{}); ok {
+	if kommoditySection, ok := values["kommodity"].(map[string]any); ok {
+		if nodepools, ok := kommoditySection["nodepools"].(map[string]any); ok {
+			if defaultPool, ok := nodepools["default"].(map[string]any); ok {
 				// Set SKU for default nodepool to cheapest one
 				defaultPool["sku"] = "DEV1-S"
 				// Get Scaleway zone for later verification
@@ -53,19 +53,19 @@ func InstallKommodityClusterChart(t *testing.T, env TestEnvironment,
 			}
 		}
 		// Set SKU for control plane to cheapest one
-		if controlplane, ok := kommoditySection["controlplane"].(map[string]interface{}); ok {
+		if controlplane, ok := kommoditySection["controlplane"].(map[string]any); ok {
 			controlplane["sku"] = "DEV1-S"
 		}
 		// Set projectID in provider config
-		if provider, ok := kommoditySection["provider"].(map[string]interface{}); ok {
-			if config, ok := provider["config"].(map[string]interface{}); ok {
+		if provider, ok := kommoditySection["provider"].(map[string]any); ok {
+			if config, ok := provider["config"].(map[string]any); ok {
 				config["projectID"] = scalewayProjectID
 			}
 		}
 
 		// Unset nodeCIDR to enable public IPv4
-		if network, ok := kommoditySection["network"].(map[string]interface{}); ok {
-			if ipv4, ok := network["ipv4"].(map[string]interface{}); ok {
+		if network, ok := kommoditySection["network"].(map[string]any); ok {
+			if ipv4, ok := network["ipv4"].(map[string]any); ok {
 				ipv4["nodeCIDR"] = nil
 			}
 		}
@@ -94,7 +94,7 @@ func UninstallKommodityClusterChart(t *testing.T, env TestEnvironment, releaseNa
 	restGetter.APIServer = &apiServer
 	restGetter.Namespace = &namespace
 
-	err := cfg.Init(restGetter, namespace, "secret", func(string, ...interface{}) {})
+	err := cfg.Init(restGetter, namespace, "secret", func(string, ...any) {})
 	require.NoError(t, err)
 
 	uninstaller := action.NewUninstall(cfg)

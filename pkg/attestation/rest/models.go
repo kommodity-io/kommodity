@@ -209,6 +209,7 @@ func computePCRDigest(quoteInfo *tpm2.TPMSQuoteInfo, pcrs map[int]string) ([]byt
 
 	// find SHA-256 selection (your client uses SHA-256)
 	var sel *tpm2.TPMSPCRSelection
+
 	for i := range quoteInfo.PCRSelect.PCRSelections {
 		if quoteInfo.PCRSelect.PCRSelections[i].Hash == tpm2.TPMAlgSHA256 {
 			sel = &quoteInfo.PCRSelect.PCRSelections[i]

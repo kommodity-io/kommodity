@@ -1,5 +1,3 @@
-// Package webhookconfigurations implements the storage strategy towards kine for the admission registration resource.
-//
 //nolint:dupl,lll // This file is very similar to mutatingwebhookconfigurations.go but the differences are still significant.
 package webhookconfigurations
 

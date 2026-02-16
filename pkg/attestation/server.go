@@ -1,4 +1,3 @@
-// Package attestation provides functionality for attestation services for establishing trust for the Talos machines.
 package attestation
 
 import (

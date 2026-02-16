@@ -1,4 +1,3 @@
-// Package kms provides error definitions for kms operations.
 package kms
 
 import "errors"
