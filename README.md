@@ -40,7 +40,7 @@ make run
 make teardown
 # Run integration tests
 make run-kubevirt-integration-test # Deploys a k8s cluster on a local Kubevirt cluster with Kommodity
-make run-scaleway-integration-test # Deploys a k8s cluster on Scaleway with Kommodity (requires Scaleway credentials and will incure costs)
+make run-scaleway-integration-test # Deploys a k8s cluster on Scaleway with Kommodity (requires Scaleway credentials and will incur costs)
 # Run helm unit tests (requires helm unittest plugin)
 make run-helm-unit-tests
 ```
