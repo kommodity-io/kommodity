@@ -18,8 +18,14 @@ import (
 var env helpers.TestEnvironment
 
 const (
-	defaultClusterName = "ci-test-cluster"
-	kommodityLogFile   = "kommodity_container.log"
+	defaultClusterName     = "ci-test-cluster"
+	kommodityLogFile       = "kommodity_container.log"
+	virtualMachineGroup    = "kubevirt.io"
+	virtualMachineVersion  = "v1"
+	virtualMachineResource = "virtualmachines"
+	machineGroup           = "cluster.x-k8s.io"
+	machineVersion         = "v1beta1"
+	machineResource        = "machines"
 )
 
 func TestMain(m *testing.M) {
@@ -123,7 +129,7 @@ func TestCreateScalewayCluster(t *testing.T) {
 
 	// Check that CAPI resources are created in Kommodity
 	err = helpers.WaitForK8sResourceCreation(env.KommodityCfg, "default", "worker",
-		"cluster.x-k8s.io", "v1beta1", "machines", "", "", 2*time.Minute)
+		"cluster.x-k8s.io", "v1beta1", "machines", "", "", 2*time.Minute, 1)
 	require.NoError(t, err)
 
 	// Check that Scaleway resources are created
@@ -187,12 +193,15 @@ func TestCreateKubevirtCluster(t *testing.T) {
 
 	// Wait for CAPI resources to be created in Kommodity
 	err = helpers.WaitForK8sResourceCreation(env.KommodityCfg, "default", "worker",
-		"cluster.x-k8s.io", "v1beta1", "machines", "", "", 3*time.Minute)
+		machineGroup, machineVersion, machineResource, "", "", 3*time.Minute, 1)
 	require.NoError(t, err)
 
 	// Wait for VirtualMachine CRs to be created in the kind cluster
-	err = helpers.WaitForKubevirtVMs(infraEnv.Config,
-		helpers.InfraClusterNamespace, clusterName, expectedVMCount, 3*time.Minute)
+	err = helpers.WaitForK8sResourceCreation(
+		infraEnv.Config, helpers.InfraClusterNamespace, clusterName,
+		virtualMachineGroup, virtualMachineVersion, virtualMachineResource,
+		"", "", 3*time.Minute, expectedVMCount,
+	)
 	require.NoError(t, err)
 
 	// Uninstall cluster chart

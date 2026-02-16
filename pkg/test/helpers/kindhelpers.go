@@ -14,7 +14,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	k8s_wait "k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -26,13 +25,12 @@ const (
 	kindClusterName          = "kommodity-kubevirt-test"
 	kubevirtVersion          = "v1.4.0"
 	cdiVersion               = "v1.61.0"
-	kubevirtReadyTimeout     = 3 * time.Minute
-	cdiReadyTimeout          = 2 * time.Minute
+	kubevirtReadyTimeout     = 5 * time.Minute
+	cdiReadyTimeout          = 5 * time.Minute
 	instanceTypeSKU          = "s1.medium"
 	instanceTypeCPU          = 2
 	instanceTypeMemory       = "4Gi"
 	kubevirtNamespace        = "kubevirt"
-	cdiNamespace             = "cdi"
 	tempDirName              = "kommodity-test"
 	kubeconfigFilePermission = 0o600
 	kubeconfigDirPermission  = 0o750
@@ -280,25 +278,14 @@ func installCDI(_ *rest.Config) error {
 	return nil
 }
 
-// waitForKubeVirtReady polls until KubeVirt components are ready.
+// waitForKubeVirtReady polls until the KubeVirt CR reaches the "Deployed" phase.
 func waitForKubeVirtReady(config *rest.Config) error {
 	log.Println("Waiting for KubeVirt to be ready...")
 
-	client, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		return fmt.Errorf("%w: failed to create client: %w", errKubeVirtNotReady, err)
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), kubevirtReadyTimeout)
-	defer cancel()
-
-	requiredDeployments := []string{"virt-operator", "virt-api", "virt-controller"}
-
-	err = k8s_wait.PollUntilContextTimeout(
-		ctx, pollInterval, kubevirtReadyTimeout, true,
-		func(ctx context.Context) (bool, error) {
-			return areDeploymentsReady(ctx, client, kubevirtNamespace, requiredDeployments)
-		},
+	err := WaitForK8sResourceCreation(
+		config, kubevirtNamespace, "kubevirt",
+		"kubevirt.io", "v1", "kubevirts",
+		"status.phase", "Deployed", kubevirtReadyTimeout, 1,
 	)
 	if err != nil {
 		return fmt.Errorf("%w: %w", errKubeVirtNotReady, err)
@@ -309,25 +296,14 @@ func waitForKubeVirtReady(config *rest.Config) error {
 	return nil
 }
 
-// waitForCDIReady polls until CDI components are ready.
+// waitForCDIReady polls until the CDI CR reaches the "Deployed" phase.
 func waitForCDIReady(config *rest.Config) error {
 	log.Println("Waiting for CDI to be ready...")
 
-	client, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		return fmt.Errorf("%w: failed to create client: %w", errCDINotReady, err)
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), cdiReadyTimeout)
-	defer cancel()
-
-	requiredDeployments := []string{"cdi-operator"}
-
-	err = k8s_wait.PollUntilContextTimeout(
-		ctx, pollInterval, cdiReadyTimeout, true,
-		func(ctx context.Context) (bool, error) {
-			return areDeploymentsReady(ctx, client, cdiNamespace, requiredDeployments)
-		},
+	err := WaitForK8sResourceCreation(
+		config, "", "cdi",
+		"cdi.kubevirt.io", "v1beta1", "cdis",
+		"status.phase", "Deployed", cdiReadyTimeout, 1,
 	)
 	if err != nil {
 		return fmt.Errorf("%w: %w", errCDINotReady, err)
@@ -336,32 +312,6 @@ func waitForCDIReady(config *rest.Config) error {
 	log.Println("CDI is ready")
 
 	return nil
-}
-
-// areDeploymentsReady checks if all specified deployments have at least one ready replica.
-func areDeploymentsReady(
-	ctx context.Context,
-	client kubernetes.Interface,
-	namespace string,
-	deploymentNames []string,
-) (bool, error) {
-	for _, name := range deploymentNames {
-		deployment, err := client.AppsV1().Deployments(namespace).Get(ctx, name, metav1.GetOptions{})
-		if err != nil {
-			log.Printf("Deployment %s/%s not found yet: %v", namespace, name, err)
-
-			return false, nil
-		}
-
-		if deployment.Status.ReadyReplicas < 1 {
-			log.Printf("Deployment %s/%s has %d ready replicas, waiting for at least 1",
-				namespace, name, deployment.Status.ReadyReplicas)
-
-			return false, nil
-		}
-	}
-
-	return true, nil
 }
 
 // createInstanceTypes creates VirtualMachineClusterInstancetype resources needed by the Helm chart.

@@ -16,11 +16,16 @@ const (
 	controlPlaneEndpointPort = 6443
 )
 
-// InstallKommodityClusterChart installs the kommodity-cluster helm chart with the specified parameters.
-//
-//nolint:funlen // Function length is acceptable for a test helper.
-func InstallKommodityClusterChart(t *testing.T, env TestEnvironment,
-	releaseName string, namespace string, valuesFile string, scalewayProjectID string) string {
+// installKommodityClusterChart loads the kommodity-cluster Helm chart, applies the given values file,
+// runs the modifier to adjust values, and installs the chart.
+func installKommodityClusterChart(
+	t *testing.T,
+	env TestEnvironment,
+	releaseName string,
+	namespace string,
+	valuesFile string,
+	modifier func(values chartutil.Values),
+) {
 	t.Helper()
 
 	repoRoot, err := FindRepoRoot()
@@ -44,40 +49,7 @@ func InstallKommodityClusterChart(t *testing.T, env TestEnvironment,
 	values, err := chartutil.ReadValuesFile(valuesPath)
 	require.NoError(t, err)
 
-	scalewayDefaultZone := ""
-
-	//nolint:nestif // Nested ifs are acceptable in this case for clarity.
-	if kommoditySection, ok := values["kommodity"].(map[string]any); ok {
-		if nodepools, ok := kommoditySection["nodepools"].(map[string]any); ok {
-			if defaultPool, ok := nodepools["default"].(map[string]any); ok {
-				// Set SKU for default nodepool to cheapest one
-				defaultPool["sku"] = "DEV1-S"
-				// Get Scaleway zone for later verification
-				if zone, ok := defaultPool["zone"].(string); ok {
-					scalewayDefaultZone = zone
-				}
-			}
-		}
-		// Set SKU for control plane to cheapest one
-		if controlplane, ok := kommoditySection["controlplane"].(map[string]any); ok {
-			controlplane["sku"] = "DEV1-S"
-		}
-		// Set projectID in provider config
-		if provider, ok := kommoditySection["provider"].(map[string]any); ok {
-			if config, ok := provider["config"].(map[string]any); ok {
-				config["projectID"] = scalewayProjectID
-			}
-		}
-
-		// Unset nodeCIDR to enable public IPv4
-		if network, ok := kommoditySection["network"].(map[string]any); ok {
-			if ipv4, ok := network["ipv4"].(map[string]any); ok {
-				ipv4["nodeCIDR"] = nil
-			}
-		}
-	}
-
-	require.NotEmpty(t, scalewayDefaultZone, "kommodity.nodepools.default.zone must be set in %s", valuesFile)
+	modifier(values)
 
 	installer := action.NewInstall(cfg)
 	installer.ReleaseName = releaseName
@@ -86,6 +58,64 @@ func InstallKommodityClusterChart(t *testing.T, env TestEnvironment,
 
 	_, err = installer.Run(chart, values)
 	require.NoError(t, err)
+}
+
+// InstallKommodityClusterChart installs the kommodity-cluster helm chart with Scaleway values.
+func InstallKommodityClusterChart(
+	t *testing.T,
+	env TestEnvironment,
+	releaseName string,
+	namespace string,
+	valuesFile string,
+	scalewayProjectID string,
+) string {
+	t.Helper()
+
+	var scalewayDefaultZone string
+
+	installKommodityClusterChart(t, env, releaseName, namespace, valuesFile, func(values chartutil.Values) {
+		scalewayDefaultZone = modifyScalewayValues(values, scalewayProjectID)
+	})
+
+	require.NotEmpty(t, scalewayDefaultZone, "kommodity.nodepools.default.zone must be set in %s", valuesFile)
+
+	return scalewayDefaultZone
+}
+
+// modifyScalewayValues adjusts Helm values for Scaleway testing and returns the default zone.
+func modifyScalewayValues(values chartutil.Values, scalewayProjectID string) string {
+	scalewayDefaultZone := ""
+
+	kommoditySection, ok := values["kommodity"].(map[string]any)
+	if !ok {
+		return scalewayDefaultZone
+	}
+
+	if nodepools, ok := kommoditySection["nodepools"].(map[string]any); ok {
+		if defaultPool, ok := nodepools["default"].(map[string]any); ok {
+			defaultPool["sku"] = "DEV1-S"
+
+			if zone, ok := defaultPool["zone"].(string); ok {
+				scalewayDefaultZone = zone
+			}
+		}
+	}
+
+	if controlplane, ok := kommoditySection["controlplane"].(map[string]any); ok {
+		controlplane["sku"] = "DEV1-S"
+	}
+
+	if provider, ok := kommoditySection["provider"].(map[string]any); ok {
+		if config, ok := provider["config"].(map[string]any); ok {
+			config["projectID"] = scalewayProjectID
+		}
+	}
+
+	if network, ok := kommoditySection["network"].(map[string]any); ok {
+		if ipv4, ok := network["ipv4"].(map[string]any); ok {
+			ipv4["nodeCIDR"] = nil
+		}
+	}
 
 	return scalewayDefaultZone
 }
@@ -100,60 +130,37 @@ func InstallKommodityClusterChartKubevirt(
 ) {
 	t.Helper()
 
-	repoRoot, err := FindRepoRoot()
-	require.NoError(t, err)
+	installKommodityClusterChart(t, env, releaseName, namespace, "values.kubevirt.yaml", func(values chartutil.Values) {
+		modifyKubevirtValues(values, infraClusterNamespace)
+	})
+}
 
-	chartPath := filepath.Join(repoRoot, "charts", "kommodity-cluster")
-	valuesPath := filepath.Join(repoRoot, "charts", "kommodity-cluster", "values.kubevirt.yaml")
+// modifyKubevirtValues adjusts Helm values for KubeVirt testing.
+func modifyKubevirtValues(values chartutil.Values, infraClusterNamespace string) {
+	kommoditySection, ok := values["kommodity"].(map[string]any)
+	if !ok {
+		return
+	}
 
-	cfg := new(action.Configuration)
-	restGetter := genericclioptions.NewConfigFlags(false)
-	apiServer := env.KommodityCfg.Host
-	restGetter.APIServer = &apiServer
-	restGetter.Namespace = &namespace
-
-	err = cfg.Init(restGetter, namespace, "secret", func(string, ...any) {})
-	require.NoError(t, err)
-
-	chart, err := loader.Load(chartPath)
-	require.NoError(t, err)
-
-	values, err := chartutil.ReadValuesFile(valuesPath)
-	require.NoError(t, err)
-
-	//nolint:nestif // Nested ifs are acceptable in this case for clarity.
-	if kommoditySection, ok := values["kommodity"].(map[string]any); ok {
-		// Set infraClusterNamespace and controlPlaneEndpoint
-		if provider, ok := kommoditySection["provider"].(map[string]any); ok {
-			if config, ok := provider["config"].(map[string]any); ok {
-				config["infraClusterNamespace"] = infraClusterNamespace
-				config["controlPlaneEndpoint"] = map[string]any{
-					"host": controlPlaneEndpointHost,
-					"port": controlPlaneEndpointPort,
-				}
-			}
-		}
-
-		// Set control plane replicas to 1 for testing
-		if controlplane, ok := kommoditySection["controlplane"].(map[string]any); ok {
-			controlplane["replicas"] = 1
-		}
-
-		// Set nodepool replicas to 1 for testing
-		if nodepools, ok := kommoditySection["nodepools"].(map[string]any); ok {
-			if defaultPool, ok := nodepools["default"].(map[string]any); ok {
-				defaultPool["replicas"] = 1
+	if provider, ok := kommoditySection["provider"].(map[string]any); ok {
+		if config, ok := provider["config"].(map[string]any); ok {
+			config["infraClusterNamespace"] = infraClusterNamespace
+			config["controlPlaneEndpoint"] = map[string]any{
+				"host": controlPlaneEndpointHost,
+				"port": controlPlaneEndpointPort,
 			}
 		}
 	}
 
-	installer := action.NewInstall(cfg)
-	installer.ReleaseName = releaseName
-	installer.Namespace = namespace
-	installer.Wait = false
+	if controlplane, ok := kommoditySection["controlplane"].(map[string]any); ok {
+		controlplane["replicas"] = 1
+	}
 
-	_, err = installer.Run(chart, values)
-	require.NoError(t, err)
+	if nodepools, ok := kommoditySection["nodepools"].(map[string]any); ok {
+		if defaultPool, ok := nodepools["default"].(map[string]any); ok {
+			defaultPool["replicas"] = 1
+		}
+	}
 }
 
 // UninstallKommodityClusterChart uninstalls the kommodity-cluster helm chart with the specified parameters.
