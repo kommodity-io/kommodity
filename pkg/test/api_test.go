@@ -144,3 +144,64 @@ func TestCreateScalewayCluster(t *testing.T) {
 		"cluster.x-k8s.io", "v1beta1", "clusters", "", "", 2*time.Minute)
 	require.NoError(t, err)
 }
+
+func TestCreateKubevirtCluster(t *testing.T) {
+	t.Parallel()
+
+	clusterName := "kubevirt-test-cluster"
+	expectedVMCount := 2 // 1 control plane + 1 worker
+
+	// Setup KubeVirt infrastructure (kind + KubeVirt + CDI)
+	infraEnv, err := helpers.SetupKubevirtInfraCluster()
+	require.NoError(t, err)
+
+	defer func() {
+		teardownErr := helpers.TeardownKubevirtInfraCluster()
+		if teardownErr != nil {
+			log.Printf("Failed to teardown KubeVirt infra cluster: %v", teardownErr)
+		}
+	}()
+
+	client, err := kubernetes.NewForConfig(env.KommodityCfg)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	// Create kubevirt-credentials secret in Kommodity with the container-accessible kubeconfig
+	_, err = client.CoreV1().Secrets("default").Create(ctx, &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "kubevirt-credentials",
+		},
+		Type: corev1.SecretTypeOpaque,
+		Data: map[string][]byte{
+			"kubeconfig": infraEnv.Kubeconfig,
+		},
+	}, metav1.CreateOptions{})
+	require.NoError(t, err)
+
+	log.Printf("Created kubevirt-credentials secret in Kommodity")
+
+	// Install kommodity-cluster chart with KubeVirt values
+	helpers.InstallKommodityClusterChartKubevirt(t, env,
+		clusterName, "default", helpers.InfraClusterNamespace)
+
+	// Wait for CAPI resources to be created in Kommodity
+	err = helpers.WaitForK8sResourceCreation(env.KommodityCfg, "default", "worker",
+		"cluster.x-k8s.io", "v1beta1", "machines", "", "", 3*time.Minute)
+	require.NoError(t, err)
+
+	// Wait for VirtualMachine CRs to be created in the kind cluster
+	err = helpers.WaitForKubevirtVMs(infraEnv.Config,
+		helpers.InfraClusterNamespace, clusterName, expectedVMCount, 3*time.Minute)
+	require.NoError(t, err)
+
+	// Uninstall cluster chart
+	log.Println("Uninstalling kommodity-cluster helm chart (KubeVirt)...")
+	helpers.UninstallKommodityClusterChart(t, env, clusterName, "default")
+
+	// Note: VM and CAPI resource cleanup verification is intentionally skipped.
+	// In emulation mode, VMs never boot, causing CAPI to aggressively create
+	// replacement machines. This makes the cascade deletion slow and unreliable.
+	// The kind cluster teardown (defer TeardownKubevirtInfraCluster) handles all
+	// infrastructure cleanup by deleting the entire kind cluster.
+}

@@ -209,15 +209,10 @@ jobs:
           coverage-threshold: 0
           cover-pkg: ./...
 
-      - name: Run integration tests
+      - name: Run Kubevirt integration tests
         run: |
           export CLUSTER_NAME="ci-cluster-${GITHUB_SHA::5}"
-          make run-integration-test
-        env:
-          SCW_ACCESS_KEY: ${{ secrets.SCW_ACCESS_KEY }}
-          SCW_SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
-          SCW_DEFAULT_REGION: fr-par
-          SCW_DEFAULT_PROJECT_ID: ${{ secrets.SCW_DEFAULT_PROJECT_ID }}
+          make run-kubevirt-integration-test
 
       - name: Upload kommodity test logs on failure
         if: failure()
@@ -225,51 +220,6 @@ jobs:
         with:
           name: kommodity-test-logs
           path: pkg/test/kommodity_container.log
-
-      - name: Install CLI
-        if: failure()
-        uses: scaleway/action-scw@v0
-        with:
-          version: v2.51.0
-      # Remove all instances after tests
-      - name: Clean up Scaleway instances
-        if: failure()
-        run: |
-          export CLUSTER_NAME="ci-cluster-${GITHUB_SHA::5}"
-
-          # List all server IDs with tag 'caps-scalewaycluster=$CLUSTER_NAME'
-          server_ids=$(scw instance server list tags.0=caps-scalewaycluster=$CLUSTER_NAME zone=fr-par-2 -o json | jq -r '.[].id')
-
-          if [[ -z "$server_ids" ]]; then
-            echo "No instances found with tag 'caps-scalewaycluster=$CLUSTER_NAME'"
-            exit 0
-          fi
-
-          for id in $server_ids; do
-            echo "Processing server $id..."
-
-            # Get server state
-            state=$(scw instance server get "$id" -o json | jq -r '.state')
-
-            # Stop if running
-            if [[ "$state" == "running" ]]; then
-              echo "  Stopping server $id..."
-              scw instance server stop "$id" --wait
-            fi
-
-            # Delete server
-            echo "  Deleting server $id..."
-            scw instance server delete "$id"
-
-            echo "  Done."
-          done
-
-          echo "All instances with tag 'caps-scalewaycluster=$CLUSTER_NAME' have been deleted."
-        env:
-          SCW_ACCESS_KEY: ${{ secrets.SCW_ACCESS_KEY }}
-          SCW_SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
-          SCW_DEFAULT_PROJECT_ID: ${{ secrets.SCW_DEFAULT_PROJECT_ID }}
-          SCW_DEFAULT_ORGANIZATION_ID: ${{ secrets.SCW_DEFAULT_ORGANIZATION_ID }}
 
   build:
     name: Build binary

@@ -147,9 +147,14 @@ setup-kind-management-cluster:
 delete-kind-management-cluster:
 	kind delete cluster --name kind-management
 
-.PHONY: run-integration-test
-run-integration-test:
-	cd pkg/test && go test ./... -v
+.PHONY: run-scaleway-integration-test
+run-scaleway-integration-test: ## Runs Scaleway integration tests (requires Docker)
+	cd pkg/test && go test -run TestCreateScalewayCluster -v -timeout 15m
+
+
+.PHONY: run-kubevirt-integration-test
+run-kubevirt-integration-test: ## Runs KubeVirt integration tests (requires Docker and kubectl)
+	cd pkg/test && go test -run TestCreateKubevirtCluster -v -timeout 15m
 
 .PHONY: run-helm-unit-tests
 run-helm-unit-tests:

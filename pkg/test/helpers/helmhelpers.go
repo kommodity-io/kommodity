@@ -11,7 +11,13 @@ import (
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 )
 
+const (
+	controlPlaneEndpointHost = "10.0.0.1"
+	controlPlaneEndpointPort = 6443
+)
+
 // InstallKommodityClusterChart installs the kommodity-cluster helm chart with the specified parameters.
+//
 //nolint:funlen // Function length is acceptable for a test helper.
 func InstallKommodityClusterChart(t *testing.T, env TestEnvironment,
 	releaseName string, namespace string, valuesFile string, scalewayProjectID string) string {
@@ -39,7 +45,7 @@ func InstallKommodityClusterChart(t *testing.T, env TestEnvironment,
 	require.NoError(t, err)
 
 	scalewayDefaultZone := ""
-	
+
 	//nolint:nestif // Nested ifs are acceptable in this case for clarity.
 	if kommoditySection, ok := values["kommodity"].(map[string]any); ok {
 		if nodepools, ok := kommoditySection["nodepools"].(map[string]any); ok {
@@ -82,6 +88,72 @@ func InstallKommodityClusterChart(t *testing.T, env TestEnvironment,
 	require.NoError(t, err)
 
 	return scalewayDefaultZone
+}
+
+// InstallKommodityClusterChartKubevirt installs the kommodity-cluster helm chart with KubeVirt values.
+func InstallKommodityClusterChartKubevirt(
+	t *testing.T,
+	env TestEnvironment,
+	releaseName string,
+	namespace string,
+	infraClusterNamespace string,
+) {
+	t.Helper()
+
+	repoRoot, err := FindRepoRoot()
+	require.NoError(t, err)
+
+	chartPath := filepath.Join(repoRoot, "charts", "kommodity-cluster")
+	valuesPath := filepath.Join(repoRoot, "charts", "kommodity-cluster", "values.kubevirt.yaml")
+
+	cfg := new(action.Configuration)
+	restGetter := genericclioptions.NewConfigFlags(false)
+	apiServer := env.KommodityCfg.Host
+	restGetter.APIServer = &apiServer
+	restGetter.Namespace = &namespace
+
+	err = cfg.Init(restGetter, namespace, "secret", func(string, ...any) {})
+	require.NoError(t, err)
+
+	chart, err := loader.Load(chartPath)
+	require.NoError(t, err)
+
+	values, err := chartutil.ReadValuesFile(valuesPath)
+	require.NoError(t, err)
+
+	//nolint:nestif // Nested ifs are acceptable in this case for clarity.
+	if kommoditySection, ok := values["kommodity"].(map[string]any); ok {
+		// Set infraClusterNamespace and controlPlaneEndpoint
+		if provider, ok := kommoditySection["provider"].(map[string]any); ok {
+			if config, ok := provider["config"].(map[string]any); ok {
+				config["infraClusterNamespace"] = infraClusterNamespace
+				config["controlPlaneEndpoint"] = map[string]any{
+					"host": controlPlaneEndpointHost,
+					"port": controlPlaneEndpointPort,
+				}
+			}
+		}
+
+		// Set control plane replicas to 1 for testing
+		if controlplane, ok := kommoditySection["controlplane"].(map[string]any); ok {
+			controlplane["replicas"] = 1
+		}
+
+		// Set nodepool replicas to 1 for testing
+		if nodepools, ok := kommoditySection["nodepools"].(map[string]any); ok {
+			if defaultPool, ok := nodepools["default"].(map[string]any); ok {
+				defaultPool["replicas"] = 1
+			}
+		}
+	}
+
+	installer := action.NewInstall(cfg)
+	installer.ReleaseName = releaseName
+	installer.Namespace = namespace
+	installer.Wait = false
+
+	_, err = installer.Run(chart, values)
+	require.NoError(t, err)
 }
 
 // UninstallKommodityClusterChart uninstalls the kommodity-cluster helm chart with the specified parameters.
