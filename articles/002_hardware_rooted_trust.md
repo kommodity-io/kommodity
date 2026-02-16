@@ -45,7 +45,7 @@ We wanted hardware-rooted trust: a machine proves its identity using its TPM bef
    - Software measurements match expected fingerprint
 6. **Trust decision**: Pass → machine receives configuration. Fail → connection rejected.
 
-Only after attestation succeeds does the metadata service provide the Talos machine configuration. When machines later call the KMS service, it validates the node UUID format and uses it to look up appropriate keys - attestation itself is not re-validated on each KMS request, but is enforced earlier through the separate attestation flow. We'll see how these two mechanisms work together in the "Complete Trust Chain" section below.
+Only after attestation succeeds does the metadata service provide the Talos machine configuration. When machines later call the KMS service, it validates both the node UUID and the client's peer IP address - if either doesn't match what was recorded when the key was created, access is denied. This means a node that changes IP (due to NAT, load balancer changes, or infrastructure migration) will be locked out until the binding is updated. Attestation itself is not re-validated on each KMS request, but is enforced earlier through the separate attestation flow. We'll see how these two mechanisms work together in the "Complete Trust Chain" section below.
 
 ---
 
@@ -121,13 +121,13 @@ func (s *ServiceServer) Seal(ctx context.Context, req *kms.Request) (*kms.Respon
 }
 ```
 
-Each node gets a unique 256-bit key stored as a Kubernetes Secret in Kommodity's database. The key is:
-- Generated on first boot
-- Never stored on the machine itself
-- Retrieved via network on every boot
-- Tied to the machine's UUID
+Each node gets a Kubernetes Secret in Kommodity's database containing encryption key material:
+- **Per-volume keys**: Each encrypted volume (STATE, EPHEMERAL) gets its own 256-bit key and nonce
+- **Generated on demand**: New key material is created on first Seal call for each volume; additional volumes can be added later
+- **Never stored on the machine**: Keys exist only in Kommodity's database; machines retrieve them via network on every boot
+- **Bound to node identity**: Access is tied to both the machine's UUID and the originating peer IP address
 
-**Key revocation is deletion**: remove the Secret, and the machine can no longer decrypt its disk.
+**Key revocation is deletion**: remove the Secret, and the machine can no longer decrypt any of its volumes.
 
 ---
 
@@ -157,7 +157,7 @@ The power of combining these mechanisms:
 2. **TPM proves** the machine is running expected software
 3. **Attestation passes** → machine receives Talos configuration
 4. **Machine requests disk encryption key** via KMS
-5. **KMS validates** node UUID and delivers key
+5. **KMS validates** node UUID and peer IP, then delivers key
 6. **Disk decrypts** → machine joins cluster
 
 At every step, trust is verified - not assumed. A compromised machine fails attestation. A stolen disk is useless without the network-delivered key. A rogue operator can't extract keys without database access.
