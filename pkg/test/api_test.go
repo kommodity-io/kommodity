@@ -124,8 +124,8 @@ func TestCreateScalewayCluster(t *testing.T) {
 	log.Printf("Using project ID %s", scalewayProjectID)
 
 	// Install Scaleway cluster helm chart in Kommodity
-	scalewayDefaultZone := helpers.InstallKommodityClusterChart(t, env,
-		clusterName, "default", "values.scaleway.yaml", scalewayProjectID)
+	scalewayDefaultZone := helpers.InstallKommodityClusterChartScaleway(t, env,
+		clusterName, "default", scalewayProjectID)
 
 	// Check that CAPI resources are created in Kommodity
 	err = helpers.WaitForK8sResourceCreation(env.KommodityCfg, "default", "worker",

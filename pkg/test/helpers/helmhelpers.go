@@ -2,6 +2,7 @@ package helpers
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -12,27 +13,76 @@ import (
 )
 
 const (
-	controlPlaneEndpointHost = "10.0.0.1"
-	controlPlaneEndpointPort = 6443
+	kubevirtControlPlaneEndpointHost = "10.0.0.1"
+	kubevirtControlPlaneEndpointPort = 6443
+	kubevirtValuesFile               = "values.kubevirt.yaml"
+	scalewayValuesFile               = "values.scaleway.yaml"
+	scalewayTestSKU                  = "DEV1-S"
 )
 
-// installKommodityClusterChart loads the kommodity-cluster Helm chart, applies the given values file,
-// runs the modifier to adjust values, and installs the chart.
+// Infrastructure defines provider-specific Helm value overrides for cluster chart installation.
+type Infrastructure interface {
+	ValuesFile() string
+	Overrides() map[string]any
+}
+
+// ScalewayInfra holds Scaleway-specific configuration for chart installation.
+type ScalewayInfra struct {
+	ProjectID string
+}
+
+// ValuesFile returns the Helm values file for Scaleway.
+func (s ScalewayInfra) ValuesFile() string { return scalewayValuesFile }
+
+// Overrides returns the Helm value overrides for Scaleway testing.
+func (s ScalewayInfra) Overrides() map[string]any {
+	return map[string]any{
+		"kommodity.nodepools.default.sku":     scalewayTestSKU,
+		"kommodity.controlplane.sku":          scalewayTestSKU,
+		"kommodity.provider.config.projectID": s.ProjectID,
+		"kommodity.network.ipv4.nodeCIDR":     nil,
+	}
+}
+
+// KubevirtInfra holds KubeVirt-specific configuration for chart installation.
+type KubevirtInfra struct {
+	InfraClusterNamespace    string
+	ControlPlaneEndpointHost string
+	ControlPlaneEndpointPort int
+}
+
+// ValuesFile returns the Helm values file for KubeVirt.
+func (k KubevirtInfra) ValuesFile() string { return kubevirtValuesFile }
+
+// Overrides returns the Helm value overrides for KubeVirt testing.
+func (k KubevirtInfra) Overrides() map[string]any {
+	return map[string]any{
+		"kommodity.provider.config.infraClusterNamespace": k.InfraClusterNamespace,
+		"kommodity.provider.config.controlPlaneEndpoint": map[string]any{
+			"host": k.ControlPlaneEndpointHost,
+			"port": k.ControlPlaneEndpointPort,
+		},
+		"kommodity.controlplane.replicas":      1,
+		"kommodity.nodepools.default.replicas": 1,
+	}
+}
+
+// installKommodityClusterChart loads the kommodity-cluster Helm chart, applies the infrastructure
+// overrides, and installs the chart. Returns the loaded values for caller inspection.
 func installKommodityClusterChart(
 	t *testing.T,
 	env TestEnvironment,
 	releaseName string,
 	namespace string,
-	valuesFile string,
-	modifier func(values chartutil.Values),
-) {
+	infra Infrastructure,
+) chartutil.Values {
 	t.Helper()
 
 	repoRoot, err := FindRepoRoot()
 	require.NoError(t, err)
 
 	chartPath := filepath.Join(repoRoot, "charts", "kommodity-cluster")
-	valuesPath := filepath.Join(repoRoot, "charts", "kommodity-cluster", valuesFile)
+	valuesPath := filepath.Join(repoRoot, "charts", "kommodity-cluster", infra.ValuesFile())
 
 	cfg := new(action.Configuration)
 	restGetter := genericclioptions.NewConfigFlags(false)
@@ -49,7 +99,9 @@ func installKommodityClusterChart(
 	values, err := chartutil.ReadValuesFile(valuesPath)
 	require.NoError(t, err)
 
-	modifier(values)
+	for key, value := range infra.Overrides() {
+		setNestedValue(values, key, value)
+	}
 
 	installer := action.NewInstall(cfg)
 	installer.ReleaseName = releaseName
@@ -58,64 +110,26 @@ func installKommodityClusterChart(
 
 	_, err = installer.Run(chart, values)
 	require.NoError(t, err)
+
+	return values
 }
 
-// InstallKommodityClusterChart installs the kommodity-cluster helm chart with Scaleway values.
-func InstallKommodityClusterChart(
+// InstallKommodityClusterChartScaleway installs the kommodity-cluster helm chart with Scaleway values.
+func InstallKommodityClusterChartScaleway(
 	t *testing.T,
 	env TestEnvironment,
 	releaseName string,
 	namespace string,
-	valuesFile string,
 	scalewayProjectID string,
 ) string {
 	t.Helper()
 
-	var scalewayDefaultZone string
-
-	installKommodityClusterChart(t, env, releaseName, namespace, valuesFile, func(values chartutil.Values) {
-		scalewayDefaultZone = modifyScalewayValues(values, scalewayProjectID)
+	values := installKommodityClusterChart(t, env, releaseName, namespace, ScalewayInfra{
+		ProjectID: scalewayProjectID,
 	})
 
-	require.NotEmpty(t, scalewayDefaultZone, "kommodity.nodepools.default.zone must be set in %s", valuesFile)
-
-	return scalewayDefaultZone
-}
-
-// modifyScalewayValues adjusts Helm values for Scaleway testing and returns the default zone.
-func modifyScalewayValues(values chartutil.Values, scalewayProjectID string) string {
-	scalewayDefaultZone := ""
-
-	kommoditySection, ok := values["kommodity"].(map[string]any)
-	if !ok {
-		return scalewayDefaultZone
-	}
-
-	if nodepools, ok := kommoditySection["nodepools"].(map[string]any); ok {
-		if defaultPool, ok := nodepools["default"].(map[string]any); ok {
-			defaultPool["sku"] = "DEV1-S"
-
-			if zone, ok := defaultPool["zone"].(string); ok {
-				scalewayDefaultZone = zone
-			}
-		}
-	}
-
-	if controlplane, ok := kommoditySection["controlplane"].(map[string]any); ok {
-		controlplane["sku"] = "DEV1-S"
-	}
-
-	if provider, ok := kommoditySection["provider"].(map[string]any); ok {
-		if config, ok := provider["config"].(map[string]any); ok {
-			config["projectID"] = scalewayProjectID
-		}
-	}
-
-	if network, ok := kommoditySection["network"].(map[string]any); ok {
-		if ipv4, ok := network["ipv4"].(map[string]any); ok {
-			ipv4["nodeCIDR"] = nil
-		}
-	}
+	scalewayDefaultZone := getNestedString(values, "kommodity.nodepools.default.zone")
+	require.NotEmpty(t, scalewayDefaultZone, "kommodity.nodepools.default.zone must be set in %s", scalewayValuesFile)
 
 	return scalewayDefaultZone
 }
@@ -130,37 +144,55 @@ func InstallKommodityClusterChartKubevirt(
 ) {
 	t.Helper()
 
-	installKommodityClusterChart(t, env, releaseName, namespace, "values.kubevirt.yaml", func(values chartutil.Values) {
-		modifyKubevirtValues(values, infraClusterNamespace)
+	installKommodityClusterChart(t, env, releaseName, namespace, KubevirtInfra{
+		InfraClusterNamespace:    infraClusterNamespace,
+		ControlPlaneEndpointHost: kubevirtControlPlaneEndpointHost,
+		ControlPlaneEndpointPort: kubevirtControlPlaneEndpointPort,
 	})
 }
 
-// modifyKubevirtValues adjusts Helm values for KubeVirt testing.
-func modifyKubevirtValues(values chartutil.Values, infraClusterNamespace string) {
-	kommoditySection, ok := values["kommodity"].(map[string]any)
-	if !ok {
-		return
-	}
+// traverseNestedMap walks a dot-notation path (e.g. "kommodity.controlplane.replicas")
+// to the parent map containing the leaf key, returning that map and the leaf key name.
+// When create is true, missing intermediate maps are allocated along the path.
+// When create is false and an intermediate key is missing, it returns (nil, "").
+func traverseNestedMap(values map[string]any, path string, create bool) (map[string]any, string) {
+	keys := strings.Split(path, ".")
+	current := values
 
-	if provider, ok := kommoditySection["provider"].(map[string]any); ok {
-		if config, ok := provider["config"].(map[string]any); ok {
-			config["infraClusterNamespace"] = infraClusterNamespace
-			config["controlPlaneEndpoint"] = map[string]any{
-				"host": controlPlaneEndpointHost,
-				"port": controlPlaneEndpointPort,
+	// Walk all keys except the last one to reach the parent map.
+	for _, key := range keys[:len(keys)-1] {
+		next, ok := current[key].(map[string]any)
+		if !ok {
+			if !create {
+				return nil, ""
 			}
+
+			next = make(map[string]any)
+			current[key] = next
 		}
+
+		current = next
 	}
 
-	if controlplane, ok := kommoditySection["controlplane"].(map[string]any); ok {
-		controlplane["replicas"] = 1
+	return current, keys[len(keys)-1]
+}
+
+// setNestedValue sets a value at a dot-notation path in a nested map, creating intermediate maps as needed.
+func setNestedValue(values map[string]any, path string, value any) {
+	parent, key := traverseNestedMap(values, path, true)
+	parent[key] = value
+}
+
+// getNestedString reads a string value at a dot-notation path, returning empty string if not found.
+func getNestedString(values map[string]any, path string) string {
+	parent, key := traverseNestedMap(values, path, false)
+	if parent == nil {
+		return ""
 	}
 
-	if nodepools, ok := kommoditySection["nodepools"].(map[string]any); ok {
-		if defaultPool, ok := nodepools["default"].(map[string]any); ok {
-			defaultPool["replicas"] = 1
-		}
-	}
+	val, _ := parent[key].(string)
+
+	return val
 }
 
 // UninstallKommodityClusterChart uninstalls the kommodity-cluster helm chart with the specified parameters.
