@@ -18,14 +18,16 @@ import (
 )
 
 const (
-	postgresDefaultPort   = "5432"
-	startupTimeout        = 10 * time.Second
-	pollInterval          = 5 * time.Second
-	writeTimeout          = 15 * time.Second
-	filePermission        = 0o600
-	kindClusterName       = "kommodity-kubevirt-test"
-	InfraClusterNamespace = "kubevirt-test-ns"
+	postgresDefaultPort = "5432"
+	startupTimeout      = 10 * time.Second
+	pollInterval        = 5 * time.Second
+	writeTimeout        = 15 * time.Second
+	filePermission      = 0o600
+	kindClusterName     = "kommodity-kubevirt-test"
 )
+
+// InfraClusterNamespace is the namespace in the kind cluster where KubeVirt VMs are deployed.
+const InfraClusterNamespace = "kubevirt-test-ns"
 
 var (
 	errRepoRootNotFound = errors.New("repo root not found")
