@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -159,10 +160,12 @@ func extractAPIServerPort(kubeconfigStr string) (string, error) {
 	for _, clusterInfo := range cfg.Clusters {
 		server := clusterInfo.Server
 		// Server is typically https://127.0.0.1:PORT
-		parts := strings.Split(server, ":")
-		if len(parts) >= urlParts {
-			return parts[len(parts)-1], nil
+		_, port, err := net.SplitHostPort(strings.TrimPrefix(server, "https://"))
+		if err != nil {
+			return "", fmt.Errorf("failed to parse server URL: %w", err)
 		}
+
+		return port, nil
 	}
 
 	return "", fmt.Errorf("%w: no cluster found in kubeconfig", errKindClusterCreation)

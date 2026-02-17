@@ -1,6 +1,7 @@
 package helpers
 
 import (
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -49,7 +50,7 @@ func (s ScalewayInfra) Overrides() map[string]any {
 type KubevirtInfra struct {
 	InfraClusterNamespace    string
 	ControlPlaneEndpointHost string
-	ControlPlaneEndpointPort int
+	ControlPlaneEndpointPort int64
 }
 
 // ValuesFile returns the Helm values file for KubeVirt.
@@ -63,8 +64,8 @@ func (k KubevirtInfra) Overrides() map[string]any {
 			"host": k.ControlPlaneEndpointHost,
 			"port": k.ControlPlaneEndpointPort,
 		},
-		"kommodity.controlplane.replicas":      1,
-		"kommodity.nodepools.default.replicas": 1,
+		"kommodity.controlplane.replicas":      int64(1),
+		"kommodity.nodepools.default.replicas": int64(1),
 	}
 }
 
@@ -161,7 +162,7 @@ func setNestedValue(values map[string]any, path string, value any) {
 func getNestedString(values map[string]any, path string) (string, error) {
 	val, found, err := unstructured.NestedString(values, strings.Split(path, ".")...)
 	if !found || err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to get nested string at path %q: %w", path, err)
 	}
 
 	return val, nil
