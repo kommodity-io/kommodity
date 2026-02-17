@@ -84,6 +84,9 @@ type ServerConfig struct {
 	GRPCFactory   GRPCServerFactory
 	HTTPFactories []HTTPMuxFactory
 	Port          int
+	// APIServerPort is the port where the internal Kubernetes API server listens.
+	// Used for health checks to verify API server readiness.
+	APIServerPort int
 }
 
 type server struct {
@@ -122,7 +125,9 @@ func (s *server) ListenAndServe(ctx context.Context) error {
 	s.httpMux = http.NewServeMux()
 
 	// Register unauthenticated health check endpoints first
-	registerHealthChecks(s.httpMux, s.stateTracker)
+	registerHealthChecks(s.httpMux, s.stateTracker, HealthCheckConfig{
+		APIServerPort: s.APIServerPort,
+	})
 
 	for _, factory := range s.HTTPFactories {
 		err := factory(s.httpMux)

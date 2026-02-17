@@ -1,10 +1,14 @@
 package combinedserver
 
 import (
+	"context"
+	"crypto/tls"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 const (
@@ -26,7 +30,16 @@ const (
 	// individualCheckPathSegments is the expected number of path segments for individual check requests.
 	// For example, /livez/ping has 2 segments: ["livez", "ping"].
 	individualCheckPathSegments = 2
+
+	// apiServerHealthCheckTimeout is the timeout for API server health check requests.
+	apiServerHealthCheckTimeout = 5 * time.Second
 )
+
+// HealthCheckConfig holds configuration for health checks.
+type HealthCheckConfig struct {
+	// APIServerPort is the port where the internal Kubernetes API server listens.
+	APIServerPort int
+}
 
 // HealthChecker is an interface for individual health checks.
 type HealthChecker interface {
@@ -102,6 +115,60 @@ func (p *pingHealthCheck) Check() error {
 	state := p.stateTracker.GetState()
 	if state != ServerStateRunning {
 		return fmt.Errorf("%w: server is %s", ErrServerNotRunning, state.String())
+	}
+
+	return nil
+}
+
+// apiServerHealthCheck verifies the internal Kubernetes API server is ready.
+type apiServerHealthCheck struct {
+	apiServerPort int
+	httpClient    *http.Client
+}
+
+// newAPIServerHealthCheck creates a new API server health check.
+func newAPIServerHealthCheck(apiServerPort int) *apiServerHealthCheck {
+	return &apiServerHealthCheck{
+		apiServerPort: apiServerPort,
+		httpClient: &http.Client{
+			Timeout: apiServerHealthCheckTimeout,
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{
+					//nolint:gosec // Internal loopback connection to API server, certificate not validated.
+					InsecureSkipVerify: true,
+				},
+			},
+		},
+	}
+}
+
+func (a *apiServerHealthCheck) Name() string {
+	return "apiserver"
+}
+
+// Check verifies the internal Kubernetes API server is ready by calling its /readyz endpoint.
+func (a *apiServerHealthCheck) Check() error {
+	url := "https://localhost:" + strconv.Itoa(a.apiServerPort) + "/readyz"
+
+	req, err := http.NewRequestWithContext(
+		context.Background(),
+		http.MethodGet,
+		url,
+		nil,
+	)
+	if err != nil {
+		return fmt.Errorf("%w: failed to create request: %w", ErrAPIServerNotReady, err)
+	}
+
+	resp, err := a.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrAPIServerNotReady, err)
+	}
+
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("%w: status code %d", ErrAPIServerNotReady, resp.StatusCode)
 	}
 
 	return nil
@@ -279,16 +346,22 @@ func (h *healthHandler) writeResponseBody(
 }
 
 // registerHealthChecks registers health check endpoints on the given mux.
-func registerHealthChecks(mux *http.ServeMux, stateTracker *ServerStateTracker) {
+func registerHealthChecks(
+	mux *http.ServeMux,
+	stateTracker *ServerStateTracker,
+	config HealthCheckConfig,
+) {
 	// Create registries for liveness and readiness checks
 	livezRegistry := newHealthCheckRegistry()
 	readyzRegistry := newHealthCheckRegistry()
 
-	// Register always-healthy check for both liveness and readiness, and ping check for readiness only
+	// Register always-healthy check for liveness
 	livezRegistry.register(&alwaysHealthyCheck{})
 
+	// Register readiness checks: always-healthy, ping (server state), and apiserver
 	readyzRegistry.register(&alwaysHealthyCheck{})
 	readyzRegistry.register(newPingHealthCheck(stateTracker))
+	readyzRegistry.register(newAPIServerHealthCheck(config.APIServerPort))
 
 	// Create handlers
 	livezHandler := newHealthHandler(livezRegistry, "livez")
