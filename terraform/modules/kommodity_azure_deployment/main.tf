@@ -118,6 +118,14 @@ resource "azurerm_subnet" "kommodity-container-sn" {
   resource_group_name  = azurerm_resource_group.kommodity-resource-group.name
   virtual_network_name = azurerm_virtual_network.kommodity-vn.name
   address_prefixes     = ["${var.virtual_network.container_subnet_prefix}"]
+
+  delegation {
+    name = "Microsoft.App.environments"
+    service_delegation {
+      name    = "Microsoft.App/environments"
+      actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+    }
+  }
 }
 
 resource "azurerm_container_app_environment" "kommodity-environment" {
