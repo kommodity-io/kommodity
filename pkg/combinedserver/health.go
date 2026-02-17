@@ -1,4 +1,3 @@
-// Package combinedserver provides a combined gRPC and HTTP server with reverse proxy capabilities.
 package combinedserver
 
 import (
@@ -10,7 +9,6 @@ import (
 
 const (
 	// HealthzPath is the path for the deprecated health check endpoint.
-	// Deprecated: Use LivezPath and ReadyzPath instead.
 	HealthzPath = "/healthz"
 	// LivezPath is the path for the liveness probe endpoint.
 	LivezPath = "/livez"

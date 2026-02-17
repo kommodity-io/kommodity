@@ -1,4 +1,3 @@
-// Package combinedserver provides a combined gRPC and HTTP server with reverse proxy capabilities.
 package combinedserver
 
 import "errors"
