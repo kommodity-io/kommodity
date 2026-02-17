@@ -98,7 +98,7 @@ func GetKubeConfig(cfg *config.KommodityConfig, logger *zap.Logger) func(http.Re
 
 		kubeConfigBytes, err := getKubeConfig(request.Context(), clusterName, kubeClient)
 		if err != nil {
-			http.Error(response, fmt.Sprintf("Failed to get talosconfig secret: %v", err),
+			http.Error(response, fmt.Sprintf("Failed to get kubeconfig secret: %v", err),
 				http.StatusInternalServerError)
 
 			return
@@ -172,7 +172,12 @@ func getKubeConfig(ctx context.Context, clusterName string, kubeClient *clientgo
 		return nil, fmt.Errorf("failed to get kubeconfig secret: %w", err)
 	}
 
-	return secret.Data["value"], nil
+	kubeConfigBytes, ok := secret.Data["value"]
+	if !ok || kubeConfigBytes == nil {
+		return nil, fmt.Errorf("%w: %s", ErrKubeConfigSecretIsEmpty, secretName)
+	}
+
+	return kubeConfigBytes, nil
 }
 
 // getOIDCConfigFromCluster fetches the machine config from the downstream Talos cluster
