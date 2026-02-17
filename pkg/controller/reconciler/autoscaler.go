@@ -12,6 +12,7 @@ import (
 	"github.com/kommodity-io/kommodity/pkg/config"
 	"github.com/kommodity-io/kommodity/pkg/logging"
 	"go.uber.org/zap"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -45,6 +46,11 @@ type Kubeconfig struct {
 	Token     string
 	Namespace string
 }
+
+const (
+	// autoscalerDeploymentName is the name of the Deployment created by the cluster-autoscaler Helm chart.
+	autoscalerDeploymentName = "cluster-autoscaler"
+)
 
 //go:embed kubeconfig.tmpl
 var kubeconfigTmplFS embed.FS
@@ -135,6 +141,30 @@ func (a *AutoscalerJob) Apply(ctx context.Context, clusterName string) error {
 		zap.String("jobName", a.config.Name))
 
 	return nil
+}
+
+// IsInstalled checks if the autoscaler Deployment already exists in the downstream cluster.
+func (a *AutoscalerJob) IsInstalled(ctx context.Context) (bool, error) {
+	deployment := &appsv1.Deployment{}
+
+	namespace := a.config.Namespace
+	if namespace == "" {
+		namespace = a.config.Name
+	}
+
+	err := a.downstreamClient.Get(ctx, client.ObjectKey{
+		Name:      autoscalerDeploymentName,
+		Namespace: namespace,
+	}, deployment)
+	if apierrors.IsNotFound(err) {
+		return false, nil
+	}
+
+	if err != nil {
+		return false, fmt.Errorf("failed to check autoscaler deployment: %w", err)
+	}
+
+	return true, nil
 }
 
 func (a *AutoscalerJob) applySecret(ctx context.Context, clusterName string) error {
@@ -288,6 +318,18 @@ func (r *AutoscalerReconciler) installAutoscaler(ctx context.Context, clusterNam
 			ChartVersion:    version,
 			ChartRepository: url,
 		},
+	}
+
+	installed, err := autoscalerJob.IsInstalled(ctx)
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to check if autoscaler is installed: %w", err)
+	}
+
+	if installed {
+		logger.Info("Autoscaler already installed, skipping installation",
+			zap.String("clusterName", clusterName))
+
+		return ctrl.Result{}, nil
 	}
 
 	err = autoscalerJob.PrepareForApply(ctx, r.cfg, clusterName)
