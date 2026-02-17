@@ -222,7 +222,7 @@ resource "azurerm_container_app" "kommodity-app" {
       liveness_probe {
         transport = "HTTP"
         port      = var.kommodity_container.port
-        path      = "/healthz"
+        path      = "/livez"
       }
 
       readiness_probe {
