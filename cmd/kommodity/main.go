@@ -72,7 +72,8 @@ func main() {
 		logger.Info("Kine server started successfully")
 
 		server, err := combinedserver.New(combinedserver.ServerConfig{
-			Port: cfg.ServerPort,
+			Port:          cfg.ServerPort,
+			APIServerPort: cfg.APIServerPort,
 			HTTPFactories: []combinedserver.HTTPMuxFactory{
 				uiserver.NewHTTPMuxFactory(rootCtx, cfg),
 				attestationserver.NewHTTPMuxFactory(cfg),

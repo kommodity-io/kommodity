@@ -118,7 +118,7 @@ func startKommodityContainer(ctx context.Context, networkName string) (tc.Contai
 				"KOMMODITY_INFRASTRUCTURE_PROVIDERS":        "kubevirt,scaleway,azure",
 				"KOMMODITY_KINE_URI":                        "unix:///tmp/kine.sock",
 			},
-			WaitingFor: wait.ForHTTP("/healthz").WithPort("5000/tcp").WithStartupTimeout(startupTimeout),
+			WaitingFor: wait.ForHTTP("/readyz").WithPort("5000/tcp").WithStartupTimeout(startupTimeout),
 		},
 		Started: true,
 	})
