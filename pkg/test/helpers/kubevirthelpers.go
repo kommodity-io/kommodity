@@ -43,37 +43,37 @@ func SetupKubevirtInfraCluster() (KubevirtInfraEnv, error) {
 
 	err = installKubeVirt(config)
 	if err != nil {
-		return KubevirtInfraEnv{}, fmt.Errorf("setup kubevirt infra: %w", err)
+		return KubevirtInfraEnv{}, fmt.Errorf("failed to install kubevirt: %w", err)
 	}
 
 	err = installCDI(config)
 	if err != nil {
-		return KubevirtInfraEnv{}, fmt.Errorf("setup kubevirt infra: %w", err)
+		return KubevirtInfraEnv{}, fmt.Errorf("failed to install CDI: %w", err)
 	}
 
 	err = waitForKubeVirtReady(config)
 	if err != nil {
-		return KubevirtInfraEnv{}, fmt.Errorf("setup kubevirt infra: %w", err)
+		return KubevirtInfraEnv{}, fmt.Errorf("failed to wait for kubevirt ready: %w", err)
 	}
 
 	err = waitForCDIReady(config)
 	if err != nil {
-		return KubevirtInfraEnv{}, fmt.Errorf("setup kubevirt infra: %w", err)
+		return KubevirtInfraEnv{}, fmt.Errorf("failed to wait for CDI ready: %w", err)
 	}
 
 	err = createInstanceTypes(config)
 	if err != nil {
-		return KubevirtInfraEnv{}, fmt.Errorf("setup kubevirt infra: %w", err)
+		return KubevirtInfraEnv{}, fmt.Errorf("failed to create instance types: %w", err)
 	}
 
 	err = createInfraNamespace(config)
 	if err != nil {
-		return KubevirtInfraEnv{}, fmt.Errorf("setup kubevirt infra: %w", err)
+		return KubevirtInfraEnv{}, fmt.Errorf("failed to create infra namespace: %w", err)
 	}
 
 	kubeconfig, err := buildContainerAccessibleKubeconfig(apiServerPort)
 	if err != nil {
-		return KubevirtInfraEnv{}, fmt.Errorf("setup kubevirt infra: %w", err)
+		return KubevirtInfraEnv{}, fmt.Errorf("failed to build container-accessible kubeconfig: %w", err)
 	}
 
 	return KubevirtInfraEnv{
@@ -86,7 +86,7 @@ func SetupKubevirtInfraCluster() (KubevirtInfraEnv, error) {
 func TeardownKubevirtInfraCluster() error {
 	err := deleteKindCluster()
 	if err != nil {
-		return fmt.Errorf("teardown kubevirt infra: %w", err)
+		return fmt.Errorf("failed to teardown kubevirt infra: %w", err)
 	}
 
 	return nil
