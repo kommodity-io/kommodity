@@ -218,6 +218,18 @@ resource "azurerm_container_app" "kommodity-app" {
         name  = "KOMMODITY_INFRASTRUCTURE_PROVIDERS"
         value = var.kommodity_container.infrastructure_providers
       }
+
+      liveness_probe {
+        transport = "HTTP"
+        port      = var.kommodity_container.port
+        path      = "/livez"
+      }
+
+      readiness_probe {
+        transport = "HTTP"
+        port      = var.kommodity_container.port
+        path      = "/readyz"
+      }
     }
   }
 }
