@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/kommodity-io/kommodity/pkg/logging"
@@ -17,6 +18,60 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
+
+// ServerState represents the current state of the server.
+type ServerState int32
+
+const (
+	// ServerStateStarting indicates the server is initializing.
+	ServerStateStarting ServerState = iota
+	// ServerStateRunning indicates the server is running and ready to accept requests.
+	ServerStateRunning
+	// ServerStateShuttingDown indicates the server is shutting down.
+	ServerStateShuttingDown
+)
+
+// String returns a human-readable representation of the server state.
+func (s ServerState) String() string {
+	switch s {
+	case ServerStateStarting:
+		return "starting"
+	case ServerStateRunning:
+		return "running"
+	case ServerStateShuttingDown:
+		return "shutting down"
+	default:
+		return "unknown"
+	}
+}
+
+// ServerStateTracker tracks the server's lifecycle state.
+type ServerStateTracker struct {
+	state atomic.Int32
+}
+
+// NewServerStateTracker creates a new server state tracker initialized to Starting state.
+func NewServerStateTracker() *ServerStateTracker {
+	tracker := &ServerStateTracker{}
+	tracker.state.Store(int32(ServerStateStarting))
+
+	return tracker
+}
+
+// SetState updates the server state.
+func (t *ServerStateTracker) SetState(state ServerState) {
+	t.state.Store(int32(state))
+}
+
+// GetState returns the current server state.
+func (t *ServerStateTracker) GetState() ServerState {
+	return ServerState(t.state.Load())
+}
+
+// IsRunning returns true if the server is in the running state.
+func (t *ServerStateTracker) IsRunning() bool {
+	return t.GetState() == ServerStateRunning
+}
 
 // HTTPMuxFactory is a function that initializes the HTTP mux.
 type HTTPMuxFactory func(*http.ServeMux) error
@@ -34,9 +89,10 @@ type ServerConfig struct {
 type server struct {
 	*ServerConfig
 
-	grpcServer *grpc.Server
-	httpMux    *http.ServeMux
-	httpServer *http.Server
+	grpcServer   *grpc.Server
+	httpMux      *http.ServeMux
+	httpServer   *http.Server
+	stateTracker *ServerStateTracker
 }
 
 // New creates a new combined server with gRPC listener and HTTP proxy.
@@ -45,6 +101,7 @@ type server struct {
 func New(config ServerConfig) (*server, error) {
 	return &server{
 		ServerConfig: &config,
+		stateTracker: NewServerStateTracker(),
 	}, nil
 }
 
@@ -63,6 +120,10 @@ func (s *server) ListenAndServe(ctx context.Context) error {
 
 	// Initialize HTTP mux
 	s.httpMux = http.NewServeMux()
+
+	// Register unauthenticated health check endpoints first
+	registerHealthChecks(s.httpMux, s.stateTracker)
+
 	for _, factory := range s.HTTPFactories {
 		err := factory(s.httpMux)
 		if err != nil {
@@ -93,6 +154,9 @@ func (s *server) ListenAndServe(ctx context.Context) error {
 
 	logger.Info("Starting combined HTTP/gRPC server", zap.Int("port", s.Port))
 
+	// Mark server as running before starting to listen
+	s.stateTracker.SetState(ServerStateRunning)
+
 	err = s.httpServer.ListenAndServe()
 	if err != nil {
 		if errors.Is(err, http.ErrServerClosed) {
@@ -109,6 +173,9 @@ func (s *server) ListenAndServe(ctx context.Context) error {
 
 func (s *server) Shutdown(ctx context.Context) error {
 	logger := logging.FromContext(ctx)
+
+	// Mark server as shutting down
+	s.stateTracker.SetState(ServerStateShuttingDown)
 
 	if s.grpcServer != nil {
 		logger.Info("Shutting down gRPC server", zap.Int("port", s.Port))
