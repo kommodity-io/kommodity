@@ -284,7 +284,7 @@ func registerHealthChecks(mux *http.ServeMux, stateTracker *ServerStateTracker) 
 	livezRegistry := newHealthCheckRegistry()
 	readyzRegistry := newHealthCheckRegistry()
 
-	// Register ping check for both liveness and readiness
+	// Register always-healthy check for both liveness and readiness, and ping check for readiness only
 	livezRegistry.register(&alwaysHealthyCheck{})
 
 	readyzRegistry.register(&alwaysHealthyCheck{})
