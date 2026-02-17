@@ -12,17 +12,12 @@ import (
 	"strings"
 
 	"github.com/Masterminds/sprig/v3"
-	"github.com/cosi-project/runtime/pkg/resource"
-	"github.com/cosi-project/runtime/pkg/safe"
 	"github.com/kommodity-io/kommodity/pkg/config"
-	talosclient "github.com/siderolabs/talos/pkg/machinery/client"
-	talosconfig "github.com/siderolabs/talos/pkg/machinery/client/config"
-	talosresconfig "github.com/siderolabs/talos/pkg/machinery/resources/config"
+	talosconfig "github.com/siderolabs/talos/pkg/machinery/config"
+	"github.com/siderolabs/talos/pkg/machinery/config/configloader"
 	"go.uber.org/zap"
-	"gopkg.in/yaml.v3"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientgoclientset "k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
 )
@@ -95,17 +90,15 @@ func GetKubeConfig(cfg *config.KommodityConfig, logger *zap.Logger) func(http.Re
 
 		clusterName := request.PathValue("clusterName")
 
-		talosConfig, err := getTalosConfig(request.Context(), clusterName, cfg.ClientConfig.LoopbackClientConfig)
+		kubeClient, err := clientgoclientset.NewForConfig(cfg.ClientConfig.LoopbackClientConfig)
 		if err != nil {
-			http.Error(response, fmt.Sprintf("Failed to get talosconfig secret: %v", err),
+			http.Error(response, fmt.Sprintf("Failed to create kube client: %v", err),
 				http.StatusInternalServerError)
-
-			return
 		}
 
-		kubeConfigBytes, err := getKubeContext(request.Context(), clusterName, talosConfig)
+		kubeConfigBytes, err := getKubeConfig(request.Context(), clusterName, kubeClient)
 		if err != nil {
-			http.Error(response, fmt.Sprintf("Failed to get kubeconfig: %v", err),
+			http.Error(response, fmt.Sprintf("Failed to get talosconfig secret: %v", err),
 				http.StatusInternalServerError)
 
 			return
@@ -134,7 +127,7 @@ func GetKubeConfig(cfg *config.KommodityConfig, logger *zap.Logger) func(http.Re
 		}
 
 		// Fetch OIDC config from the downstream Talos cluster's machine config
-		oidcConfig, err := getOIDCConfigFromCluster(request.Context(), clusterName, talosConfig)
+		oidcConfig, err := getOIDCConfigFromCluster(request.Context(), clusterName, kubeClient)
 		if err != nil {
 			if errors.Is(err, ErrOIDCNotConfigured) {
 				http.Error(response, "Cluster does not have OIDC configured in apiServer.extraArgs",
@@ -169,95 +162,36 @@ func writeResponse(response http.ResponseWriter, data []byte) {
 	}
 }
 
-func getTalosConfig(ctx context.Context, clusterName string,
-	lookbackClientConfig *rest.Config) (*talosconfig.Config, error) {
-	kubeClient, err := clientgoclientset.NewForConfig(lookbackClientConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create kube client: %w", err)
-	}
-
-	secretName := clusterName + "-talosconfig"
+func getKubeConfig(ctx context.Context, clusterName string, kubeClient *clientgoclientset.Clientset) ([]byte, error) {
+	secretName := clusterName + "-kubeconfig"
 
 	secretAPI := kubeClient.CoreV1().Secrets(config.KommodityNamespace)
 
 	secret, err := secretAPI.Get(ctx, secretName, metav1.GetOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("failed to get talosconfig secret: %w", err)
+		return nil, fmt.Errorf("failed to get kubeconfig secret: %w", err)
 	}
 
-	var talosConfig *talosconfig.Config
-
-	err = yaml.Unmarshal(secret.Data["talosconfig"], &talosConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal machine config: %w", err)
-	}
-
-	return talosConfig, nil
-}
-
-func getTalosClientWithNodeCtx(ctx context.Context, clusterName string,
-	talosConfig *talosconfig.Config) (*talosclient.Client, context.Context, error) {
-	talosClient, err := talosclient.New(ctx, talosclient.WithConfig(talosConfig))
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create talos client: %w", err)
-	}
-
-	talosClusterContext, success := talosConfig.Contexts[clusterName]
-	if !success {
-		return nil, nil, ErrFailedToFindContext
-	}
-
-	nodeCtx := talosclient.WithNode(ctx, talosClusterContext.Endpoints[0])
-
-	return talosClient, nodeCtx, nil
-}
-
-func getKubeContext(ctx context.Context, clusterName string, talosConfig *talosconfig.Config) ([]byte, error) {
-	talosClient, nodeCtx, err := getTalosClientWithNodeCtx(ctx, clusterName, talosConfig)
-	if err != nil {
-		return nil, err
-	}
-
-	kubeconfig, err := talosClient.Kubeconfig(nodeCtx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get kubeconfig: %w", err)
-	}
-
-	return kubeconfig, nil
+	return secret.Data["value"], nil
 }
 
 // getOIDCConfigFromCluster fetches the machine config from the downstream Talos cluster
 // and extracts OIDC configuration from cluster.apiServer.extraArgs.
 //
-//nolint:cyclop,funlen
+//nolint:cyclop
 func getOIDCConfigFromCluster(ctx context.Context, clusterName string,
-	talosConfig *talosconfig.Config) (*config.OIDCConfig, error) {
-	talosClient, nodeCtx, err := getTalosClientWithNodeCtx(ctx, clusterName, talosConfig)
-	if err != nil {
-		return nil, err
-	}
-
-	// Get the MachineConfig resource from the downstream cluster
-	machineConfig, err := safe.StateGet[*talosresconfig.MachineConfig](
-		nodeCtx,
-		talosClient.COSI,
-		resource.NewMetadata(
-			talosresconfig.NamespaceName,
-			talosresconfig.MachineConfigType,
-			talosresconfig.ActiveID,
-			resource.VersionUndefined),
-	)
+	kubeClient *clientgoclientset.Clientset) (*config.OIDCConfig, error) {
+	provider, err := getFirstMachineConfig(ctx, clusterName, kubeClient)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get machine config: %w", err)
 	}
 
 	// Extract OIDC settings from cluster.apiServer.extraArgs
-	cfg := machineConfig.Config()
-	if cfg.Cluster() == nil || cfg.Cluster().APIServer() == nil {
+	if provider.Cluster() == nil || provider.Cluster().APIServer() == nil {
 		return nil, ErrOIDCNotConfigured
 	}
 
-	extraArgs := cfg.Cluster().APIServer().ExtraArgs()
+	extraArgs := provider.Cluster().APIServer().ExtraArgs()
 	if extraArgs == nil {
 		return nil, ErrOIDCNotConfigured
 	}
@@ -297,4 +231,41 @@ func getOIDCConfigFromCluster(ctx context.Context, clusterName string,
 	}
 
 	return oidcConfig, nil
+}
+
+func getFirstMachineConfig(ctx context.Context, clusterName string,
+	kubeClient *clientgoclientset.Clientset) (talosconfig.Provider, error) {
+	machineConfigList, err := kubeClient.CoreV1().Secrets("default").List(ctx, metav1.ListOptions{
+		LabelSelector: "cluster.x-k8s.io/cluster-name=" + clusterName,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list machine config secrets: %w", err)
+	}
+
+	if len(machineConfigList.Items) == 0 {
+		return nil, fmt.Errorf("%w: %s", ErrNoMachineConfigSecret, clusterName)
+	}
+
+	var machineConfigData []byte
+
+	for _, secret := range machineConfigList.Items {
+		isControlPlaneBootstrapData := strings.Contains(secret.Name, clusterName+"-controlplane-") &&
+			strings.HasSuffix(secret.Name, "-bootstrap-data")
+		if isControlPlaneBootstrapData {
+			machineConfigData = secret.Data["value"]
+
+			break
+		}
+	}
+
+	if machineConfigData == nil {
+		return nil, fmt.Errorf("%w: %s", ErrNoControlPlaneBootstrapData, clusterName)
+	}
+
+	provider, err := configloader.NewFromBytes(machineConfigData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load machine config: %w", err)
+	}
+
+	return provider, nil
 }
