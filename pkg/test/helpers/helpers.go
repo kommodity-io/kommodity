@@ -6,31 +6,25 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	tc "github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/network"
 	"github.com/testcontainers/testcontainers-go/wait"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	k8s_wait "k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
 )
 
 const (
-	postgresDefaultPort = "5432"
-	startupTimeout      = 10 * time.Second
-	pollInterval        = 5 * time.Second
-	writeTimeout        = 15 * time.Second
-	filePermission      = 0o600
+	postgresDefaultPort   = "5432"
+	startupTimeout        = 10 * time.Second
+	pollInterval          = 5 * time.Second
+	writeTimeout          = 15 * time.Second
+	filePermission        = 0o600
+	kindClusterName       = "kommodity-kubevirt-test"
+	InfraClusterNamespace = "kubevirt-test-ns"
 )
 
 var (
@@ -176,176 +170,6 @@ func (e TestEnvironment) Teardown() {
 	_ = e.Postgres.Terminate(ctx)
 	_ = e.Kommodity.Terminate(ctx)
 	_ = e.Network.Remove(ctx)
-}
-
-// WaitForK8sResourceCreation waits for at least minCount Kubernetes resources to be created
-// that match the given criteria.
-func WaitForK8sResourceCreation(
-	config *rest.Config,
-	namespace string,
-	nameContains string,
-	group string,
-	version string,
-	kind string,
-	fieldPath string,
-	fieldValue string,
-	timeout time.Duration,
-	minCount int,
-) error {
-	return waitForK8sResource(config, namespace, nameContains, group, version, kind,
-		fieldPath, fieldValue, timeout, minCount, true)
-}
-
-// WaitForK8sResourceDeletion waits for a Kubernetes resource to be deleted that matches the given criteria.
-func WaitForK8sResourceDeletion(
-	config *rest.Config,
-	namespace string,
-	nameContains string,
-	group string,
-	version string,
-	kind string,
-	fieldPath string,
-	fieldValue string,
-	timeout time.Duration,
-) error {
-	return waitForK8sResource(config, namespace, nameContains, group, version, kind,
-		fieldPath, fieldValue, timeout, 0, false)
-}
-
-//nolint:funlen // Length is driven by logging and error formatting across creation/deletion paths.
-func waitForK8sResource(
-	config *rest.Config,
-	namespace string,
-	nameContains string,
-	group string,
-	version string,
-	kind string,
-	fieldPath string,
-	fieldValue string,
-	timeout time.Duration,
-	minCount int,
-	waitForExistence bool,
-) error {
-	client, err := dynamic.NewForConfig(config)
-	if err != nil {
-		return fmt.Errorf("failed to create dynamic client: %w", err)
-	}
-
-	gvr := schema.GroupVersionResource{
-		Group:    group,
-		Version:  version,
-		Resource: kind,
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
-	action := "creation"
-	if !waitForExistence {
-		action = "deletion"
-	}
-
-	err = k8s_wait.PollUntilContextTimeout(ctx, pollInterval, timeout, true, func(ctx context.Context) (bool, error) {
-		count, countErr := countMatchingResources(ctx, client, gvr, namespace, nameContains, fieldPath, fieldValue)
-		if countErr != nil {
-			return false, countErr
-		}
-
-		if waitForExistence {
-			if count >= minCount {
-				log.Printf("Found %d resource(s) %s/%s/%s in namespace %s (name contains: %q, field %q=%q, needed %d)",
-					count, group, version, kind, namespace, nameContains, fieldPath, fieldValue, minCount)
-
-				return true, nil
-			}
-
-			log.Printf("Waiting for %s of resource %s/%s/%s in namespace %s (name contains: %q, field %q=%q, found %d, need %d)",
-				action, group, version, kind, namespace, nameContains, fieldPath, fieldValue, count, minCount)
-
-			return false, nil
-		}
-
-		if count == 0 {
-			return true, nil
-		}
-
-		log.Printf("Waiting for %s of resource %s/%s/%s in namespace %s (name contains: %q, field %q=%q, still %d remaining)",
-			action, group, version, kind, namespace, nameContains, fieldPath, fieldValue, count)
-
-		return false, nil
-	})
-	if err != nil {
-		if waitForExistence {
-			return fmt.Errorf("resource %s/%s/%s not found in namespace %s within timeout (name contains: %q, field %q=%q): %w",
-				group, version, kind, namespace, nameContains, fieldPath, fieldValue, err)
-		}
-
-		return fmt.Errorf("resource %s/%s/%s still exists in namespace %s after timeout (name contains: %q, field %q=%q): %w",
-			group, version, kind, namespace, nameContains, fieldPath, fieldValue, err)
-	}
-
-	result := "found"
-	if !waitForExistence {
-		result = "deleted"
-	}
-
-	log.Printf("Resource %s/%s/%s %s in namespace %s (name contains: %q, field %q=%q)",
-		group, version, kind, result, namespace, nameContains, fieldPath, fieldValue)
-
-	return nil
-}
-
-//nolint:cyclop // Function complexity is acceptable for this utility.
-func countMatchingResources(
-	ctx context.Context,
-	client dynamic.Interface,
-	gvr schema.GroupVersionResource,
-	namespace string,
-	nameContains string,
-	fieldPath string,
-	fieldValue string,
-) (int, error) {
-	var lister dynamic.ResourceInterface
-	if namespace == "" {
-		lister = client.Resource(gvr)
-	} else {
-		lister = client.Resource(gvr).Namespace(namespace)
-	}
-
-	list, err := lister.List(ctx, metav1.ListOptions{})
-	if err != nil {
-		// Treat "not found" as zero resources — the CRD may not be registered yet.
-		if apierrors.IsNotFound(err) {
-			return 0, nil
-		}
-
-		return 0, fmt.Errorf("failed to list resources: %w", err)
-	}
-
-	count := 0
-
-	for _, item := range list.Items {
-		if nameContains != "" && !strings.Contains(item.GetName(), nameContains) {
-			continue
-		}
-
-		if fieldPath != "" {
-			parts := strings.Split(fieldPath, ".")
-
-			value, found, err := unstructured.NestedString(item.Object, parts...)
-			if err != nil || !found || value != fieldValue {
-				continue
-			}
-		}
-
-		if fieldValue != "" && fieldPath == "" {
-			continue
-		}
-
-		count++
-	}
-
-	return count, nil
 }
 
 // WriteKommodityLogsToFile retrieves the logs from the Kommodity container and writes them to the specified file.
