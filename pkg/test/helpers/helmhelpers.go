@@ -9,6 +9,7 @@ import (
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/chartutil"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 )
 
@@ -128,8 +129,8 @@ func InstallKommodityClusterChartScaleway(
 		ProjectID: scalewayProjectID,
 	})
 
-	scalewayDefaultZone := getNestedString(values, "kommodity.nodepools.default.zone")
-	require.NotEmpty(t, scalewayDefaultZone, "kommodity.nodepools.default.zone must be set in %s", scalewayValuesFile)
+	scalewayDefaultZone, err := getNestedString(values, "kommodity.nodepools.default.zone")
+	require.NoError(t, err)
 
 	return scalewayDefaultZone
 }
@@ -151,48 +152,19 @@ func InstallKommodityClusterChartKubevirt(
 	})
 }
 
-// traverseNestedMap walks a dot-notation path (e.g. "kommodity.controlplane.replicas")
-// to the parent map containing the leaf key, returning that map and the leaf key name.
-// When create is true, missing intermediate maps are allocated along the path.
-// When create is false and an intermediate key is missing, it returns (nil, "").
-func traverseNestedMap(values map[string]any, path string, create bool) (map[string]any, string) {
-	keys := strings.Split(path, ".")
-	current := values
-
-	// Walk all keys except the last one to reach the parent map.
-	for _, key := range keys[:len(keys)-1] {
-		next, ok := current[key].(map[string]any)
-		if !ok {
-			if !create {
-				return nil, ""
-			}
-
-			next = make(map[string]any)
-			current[key] = next
-		}
-
-		current = next
-	}
-
-	return current, keys[len(keys)-1]
-}
-
 // setNestedValue sets a value at a dot-notation path in a nested map, creating intermediate maps as needed.
 func setNestedValue(values map[string]any, path string, value any) {
-	parent, key := traverseNestedMap(values, path, true)
-	parent[key] = value
+	_ = unstructured.SetNestedField(values, value, strings.Split(path, ".")...)
 }
 
 // getNestedString reads a string value at a dot-notation path, returning empty string if not found.
-func getNestedString(values map[string]any, path string) string {
-	parent, key := traverseNestedMap(values, path, false)
-	if parent == nil {
-		return ""
+func getNestedString(values map[string]any, path string) (string, error) {
+	val, found, err := unstructured.NestedString(values, strings.Split(path, ".")...)
+	if !found || err != nil {
+		return "", err
 	}
 
-	val, _ := parent[key].(string)
-
-	return val
+	return val, nil
 }
 
 // UninstallKommodityClusterChart uninstalls the kommodity-cluster helm chart with the specified parameters.
