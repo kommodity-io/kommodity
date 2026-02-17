@@ -2,40 +2,48 @@ package helpers
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net"
-	"os"
-	"os/exec"
-	"path/filepath"
+	"net/http"
 	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
+	utilyaml "k8s.io/apimachinery/pkg/util/yaml"
+	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/discovery/cached/memory"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/restmapper"
 	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/kind/pkg/cluster"
 )
 
 const (
-	kindClusterName          = "kommodity-kubevirt-test"
-	kubevirtVersion          = "v1.4.0"
-	cdiVersion               = "v1.61.0"
-	kubevirtReadyTimeout     = 5 * time.Minute
-	cdiReadyTimeout          = 5 * time.Minute
-	instanceTypeSKU          = "s1.medium"
-	instanceTypeCPU          = 2
-	instanceTypeMemory       = "4Gi"
-	kubevirtNamespace        = "kubevirt"
-	tempDirName              = "kommodity-test"
-	kubeconfigFilePermission = 0o600
-	kubeconfigDirPermission  = 0o750
-	urlParts                 = 3
+	kindClusterName      = "kommodity-kubevirt-test"
+	kubevirtVersion      = "v1.4.0"
+	cdiVersion           = "v1.61.0"
+	kubevirtReadyTimeout = 5 * time.Minute
+	cdiReadyTimeout      = 5 * time.Minute
+	instanceTypeSKU      = "s1.medium"
+	instanceTypeCPU      = 2
+	instanceTypeMemory   = "4Gi"
+	kubevirtNamespace    = "kubevirt"
+	manifestFetchTimeout = 2 * time.Minute
+	applyRetryInterval   = 2 * time.Second
+	applyRetryTimeout    = 30 * time.Second
+	fieldManager         = "kommodity-test"
+	yamlDecoderBuffer    = 4096
 )
 
 // InfraClusterNamespace is the namespace in the kind cluster where KubeVirt VMs are deployed.
@@ -221,17 +229,14 @@ func buildContainerAccessibleKubeconfig(apiServerPort string) ([]byte, error) {
 func installKubeVirt(config *rest.Config) error {
 	log.Printf("Installing KubeVirt %s...", kubevirtVersion)
 
-	kubeconfigPath, err := getKindKubeconfigPath()
-	if err != nil {
-		return fmt.Errorf("%w: %w", errKubeVirtInstall, err)
-	}
+	ctx := context.Background()
 
 	operatorURL := fmt.Sprintf(
 		"https://github.com/kubevirt/kubevirt/releases/download/%s/kubevirt-operator.yaml",
 		kubevirtVersion,
 	)
 
-	err = kubectlApply(kubeconfigPath, operatorURL)
+	err := applyManifestURL(ctx, config, operatorURL)
 	if err != nil {
 		return fmt.Errorf("%w: failed to apply operator: %w", errKubeVirtInstall, err)
 	}
@@ -241,7 +246,7 @@ func installKubeVirt(config *rest.Config) error {
 		kubevirtVersion,
 	)
 
-	err = kubectlApply(kubeconfigPath, crURL)
+	err = applyManifestURL(ctx, config, crURL)
 	if err != nil {
 		return fmt.Errorf("%w: failed to apply CR: %w", errKubeVirtInstall, err)
 	}
@@ -257,20 +262,17 @@ func installKubeVirt(config *rest.Config) error {
 }
 
 // installCDI installs the CDI operator and CR.
-func installCDI(_ *rest.Config) error {
+func installCDI(config *rest.Config) error {
 	log.Printf("Installing CDI %s...", cdiVersion)
 
-	kubeconfigPath, err := getKindKubeconfigPath()
-	if err != nil {
-		return fmt.Errorf("%w: %w", errCDIInstall, err)
-	}
+	ctx := context.Background()
 
 	operatorURL := fmt.Sprintf(
 		"https://github.com/kubevirt/containerized-data-importer/releases/download/%s/cdi-operator.yaml",
 		cdiVersion,
 	)
 
-	err = kubectlApply(kubeconfigPath, operatorURL)
+	err := applyManifestURL(ctx, config, operatorURL)
 	if err != nil {
 		return fmt.Errorf("%w: failed to apply operator: %w", errCDIInstall, err)
 	}
@@ -280,7 +282,7 @@ func installCDI(_ *rest.Config) error {
 		cdiVersion,
 	)
 
-	err = kubectlApply(kubeconfigPath, crURL)
+	err = applyManifestURL(ctx, config, crURL)
 	if err != nil {
 		return fmt.Errorf("%w: failed to apply CR: %w", errCDIInstall, err)
 	}
@@ -435,47 +437,189 @@ func patchKubeVirtEmulation(config *rest.Config) error {
 	return nil
 }
 
-// getKindKubeconfigPath writes the kind cluster kubeconfig to a temp file and returns the path.
-func getKindKubeconfigPath() (string, error) {
-	provider := cluster.NewProvider()
+// applyManifestURL fetches a YAML manifest from a URL and applies all resources to the cluster.
+func applyManifestURL(ctx context.Context, config *rest.Config, manifestURL string) error {
+	log.Printf("Applying manifest from %s", manifestURL)
 
-	kubeconfigStr, err := provider.KubeConfig(kindClusterName, false)
+	objects, err := fetchAndDecodeManifest(ctx, manifestURL)
 	if err != nil {
-		return "", fmt.Errorf("failed to get kubeconfig: %w", err)
+		return fmt.Errorf("failed to fetch manifest from %s: %w", manifestURL, err)
 	}
 
-	tmpDir := filepath.Join(os.TempDir(), tempDirName)
-
-	err = os.MkdirAll(tmpDir, kubeconfigDirPermission)
+	err = applyObjects(ctx, config, objects)
 	if err != nil {
-		return "", fmt.Errorf("failed to create temp dir %s: %w", tmpDir, err)
+		return fmt.Errorf("failed to apply manifest from %s: %w", manifestURL, err)
 	}
 
-	tmpFile := filepath.Join(tmpDir, "kind-kubeconfig-"+kindClusterName)
-
-	err = os.WriteFile(tmpFile, []byte(kubeconfigStr), kubeconfigFilePermission)
-	if err != nil {
-		return "", fmt.Errorf("failed to write kubeconfig to %s: %w", tmpFile, err)
-	}
-
-	return tmpFile, nil
-}
-
-// kubectlApply runs kubectl apply -f <url> with the specified kubeconfig.
-func kubectlApply(kubeconfigPath string, manifestURL string) error {
-	log.Printf("Running kubectl apply -f %s", manifestURL)
-
-	ctx, cancel := context.WithTimeout(context.Background(), kubevirtReadyTimeout)
-	defer cancel()
-
-	cmd := exec.CommandContext(ctx, "kubectl", "apply", "-f", manifestURL, "--kubeconfig", kubeconfigPath)
-
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("kubectl apply failed: %s: %w", string(output), err)
-	}
-
-	log.Printf("kubectl apply output: %s", string(output))
+	log.Printf("Successfully applied %d resources from %s", len(objects), manifestURL)
 
 	return nil
+}
+
+// fetchAndDecodeManifest fetches a YAML manifest from a URL and decodes it into unstructured objects.
+func fetchAndDecodeManifest(ctx context.Context, manifestURL string) ([]*unstructured.Unstructured, error) {
+	fetchCtx, cancel := context.WithTimeout(ctx, manifestFetchTimeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(fetchCtx, http.MethodGet, manifestURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch manifest: %w", err)
+	}
+
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("%w: %d", errManifestFetch, resp.StatusCode)
+	}
+
+	return decodeMultiDocYAML(resp.Body)
+}
+
+// decodeMultiDocYAML decodes a multi-document YAML stream into unstructured Kubernetes objects.
+func decodeMultiDocYAML(reader io.Reader) ([]*unstructured.Unstructured, error) {
+	var objects []*unstructured.Unstructured
+
+	decoder := utilyaml.NewYAMLOrJSONDecoder(reader, yamlDecoderBuffer)
+
+	for {
+		obj := &unstructured.Unstructured{}
+
+		err := decoder.Decode(obj)
+		if errors.Is(err, io.EOF) {
+			break
+		}
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to decode YAML document: %w", err)
+		}
+
+		// Skip empty documents (e.g. bare "---" separators).
+		if obj.GetKind() == "" {
+			continue
+		}
+
+		objects = append(objects, obj)
+	}
+
+	return objects, nil
+}
+
+// applyObjects applies a list of unstructured objects, processing CRDs first to ensure
+// custom resource types are registered before their instances are applied.
+func applyObjects(
+	ctx context.Context,
+	config *rest.Config,
+	objects []*unstructured.Unstructured,
+) error {
+	dynClient, err := dynamic.NewForConfig(config)
+	if err != nil {
+		return fmt.Errorf("failed to create dynamic client: %w", err)
+	}
+
+	discoveryClient, err := discovery.NewDiscoveryClientForConfig(config)
+	if err != nil {
+		return fmt.Errorf("failed to create discovery client: %w", err)
+	}
+
+	mapper := restmapper.NewDeferredDiscoveryRESTMapper(
+		memory.NewMemCacheClient(discoveryClient),
+	)
+
+	var crds, others []*unstructured.Unstructured
+
+	for _, obj := range objects {
+		if obj.GetKind() == "CustomResourceDefinition" {
+			crds = append(crds, obj)
+		} else {
+			others = append(others, obj)
+		}
+	}
+
+	for _, obj := range crds {
+		err := serverSideApply(ctx, dynClient, mapper, obj)
+		if err != nil {
+			return fmt.Errorf("failed to apply CRD %q: %w", obj.GetName(), err)
+		}
+	}
+
+	// Reset mapper cache so newly registered CRDs are discoverable.
+	if len(crds) > 0 {
+		mapper.Reset()
+	}
+
+	for _, obj := range others {
+		err := serverSideApplyWithRetry(ctx, dynClient, mapper, obj)
+		if err != nil {
+			return fmt.Errorf("failed to apply %s %q: %w", obj.GetKind(), obj.GetName(), err)
+		}
+	}
+
+	return nil
+}
+
+// serverSideApply applies a single unstructured object using server-side apply.
+func serverSideApply(
+	ctx context.Context,
+	client dynamic.Interface,
+	mapper apimeta.RESTMapper,
+	obj *unstructured.Unstructured,
+) error {
+	gvk := obj.GroupVersionKind()
+
+	mapping, err := mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
+	if err != nil {
+		return fmt.Errorf("failed to find REST mapping for %s: %w", gvk, err)
+	}
+
+	var resource dynamic.ResourceInterface
+	if mapping.Scope.Name() == apimeta.RESTScopeNameNamespace {
+		resource = client.Resource(mapping.Resource).Namespace(obj.GetNamespace())
+	} else {
+		resource = client.Resource(mapping.Resource)
+	}
+
+	data, err := json.Marshal(obj)
+	if err != nil {
+		return fmt.Errorf("failed to marshal %s %q: %w", obj.GetKind(), obj.GetName(), err)
+	}
+
+	_, err = resource.Patch(ctx, obj.GetName(), types.ApplyPatchType, data, metav1.PatchOptions{
+		FieldManager: fieldManager,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to apply %s %q: %w", obj.GetKind(), obj.GetName(), err)
+	}
+
+	return nil
+}
+
+// serverSideApplyWithRetry retries server-side apply when the resource type
+// is not yet registered (e.g. CRD propagation delay).
+func serverSideApplyWithRetry(
+	ctx context.Context,
+	client dynamic.Interface,
+	mapper *restmapper.DeferredDiscoveryRESTMapper,
+	obj *unstructured.Unstructured,
+) error {
+	deadline := time.Now().Add(applyRetryTimeout)
+
+	for {
+		err := serverSideApply(ctx, client, mapper, obj)
+		if err == nil {
+			return nil
+		}
+
+		if !apimeta.IsNoMatchError(err) || time.Now().After(deadline) {
+			return err
+		}
+
+		log.Printf("Resource type not yet registered for %s %q, retrying...", obj.GetKind(), obj.GetName())
+		mapper.Reset()
+		time.Sleep(applyRetryInterval)
+	}
 }
