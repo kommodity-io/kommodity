@@ -102,7 +102,8 @@ func installKommodityClusterChart(
 	require.NoError(t, err)
 
 	for key, value := range infra.Overrides() {
-		setNestedValue(values, key, value)
+		err := setNestedValue(values, key, value)
+		require.NoError(t, err)
 	}
 
 	installer := action.NewInstall(cfg)
@@ -153,9 +154,14 @@ func InstallKommodityClusterChartKubevirt(
 	})
 }
 
-// setNestedValue sets a value at a dot-notation path in a nested map, creating intermediate maps as needed.
-func setNestedValue(values map[string]any, path string, value any) {
-	_ = unstructured.SetNestedField(values, value, strings.Split(path, ".")...)
+// setNestedValue sets a value at a dot-notation path in a nested map.
+func setNestedValue(values map[string]any, path string, value any) error {
+	err := unstructured.SetNestedField(values, value, strings.Split(path, ".")...)
+	if err != nil {
+		return fmt.Errorf("failed to set nested value at path %q: %w", path, err)
+	}
+
+	return nil
 }
 
 // getNestedString reads a string value at a dot-notation path, returning empty string if not found.
