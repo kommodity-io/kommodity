@@ -3,10 +3,8 @@ package helpers
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"os"
 	"path/filepath"
@@ -16,11 +14,7 @@ import (
 	tc "github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/network"
 	"github.com/testcontainers/testcontainers-go/wait"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	k8s_wait "k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
 )
 
@@ -30,12 +24,12 @@ const (
 	pollInterval        = 5 * time.Second
 	writeTimeout        = 15 * time.Second
 	filePermission      = 0o600
+	kindClusterName     = "kommodity-kubevirt-test"
+	scalewayTestSKU     = "DEV1-S"
 )
 
-var (
-	errRepoRootNotFound = errors.New("repo root not found")
-	errContainerNil     = errors.New("container is nil")
-)
+// InfraClusterNamespace is the namespace in the kind cluster where KubeVirt VMs are deployed.
+const InfraClusterNamespace = "kubevirt-test-ns"
 
 // TestEnvironment holds the containers and connection info for the test setup.
 type TestEnvironment struct {
@@ -43,6 +37,25 @@ type TestEnvironment struct {
 	Kommodity    tc.Container
 	KommodityCfg *rest.Config
 	Network      *tc.DockerNetwork
+}
+
+// Infrastructure defines provider-specific Helm value overrides for cluster chart installation.
+type Infrastructure interface {
+	ValuesFile() string
+	Overrides() map[string]any
+}
+
+// ValuesFile returns the Helm values file for Scaleway.
+func (s ScalewayInfra) ValuesFile() string { return scalewayValuesFile }
+
+// Overrides returns the Helm value overrides for Scaleway testing.
+func (s ScalewayInfra) Overrides() map[string]any {
+	return map[string]any{
+		"kommodity.nodepools.default.sku":     scalewayTestSKU,
+		"kommodity.controlplane.sku":          scalewayTestSKU,
+		"kommodity.provider.config.projectID": s.ProjectID,
+		"kommodity.network.ipv4.nodeCIDR":     nil,
+	}
 }
 
 // SetupContainers initializes and starts the necessary containers for testing.
@@ -111,11 +124,12 @@ func startKommodityContainer(ctx context.Context, networkName string) (tc.Contai
 			Image:        "kommodity:latest",
 			Networks:     []string{networkName},
 			ExposedPorts: []string{"5000/tcp"},
+			ExtraHosts:   []string{"host.docker.internal:host-gateway"},
 			Env: map[string]string{
 				"KOMMODITY_DB_URI": "postgres://kommodity:kommodity@postgres:" +
 					postgresDefaultPort + "/kommodity?sslmode=disable",
 				"KOMMODITY_INSECURE_DISABLE_AUTHENTICATION": "true",
-				"KOMMODITY_INFRASTRUCTURE_PROVIDERS":        "kubevirt,scaleway,azure",
+				"KOMMODITY_INFRASTRUCTURE_PROVIDERS":        "kubevirt,scaleway",
 				"KOMMODITY_KINE_URI":                        "unix:///tmp/kine.sock",
 			},
 			WaitingFor: wait.ForHTTP("/readyz").WithPort("5000/tcp").WithStartupTimeout(startupTimeout),
@@ -176,107 +190,6 @@ func (e TestEnvironment) Teardown() {
 	_ = e.Network.Remove(ctx)
 }
 
-// WaitForK8sResourceCreation waits for a Kubernetes resource to be created that matches the given criteria.
-func WaitForK8sResourceCreation(config *rest.Config, namespace string, nameContains string, group string,
-	version string, kind string, fieldPath string, fieldValue string, timeout time.Duration) error {
-	return waitForK8sResource(config, namespace, nameContains, group, version, kind, fieldPath, fieldValue, timeout, true)
-}
-
-// WaitForK8sResourceDeletion waits for a Kubernetes resource to be deleted that matches the given criteria.
-func WaitForK8sResourceDeletion(config *rest.Config, namespace string, nameContains string, group string,
-	version string, kind string, fieldPath string, fieldValue string, timeout time.Duration) error {
-	return waitForK8sResource(config, namespace, nameContains, group, version, kind, fieldPath, fieldValue, timeout, false)
-}
-
-func waitForK8sResource(config *rest.Config, namespace string, nameContains string, group string,
-	version string, kind string, fieldPath string, fieldValue string, timeout time.Duration, waitForExistence bool) error {
-	client, err := dynamic.NewForConfig(config)
-	if err != nil {
-		return fmt.Errorf("failed to create dynamic client: %w", err)
-	}
-
-	gvr := schema.GroupVersionResource{
-		Group:    group,
-		Version:  version,
-		Resource: kind,
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
-	action := "creation"
-	if !waitForExistence {
-		action = "deletion"
-	}
-
-	err = k8s_wait.PollUntilContextTimeout(ctx, pollInterval, timeout, true, func(ctx context.Context) (bool, error) {
-		log.Printf("Waiting for %s of resource %s/%s/%s in namespace %s (name contains: %q, field %q=%q)",
-			action, group, version, kind, namespace, nameContains, fieldPath, fieldValue)
-
-		found, err := hasMatchingResource(ctx, client, gvr, namespace, nameContains, fieldPath, fieldValue)
-		if err != nil {
-			return false, err
-		}
-
-		if waitForExistence {
-			return found, nil
-		}
-
-		return !found, nil
-	})
-	if err != nil {
-		if waitForExistence {
-			return fmt.Errorf("resource %s/%s/%s not found in namespace %s within timeout (name contains: %q, field %q=%q): %w",
-				group, version, kind, namespace, nameContains, fieldPath, fieldValue, err)
-		}
-
-		return fmt.Errorf("resource %s/%s/%s still exists in namespace %s after timeout (name contains: %q, field %q=%q): %w",
-			group, version, kind, namespace, nameContains, fieldPath, fieldValue, err)
-	}
-
-	result := "found"
-	if !waitForExistence {
-		result = "deleted"
-	}
-
-	log.Printf("Resource %s/%s/%s %s in namespace %s (name contains: %q, field %q=%q)",
-		group, version, kind, result, namespace, nameContains, fieldPath, fieldValue)
-
-	return nil
-}
-
-//nolint:cyclop // Function complexity is acceptable for this utility.
-func hasMatchingResource(ctx context.Context, client dynamic.Interface, gvr schema.GroupVersionResource,
-	namespace string, nameContains string, fieldPath string, fieldValue string) (bool, error) {
-	list, err := client.Resource(gvr).Namespace(namespace).List(ctx, metav1.ListOptions{})
-	if err != nil {
-		return false, fmt.Errorf("failed to list resources: %w", err)
-	}
-
-	for _, item := range list.Items {
-		if nameContains != "" && !strings.Contains(item.GetName(), nameContains) {
-			continue
-		}
-
-		if fieldPath != "" {
-			parts := strings.Split(fieldPath, ".")
-
-			value, found, err := unstructured.NestedString(item.Object, parts...)
-			if err != nil || !found || value != fieldValue {
-				continue
-			}
-		}
-
-		if fieldValue != "" && fieldPath == "" {
-			continue
-		}
-
-		return true, nil
-	}
-
-	return false, nil
-}
-
 // WriteKommodityLogsToFile retrieves the logs from the Kommodity container and writes them to the specified file.
 func WriteKommodityLogsToFile(container tc.Container, filePath string) error {
 	if container == nil {
@@ -304,4 +217,24 @@ func WriteKommodityLogsToFile(container tc.Container, filePath string) error {
 	}
 
 	return nil
+}
+
+// setNestedValue sets a value at a dot-notation path in a nested map.
+func setNestedValue(values map[string]any, path string, value any) error {
+	err := unstructured.SetNestedField(values, value, strings.Split(path, ".")...)
+	if err != nil {
+		return fmt.Errorf("failed to set nested value at path %q: %w", path, err)
+	}
+
+	return nil
+}
+
+// getNestedString reads a string value at a dot-notation path, returning empty string if not found.
+func getNestedString(values map[string]any, path string) (string, error) {
+	val, found, err := unstructured.NestedString(values, strings.Split(path, ".")...)
+	if !found || err != nil {
+		return "", fmt.Errorf("failed to get nested string at path %q: %w", path, err)
+	}
+
+	return val, nil
 }

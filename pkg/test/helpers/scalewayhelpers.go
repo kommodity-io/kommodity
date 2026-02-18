@@ -2,7 +2,6 @@ package helpers
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log"
 	"time"
@@ -12,12 +11,14 @@ import (
 	k8s_wait "k8s.io/apimachinery/pkg/util/wait"
 )
 
-var (
-	errMoreServersThanExpected = errors.New("found more servers than expected in Scaleway")
-	errUnexpectedState         = errors.New("unexpected state")
-	errInvalidRegion           = errors.New("invalid region provided")
-	errInvalidZone             = errors.New("invalid zone provided")
+const (
+	scalewayValuesFile = "values.scaleway.yaml"
 )
+
+// ScalewayInfra holds Scaleway-specific configuration for chart installation.
+type ScalewayInfra struct {
+	ProjectID string
+}
 
 // WaitForScalewayServers checks for the existence of servers in Scaleway using the provided credentials.
 func WaitForScalewayServers(
