@@ -8,6 +8,8 @@ var (
 	Decrypt            = decrypt
 	BuildAAD           = buildAAD
 	ParseVolumeKeySets = parseVolumeKeySets
+	ExtractClientIP    = extractClientIP
+	SanitizeIP         = sanitizeIP
 )
 
 const (
