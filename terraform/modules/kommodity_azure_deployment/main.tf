@@ -166,6 +166,10 @@ resource "azurerm_container_app_environment" "kommodity-environment" {
     azurerm_log_analytics_workspace.kommodity-log-analytics,
     azurerm_subnet.kommodity-container-sn,
   ]
+
+  lifecycle {
+    ignore_changes = [infrastructure_resource_group_name]
+  }
 }
 
 # Container App for kommodity service
