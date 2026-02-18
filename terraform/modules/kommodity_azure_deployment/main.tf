@@ -10,6 +10,8 @@ resource "azurerm_virtual_network" "kommodity-vn" {
   location            = azurerm_resource_group.kommodity-resource-group.location
   resource_group_name = azurerm_resource_group.kommodity-resource-group.name
   address_space       = ["${var.virtual_network.address_space}"]
+
+  depends_on = [azurerm_resource_group.kommodity-resource-group]
 }
 
 resource "azurerm_subnet" "kommodity-db-sn" {
@@ -27,11 +29,18 @@ resource "azurerm_subnet" "kommodity-db-sn" {
       ]
     }
   }
+
+  depends_on = [
+    azurerm_resource_group.kommodity-resource-group,
+    azurerm_virtual_network.kommodity-vn,
+  ]
 }
 
 resource "azurerm_private_dns_zone" "kommodity-dns" {
   name                = "${var.resource_group.name}.postgres.database.azure.com"
   resource_group_name = azurerm_resource_group.kommodity-resource-group.name
+
+  depends_on = [azurerm_resource_group.kommodity-resource-group]
 }
 
 resource "azurerm_private_dns_zone_virtual_network_link" "kommodity-dns-vnet-link" {
@@ -39,7 +48,12 @@ resource "azurerm_private_dns_zone_virtual_network_link" "kommodity-dns-vnet-lin
   private_dns_zone_name = azurerm_private_dns_zone.kommodity-dns.name
   virtual_network_id    = azurerm_virtual_network.kommodity-vn.id
   resource_group_name   = azurerm_resource_group.kommodity-resource-group.name
-  depends_on            = [azurerm_subnet.kommodity-db-sn]
+  depends_on = [
+    azurerm_resource_group.kommodity-resource-group,
+    azurerm_virtual_network.kommodity-vn,
+    azurerm_subnet.kommodity-db-sn,
+    azurerm_private_dns_zone.kommodity-dns,
+  ]
 }
 
 # Database
@@ -71,8 +85,11 @@ resource "azurerm_postgresql_flexible_server" "kommodity-db" {
   storage_mb   = var.database.storage_mb
   storage_tier = var.database.storage_tier
 
-  sku_name   = var.database.sku_name
-  depends_on = [azurerm_private_dns_zone_virtual_network_link.kommodity-dns-vnet-link]
+  sku_name = var.database.sku_name
+  depends_on = [
+    azurerm_resource_group.kommodity-resource-group,
+    azurerm_private_dns_zone_virtual_network_link.kommodity-dns-vnet-link,
+  ]
 
   geo_redundant_backup_enabled = var.database.storage_georedundant_enabled
 
@@ -98,6 +115,8 @@ resource "azurerm_postgresql_flexible_server_database" "this" {
   charset   = "UTF8"
   collation = var.database.collation
 
+  depends_on = [azurerm_postgresql_flexible_server.kommodity-db]
+
   lifecycle {
     prevent_destroy = true
   }
@@ -110,6 +129,8 @@ resource "azurerm_log_analytics_workspace" "kommodity-log-analytics" {
   resource_group_name = azurerm_resource_group.kommodity-resource-group.name
   sku                 = var.log_analytics.workspace_sku
   retention_in_days   = var.log_analytics.workspace_retention
+
+  depends_on = [azurerm_resource_group.kommodity-resource-group]
 }
 
 # Networking resources for Container App
@@ -126,6 +147,11 @@ resource "azurerm_subnet" "kommodity-container-sn" {
       actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
     }
   }
+
+  depends_on = [
+    azurerm_resource_group.kommodity-resource-group,
+    azurerm_virtual_network.kommodity-vn,
+  ]
 }
 
 resource "azurerm_container_app_environment" "kommodity-environment" {
@@ -134,12 +160,20 @@ resource "azurerm_container_app_environment" "kommodity-environment" {
   resource_group_name        = azurerm_resource_group.kommodity-resource-group.name
   log_analytics_workspace_id = azurerm_log_analytics_workspace.kommodity-log-analytics.id
   infrastructure_subnet_id   = azurerm_subnet.kommodity-container-sn.id
+
+  depends_on = [
+    azurerm_resource_group.kommodity-resource-group,
+    azurerm_log_analytics_workspace.kommodity-log-analytics,
+    azurerm_subnet.kommodity-container-sn,
+  ]
 }
 
 # Container App for kommodity service
 resource "azurerm_container_app" "kommodity-app" {
   depends_on = [
-    azurerm_postgresql_flexible_server.kommodity-db,
+    azurerm_resource_group.kommodity-resource-group,
+    azurerm_container_app_environment.kommodity-environment,
+    azurerm_postgresql_flexible_server_database.this,
   ]
   name                         = "${var.resource_group.name}-app"
   container_app_environment_id = azurerm_container_app_environment.kommodity-environment.id
