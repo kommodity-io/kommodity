@@ -17,20 +17,44 @@ import (
 
 // InfraClusterNamespace is the namespace in the kind cluster where KubeVirt VMs are deployed.
 const (
-	kubevirtVersion       = "v1.4.0"
-	cdiVersion            = "v1.61.0"
-	kubevirtReadyTimeout  = 5 * time.Minute
-	cdiReadyTimeout       = 5 * time.Minute
-	instanceTypeSKU       = "s1.medium"
-	instanceTypeCPU       = 2
-	instanceTypeMemory    = "4Gi"
-	kubevirtNamespace     = "kubevirt"
+	kubevirtVersion      = "v1.4.0"
+	cdiVersion           = "v1.61.0"
+	kubevirtReadyTimeout = 5 * time.Minute
+	cdiReadyTimeout      = 5 * time.Minute
+	instanceTypeSKU      = "s1.medium"
+	instanceTypeCPU      = 2
+	instanceTypeMemory   = "4Gi"
+	kubevirtNamespace    = "kubevirt"
+	kubevirtValuesFile   = "values.kubevirt.yaml"
 )
 
 // KubevirtInfraEnv holds the configuration for the KubeVirt infrastructure cluster.
 type KubevirtInfraEnv struct {
 	Config     *rest.Config // Host-accessible config for the kind cluster
 	Kubeconfig []byte       // Container-accessible kubeconfig (for the credential secret)
+}
+
+// KubevirtInfra holds KubeVirt-specific configuration for chart installation.
+type KubevirtInfra struct {
+	InfraClusterNamespace    string
+	ControlPlaneEndpointHost string
+	ControlPlaneEndpointPort int64
+}
+
+// ValuesFile returns the Helm values file for KubeVirt.
+func (k KubevirtInfra) ValuesFile() string { return kubevirtValuesFile }
+
+// Overrides returns the Helm value overrides for KubeVirt testing.
+func (k KubevirtInfra) Overrides() map[string]any {
+	return map[string]any{
+		"kommodity.provider.config.infraClusterNamespace": k.InfraClusterNamespace,
+		"kommodity.provider.config.controlPlaneEndpoint": map[string]any{
+			"host": k.ControlPlaneEndpointHost,
+			"port": k.ControlPlaneEndpointPort,
+		},
+		"kommodity.controlplane.replicas":      int64(1),
+		"kommodity.nodepools.default.replicas": int64(1),
+	}
 }
 
 // SetupKubevirtInfraCluster orchestrates the full KubeVirt infrastructure setup:
