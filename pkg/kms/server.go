@@ -290,10 +290,6 @@ func generateVolumePrefix() (string, error) {
 
 func parseVolumeKeySets(secretData map[string][]byte) []volumeKeySet {
 	sets := make([]volumeKeySet, 0, len(secretData))
-<<<<<<< allow-unauthenticated-on-probe
-
-=======
->>>>>>> main
 	seen := make(map[string]bool)
 
 	for k := range secretData {
