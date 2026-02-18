@@ -31,9 +31,9 @@ import (
 
 const (
 	//nolint:gosec // this is just a prefix for KMS secrets
-	secretPrefix     = "talos-kms"
-	keySize          = 32 // 256 bits
-	aadNonceSize     = 32 // 256-bit random nonce for AAD
+	secretPrefix    = "talos-kms"
+	keySize         = 32 // 256 bits
+	aadNonceSize    = 32 // 256-bit random nonce for AAD
 	volumePrefixSize = 8  // 8 random bytes → 16 hex chars for volume group prefix
 
 	sealedFromIPKey = "sealedFromIP"
@@ -305,7 +305,8 @@ func generateVolumePrefix() (string, error) {
 }
 
 func parseVolumeKeySets(secretData map[string][]byte) []volumeKeySet {
-	sets := make([]volumeKeySet, 0, len(secretData))
+	var sets []volumeKeySet
+
 	seen := make(map[string]bool)
 
 	for k := range secretData {
