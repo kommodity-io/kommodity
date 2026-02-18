@@ -10,7 +10,6 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
-	"net"
 	"strings"
 
 	"github.com/google/uuid"
@@ -19,7 +18,6 @@ import (
 	"github.com/siderolabs/kms-client/api/kms"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 
 	corev1 "k8s.io/api/core/v1"
@@ -31,9 +29,9 @@ import (
 
 const (
 	//nolint:gosec // this is just a prefix for KMS secrets
-	secretPrefix    = "talos-kms"
-	keySize         = 32 // 256 bits
-	aadNonceSize    = 32 // 256-bit random nonce for AAD
+	secretPrefix     = "talos-kms"
+	keySize          = 32 // 256 bits
+	aadNonceSize     = 32 // 256-bit random nonce for AAD
 	volumePrefixSize = 8  // 8 random bytes → 16 hex chars for volume group prefix
 
 	sealedFromIPKey = "sealedFromIP"
@@ -70,9 +68,9 @@ func (s *ServiceServer) Seal(ctx context.Context, req *kms.Request) (*kms.Respon
 		return nil, status.Error(codes.InvalidArgument, "data is required")
 	}
 
-	peerIP, err := extractPeerIP(ctx)
+	clientIP, err := extractClientIP(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to extract peer IP: %w", err)
+		return nil, fmt.Errorf("failed to extract client IP: %w", err)
 	}
 
 	kubeClient, err := clientgoclientset.NewForConfig(s.config.ClientConfig.LoopbackClientConfig)
@@ -84,7 +82,7 @@ func (s *ServiceServer) Seal(ctx context.Context, req *kms.Request) (*kms.Respon
 
 	secret, err := getSecretsAPI(kubeClient).Get(ctx, secretName, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
-		encryptedData, createErr := createNodeSecret(ctx, kubeClient, nodeUUID, peerIP, data)
+		encryptedData, createErr := createNodeSecret(ctx, kubeClient, nodeUUID, clientIP, data)
 		if createErr != nil {
 			return nil, fmt.Errorf("failed to create node secret: %w", createErr)
 		}
@@ -94,7 +92,7 @@ func (s *ServiceServer) Seal(ctx context.Context, req *kms.Request) (*kms.Respon
 		return nil, fmt.Errorf("failed to get secret %s: %w", secretName, err)
 	}
 
-	encryptedData, err := addVolumeToSecret(ctx, kubeClient, secret, nodeUUID, peerIP, data)
+	encryptedData, err := addVolumeToSecret(ctx, kubeClient, secret, nodeUUID, clientIP, data)
 	if err != nil {
 		return nil, fmt.Errorf("failed to add volume to secret: %w", err)
 	}
@@ -115,9 +113,9 @@ func (s *ServiceServer) Unseal(ctx context.Context, req *kms.Request) (*kms.Resp
 		return nil, status.Error(codes.InvalidArgument, "data is required")
 	}
 
-	peerIP, err := extractPeerIP(ctx)
+	clientIP, err := extractClientIP(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to extract peer IP: %w", err)
+		return nil, fmt.Errorf("failed to extract client IP: %w", err)
 	}
 
 	kubeClient, err := clientgoclientset.NewForConfig(s.config.ClientConfig.LoopbackClientConfig)
@@ -133,9 +131,9 @@ func (s *ServiceServer) Unseal(ctx context.Context, req *kms.Request) (*kms.Resp
 	}
 
 	storedIP := string(secret.Data[sealedFromIPKey])
-	if storedIP != peerIP {
+	if storedIP != clientIP {
 		return nil, status.Errorf(codes.PermissionDenied,
-			"%v: sealed from %q, unseal requested from %q", ErrIPMismatch, storedIP, peerIP)
+			"%v: sealed from %q, unseal requested from %q", ErrIPMismatch, storedIP, clientIP)
 	}
 
 	keySets := parseVolumeKeySets(secret.Data)
@@ -144,7 +142,7 @@ func (s *ServiceServer) Unseal(ctx context.Context, req *kms.Request) (*kms.Resp
 	}
 
 	for _, ks := range keySets {
-		aad := buildAAD(nodeUUID, ks.aadNonce, peerIP)
+		aad := buildAAD(nodeUUID, ks.aadNonce, clientIP)
 
 		decryptedData, decErr := decrypt(ks.encryptionKey, data, aad)
 		if decErr == nil {
@@ -277,20 +275,6 @@ func buildAAD(nodeUUID string, aadNonce []byte, peerIP string) []byte {
 	aad = append(aad, []byte(peerIP)...)
 
 	return aad
-}
-
-func extractPeerIP(ctx context.Context) (string, error) {
-	client, ok := peer.FromContext(ctx)
-	if !ok {
-		return "", ErrEmptyClientContext
-	}
-
-	host, _, err := net.SplitHostPort(client.Addr.String())
-	if err != nil {
-		return "", fmt.Errorf("failed to extract client IP: %w", err)
-	}
-
-	return host, nil
 }
 
 func generateVolumePrefix() (string, error) {
