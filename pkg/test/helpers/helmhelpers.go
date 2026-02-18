@@ -11,17 +11,27 @@ import (
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 )
 
-// InstallKommodityClusterChart installs the kommodity-cluster helm chart with the specified parameters.
-//nolint:funlen // Function length is acceptable for a test helper.
-func InstallKommodityClusterChart(t *testing.T, env TestEnvironment,
-	releaseName string, namespace string, valuesFile string, scalewayProjectID string) string {
+const (
+	kubevirtControlPlaneEndpointHost = "10.0.0.1"
+	kubevirtControlPlaneEndpointPort = 6443
+)
+
+// installKommodityClusterChart loads the kommodity-cluster Helm chart, applies the infrastructure
+// overrides, and installs the chart. Returns the loaded values for caller inspection.
+func installKommodityClusterChart(
+	t *testing.T,
+	env TestEnvironment,
+	releaseName string,
+	namespace string,
+	infra Infrastructure,
+) chartutil.Values {
 	t.Helper()
 
 	repoRoot, err := FindRepoRoot()
 	require.NoError(t, err)
 
 	chartPath := filepath.Join(repoRoot, "charts", "kommodity-cluster")
-	valuesPath := filepath.Join(repoRoot, "charts", "kommodity-cluster", valuesFile)
+	valuesPath := filepath.Join(repoRoot, "charts", "kommodity-cluster", infra.ValuesFile())
 
 	cfg := new(action.Configuration)
 	restGetter := genericclioptions.NewConfigFlags(false)
@@ -38,40 +48,10 @@ func InstallKommodityClusterChart(t *testing.T, env TestEnvironment,
 	values, err := chartutil.ReadValuesFile(valuesPath)
 	require.NoError(t, err)
 
-	scalewayDefaultZone := ""
-	
-	//nolint:nestif // Nested ifs are acceptable in this case for clarity.
-	if kommoditySection, ok := values["kommodity"].(map[string]any); ok {
-		if nodepools, ok := kommoditySection["nodepools"].(map[string]any); ok {
-			if defaultPool, ok := nodepools["default"].(map[string]any); ok {
-				// Set SKU for default nodepool to cheapest one
-				defaultPool["sku"] = "DEV1-S"
-				// Get Scaleway zone for later verification
-				if zone, ok := defaultPool["zone"].(string); ok {
-					scalewayDefaultZone = zone
-				}
-			}
-		}
-		// Set SKU for control plane to cheapest one
-		if controlplane, ok := kommoditySection["controlplane"].(map[string]any); ok {
-			controlplane["sku"] = "DEV1-S"
-		}
-		// Set projectID in provider config
-		if provider, ok := kommoditySection["provider"].(map[string]any); ok {
-			if config, ok := provider["config"].(map[string]any); ok {
-				config["projectID"] = scalewayProjectID
-			}
-		}
-
-		// Unset nodeCIDR to enable public IPv4
-		if network, ok := kommoditySection["network"].(map[string]any); ok {
-			if ipv4, ok := network["ipv4"].(map[string]any); ok {
-				ipv4["nodeCIDR"] = nil
-			}
-		}
+	for key, value := range infra.Overrides() {
+		err := setNestedValue(values, key, value)
+		require.NoError(t, err)
 	}
-
-	require.NotEmpty(t, scalewayDefaultZone, "kommodity.nodepools.default.zone must be set in %s", valuesFile)
 
 	installer := action.NewInstall(cfg)
 	installer.ReleaseName = releaseName
@@ -81,7 +61,44 @@ func InstallKommodityClusterChart(t *testing.T, env TestEnvironment,
 	_, err = installer.Run(chart, values)
 	require.NoError(t, err)
 
+	return values
+}
+
+// InstallKommodityClusterChartScaleway installs the kommodity-cluster helm chart with Scaleway values.
+func InstallKommodityClusterChartScaleway(
+	t *testing.T,
+	env TestEnvironment,
+	releaseName string,
+	namespace string,
+	scalewayProjectID string,
+) string {
+	t.Helper()
+
+	values := installKommodityClusterChart(t, env, releaseName, namespace, ScalewayInfra{
+		ProjectID: scalewayProjectID,
+	})
+
+	scalewayDefaultZone, err := getNestedString(values, "kommodity.nodepools.default.zone")
+	require.NoError(t, err)
+
 	return scalewayDefaultZone
+}
+
+// InstallKommodityClusterChartKubevirt installs the kommodity-cluster helm chart with KubeVirt values.
+func InstallKommodityClusterChartKubevirt(
+	t *testing.T,
+	env TestEnvironment,
+	releaseName string,
+	namespace string,
+	infraClusterNamespace string,
+) {
+	t.Helper()
+
+	installKommodityClusterChart(t, env, releaseName, namespace, KubevirtInfra{
+		InfraClusterNamespace:    infraClusterNamespace,
+		ControlPlaneEndpointHost: kubevirtControlPlaneEndpointHost,
+		ControlPlaneEndpointPort: kubevirtControlPlaneEndpointPort,
+	})
 }
 
 // UninstallKommodityClusterChart uninstalls the kommodity-cluster helm chart with the specified parameters.

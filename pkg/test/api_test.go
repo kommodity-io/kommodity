@@ -18,8 +18,14 @@ import (
 var env helpers.TestEnvironment
 
 const (
-	defaultClusterName = "ci-test-cluster"
-	kommodityLogFile   = "kommodity_container.log"
+	defaultClusterName     = "ci-test-cluster"
+	kommodityLogFile       = "kommodity_container.log"
+	virtualMachineGroup    = "kubevirt.io"
+	virtualMachineVersion  = "v1"
+	virtualMachineResource = "virtualmachines"
+	machineGroup           = "cluster.x-k8s.io"
+	machineVersion         = "v1beta1"
+	machineResource        = "machines"
 )
 
 func TestMain(m *testing.M) {
@@ -118,12 +124,12 @@ func TestCreateScalewayCluster(t *testing.T) {
 	log.Printf("Using project ID %s", scalewayProjectID)
 
 	// Install Scaleway cluster helm chart in Kommodity
-	scalewayDefaultZone := helpers.InstallKommodityClusterChart(t, env,
-		clusterName, "default", "values.scaleway.yaml", scalewayProjectID)
+	scalewayDefaultZone := helpers.InstallKommodityClusterChartScaleway(t, env,
+		clusterName, "default", scalewayProjectID)
 
 	// Check that CAPI resources are created in Kommodity
 	err = helpers.WaitForK8sResourceCreation(env.KommodityCfg, "default", "worker",
-		"cluster.x-k8s.io", "v1beta1", "machines", "", "", 2*time.Minute)
+		"cluster.x-k8s.io", "v1beta1", "machines", "", "", 2*time.Minute, 1)
 	require.NoError(t, err)
 
 	// Check that Scaleway resources are created
@@ -143,4 +149,68 @@ func TestCreateScalewayCluster(t *testing.T) {
 	err = helpers.WaitForK8sResourceDeletion(env.KommodityCfg, "default", clusterName,
 		"cluster.x-k8s.io", "v1beta1", "clusters", "", "", 2*time.Minute)
 	require.NoError(t, err)
+}
+
+func TestCreateKubevirtCluster(t *testing.T) {
+	t.Parallel()
+
+	clusterName := "kubevirt-test-cluster"
+	expectedVMCount := 2 // 1 control plane + 1 worker
+
+	// Setup KubeVirt infrastructure (kind + KubeVirt + CDI)
+	infraEnv, err := helpers.SetupKubevirtInfraCluster()
+	require.NoError(t, err)
+
+	defer func() {
+		teardownErr := helpers.TeardownKubevirtInfraCluster()
+		if teardownErr != nil {
+			log.Printf("Failed to teardown KubeVirt infra cluster: %v", teardownErr)
+		}
+	}()
+
+	client, err := kubernetes.NewForConfig(env.KommodityCfg)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	// Create kubevirt-credentials secret in Kommodity with the container-accessible kubeconfig
+	_, err = client.CoreV1().Secrets("default").Create(ctx, &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "kubevirt-credentials",
+		},
+		Type: corev1.SecretTypeOpaque,
+		Data: map[string][]byte{
+			"kubeconfig": infraEnv.Kubeconfig,
+		},
+	}, metav1.CreateOptions{})
+	require.NoError(t, err)
+
+	log.Printf("Created kubevirt-credentials secret in Kommodity")
+
+	// Install kommodity-cluster chart with KubeVirt values
+	helpers.InstallKommodityClusterChartKubevirt(t, env,
+		clusterName, "default", helpers.InfraClusterNamespace)
+
+	// Wait for CAPI resources to be created in Kommodity
+	err = helpers.WaitForK8sResourceCreation(env.KommodityCfg, "default", "worker",
+		machineGroup, machineVersion, machineResource, "", "", 3*time.Minute, 1)
+	require.NoError(t, err)
+
+	// Wait for VirtualMachine CRs to be created in the kind cluster
+	err = helpers.WaitForK8sResourceCreation(
+		infraEnv.Config, helpers.InfraClusterNamespace, clusterName,
+		virtualMachineGroup, virtualMachineVersion, virtualMachineResource,
+		"", "", 3*time.Minute, expectedVMCount,
+	)
+	require.NoError(t, err)
+
+	// Uninstall cluster chart
+	log.Println("Uninstalling kommodity-cluster helm chart (KubeVirt)...")
+	helpers.UninstallKommodityClusterChart(t, env, clusterName, "default")
+
+	// Note: VM and CAPI resource cleanup verification is intentionally skipped.
+	// In emulation mode, VMs never boot, causing CAPI to aggressively create
+	// replacement machines. This makes the cascade deletion slow and unreliable.
+	// The kind cluster teardown (defer TeardownKubevirtInfraCluster) handles all
+	// infrastructure cleanup by deleting the entire kind cluster.
 }
