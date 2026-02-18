@@ -31,6 +31,10 @@ const (
 	systemServiceAccountsGroup = "system:serviceaccounts"
 )
 
+// healthPaths are endpoints that must be accessible without authentication
+// to support liveness, readiness, and health probes.
+var healthPaths = []string{"/livez", "/readyz", "/healthz"}
+
 // serviceAccountTokenGetter implements serviceaccount.ServiceAccountTokenGetter
 // to validate that ServiceAccounts and Secrets exist in Kommodity.
 type serviceAccountTokenGetter struct {
@@ -104,6 +108,11 @@ type adminAuthorizer struct {
 func (a adminAuthorizer) Authorize(_ context.Context, attrs auth.Attributes) (auth.Decision, string, error) {
 	if !a.cfg.AuthConfig.Apply {
 		return auth.DecisionAllow, "allowed: auth is disabled", nil
+	}
+
+	// Allow health check endpoints for all users (including anonymous)
+	if !attrs.IsResourceRequest() && slices.Contains(healthPaths, attrs.GetPath()) {
+		return auth.DecisionAllow, "allowed: health check endpoint", nil
 	}
 
 	user := attrs.GetUser()
