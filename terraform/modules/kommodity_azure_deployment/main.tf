@@ -168,7 +168,7 @@ resource "azurerm_container_app_environment" "kommodity-environment" {
   ]
 
   lifecycle {
-    ignore_changes = [infrastructure_resource_group_name]
+    ignore_changes = [infrastructure_resource_group_name, workload_profile]
   }
 }
 
@@ -269,5 +269,9 @@ resource "azurerm_container_app" "kommodity-app" {
         path      = "/readyz"
       }
     }
+  }
+
+  lifecycle {
+    ignore_changes = [workload_profile_name]
   }
 }
