@@ -289,7 +289,7 @@ func generateVolumePrefix() (string, error) {
 }
 
 func parseVolumeKeySets(secretData map[string][]byte) []volumeKeySet {
-	var sets []volumeKeySet
+	sets := make([]volumeKeySet, 0, len(secretData))
 
 	seen := make(map[string]bool)
 
