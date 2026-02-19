@@ -85,6 +85,7 @@ log "Running pre-flight checks..."
 
 command -v kubectl >/dev/null 2>&1 || fail "kubectl is not installed."
 command -v jq      >/dev/null 2>&1 || fail "jq is not installed."
+command -v yq      >/dev/null 2>&1 || fail "yq is not installed."
 
 # Verify both contexts exist
 kubectl config get-contexts "$UPSTREAM_CONTEXT" >/dev/null 2>&1 \
@@ -112,20 +113,9 @@ TALOSCONFIG_DATA=$(echo "$TALOSCONFIG_B64" | base64 -d) \
 ok "Talosconfig extracted successfully."
 
 # Extract node IPs from talosconfig for use in the summary.
-# Try "nodes:" first, fall back to "endpoints:" if not present.
-extract_ips_from_key() {
-  echo "$TALOSCONFIG_DATA" \
-    | sed -n "/^ *$1:/,/^[^ -]/p" \
-    | grep -E '^\s*-\s' \
-    | sed 's/^ *- *//' \
-    | tr '\n' ',' \
-    | sed 's/,$//' || true
-}
-
-NODE_IPS=$(extract_ips_from_key nodes)
-if [ -z "$NODE_IPS" ]; then
-  NODE_IPS=$(extract_ips_from_key endpoints)
-fi
+NODE_IPS=$(echo "$TALOSCONFIG_DATA" \
+  | yq -r ".contexts.\"$CLUSTER_NAME\".nodes // .contexts.\"$CLUSTER_NAME\".endpoints // [] | join(\",\")" \
+  || true)
 
 if [ -z "$NODE_IPS" ]; then
   warn "Could not extract node IPs from talosconfig."
