@@ -24,13 +24,13 @@ jobs:
       issues: write
     steps:
       - name: Checkout PR
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           path: pr
 
       - name: Checkout main
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           ref: main
           path: main
@@ -102,7 +102,7 @@ jobs:
           fi
 
       - name: Upload diffs
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         id: diff-upload
         if: steps.diff.outputs.changed != '0' && steps.diff.outputs.long == '1'
         with:
@@ -312,7 +312,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Setup Helm
         uses: azure/setup-helm@v4
@@ -364,7 +364,7 @@ jobs:
       packages: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           fetch-depth: 2
 
