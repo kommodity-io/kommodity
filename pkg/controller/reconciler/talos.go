@@ -98,15 +98,34 @@ func setupTalosControlPlaneWithManager(ctx context.Context, manager ctrl.Manager
 		return fmt.Errorf("failed to setup ClusterCacheReconciler: %w", err)
 	}
 
+	// Setup the Siderolabs TalosControlPlane controller
+	// This handles all TalosControlPlane resources including private network clusters
 	err = (&control_plane_controller.TalosControlPlaneReconciler{
 		Client:    manager.GetClient(),
 		APIReader: manager.GetAPIReader(),
-		Log:       zapr.NewLogger(logging.FromContext(ctx)),
+		Log:       logger,
 		Scheme:    manager.GetScheme(),
 		Tracker:   tracker,
 	}).SetupWithManager(manager, opt)
 	if err != nil {
 		return fmt.Errorf("failed to setup TalosControlPlane controller: %w", err)
+	}
+
+	// Setup the PrivateNetworkControlPlaneReconciler
+	// This handles health checks for private network clusters where Talos API is unreachable.
+	// It runs alongside the Siderolabs reconciler and patches health conditions using
+	// Kubernetes API instead of Talos API. This allows the Siderolabs reconciler to
+	// proceed with scaling operations that are gated on these conditions.
+	logger.Info("Setting up PrivateNetworkControlPlane controller")
+
+	err = (&PrivateNetworkControlPlaneReconciler{
+		Client:  manager.GetClient(),
+		Log:     logger,
+		Scheme:  manager.GetScheme(),
+		Tracker: tracker,
+	}).SetupWithManager(ctx, manager, opt)
+	if err != nil {
+		return fmt.Errorf("failed to setup PrivateNetworkControlPlane controller: %w", err)
 	}
 
 	return nil
