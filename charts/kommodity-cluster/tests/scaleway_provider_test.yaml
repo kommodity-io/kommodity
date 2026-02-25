@@ -54,6 +54,63 @@ tests:
           path: metadata.name
           pattern: ^test-cluster-worker-default-[a-f0-9]{6}$
         documentIndex: 1
+  # Private network tests
+  - it: should create a private network and public gateway when ipv4.public is false
+    template: templates/provider/scaleway/cluster.yaml
+    set:
+      kommodity.network.ipv4.public: false
+      kommodity.network.ipv4.nodeCIDR: "10.200.0.0/20"
+    asserts:
+      - equal:
+          path: spec.network.privateNetwork.enabled
+          value: true
+      - equal:
+          path: spec.network.privateNetwork.subnet
+          value: "10.200.0.0/20"
+      - isNotEmpty:
+          path: spec.network.publicGateways
+      - equal:
+          path: spec.network.publicGateways[0].type
+          value: "VPC-GW-S"
+      - notExists:
+          path: spec.network.publicGateways[0].zone
+      - notExists:
+          path: spec.network.publicGateways[0].ip
+
+  - it: should use custom public gateway settings when configured
+    template: templates/provider/scaleway/cluster.yaml
+    set:
+      kommodity.network.ipv4.public: false
+      kommodity.network.ipv4.nodeCIDR: "10.200.0.0/20"
+      kommodity.network.publicGateway.type: "VPC-GW-M"
+      kommodity.network.publicGateway.zone: "fr-par-1"
+      kommodity.network.publicGateway.ip: "1.2.3.4"
+    asserts:
+      - equal:
+          path: spec.network.publicGateways[0].type
+          value: "VPC-GW-M"
+      - equal:
+          path: spec.network.publicGateways[0].zone
+          value: "fr-par-1"
+      - equal:
+          path: spec.network.publicGateways[0].ip
+          value: "1.2.3.4"
+
+  - it: should fail when ipv4.public is false and nodeCIDR is not set
+    template: templates/provider/scaleway/cluster.yaml
+    set:
+      kommodity.network.ipv4.public: false
+      kommodity.network.ipv4.nodeCIDR: null
+    asserts:
+      - failedTemplate:
+          errorMessage: "missing required nodeCIDR in kommodity.network.ipv4"
+
+  - it: should not create a private network when ipv4.public is true
+    template: templates/provider/scaleway/cluster.yaml
+    asserts:
+      - notExists:
+          path: spec.network
+
   - it: should create MachineDeployments for multiple nodepools
     template: templates/provider/capi/machinedeployment.yaml
     set:
