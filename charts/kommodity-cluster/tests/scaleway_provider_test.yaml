@@ -107,6 +107,8 @@ tests:
 
   - it: should not create a private network when ipv4.public is true
     template: templates/provider/scaleway/cluster.yaml
+    set:
+      kommodity.network.ipv4.public: true
     asserts:
       - notExists:
           path: spec.network
