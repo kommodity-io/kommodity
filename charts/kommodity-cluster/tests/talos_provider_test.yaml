@@ -257,6 +257,30 @@ tests:
           value: "nodepool-talos-image"
         documentIndex: 1
 
+  # AutoBootstrap extension tests
+  - it: should include autoBootstrap extension when kommodity.network.ipv4.public is false
+    template: templates/talos/controlplane.yaml
+    set:
+      kommodity.network.ipv4.public: false
+    asserts:
+      - hasDocuments:
+          count: 1
+      - exists:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[0]
+          pattern: "name: kommodity-autobootstrap"
+
+  - it: should not include autoBootstrap extension when kommodity.network.ipv4.public is true and talos.autoBootstrap.enabled is not set
+    template: templates/talos/controlplane.yaml
+    set:
+      kommodity.network.ipv4.public: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - notExists:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches
+
   # Test Kubernetes version precedence
   - it: should make sure Kubernetes version defined in controlplane's config take precedence
     template: templates/talos/controlplane.yaml

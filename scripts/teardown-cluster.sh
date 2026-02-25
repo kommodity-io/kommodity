@@ -22,6 +22,13 @@ while true; do
 done
 echo "✅ All machines deleted."
 
+# Wait for Cluster object to be deleted
+echo "⏳ Waiting for Cluster object to be deleted..."
+while kubectl get cluster "$CLUSTER_NAME" &>/dev/null; do
+  sleep 5
+done
+echo "✅ Cluster object deleted."
+
 # Remove secrets related to this cluster
 echo "🧹 Cleaning up secrets..."
 kubectl delete secrets -l cluster.x-k8s.io/cluster-name="$CLUSTER_NAME"
