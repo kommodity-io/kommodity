@@ -89,4 +89,4 @@ kommodity:
 
 talos:
   # Follow this documentation to generate a Talos image for Scaleway: https://docs.siderolabs.com/talos/v1.10/platform-specific-installations/cloud-platforms/scaleway
-  imageName: talos-base-v1.11.3
+  imageName: kommodity-talos-scaleway-v1.12.2
