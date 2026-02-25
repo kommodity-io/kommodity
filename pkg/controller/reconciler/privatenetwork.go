@@ -28,8 +28,11 @@ const (
 	// PrivateNetworkAnnotation is the annotation key for private network clusters.
 	PrivateNetworkAnnotation = "kommodity.io/private-network"
 
-	// privateNetworkRequeueAfter is the requeue interval for private network reconciler.
-	privateNetworkRequeueAfter = 30 * time.Second
+	// privateNetworkRequeueHealthy is the requeue interval when health checks pass.
+	privateNetworkRequeueHealthy = 2 * time.Minute
+
+	// privateNetworkRequeueUnhealthy is the requeue interval when health checks fail.
+	privateNetworkRequeueUnhealthy = 30 * time.Second
 
 	// leaseGracePeriod is the grace period for lease expiration checks.
 	leaseGracePeriod = 60 * time.Second
@@ -55,7 +58,10 @@ func (r *PrivateNetworkControlPlaneReconciler) SetupWithManager(
 	err := ctrl.NewControllerManagedBy(mgr).
 		For(&controlplanev1.TalosControlPlane{}).
 		Named("privatenetworkcontrolplane").
-		WithEventFilter(privateNetworkPredicate()).
+		WithEventFilter(predicate.And(
+			privateNetworkPredicate(),
+			predicate.GenerationChangedPredicate{},
+		)).
 		WithOptions(options).
 		Complete(r)
 	if err != nil {
@@ -112,12 +118,12 @@ func (r *PrivateNetworkControlPlaneReconciler) Reconcile(
 	if healthErr != nil {
 		logger.Info("health check found issues, will requeue", "error", healthErr.Error())
 
-		return ctrl.Result{RequeueAfter: privateNetworkRequeueAfter}, nil
+		return ctrl.Result{RequeueAfter: privateNetworkRequeueUnhealthy}, nil
 	}
 
 	logger.Info("private network health checks passed")
 
-	return ctrl.Result{RequeueAfter: privateNetworkRequeueAfter}, nil
+	return ctrl.Result{RequeueAfter: privateNetworkRequeueHealthy}, nil
 }
 
 func (r *PrivateNetworkControlPlaneReconciler) fetchControlPlaneResources(
@@ -145,13 +151,13 @@ func (r *PrivateNetworkControlPlaneReconciler) fetchControlPlaneResources(
 	if err != nil {
 		logger.Error(err, "failed to get owner cluster")
 
-		return nil, nil, ctrl.Result{RequeueAfter: privateNetworkRequeueAfter}, nil
+		return nil, nil, ctrl.Result{RequeueAfter: privateNetworkRequeueUnhealthy}, nil
 	}
 
 	if cluster == nil {
 		logger.Info("waiting for cluster owner reference")
 
-		return nil, nil, ctrl.Result{RequeueAfter: privateNetworkRequeueAfter}, nil
+		return nil, nil, ctrl.Result{RequeueAfter: privateNetworkRequeueUnhealthy}, nil
 	}
 
 	return tcp, cluster, ctrl.Result{}, nil
