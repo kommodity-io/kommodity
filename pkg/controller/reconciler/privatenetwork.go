@@ -54,6 +54,7 @@ func (r *PrivateNetworkControlPlaneReconciler) SetupWithManager(
 ) error {
 	err := ctrl.NewControllerManagedBy(mgr).
 		For(&controlplanev1.TalosControlPlane{}).
+		Named("privatenetworkcontrolplane").
 		WithEventFilter(privateNetworkPredicate()).
 		WithOptions(options).
 		Complete(r)
