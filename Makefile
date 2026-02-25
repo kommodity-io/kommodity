@@ -123,6 +123,9 @@ lint-fix: $(LINTER) ## Run the linter and fix issues.
 generate: .env fetch-providers ## Run code generation.
 	go generate ./...
 
+.PHONY: teardown
+teardown: compose-down ## Tear down the local development environment.
+
 .PHONY: build-image
 build-image: ## Build the Docker image.
 	docker buildx build \
