@@ -24,20 +24,18 @@ spec:
   {{- end }}
   region: {{ .Values.kommodity.region }}
   scalewaySecretName: {{ .Values.kommodity.provider.secret.name }}
-  {{- if and .Values.kommodity.network.ipv4.enabled .Values.kommodity.network.ipv4.nodeCIDR }}
+  {{- if and .Values.kommodity.network.ipv4.enabled (not .Values.kommodity.network.ipv4.public) }}
   network:
     privateNetwork:
       enabled: true
-      subnet: {{ .Values.kommodity.network.ipv4.nodeCIDR }}
-    {{- if and .Values.kommodity.network.publicGateway .Values.kommodity.network.publicGateway.enabled }}
+      subnet: {{ required "missing required nodeCIDR in kommodity.network.ipv4" .Values.kommodity.network.ipv4.nodeCIDR }}
     publicGateways:
-      - type: {{ .Values.kommodity.network.publicGateway.type | default "VPC-GW-S" }}
-        {{- if .Values.kommodity.network.publicGateway.zone }}
+      - type: {{ dig "publicGateway" "type" "" .Values.kommodity.network | default "VPC-GW-S" }}
+        {{- if dig "publicGateway" "zone" "" .Values.kommodity.network }}
         zone: {{ .Values.kommodity.network.publicGateway.zone }}
         {{- end }}
-        {{- if .Values.kommodity.network.publicGateway.ip }}
+        {{- if dig "publicGateway" "ip" "" .Values.kommodity.network }}
         ip: {{ .Values.kommodity.network.publicGateway.ip }}
         {{- end }}
-    {{- end }}
   {{- end }}
 {{- end }}
