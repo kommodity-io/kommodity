@@ -17,7 +17,6 @@ import (
 	"sigs.k8s.io/cluster-api/controllers/remote"
 	"sigs.k8s.io/cluster-api/util"
 	"sigs.k8s.io/cluster-api/util/conditions"
-	"sigs.k8s.io/cluster-api/util/patch"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -99,16 +98,14 @@ func (r *PrivateNetworkControlPlaneReconciler) Reconcile(
 		return result, err
 	}
 
-	// Initialize patch helper and perform health checks
-	patchHelper, err := patch.NewHelper(tcp, r.Client)
-	if err != nil {
-		return ctrl.Result{}, fmt.Errorf("failed to create patch helper: %w", err)
-	}
+	// Save a deep copy before health checks modify conditions in-memory.
+	before := tcp.DeepCopy()
 
 	healthErr := r.reconcileHealth(ctx, logger, cluster, tcp)
 
-	// Patch the TalosControlPlane with updated conditions
-	patchErr := patchHelper.Patch(ctx, tcp)
+	// Patch using raw merge to bypass the cluster-api patch helper's
+	// three-way condition merge which can drop our changes.
+	patchErr := r.Status().Patch(ctx, tcp, client.MergeFrom(before))
 	if patchErr != nil {
 		logger.Error(patchErr, "failed to patch TalosControlPlane")
 
@@ -229,9 +226,12 @@ func (r *PrivateNetworkControlPlaneReconciler) reconcileHealth(
 		return ErrControlPlaneLeaseExpired
 	}
 
-	// All checks passed - mark conditions as healthy
+	// All checks passed - mark conditions and status as healthy
+	conditions.MarkTrue(tcp, clusterv1.ReadyCondition)
 	conditions.MarkTrue(tcp, controlplanev1.EtcdClusterHealthyCondition)
 	conditions.MarkTrue(tcp, controlplanev1.ControlPlaneComponentsHealthyCondition)
+	conditions.MarkTrue(tcp, controlplanev1.MachinesBootstrapped)
+	tcp.Status.Ready = true
 
 	return nil
 }
