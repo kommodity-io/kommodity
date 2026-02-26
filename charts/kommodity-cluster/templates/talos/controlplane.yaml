@@ -64,6 +64,10 @@ metadata:
   namespace: {{ $.Release.Namespace }}
   labels:
     app.kubernetes.io/managed-by: kommodity
+  {{- if and .Values.kommodity.network.ipv4.enabled (not .Values.kommodity.network.ipv4.public) }}
+  annotations:
+    kommodity.io/private-network: "true"
+  {{- end }}
 spec:
   {{- if and (hasKey .Values.kommodity.controlplane "kubernetes") (hasKey .Values.kommodity.controlplane.kubernetes "version") }}
   version: {{ $.Values.kommodity.controlplane.kubernetes.version }}

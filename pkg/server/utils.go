@@ -79,6 +79,7 @@ func enhanceScheme(scheme *runtime.Scheme) error {
 		{"metav1.AddMetaToScheme", metav1.AddMetaToScheme},
 		{"rbacv1.AddToScheme", rbacv1.AddToScheme},
 		{"storagev1.AddToScheme", storageapiv1.AddToScheme},
+		{"coordinationv1.AddToScheme", coordinationapiv1.AddToScheme},
 	}
 
 	for _, add := range addFuncs {
@@ -137,6 +138,10 @@ func mapInternalAliases(scheme *runtime.Scheme) {
 	gvStorageInternal := schema.GroupVersion{Group: "storage.k8s.io", Version: runtime.APIVersionInternal}
 	add("VolumeAttachment", gvStorageInternal, &storageapiv1.VolumeAttachment{})
 	add("VolumeAttachmentList", gvStorageInternal, &storageapiv1.VolumeAttachmentList{})
+
+	gvCoordinationInternal := schema.GroupVersion{Group: "coordination.k8s.io", Version: runtime.APIVersionInternal}
+	add("Lease", gvCoordinationInternal, &coordinationapiv1.Lease{})
+	add("LeaseList", gvCoordinationInternal, &coordinationapiv1.LeaseList{})
 }
 
 func setupSecureServingWithSelfSigned(cfg *config.KommodityConfig) (*options.SecureServingOptions, error) {
