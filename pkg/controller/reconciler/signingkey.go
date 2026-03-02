@@ -77,20 +77,6 @@ func deleteOrUpdatePredicate() predicate.Predicate {
 // SetupWithManager sets up the reconciler with the provided manager.
 func (r *SigningKeyReconciler) SetupWithManager(ctx context.Context,
 	mgr ctrl.Manager, opt controller.Options) error {
-	// Register field indexer for secret type to enable filtering by type in List calls
-	err := mgr.GetFieldIndexer().IndexField(ctx, &corev1.Secret{}, "type",
-		func(obj client.Object) []string {
-			secret, ok := obj.(*corev1.Secret)
-			if !ok {
-				return nil
-			}
-
-			return []string{string(secret.Type)}
-		})
-	if err != nil {
-		return fmt.Errorf("failed to create field indexer for secret type: %w", err)
-	}
-
 	builder := ctrl.NewControllerManagedBy(mgr).
 		Named(SigningKeyControllerName).
 		For(&corev1.Secret{}).
@@ -104,7 +90,7 @@ func (r *SigningKeyReconciler) SetupWithManager(ctx context.Context,
 			),
 		))
 
-	err = builder.Complete(r)
+	err := builder.Complete(r)
 	if err != nil {
 		return fmt.Errorf("failed setting up with a controller manager: %w", err)
 	}
@@ -134,9 +120,7 @@ func (r *SigningKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	secretList := &corev1.SecretList{}
 
-	err = r.List(ctx, secretList,
-		client.MatchingFields{"type": string(corev1.SecretTypeServiceAccountToken)},
-	)
+	err = r.List(ctx, secretList)
 	if err != nil {
 		logger.Error("Failed to list secrets", zap.Error(err))
 
@@ -144,9 +128,14 @@ func (r *SigningKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			fmt.Errorf("failed to list secrets: %w", err)
 	}
 
-	// Process each service account token secret
+	// Process each service account token secret (filter client-side since
+	// Kubernetes API server doesn't support field selectors on Secret.Type)
 	for i := range secretList.Items {
 		secret := &secretList.Items[i]
+
+		if secret.Type != corev1.SecretTypeServiceAccountToken {
+			continue
+		}
 
 		saName, ok := secret.Annotations[serviceAccountNameAnnotation]
 		if !ok {
