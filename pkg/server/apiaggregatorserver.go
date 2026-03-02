@@ -377,8 +377,6 @@ func persistSigningKeyHook(
 	signingKey *rsa.PrivateKey,
 ) genericapiserver.PostStartHookFunc {
 	return func(ctx genericapiserver.PostStartHookContext) error {
-		logger := logging.FromContext(ctx)
-
 		kubeClient, err := kubernetes.NewForConfig(genericServerConfig.LoopbackClientConfig)
 		if err != nil {
 			return fmt.Errorf("failed to create kubernetes client for persisting signing key: %w", err)
@@ -392,38 +390,9 @@ func persistSigningKeyHook(
 			return fmt.Errorf("failed to ensure namespace %q exists: %w", config.KommodityNamespace, err)
 		}
 
-		keyPEM := convertRSAKeyToPEM(signingKey)
-		secret := &corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      signingKeySecretName,
-				Namespace: config.KommodityNamespace,
-				Labels: map[string]string{
-					"cluster.x-k8s.io/watch-filter": reconciler.SigningKeyControllerName,
-				},
-			},
-			Data: map[string][]byte{
-				signingKeyDataKey: keyPEM,
-			},
-			Type: corev1.SecretTypeOpaque,
-		}
-
-		_, err = kubeClient.CoreV1().Secrets(config.KommodityNamespace).Create(
-			ctx, secret, metav1.CreateOptions{})
+		_, err = getOrCreateSigningKey(ctx, kubeClient.CoreV1())
 		if err != nil {
-			if !apierrors.IsAlreadyExists(err) {
-				return fmt.Errorf("failed to create signing key secret: %w", err)
-			}
-
-			// Secret exists from a previous run, update it with the current key
-			_, err = kubeClient.CoreV1().Secrets(config.KommodityNamespace).Update(
-				ctx, secret, metav1.UpdateOptions{})
-			if err != nil {
-				return fmt.Errorf("failed to update signing key secret: %w", err)
-			}
-
-			logger.Info("Updated signing key secret")
-		} else {
-			logger.Info("Created signing key secret")
+			return fmt.Errorf("failed to get, create or update signing key: %w", err)
 		}
 
 		return nil
