@@ -390,9 +390,9 @@ func persistSigningKeyHook(
 			return fmt.Errorf("failed to ensure namespace %q exists: %w", config.KommodityNamespace, err)
 		}
 
-		_, err = getOrCreateSigningKey(ctx, kubeClient.CoreV1())
+		err = persistSigningKey(ctx, kubeClient.CoreV1(), signingKey)
 		if err != nil {
-			return fmt.Errorf("failed to get, create or update signing key: %w", err)
+			return fmt.Errorf("failed to persist signing key: %w", err)
 		}
 
 		return nil

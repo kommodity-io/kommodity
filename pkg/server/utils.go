@@ -245,9 +245,18 @@ func getOrCreateSigningKey(ctx context.Context, client corev1client.CoreV1Interf
 		return nil, fmt.Errorf("failed to generate signing key: %w", err)
 	}
 
-	// Store the key in a secret
+	err = persistSigningKey(ctx, client, key)
+	if err != nil {
+		return nil, fmt.Errorf("failed to persist signing key: %w", err)
+	}
+
+	return key, nil
+}
+
+func persistSigningKey(ctx context.Context, client corev1client.CoreV1Interface, key *rsa.PrivateKey) error {
 	keyPEM := convertRSAKeyToPEM(key)
-	newSecret := &corev1.Secret{
+
+	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      signingKeySecretName,
 			Namespace: config.KommodityNamespace,
@@ -261,21 +270,29 @@ func getOrCreateSigningKey(ctx context.Context, client corev1client.CoreV1Interf
 		Type: corev1.SecretTypeOpaque,
 	}
 
-	_, err = client.Secrets(config.KommodityNamespace).Create(ctx, newSecret, metav1.CreateOptions{})
+	_, err := client.Secrets(config.KommodityNamespace).Create(ctx, secret, metav1.CreateOptions{})
 	if err != nil {
 		if !apierrors.IsAlreadyExists(err) {
-			return nil, fmt.Errorf("failed to create signing key secret: %w", err)
+			return fmt.Errorf("failed to create signing key secret: %w", err)
 		}
 
-		// Secret exists from a previous run, update it with the current key
-		_, err = client.Secrets(config.KommodityNamespace).Update(
-			ctx, secret, metav1.UpdateOptions{})
+		// Secret was created between our Get and Create (race condition).
+		// Re-fetch to get the current ResourceVersion, then update with our key.
+		existingSecret, err := client.Secrets(config.KommodityNamespace).Get(
+			ctx, signingKeySecretName, metav1.GetOptions{})
 		if err != nil {
-			return nil, fmt.Errorf("failed to update signing key secret: %w", err)
+			return fmt.Errorf("failed to get existing signing key secret: %w", err)
+		}
+
+		existingSecret.Data[reconciler.SigningKeyDataKey] = keyPEM
+		_, err = client.Secrets(config.KommodityNamespace).Update(
+			ctx, existingSecret, metav1.UpdateOptions{})
+		if err != nil {
+			return fmt.Errorf("failed to update signing key secret: %w", err)
 		}
 	}
 
-	return key, nil
+	return nil
 }
 
 func getSupportedGroupKindVersions() []schema.GroupVersion {
