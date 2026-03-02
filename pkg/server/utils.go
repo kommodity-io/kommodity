@@ -35,6 +35,7 @@ import (
 	storageapiv1 "k8s.io/api/storage/v1"
 	apiextensionsinternal "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -50,8 +51,6 @@ const (
 	expectedCertSplitCount = 3
 	// signingKeySecretName is the name of the secret that stores the service account signing key.
 	signingKeySecretName = "service-account-signing-key"
-	// signingKeyDataKey is the key in the secret data that stores the private key PEM.
-	signingKeyDataKey = "key"
 	// rsaKeySize is the size of the RSA key to generate.
 	rsaKeySize = 4096
 	// loopbackBindAddress is the IP address to use for the API server's loopback client.
@@ -231,9 +230,10 @@ func getOrCreateSigningKey(ctx context.Context, client corev1client.CoreV1Interf
 	secret, err := client.Secrets(config.KommodityNamespace).Get(ctx, signingKeySecretName, metav1.GetOptions{})
 	if err == nil {
 		// Secret exists, load the key
-		keyPEM, ok := secret.Data[signingKeyDataKey]
+		keyPEM, ok := secret.Data[reconciler.SigningKeyDataKey]
 		if !ok {
-			return nil, fmt.Errorf("%w: signing key secret exists but missing: %s", ErrDataMissingFromSecret, signingKeyDataKey)
+			return nil, fmt.Errorf("%w: signing key secret exists but missing: %s",
+				ErrDataMissingFromSecret, reconciler.SigningKeyDataKey)
 		}
 
 		return convertPEMToRSAKey(keyPEM)
@@ -245,9 +245,18 @@ func getOrCreateSigningKey(ctx context.Context, client corev1client.CoreV1Interf
 		return nil, fmt.Errorf("failed to generate signing key: %w", err)
 	}
 
-	// Store the key in a secret
+	err = persistSigningKey(ctx, client, key)
+	if err != nil {
+		return nil, fmt.Errorf("failed to persist signing key: %w", err)
+	}
+
+	return key, nil
+}
+
+func persistSigningKey(ctx context.Context, client corev1client.CoreV1Interface, key *rsa.PrivateKey) error {
 	keyPEM := convertRSAKeyToPEM(key)
-	newSecret := &corev1.Secret{
+
+	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      signingKeySecretName,
 			Namespace: config.KommodityNamespace,
@@ -256,17 +265,35 @@ func getOrCreateSigningKey(ctx context.Context, client corev1client.CoreV1Interf
 			},
 		},
 		Data: map[string][]byte{
-			signingKeyDataKey: keyPEM,
+			reconciler.SigningKeyDataKey: keyPEM,
 		},
 		Type: corev1.SecretTypeOpaque,
 	}
 
-	_, err = client.Secrets(config.KommodityNamespace).Create(ctx, newSecret, metav1.CreateOptions{})
+	_, err := client.Secrets(config.KommodityNamespace).Create(ctx, secret, metav1.CreateOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("failed to create signing key secret: %w", err)
+		if !apierrors.IsAlreadyExists(err) {
+			return fmt.Errorf("failed to create signing key secret: %w", err)
+		}
+
+		// Secret was created between our Get and Create (race condition).
+		// Re-fetch to get the current ResourceVersion, then update with our key.
+		existingSecret, err := client.Secrets(config.KommodityNamespace).Get(
+			ctx, signingKeySecretName, metav1.GetOptions{})
+		if err != nil {
+			return fmt.Errorf("failed to get existing signing key secret: %w", err)
+		}
+
+		existingSecret.Data[reconciler.SigningKeyDataKey] = keyPEM
+
+		_, err = client.Secrets(config.KommodityNamespace).Update(
+			ctx, existingSecret, metav1.UpdateOptions{})
+		if err != nil {
+			return fmt.Errorf("failed to update signing key secret: %w", err)
+		}
 	}
 
-	return key, nil
+	return nil
 }
 
 func getSupportedGroupKindVersions() []schema.GroupVersion {

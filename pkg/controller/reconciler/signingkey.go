@@ -1,6 +1,7 @@
 package reconciler
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"strings"
@@ -22,6 +23,8 @@ import (
 const (
 	// SigningKeyControllerName is the name of the signing key controller.
 	SigningKeyControllerName = "kommodity-signing-key-controller"
+	// SigningKeyDataKey is the key in the secret data that stores the private key PEM.
+	SigningKeyDataKey = "key"
 
 	// serviceAccountNameAnnotation is the annotation key for the service account name.
 	serviceAccountNameAnnotation = "kubernetes.io/service-account.name"
@@ -44,13 +47,26 @@ type SigningKeyReconciler struct {
 	GetOrCreateSigningKey func(ctx context.Context, client corev1client.CoreV1Interface) (any, error)
 }
 
-func deleteOnlyPredicate() predicate.Predicate {
+func deleteOrUpdatePredicate() predicate.Predicate {
 	return predicate.Funcs{
 		CreateFunc: func(_ event.CreateEvent) bool {
 			return false
 		},
-		UpdateFunc: func(_ event.UpdateEvent) bool {
-			return false
+		UpdateFunc: func(updateEvent event.UpdateEvent) bool {
+			oldSecret, success := updateEvent.ObjectOld.(*corev1.Secret)
+			if !success {
+				return false
+			}
+
+			newSecret, success := updateEvent.ObjectNew.(*corev1.Secret)
+			if !success {
+				return false
+			}
+
+			// Only trigger if the key data actually changed
+			return !bytes.Equal(
+				oldSecret.Data[SigningKeyDataKey],
+				newSecret.Data[SigningKeyDataKey])
 		},
 		DeleteFunc: func(_ event.DeleteEvent) bool {
 			return true
@@ -80,7 +96,7 @@ func (r *SigningKeyReconciler) SetupWithManager(ctx context.Context,
 		For(&corev1.Secret{}).
 		WithOptions(opt).
 		WithEventFilter(predicate.And(
-			deleteOnlyPredicate(),
+			deleteOrUpdatePredicate(),
 			predicates.ResourceNotPausedAndHasFilterLabel(
 				mgr.GetScheme(),
 				zapr.NewLogger(logging.FromContext(ctx)),
@@ -98,7 +114,7 @@ func (r *SigningKeyReconciler) SetupWithManager(ctx context.Context,
 
 // Reconcile handles the deletion of the signing key secret.
 // When the signing key secret is deleted, it:
-// 1. Regenerates a new signing key
+// 1. Fetch / regenerates a new signing key
 // 2. Finds all service account token secrets
 // 3. Deletes and recreates them to trigger token regeneration with the new key.
 func (r *SigningKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -106,16 +122,15 @@ func (r *SigningKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	logger.Info("Signing key secret was deleted, regenerating key and rotating tokens",
 		zap.String("secret", req.String()))
 
-	// Regenerate the signing key secret
 	_, err := r.GetOrCreateSigningKey(ctx, r.CoreV1Client)
 	if err != nil {
-		logger.Error("Failed to regenerate signing key", zap.Error(err))
+		logger.Error("Failed to fetch or regenerate signing key", zap.Error(err))
 
 		return ctrl.Result{Requeue: true, RequeueAfter: RequeueAfter},
-			fmt.Errorf("failed to regenerate signing key: %w", err)
+			fmt.Errorf("failed to fetch or regenerate signing key: %w", err)
 	}
 
-	logger.Info("Successfully regenerated signing key secret")
+	logger.Info("Successfully fetched or regenerated signing key secret")
 
 	secretList := &corev1.SecretList{}
 
