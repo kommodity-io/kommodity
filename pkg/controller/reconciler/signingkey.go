@@ -120,7 +120,7 @@ func (r *SigningKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	secretList := &corev1.SecretList{}
 
-	err = r.List(ctx, secretList)
+	err = r.List(ctx, secretList, client.InNamespace("kube-system"))
 	if err != nil {
 		logger.Error("Failed to list secrets", zap.Error(err))
 
