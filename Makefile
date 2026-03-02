@@ -39,6 +39,13 @@ $(LINTER):
 
 ##@ Development
 
+# Load .env file if it exists, making its variables available to Make targets.
+-include .env
+export
+
+KOMMODITY_BASE_URL ?= https://localhost:5443
+KOMMODITY_PORT     ?= 5000
+
 .PHONY: .env
 .env: ## Create a .env file from the template. Use sed to only add if it does not already exist.
 	touch .env
@@ -49,7 +56,7 @@ $(LINTER):
 	touch pkg/ui/web/kommodity-ui/.env
 	grep -q '^VITE_KOMMODITY_BASE_URL=' pkg/ui/web/kommodity-ui/.env || echo 'VITE_KOMMODITY_BASE_URL=https://localhost:5443' >> pkg/ui/web/kommodity-ui/.env
 
-generate-caddyfile: # Generate a Caddyfile for local development. Make sure to source the .env file first.
+generate-caddyfile: # Generate a Caddyfile for local development.
 	touch Caddyfile
 	echo "$(KOMMODITY_BASE_URL) {\n  reverse_proxy host.docker.internal:$(KOMMODITY_PORT) {\n    transport http {\n      versions h2c\n    }\n  }\n  tls internal\n}" > Caddyfile
 
@@ -118,7 +125,6 @@ generate: .env fetch-providers ## Run code generation.
 
 .PHONY: teardown
 teardown: compose-down ## Tear down the local development environment.
-	rm -f .env
 
 .PHONY: build-image
 build-image: ## Build the Docker image.

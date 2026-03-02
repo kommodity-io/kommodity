@@ -215,7 +215,7 @@ tests:
               my-annotation: my-annotation-value
 
   # Test Talos version and image precedence
-  - it: should make sure Talos version defined in nodepool's config take precedence
+  - it: should make sure Talos version defined in nodepool's config takes precedence
     template: templates/talos/configtemplate.yaml
     set:
       talos.version: "global-talos-version"
@@ -227,7 +227,7 @@ tests:
           path: spec.template.spec.talosVersion
           value: "nodepool-talos-version"
 
-  - it: should make sure Talos version defined in controlplane's config take precedence
+  - it: should make sure Talos version defined in controlplane's config takes precedence
     template: templates/talos/controlplane.yaml
     set:
       talos.version: "global-talos-version"
@@ -239,7 +239,7 @@ tests:
           path: spec.controlPlaneConfig.controlplane.talosVersion
           value: "controlplane-talos-version"
 
-  - it: should make sure Talos image defined in nodepool's and controlplane's config take precedence
+  - it: should make sure Talos image defined in nodepool's and controlplane's config takes precedence
     template: templates/provider/scaleway/machinetemplate.yaml
     set:
       talos.image: "global-talos-image"
@@ -257,8 +257,47 @@ tests:
           value: "nodepool-talos-image"
         documentIndex: 1
 
+  # AutoBootstrap extension tests
+  - it: should include autoBootstrap extension when kommodity.network.ipv4.public is false, even though the autoBootstrap.enabled value is false
+    template: templates/talos/controlplane.yaml
+    set:
+      kommodity.network.ipv4.public: false
+      talos.autoBootstrap.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 1
+      - exists:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[0]
+          pattern: "name: kommodity-autobootstrap"
+
+  - it: should include autoBootstrap extension when autoBootstrap.enabled value is true
+    template: templates/talos/controlplane.yaml
+    set:
+      talos.autoBootstrap.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - exists:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[0]
+          pattern: "name: kommodity-autobootstrap"
+
+  - it: should not include autoBootstrap extension when kommodity.network.ipv4.public is true and talos.autoBootstrap.enabled is not set
+    template: templates/talos/controlplane.yaml
+    set:
+      kommodity.network.ipv4.public: true
+      talos.autoBootstrap.enabled: null
+    asserts:
+      - hasDocuments:
+          count: 1
+      - notExists:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches
+
   # Test Kubernetes version precedence
-  - it: should make sure Kubernetes version defined in controlplane's config take precedence
+  - it: should make sure Kubernetes version defined in controlplane's config takes precedence
     template: templates/talos/controlplane.yaml
     set:
       kubernetes.version: "global-kubernetes-version"
