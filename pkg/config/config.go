@@ -50,7 +50,7 @@ const (
 	envTalosProxyLabel     = "KOMMODITY_TALOS_PROXY_LABEL"
 	envTalosProxyProxyPort = "KOMMODITY_TALOS_PROXY_PROXY_PORT"
 
-	defaultTalosProxyEnabled   = false
+	defaultTalosProxyEnabled   = true
 	defaultTalosProxyPort      = 50000
 	defaultTalosProxyNamespace = "default"
 	defaultTalosProxyLabel     = "app.kubernetes.io/name=talos-proxy"

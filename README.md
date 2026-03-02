@@ -170,6 +170,25 @@ This flexible configuration allows you to streamline your setup and avoid instal
 Kommodity supports audit logging to track and record API requests and responses. Audit logs can be configured to use a custom audit policy file, specified via the `KOMMODITY_AUDIT_POLICY_FILE_PATH` environment variable.
 Kommodity natively supports Kubernetes audit policy format documented here: https://kubernetes.io/docs/tasks/debug/debug-cluster/audit/
 
+### Talos Proxy
+
+When Kommodity manages clusters deployed on private networks, the TalosControlPlane reconciler cannot reach Talos nodes on their private IPs (port 50000). To solve this, the Talos Proxy transparently intercepts these outbound gRPC connections and tunnels them through a Kubernetes port-forward to a `talos-proxy` pod running inside the workload cluster.
+
+**How it works:**
+
+1. A reconciler watches `Cluster` resources for the `kommodity.io/node-cidr` annotation
+2. nftables REDIRECT rules intercept outbound TCP connections to registered CIDRs on port 50000
+3. The proxy reads the original destination via `SO_ORIGINAL_DST`, looks up the cluster by CIDR, and establishes a port-forward tunnel to the `talos-proxy` pod
+4. Traffic is forwarded bidirectionally — mTLS between Kommodity and the Talos node passes through end-to-end
+
+**Requirements:**
+
+- `NET_ADMIN` capability on the Kommodity container (for nftables rules)
+- Linux only (no-op stub on macOS for development)
+- A `talos-proxy` pod running in the workload cluster ([repository](https://github.com/kommodity-io/talos-proxy))
+
+More info in package [documentation](pkg/talosproxy/README.md).
+
 ### Mock KMS Service
 
 The `kms` package provides a mock implementation of the [Talos Linux Key Management Service (KMS)][talos-kms-api]. This implementation:
@@ -216,6 +235,11 @@ Several environment variables can be set to configure Kommodity:
 | `KOMMODITY_DEVELOPMENT_MODE`                | Enable development mode                                    | `false`                 |
 | `KOMMODITY_INFRASTRUCTURE_PROVIDERS`        | Comma-separated list of infrastructure providers to enable | All                     |
 | `KOMMODITY_AUDIT_POLICY_FILE_PATH`          | File path to the audit policy file                         | (none)                  |
+| `KOMMODITY_TALOS_PROXY_ENABLED`             | Enable the transparent Talos gRPC proxy                    | `true`                 |
+| `KOMMODITY_TALOS_PROXY_PORT`                | Local listen port for the proxy                            | `50000`                 |
+| `KOMMODITY_TALOS_PROXY_NAMESPACE`           | Namespace where talos-proxy pods run in workload clusters  | `kube-system`           |
+| `KOMMODITY_TALOS_PROXY_LABEL`               | Label selector to find talos-proxy pods                    | `app=talos-proxy`       |
+| `KOMMODITY_TALOS_PROXY_PROXY_PORT`          | Port on the talos-proxy pod to forward to                  | `50000`                 |
 
 ## 🚀 Deployment
 
