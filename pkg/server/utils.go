@@ -285,6 +285,7 @@ func persistSigningKey(ctx context.Context, client corev1client.CoreV1Interface,
 		}
 
 		existingSecret.Data[reconciler.SigningKeyDataKey] = keyPEM
+
 		_, err = client.Secrets(config.KommodityNamespace).Update(
 			ctx, existingSecret, metav1.UpdateOptions{})
 		if err != nil {
