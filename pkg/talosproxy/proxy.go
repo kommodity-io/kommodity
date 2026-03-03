@@ -24,6 +24,7 @@ const (
 type ProxyDeps struct {
 	Config *config.TalosProxyConfig
 	Client client.Client
+	Logger *zap.Logger
 }
 
 // Proxy is the main proxy struct that manages the lifecycle of the Talos HTTP CONNECT proxy.
@@ -40,10 +41,15 @@ type Proxy struct {
 
 // NewProxy creates a new Proxy instance.
 func NewProxy(deps ProxyDeps) *Proxy {
+	logger := deps.Logger
+	if logger == nil {
+		logger = zap.NewNop()
+	}
+
 	return &Proxy{
 		config:       deps.Config,
 		cidrRegistry: NewCIDRRegistry(),
-		tunnelPool:   NewTunnelPool(deps.Config, deps.Client),
+		tunnelPool:   NewTunnelPool(deps.Config, deps.Client, logger),
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/kommodity-io/kommodity/pkg/config"
 	"github.com/kommodity-io/kommodity/pkg/logging"
@@ -12,19 +13,31 @@ import (
 )
 
 // TunnelPool manages port-forward tunnels keyed by cluster name.
+//
+// Lock ordering: pool.mu is always acquired before tunnel.mu.
+// The onIdle callback (which acquires pool.mu) is called from
+// ReleaseConn without holding tunnel.mu, preserving this order.
 type TunnelPool struct {
-	mu      sync.RWMutex
-	tunnels map[string]*Tunnel
-	config  *config.TalosProxyConfig
-	client  client.Client
+	mu         sync.Mutex
+	tunnels    map[string]*Tunnel
+	idleTimers map[string]*time.Timer
+	config     *config.TalosProxyConfig
+	client     client.Client
+	logger     *zap.Logger
 }
 
 // NewTunnelPool creates a new tunnel pool.
-func NewTunnelPool(config *config.TalosProxyConfig, kubeClient client.Client) *TunnelPool {
+func NewTunnelPool(
+	cfg *config.TalosProxyConfig,
+	kubeClient client.Client,
+	logger *zap.Logger,
+) *TunnelPool {
 	return &TunnelPool{
-		tunnels: make(map[string]*Tunnel),
-		config:  config,
-		client:  kubeClient,
+		tunnels:    make(map[string]*Tunnel),
+		idleTimers: make(map[string]*time.Timer),
+		config:     cfg,
+		client:     kubeClient,
+		logger:     logger,
 	}
 }
 
@@ -34,25 +47,20 @@ func (p *TunnelPool) GetOrCreateTunnel(
 	clusterName string,
 	namespace string,
 ) (*Tunnel, error) {
-	p.mu.RLock()
-	tunnel, exists := p.tunnels[clusterName]
-	p.mu.RUnlock()
-
-	if exists && !tunnel.IsClosed() {
-		return tunnel, nil
-	}
-
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	// Double-check after acquiring write lock
-	tunnel, exists = p.tunnels[clusterName]
+	tunnel, exists := p.tunnels[clusterName]
 	if exists && !tunnel.IsClosed() {
+		p.cancelIdleTimerLocked(clusterName)
+
 		return tunnel, nil
 	}
 
 	// Remove stale closed tunnel if present
 	if exists {
+		p.cancelIdleTimerLocked(clusterName)
+
 		_ = tunnel.Close()
 
 		delete(p.tunnels, clusterName)
@@ -66,6 +74,7 @@ func (p *TunnelPool) GetOrCreateTunnel(
 	tunnel = NewTunnel(TunnelDeps{
 		ClusterName: clusterName,
 		Config:      p.config,
+		OnIdle:      func() { p.scheduleIdleClose(clusterName) },
 	})
 
 	err := tunnel.Establish(ctx, p.client)
@@ -83,6 +92,8 @@ func (p *TunnelPool) RemoveTunnel(clusterName string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
+	p.cancelIdleTimerLocked(clusterName)
+
 	tunnel, exists := p.tunnels[clusterName]
 	if !exists {
 		return
@@ -98,9 +109,66 @@ func (p *TunnelPool) CloseAll() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
+	for _, timer := range p.idleTimers {
+		timer.Stop()
+	}
+
+	p.idleTimers = make(map[string]*time.Timer)
+
 	for _, tunnel := range p.tunnels {
 		_ = tunnel.Close()
 	}
 
 	p.tunnels = make(map[string]*Tunnel)
+}
+
+// scheduleIdleClose starts an idle timer for the given cluster. When the timer
+// fires, the tunnel is closed and removed if it still has zero active connections.
+func (p *TunnelPool) scheduleIdleClose(clusterName string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	p.cancelIdleTimerLocked(clusterName)
+
+	p.idleTimers[clusterName] = time.AfterFunc(p.config.IdleTimeout, func() {
+		p.closeIdleTunnel(clusterName)
+	})
+}
+
+// closeIdleTunnel closes and removes a tunnel if it still exists and has zero
+// active connections.
+func (p *TunnelPool) closeIdleTunnel(clusterName string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	delete(p.idleTimers, clusterName)
+
+	tunnel, exists := p.tunnels[clusterName]
+	if !exists {
+		return
+	}
+
+	if tunnel.ActiveConns() > 0 {
+		return
+	}
+
+	_ = tunnel.Close()
+
+	delete(p.tunnels, clusterName)
+
+	p.logger.Info("Closed idle tunnel",
+		zap.String("cluster", clusterName))
+}
+
+// cancelIdleTimerLocked stops and removes the idle timer for the given cluster.
+// Must be called while holding p.mu.
+func (p *TunnelPool) cancelIdleTimerLocked(clusterName string) {
+	timer, exists := p.idleTimers[clusterName]
+	if !exists {
+		return
+	}
+
+	timer.Stop()
+
+	delete(p.idleTimers, clusterName)
 }

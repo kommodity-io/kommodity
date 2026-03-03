@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/kommodity-io/kommodity/pkg/config"
 	"github.com/kommodity-io/kommodity/pkg/logging"
@@ -43,12 +44,15 @@ type Tunnel struct {
 	stopChan    chan struct{}
 	closed      bool
 	podName     string
+	activeConns atomic.Int64
+	onIdle      func()
 }
 
 // TunnelDeps holds the dependencies needed to create a tunnel.
 type TunnelDeps struct {
 	ClusterName string
 	Config      *config.TalosProxyConfig
+	OnIdle      func()
 }
 
 // NewTunnel creates a new tunnel for a workload cluster.
@@ -57,6 +61,7 @@ func NewTunnel(deps TunnelDeps) *Tunnel {
 		clusterName: deps.ClusterName,
 		config:      deps.Config,
 		stopChan:    make(chan struct{}),
+		onIdle:      deps.OnIdle,
 	}
 }
 
@@ -99,6 +104,8 @@ func (t *Tunnel) Establish(ctx context.Context, kubeClient client.Client) error 
 }
 
 // Dial returns a new TCP connection through the port-forward tunnel.
+// The returned connection is wrapped with reference counting; closing it
+// decrements the tunnel's active connection count.
 func (t *Tunnel) Dial(ctx context.Context) (net.Conn, error) {
 	t.mu.Lock()
 
@@ -124,7 +131,28 @@ func (t *Tunnel) Dial(ctx context.Context) (net.Conn, error) {
 		return nil, fmt.Errorf("failed to dial tunnel for cluster %s: %w", t.clusterName, err)
 	}
 
-	return conn, nil
+	t.AcquireConn()
+
+	return &trackedConn{Conn: conn, tunnel: t}, nil
+}
+
+// AcquireConn increments the active connection count.
+func (t *Tunnel) AcquireConn() {
+	t.activeConns.Add(1)
+}
+
+// ReleaseConn decrements the active connection count. When the count reaches
+// zero, the onIdle callback is invoked (if set). The callback is called without
+// holding the tunnel mutex to avoid deadlock with the pool lock.
+func (t *Tunnel) ReleaseConn() {
+	if t.activeConns.Add(-1) == 0 && t.onIdle != nil {
+		t.onIdle()
+	}
+}
+
+// ActiveConns returns the current number of active connections using this tunnel.
+func (t *Tunnel) ActiveConns() int64 {
+	return t.activeConns.Load()
 }
 
 // IsClosed returns whether the tunnel has been closed.

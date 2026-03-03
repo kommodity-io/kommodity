@@ -34,8 +34,8 @@ func newTestHandler(t *testing.T) *talosproxy.ConnectHandler {
 	}
 
 	registry := talosproxy.NewCIDRRegistry()
-	pool := talosproxy.NewTunnelPool(proxyConfig, nil)
 	logger := zap.NewNop()
+	pool := talosproxy.NewTunnelPool(proxyConfig, nil, logger)
 
 	return talosproxy.NewConnectHandler(registry, pool, logger)
 }
@@ -178,8 +178,8 @@ func TestConnectHandler_TunnelDialFailure(t *testing.T) {
 	}
 
 	registry := talosproxy.NewCIDRRegistry()
-	pool := talosproxy.NewTunnelPool(proxyConfig, fake.NewClientBuilder().Build())
 	logger := zap.NewNop()
+	pool := talosproxy.NewTunnelPool(proxyConfig, fake.NewClientBuilder().Build(), logger)
 
 	handler := talosproxy.NewConnectHandler(registry, pool, logger)
 

@@ -222,26 +222,27 @@ grpcurl -plaintext -d "{\"data\": \"$(echo -n "$SEALED" | base64)\"}" \
 
 Several environment variables can be set to configure Kommodity:
 
-| Environment Variable                        | Description                                                | Default Value           |
-| ------------------------------------------- | ---------------------------------------------------------- | ----------------------- |
-| `KOMMODITY_PORT`                            | Port for the Kommodity server                              | `5000`                  |
-| `KOMMODITY_BASE_URL`                        | Base URL for the Kommodity server                          | `http://localhost:5000` |
-| `KOMMODITY_ADMIN_GROUP`                     | Name of the admin group for privileged access              | (none)                  |
-| `KOMMODITY_INSECURE_DISABLE_AUTHENTICATION` | Disable authentication for local development               | `false`                 |
-| `KOMMODITY_OIDC_ISSUER_URL`                 | OIDC issuer URL for authentication                         | (none)                  |
-| `KOMMODITY_OIDC_CLIENT_ID`                  | OIDC client ID for authentication                          | (none)                  |
-| `KOMMODITY_OIDC_USERNAME_CLAIM`             | OIDC claim used for username                               | `email`                 |
-| `KOMMODITY_OIDC_GROUPS_CLAIM`               | OIDC claim used for groups                                 | `groups`                |
-| `KOMMODITY_ATTESTATION_NONCE_TTL`           | TTL for attestation nonces (e.g., `5m`, `1h`)              | `5m`                    |
-| `KOMMODITY_DB_URI`                          | URI of the PostgreSQL database                             | (none)                  |
-| `KOMMODITY_DEVELOPMENT_MODE`                | Enable development mode                                    | `false`                 |
-| `KOMMODITY_INFRASTRUCTURE_PROVIDERS`        | Comma-separated list of infrastructure providers to enable | All                     |
-| `KOMMODITY_AUDIT_POLICY_FILE_PATH`          | File path to the audit policy file                         | (none)                  |
-| `KOMMODITY_TALOS_PROXY_ENABLED`             | Enable the HTTP CONNECT Talos gRPC proxy                   | `true`                 |
-| `KOMMODITY_TALOS_PROXY_PORT`                | Local listen port for the proxy                            | `50000`                 |
-| `KOMMODITY_TALOS_PROXY_NAMESPACE`           | Namespace where talos-proxy pods run in workload clusters  | `kube-system`           |
-| `KOMMODITY_TALOS_PROXY_LABEL`               | Label selector to find talos-proxy pods                    | `app=talos-proxy`       |
-| `KOMMODITY_TALOS_PROXY_PROXY_PORT`          | Port on the talos-proxy pod to forward to                  | `50000`                 |
+| Environment Variable                        | Description                                                | Default Value                        |
+| ------------------------------------------- | ---------------------------------------------------------- | ------------------------------------ |
+| `KOMMODITY_PORT`                            | Port for the Kommodity server                              | `5000`                               |
+| `KOMMODITY_BASE_URL`                        | Base URL for the Kommodity server                          | `http://localhost:5000`              |
+| `KOMMODITY_ADMIN_GROUP`                     | Name of the admin group for privileged access              | (none)                               |
+| `KOMMODITY_INSECURE_DISABLE_AUTHENTICATION` | Disable authentication for local development               | `false`                              |
+| `KOMMODITY_OIDC_ISSUER_URL`                 | OIDC issuer URL for authentication                         | (none)                               |
+| `KOMMODITY_OIDC_CLIENT_ID`                  | OIDC client ID for authentication                          | (none)                               |
+| `KOMMODITY_OIDC_USERNAME_CLAIM`             | OIDC claim used for username                               | `email`                              |
+| `KOMMODITY_OIDC_GROUPS_CLAIM`               | OIDC claim used for groups                                 | `groups`                             |
+| `KOMMODITY_ATTESTATION_NONCE_TTL`           | TTL for attestation nonces (e.g., `5m`, `1h`)              | `5m`                                 |
+| `KOMMODITY_DB_URI`                          | URI of the PostgreSQL database                             | (none)                               |
+| `KOMMODITY_DEVELOPMENT_MODE`                | Enable development mode                                    | `false`                              |
+| `KOMMODITY_INFRASTRUCTURE_PROVIDERS`        | Comma-separated list of infrastructure providers to enable | All                                  |
+| `KOMMODITY_AUDIT_POLICY_FILE_PATH`          | File path to the audit policy file                         | (none)                               |
+| `KOMMODITY_TALOS_PROXY_ENABLED`             | Enable the HTTP CONNECT Talos gRPC proxy                   | `true`                               |
+| `KOMMODITY_TALOS_PROXY_PORT`                | Local listen port for the proxy                            | `50000`                              |
+| `KOMMODITY_TALOS_PROXY_NAMESPACE`           | Namespace where talos-proxy pods run in workload clusters  | `kube-system`                        |
+| `KOMMODITY_TALOS_PROXY_LABEL`               | Label selector to find talos-proxy pods                    | `app.kubernetes.io/name=talos-proxy` |
+| `KOMMODITY_TALOS_PROXY_POD_PORT`            | Port on the talos-proxy pod to forward to                  | `50000`                              |
+| `KOMMODITY_TALOS_PROXY_IDLE_TIMEOUT`        | Idle timeout before closing unused tunnels (e.g., `1m`)    | `1m`                                 |
 
 ## 🚀 Deployment
 

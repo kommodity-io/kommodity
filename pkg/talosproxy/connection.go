@@ -11,6 +11,11 @@ const (
 	bidirectionalCopyCount = 2
 )
 
+// closeWriter is implemented by connections that support half-close (e.g., *net.TCPConn, trackedConn).
+type closeWriter interface {
+	CloseWrite() error
+}
+
 // bidirectionalCopy copies data between two connections in both directions.
 // It waits for both directions to complete before returning.
 func bidirectionalCopy(clientConn net.Conn, tunnel net.Conn) {
@@ -23,8 +28,8 @@ func bidirectionalCopy(clientConn net.Conn, tunnel net.Conn) {
 
 		_, _ = io.Copy(tunnel, clientConn)
 		// Signal write-half close if supported
-		if tc, ok := tunnel.(*net.TCPConn); ok {
-			_ = tc.CloseWrite()
+		if cw, ok := tunnel.(closeWriter); ok {
+			_ = cw.CloseWrite()
 		}
 	}()
 
@@ -33,8 +38,8 @@ func bidirectionalCopy(clientConn net.Conn, tunnel net.Conn) {
 
 		_, _ = io.Copy(clientConn, tunnel)
 		// Signal write-half close if supported
-		if tc, ok := clientConn.(*net.TCPConn); ok {
-			_ = tc.CloseWrite()
+		if cw, ok := clientConn.(closeWriter); ok {
+			_ = cw.CloseWrite()
 		}
 	}()
 

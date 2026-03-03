@@ -1,20 +1,13 @@
 package talosproxy
 
 import (
+	"net"
 	"net/http"
 	"net/url"
 )
 
 // DynamicProxyFuncForTest exports dynamicProxyFunc for testing.
 var DynamicProxyFuncForTest = dynamicProxyFunc //nolint:gochecknoglobals // test export
-
-// ProxyForCommaSeparatedHostsForTest exports proxyForCommaSeparatedHosts for testing.
-func ProxyForCommaSeparatedHostsForTest(
-	reqURL *url.URL,
-	proxyFunc func(*url.URL) (*url.URL, error),
-) (*url.URL, error) {
-	return proxyForCommaSeparatedHosts(reqURL, proxyFunc)
-}
 
 // NewTestRequest creates an http.Request for testing proxy functions.
 func NewTestRequest(scheme string, host string) *http.Request {
@@ -24,4 +17,9 @@ func NewTestRequest(scheme string, host string) *http.Request {
 			Host:   host,
 		},
 	}
+}
+
+// NewTrackedConn creates a trackedConn for testing.
+func NewTrackedConn(conn net.Conn, tunnel *Tunnel) net.Conn {
+	return &trackedConn{Conn: conn, tunnel: tunnel}
 }

@@ -44,17 +44,19 @@ const (
 	envInfrastructureProviders = "KOMMODITY_INFRASTRUCTURE_PROVIDERS"
 	envAuditPolicyFilePath     = "KOMMODITY_AUDIT_POLICY_FILE_PATH"
 
-	envTalosProxyEnabled   = "KOMMODITY_TALOS_PROXY_ENABLED"
-	envTalosProxyPort      = "KOMMODITY_TALOS_PROXY_PORT"
-	envTalosProxyNamespace = "KOMMODITY_TALOS_PROXY_NAMESPACE"
-	envTalosProxyLabel     = "KOMMODITY_TALOS_PROXY_LABEL"
-	envTalosProxyProxyPort = "KOMMODITY_TALOS_PROXY_PROXY_PORT"
+	envTalosProxyEnabled     = "KOMMODITY_TALOS_PROXY_ENABLED"
+	envTalosProxyPort        = "KOMMODITY_TALOS_PROXY_PORT"
+	envTalosProxyNamespace   = "KOMMODITY_TALOS_PROXY_NAMESPACE"
+	envTalosProxyLabel       = "KOMMODITY_TALOS_PROXY_LABEL"
+	envTalosProxyPodPort     = "KOMMODITY_TALOS_PROXY_POD_PORT"
+	envTalosProxyIdleTimeout = "KOMMODITY_TALOS_PROXY_IDLE_TIMEOUT"
 
-	defaultTalosProxyEnabled   = true
-	defaultTalosProxyPort      = 50000
-	defaultTalosProxyNamespace = "default"
-	defaultTalosProxyLabel     = "app.kubernetes.io/name=talos-proxy"
-	defaultTalosProxyProxyPort = 50000
+	defaultTalosProxyEnabled     = true
+	defaultTalosProxyPort        = 50000
+	defaultTalosProxyNamespace   = "default"
+	defaultTalosProxyLabel       = "app.kubernetes.io/name=talos-proxy"
+	defaultTalosProxyPodPort     = 50000
+	defaultTalosProxyIdleTimeout = 1 * time.Minute
 )
 
 const (
@@ -85,6 +87,7 @@ type TalosProxyConfig struct {
 	ProxyNamespace string
 	ProxyLabel     string
 	ProxyPort      int
+	IdleTimeout    time.Duration
 }
 
 // AuthConfig holds the authentication configuration settings for the Kommodity API server.
@@ -408,7 +411,8 @@ func getTalosProxyConfig(ctx context.Context) *TalosProxyConfig {
 		ListenPort:     getTalosProxyPort(ctx),
 		ProxyNamespace: getTalosProxyNamespace(ctx),
 		ProxyLabel:     getTalosProxyLabel(ctx),
-		ProxyPort:      getTalosProxyProxyPort(ctx),
+		ProxyPort:      getTalosProxyPodPort(ctx),
+		IdleTimeout:    getTalosProxyIdleTimeout(ctx),
 	}
 }
 
@@ -492,27 +496,52 @@ func getTalosProxyLabel(ctx context.Context) string {
 	return label
 }
 
-func getTalosProxyProxyPort(ctx context.Context) int {
+func getTalosProxyPodPort(ctx context.Context) int {
 	logger := logging.FromContext(ctx)
 
-	port := os.Getenv(envTalosProxyProxyPort)
+	port := os.Getenv(envTalosProxyPodPort)
 	if port == "" {
 		logger.Info(configurationNotSpecified,
-			zap.String("envVar", envTalosProxyProxyPort),
-			zap.Int("default", defaultTalosProxyProxyPort))
+			zap.String("envVar", envTalosProxyPodPort),
+			zap.Int("default", defaultTalosProxyPodPort))
 
-		return defaultTalosProxyProxyPort
+		return defaultTalosProxyPodPort
 	}
 
 	portInt, err := strconv.Atoi(port)
 	if err != nil {
 		logger.Info("failed to convert talos proxy target port to integer",
-			zap.String("envVar", envTalosProxyProxyPort),
+			zap.String("envVar", envTalosProxyPodPort),
 			zap.String("value", port),
-			zap.Int("default", defaultTalosProxyProxyPort))
+			zap.Int("default", defaultTalosProxyPodPort))
 
-		return defaultTalosProxyProxyPort
+		return defaultTalosProxyPodPort
 	}
 
 	return portInt
+}
+
+func getTalosProxyIdleTimeout(ctx context.Context) time.Duration {
+	logger := logging.FromContext(ctx)
+
+	idleTimeout := os.Getenv(envTalosProxyIdleTimeout)
+	if idleTimeout == "" {
+		logger.Info(configurationNotSpecified,
+			zap.String("envVar", envTalosProxyIdleTimeout),
+			zap.String("default", defaultTalosProxyIdleTimeout.String()))
+
+		return defaultTalosProxyIdleTimeout
+	}
+
+	duration, err := time.ParseDuration(idleTimeout)
+	if err != nil {
+		logger.Info("failed to parse talos proxy idle timeout",
+			zap.String("envVar", envTalosProxyIdleTimeout),
+			zap.String("value", idleTimeout),
+			zap.String("default", defaultTalosProxyIdleTimeout.String()))
+
+		return defaultTalosProxyIdleTimeout
+	}
+
+	return duration
 }

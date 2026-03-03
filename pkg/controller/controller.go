@@ -136,6 +136,7 @@ func setupTalosProxy(ctx context.Context,
 	proxy := talosproxy.NewProxy(talosproxy.ProxyDeps{
 		Config: proxyConfig,
 		Client: manager.GetClient(),
+		Logger: logger,
 	})
 
 	err := proxy.Listen(ctx)
