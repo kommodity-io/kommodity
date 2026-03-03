@@ -69,7 +69,9 @@ func (r *Reconciler) Reconcile(
 	err := r.Get(ctx, req.NamespacedName, cluster)
 	if err != nil {
 		if client.IgnoreNotFound(err) == nil {
-			return r.handleClusterDeletion(logger, req.Name)
+			r.handleClusterDeletion(logger, req.Name)
+
+			return ctrl.Result{}, nil
 		}
 
 		return ctrl.Result{}, fmt.Errorf("failed to get Cluster %s: %w", req.String(), err)
@@ -77,7 +79,9 @@ func (r *Reconciler) Reconcile(
 
 	// Check for deletion
 	if !cluster.DeletionTimestamp.IsZero() {
-		return r.handleClusterDeletion(logger, cluster.Name)
+		r.handleClusterDeletion(logger, cluster.Name)
+
+		return ctrl.Result{}, nil
 	}
 
 	return r.handleClusterRegistration(logger, cluster)
@@ -86,17 +90,11 @@ func (r *Reconciler) Reconcile(
 func (r *Reconciler) handleClusterDeletion(
 	logger *zap.Logger,
 	clusterName string,
-) (ctrl.Result, error) {
+) {
 	logger.Info("Cluster deleted, deregistering from proxy",
 		zap.String("cluster", clusterName))
 
-	err := r.Proxy.DeregisterCluster(clusterName)
-	if err != nil {
-		return ctrl.Result{}, fmt.Errorf("failed to deregister cluster %s: %w",
-			clusterName, err)
-	}
-
-	return ctrl.Result{}, nil
+	r.Proxy.DeregisterCluster(clusterName)
 }
 
 func (r *Reconciler) handleClusterRegistration(
@@ -107,11 +105,7 @@ func (r *Reconciler) handleClusterRegistration(
 	cidrStr, hasCIDR := annotations[nodeCIDRAnnotation]
 
 	if !hasCIDR {
-		err := r.Proxy.DeregisterCluster(cluster.Name)
-		if err != nil {
-			return ctrl.Result{}, fmt.Errorf("failed to deregister cluster %s: %w",
-				cluster.Name, err)
-		}
+		r.Proxy.DeregisterCluster(cluster.Name)
 
 		return ctrl.Result{}, nil
 	}
@@ -132,11 +126,7 @@ func (r *Reconciler) handleClusterRegistration(
 		zap.String("namespace", cluster.Namespace),
 		zap.String("cidr", cidr.String()))
 
-	err = r.Proxy.RegisterCluster(cluster.Name, cluster.Namespace, cidr)
-	if err != nil {
-		return ctrl.Result{}, fmt.Errorf("failed to register cluster %s: %w",
-			cluster.Name, err)
-	}
+	r.Proxy.RegisterCluster(cluster.Name, cluster.Namespace, cidr)
 
 	return ctrl.Result{}, nil
 }

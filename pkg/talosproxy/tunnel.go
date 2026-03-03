@@ -28,6 +28,10 @@ const (
 	kubeconfigNamespace    = "default"
 	// labelKeyValueParts is the expected number of parts when splitting a label by "=".
 	labelKeyValueParts = 2
+	// loopbackAddress is the loopback IP address used for local proxy connections.
+	loopbackAddress = "127.0.0.1"
+	// runningPodFieldSelector filters pod listings to only include running pods.
+	runningPodFieldSelector = "status.phase=Running"
 )
 
 // Tunnel represents a port-forward connection to a talos-proxy pod in a workload cluster.
@@ -38,7 +42,6 @@ type Tunnel struct {
 	localPort   uint16
 	stopChan    chan struct{}
 	closed      bool
-	restConfig  *rest.Config
 	podName     string
 }
 
@@ -73,8 +76,6 @@ func (t *Tunnel) Establish(ctx context.Context, kubeClient client.Client) error 
 		return fmt.Errorf("failed to fetch REST config for cluster %s: %w", t.clusterName, err)
 	}
 
-	t.restConfig = restConfig
-
 	podName, err := t.findProxyPod(ctx, restConfig)
 	if err != nil {
 		return fmt.Errorf("failed to find talos-proxy pod in cluster %s: %w", t.clusterName, err)
@@ -100,24 +101,38 @@ func (t *Tunnel) Establish(ctx context.Context, kubeClient client.Client) error 
 // Dial returns a new TCP connection through the port-forward tunnel.
 func (t *Tunnel) Dial(ctx context.Context) (net.Conn, error) {
 	t.mu.Lock()
-	defer t.mu.Unlock()
 
 	if t.closed {
+		t.mu.Unlock()
+
 		return nil, ErrTunnelClosed
 	}
 
 	if t.localPort == 0 {
+		t.mu.Unlock()
+
 		return nil, ErrTunnelNotReady
 	}
 
+	port := t.localPort
+	t.mu.Unlock()
+
 	dialer := net.Dialer{}
 
-	conn, err := dialer.DialContext(ctx, "tcp", fmt.Sprintf("127.0.0.1:%d", t.localPort))
+	conn, err := dialer.DialContext(ctx, "tcp", fmt.Sprintf("%s:%d", loopbackAddress, port))
 	if err != nil {
 		return nil, fmt.Errorf("failed to dial tunnel for cluster %s: %w", t.clusterName, err)
 	}
 
 	return conn, nil
+}
+
+// IsClosed returns whether the tunnel has been closed.
+func (t *Tunnel) IsClosed() bool {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	return t.closed
 }
 
 // Close shuts down the port-forward tunnel.
@@ -133,6 +148,28 @@ func (t *Tunnel) Close() error {
 	close(t.stopChan)
 
 	return nil
+}
+
+// monitorPortForward watches for the port-forward goroutine to exit and marks
+// the tunnel as closed. This enables the connect handler to detect stale tunnels
+// and create fresh ones when the talos-proxy pod is evicted or rescheduled.
+func (t *Tunnel) monitorPortForward(errChan <-chan error, logger *zap.Logger) {
+	err := <-errChan
+
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	if t.closed {
+		return
+	}
+
+	t.closed = true
+	close(t.stopChan)
+
+	logger.Warn("Port-forward terminated unexpectedly",
+		zap.String("cluster", t.clusterName),
+		zap.String("pod", t.podName),
+		zap.Error(err))
 }
 
 func (t *Tunnel) fetchRESTConfig(ctx context.Context, kubeClient client.Client) (*rest.Config, error) {
@@ -173,7 +210,7 @@ func (t *Tunnel) findProxyPod(ctx context.Context, restConfig *rest.Config) (str
 
 	pods, err := clientset.CoreV1().Pods(t.config.ProxyNamespace).List(ctx, metav1.ListOptions{
 		LabelSelector: t.config.ProxyLabel,
-		FieldSelector: "status.phase=Running",
+		FieldSelector: runningPodFieldSelector,
 	})
 	if err != nil {
 		return "", fmt.Errorf("failed to list talos-proxy pods: %w", err)
@@ -259,6 +296,10 @@ func (t *Tunnel) waitForPortForward(
 	case <-ctx.Done():
 		return 0, fmt.Errorf("context cancelled while waiting for port-forward: %w", ctx.Err())
 	}
+
+	// Monitor port-forward health — marks tunnel as closed if port-forward exits unexpectedly.
+	// This enables early detection of stale tunnels when the talos-proxy pod is evicted or rescheduled.
+	go t.monitorPortForward(errChan, logger)
 
 	forwardedPorts, err := forwarder.GetPorts()
 	if err != nil {

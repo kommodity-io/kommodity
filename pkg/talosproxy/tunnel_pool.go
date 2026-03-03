@@ -38,7 +38,7 @@ func (p *TunnelPool) GetOrCreateTunnel(
 	tunnel, exists := p.tunnels[clusterName]
 	p.mu.RUnlock()
 
-	if exists {
+	if exists && !tunnel.IsClosed() {
 		return tunnel, nil
 	}
 
@@ -47,8 +47,15 @@ func (p *TunnelPool) GetOrCreateTunnel(
 
 	// Double-check after acquiring write lock
 	tunnel, exists = p.tunnels[clusterName]
-	if exists {
+	if exists && !tunnel.IsClosed() {
 		return tunnel, nil
+	}
+
+	// Remove stale closed tunnel if present
+	if exists {
+		_ = tunnel.Close()
+
+		delete(p.tunnels, clusterName)
 	}
 
 	logger := logging.FromContext(ctx)

@@ -12,71 +12,42 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type mockInterceptor struct {
-	updateCalled int
-	cleanCalled  int
-	lastCIDRs    []*net.IPNet
-}
-
-func (m *mockInterceptor) UpdateRules(cidrs []*net.IPNet) error {
-	m.updateCalled++
-	m.lastCIDRs = cidrs
-
-	return nil
-}
-
-func (m *mockInterceptor) Cleanup() error {
-	m.cleanCalled++
-
-	return nil
-}
-
 func TestProxy_RegisterAndDeregisterCluster(t *testing.T) {
 	t.Parallel()
 
-	interceptor := &mockInterceptor{}
 	proxyConfig := &config.TalosProxyConfig{
 		Enabled:        true,
-		ListenPort:     50000,
+		ListenPort:     0,
 		ProxyNamespace: "kube-system",
 		ProxyLabel:     "app=talos-proxy",
 		ProxyPort:      50000,
 	}
 
 	proxy := talosproxy.NewProxy(talosproxy.ProxyDeps{
-		Config:      proxyConfig,
-		Client:      nil,
-		Interceptor: interceptor,
+		Config: proxyConfig,
+		Client: nil,
 	})
 
 	_, cidr, err := net.ParseCIDR("10.200.0.0/20")
 	require.NoError(t, err)
 
-	// Register
-	err = proxy.RegisterCluster("cluster-a", "default", cidr)
-	require.NoError(t, err)
-	assert.Equal(t, 1, interceptor.updateCalled)
-	assert.Len(t, interceptor.lastCIDRs, 1)
+	// Register should not panic
+	proxy.RegisterCluster("cluster-a", "default", cidr)
 
-	// Deregister
-	err = proxy.DeregisterCluster("cluster-a")
-	require.NoError(t, err)
-	assert.Equal(t, 2, interceptor.updateCalled)
-	assert.Empty(t, interceptor.lastCIDRs)
+	// Deregister should not panic
+	proxy.DeregisterCluster("cluster-a")
 }
 
 func TestProxy_StartDisabled(t *testing.T) {
 	t.Parallel()
 
-	interceptor := &mockInterceptor{}
 	proxyConfig := &config.TalosProxyConfig{
 		Enabled: false,
 	}
 
 	proxy := talosproxy.NewProxy(talosproxy.ProxyDeps{
-		Config:      proxyConfig,
-		Client:      nil,
-		Interceptor: interceptor,
+		Config: proxyConfig,
+		Client: nil,
 	})
 
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
@@ -86,10 +57,9 @@ func TestProxy_StartDisabled(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestProxy_StartAndStop(t *testing.T) {
+func TestProxy_ListenAndStart(t *testing.T) {
 	t.Parallel()
 
-	interceptor := &mockInterceptor{}
 	proxyConfig := &config.TalosProxyConfig{
 		Enabled:        true,
 		ListenPort:     0, // Use random port
@@ -99,12 +69,17 @@ func TestProxy_StartAndStop(t *testing.T) {
 	}
 
 	proxy := talosproxy.NewProxy(talosproxy.ProxyDeps{
-		Config:      proxyConfig,
-		Client:      nil,
-		Interceptor: interceptor,
+		Config: proxyConfig,
+		Client: nil,
 	})
 
 	ctx, cancel := context.WithCancel(context.Background())
+
+	err := proxy.Listen(ctx)
+	require.NoError(t, err)
+
+	addr := proxy.Addr()
+	assert.NotEmpty(t, addr, "listener address should be non-empty after Listen")
 
 	errChan := make(chan error, 1)
 
@@ -112,13 +87,51 @@ func TestProxy_StartAndStop(t *testing.T) {
 		errChan <- proxy.Start(ctx)
 	}()
 
-	// Give the proxy time to start
+	// Give the proxy time to start serving
 	time.Sleep(50 * time.Millisecond)
 
 	// Cancel context to trigger shutdown
 	cancel()
 
-	err := <-errChan
+	err = <-errChan
 	require.NoError(t, err)
-	assert.Equal(t, 1, interceptor.cleanCalled)
+}
+
+func TestProxy_StartWithoutListen(t *testing.T) {
+	t.Parallel()
+
+	proxyConfig := &config.TalosProxyConfig{
+		Enabled:        true,
+		ListenPort:     0,
+		ProxyNamespace: "kube-system",
+		ProxyLabel:     "app=talos-proxy",
+		ProxyPort:      50000,
+	}
+
+	proxy := talosproxy.NewProxy(talosproxy.ProxyDeps{
+		Config: proxyConfig,
+		Client: nil,
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	err := proxy.Start(ctx)
+	require.ErrorIs(t, err, talosproxy.ErrListenerNotBound)
+}
+
+func TestProxy_AddrBeforeListen(t *testing.T) {
+	t.Parallel()
+
+	proxyConfig := &config.TalosProxyConfig{
+		Enabled:    true,
+		ListenPort: 0,
+	}
+
+	proxy := talosproxy.NewProxy(talosproxy.ProxyDeps{
+		Config: proxyConfig,
+		Client: nil,
+	})
+
+	assert.Empty(t, proxy.Addr(), "Addr should return empty string before Listen")
 }

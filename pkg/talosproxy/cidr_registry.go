@@ -61,19 +61,6 @@ func (r *CIDRRegistry) Lookup(ipAddr net.IP) (*CIDREntry, error) {
 	return nil, fmt.Errorf("%w: %s", ErrCIDRNotFound, ipAddr.String())
 }
 
-// AllCIDRs returns all registered CIDRs. Used by the interceptor to configure nftables rules.
-func (r *CIDRRegistry) AllCIDRs() []*net.IPNet {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	cidrs := make([]*net.IPNet, 0, len(r.entries))
-	for _, entry := range r.entries {
-		cidrs = append(cidrs, entry.CIDR)
-	}
-
-	return cidrs
-}
-
 // Len returns the number of registered entries.
 func (r *CIDRRegistry) Len() int {
 	r.mu.RLock()

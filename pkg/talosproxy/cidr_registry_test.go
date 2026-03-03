@@ -78,20 +78,6 @@ func TestCIDRRegistry_Deregister(t *testing.T) {
 	assert.ErrorIs(t, err, talosproxy.ErrCIDRNotFound)
 }
 
-func TestCIDRRegistry_AllCIDRs(t *testing.T) {
-	t.Parallel()
-
-	registry := talosproxy.NewCIDRRegistry()
-	cidrA := mustParseCIDR(t, "10.200.0.0/20")
-	cidrB := mustParseCIDR(t, "10.201.0.0/20")
-
-	registry.Register("cluster-a", "default", cidrA)
-	registry.Register("cluster-b", "default", cidrB)
-
-	cidrs := registry.AllCIDRs()
-	assert.Len(t, cidrs, 2)
-}
-
 func TestCIDRRegistry_Len(t *testing.T) {
 	t.Parallel()
 

@@ -1,4 +1,4 @@
-// Package talosproxy provides a transparent TCP proxy that intercepts Talos gRPC
+// Package talosproxy provides an HTTP CONNECT proxy that intercepts Talos gRPC
 // connections and tunnels them through a Kubernetes port-forward to talos-proxy pods
 // running inside workload clusters.
 package talosproxy
@@ -16,16 +16,16 @@ var (
 	ErrKubeconfigNotFound = errors.New("kubeconfig secret not found")
 	// ErrProxyPodNotFound is returned when no talos-proxy pod is found in the workload cluster.
 	ErrProxyPodNotFound = errors.New("talos-proxy pod not found")
-	// ErrInvalidCIDR is returned when a CIDR string cannot be parsed.
-	ErrInvalidCIDR = errors.New("invalid CIDR notation")
-	// ErrOriginalDstNotAvailable is returned when the original destination cannot be read from the socket.
-	ErrOriginalDstNotAvailable = errors.New("original destination not available")
-	// ErrProxyNotEnabled is returned when the proxy is not enabled in configuration.
-	ErrProxyNotEnabled = errors.New("talos proxy is not enabled")
 	// ErrInvalidProxyLabel is returned when the proxy label format is invalid.
 	ErrInvalidProxyLabel = errors.New("invalid proxy label format")
 	// ErrNoForwardedPorts is returned when no forwarded ports are returned after port-forward setup.
 	ErrNoForwardedPorts = errors.New("no forwarded ports returned")
-	// ErrNotTCPConnection is returned when the intercepted connection is not a TCP connection.
-	ErrNotTCPConnection = errors.New("connection is not a TCP connection")
+	// ErrListenerNotBound is returned when the proxy listener has not been bound yet.
+	ErrListenerNotBound = errors.New("listener not bound")
+	// ErrMethodNotAllowed is returned when a non-CONNECT HTTP method is received.
+	ErrMethodNotAllowed = errors.New("only CONNECT method is allowed")
+	// ErrInvalidConnectTarget is returned when the CONNECT target host:port is invalid.
+	ErrInvalidConnectTarget = errors.New("invalid CONNECT target")
+	// ErrHijackNotSupported is returned when the HTTP response writer does not support hijacking.
+	ErrHijackNotSupported = errors.New("hijack not supported")
 )

@@ -172,20 +172,22 @@ Kommodity natively supports Kubernetes audit policy format documented here: http
 
 ### Talos Proxy
 
-When Kommodity manages clusters deployed on private networks, the TalosControlPlane reconciler cannot reach Talos nodes on their private IPs (port 50000). To solve this, the Talos Proxy transparently intercepts these outbound gRPC connections and tunnels them through a Kubernetes port-forward to a `talos-proxy` pod running inside the workload cluster.
+When Kommodity manages clusters deployed on private networks, the TalosControlPlane reconciler cannot reach Talos nodes on their private IPs (port 50000). The Talos Proxy runs a local HTTP CONNECT proxy that intercepts these outbound gRPC connections and tunnels them through a Kubernetes port-forward to a `talos-proxy` pod running inside the workload cluster.
 
 **How it works:**
 
 1. A reconciler watches `Cluster` resources for the `kommodity.io/node-cidr` annotation
-2. nftables REDIRECT rules intercept outbound TCP connections to registered CIDRs on port 50000
-3. The proxy reads the original destination via `SO_ORIGINAL_DST`, looks up the cluster by CIDR, and establishes a port-forward tunnel to the `talos-proxy` pod
+2. On startup, the proxy sets `HTTPS_PROXY=http://127.0.0.1:<port>` so gRPC connections are routed through the local proxy
+3. On CONNECT, the proxy looks up the target IP in the CIDR registry and establishes a port-forward tunnel to the `talos-proxy` pod in the matching workload cluster
 4. Traffic is forwarded bidirectionally — mTLS between Kommodity and the Talos node passes through end-to-end
+5. Non-matching traffic (API server, etc.) passes through directly with minimal overhead
+
+The approach is fully platform-independent — no `NET_ADMIN` capability or nftables is required.
 
 **Requirements:**
 
-- `NET_ADMIN` capability on the Kommodity container (for nftables rules)
-- Linux only (no-op stub on macOS for development)
 - A `talos-proxy` pod running in the workload cluster ([repository](https://github.com/kommodity-io/talos-proxy))
+- The `kommodity.io/node-cidr` annotation on the `Cluster` resource (e.g. `10.200.16.0/20`)
 
 More info in package [documentation](pkg/talosproxy/README.md).
 
@@ -235,7 +237,7 @@ Several environment variables can be set to configure Kommodity:
 | `KOMMODITY_DEVELOPMENT_MODE`                | Enable development mode                                    | `false`                 |
 | `KOMMODITY_INFRASTRUCTURE_PROVIDERS`        | Comma-separated list of infrastructure providers to enable | All                     |
 | `KOMMODITY_AUDIT_POLICY_FILE_PATH`          | File path to the audit policy file                         | (none)                  |
-| `KOMMODITY_TALOS_PROXY_ENABLED`             | Enable the transparent Talos gRPC proxy                    | `true`                 |
+| `KOMMODITY_TALOS_PROXY_ENABLED`             | Enable the HTTP CONNECT Talos gRPC proxy                   | `true`                 |
 | `KOMMODITY_TALOS_PROXY_PORT`                | Local listen port for the proxy                            | `50000`                 |
 | `KOMMODITY_TALOS_PROXY_NAMESPACE`           | Namespace where talos-proxy pods run in workload clusters  | `kube-system`           |
 | `KOMMODITY_TALOS_PROXY_LABEL`               | Label selector to find talos-proxy pods                    | `app=talos-proxy`       |

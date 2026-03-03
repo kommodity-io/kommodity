@@ -133,15 +133,22 @@ func setupTalosProxy(ctx context.Context,
 	logger := logging.FromContext(ctx)
 	logger.Info("Setting up Talos proxy")
 
-	interceptor := talosproxy.NewPlatformInterceptor(proxyConfig.ListenPort)
-
 	proxy := talosproxy.NewProxy(talosproxy.ProxyDeps{
-		Config:      proxyConfig,
-		Client:      manager.GetClient(),
-		Interceptor: interceptor,
+		Config: proxyConfig,
+		Client: manager.GetClient(),
 	})
 
-	err := manager.Add(proxy)
+	err := proxy.Listen(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to bind Talos proxy listener: %w", err)
+	}
+
+	err = talosproxy.SetProxyEnv(logging.FromContext(ctx), proxy.Addr())
+	if err != nil {
+		return fmt.Errorf("failed to set proxy environment variables: %w", err)
+	}
+
+	err = manager.Add(proxy)
 	if err != nil {
 		return fmt.Errorf("failed to add Talos proxy to manager: %w", err)
 	}
