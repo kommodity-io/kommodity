@@ -11,6 +11,8 @@ var (
 	ErrValueNotFoundInConfigMap = errors.New("value not found in configmap")
 	// ErrSecretMissingAnnotation is returned when a required annotation is missing from a secret.
 	ErrSecretMissingAnnotation = errors.New("secret is missing required annotation")
+	// ErrSecretMissingLabel is returned when a required label is missing from a secret.
+	ErrSecretMissingLabel = errors.New("secret is missing required label")
 	// ErrClusterNotReady indicates the downstream cluster is not reachable.
 	ErrClusterNotReady = errors.New("downstream cluster not ready")
 )

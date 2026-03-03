@@ -48,6 +48,9 @@ type Kubeconfig struct {
 }
 
 const (
+	// AutoscalerConfigMapSuffix is the suffix for the ConfigMap that triggers the Autoscaler installation.
+	AutoscalerConfigMapSuffix = "-cluster-autoscaler-config"
+
 	// autoscalerDeploymentName is the name of the Deployment created by the cluster-autoscaler Helm chart.
 	autoscalerDeploymentName = "cluster-autoscaler"
 )
@@ -320,18 +323,6 @@ func (r *AutoscalerReconciler) installAutoscaler(ctx context.Context, clusterNam
 		},
 	}
 
-	installed, err := autoscalerJob.IsInstalled(ctx)
-	if err != nil {
-		return ctrl.Result{}, fmt.Errorf("failed to check if autoscaler is installed: %w", err)
-	}
-
-	if installed {
-		logger.Info("Autoscaler already installed, skipping installation",
-			zap.String("clusterName", clusterName))
-
-		return ctrl.Result{}, nil
-	}
-
 	err = autoscalerJob.PrepareForApply(ctx, r.cfg, clusterName)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
@@ -343,6 +334,18 @@ func (r *AutoscalerReconciler) installAutoscaler(ctx context.Context, clusterNam
 		}
 
 		return ctrl.Result{}, fmt.Errorf("failed to prepare Autoscaler Job: %w", err)
+	}
+
+	installed, err := autoscalerJob.IsInstalled(ctx)
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to check if autoscaler is installed: %w", err)
+	}
+
+	if installed {
+		logger.Info("Autoscaler already installed, skipping installation",
+			zap.String("clusterName", clusterName))
+
+		return ctrl.Result{}, nil
 	}
 
 	err = autoscalerJob.Apply(ctx, clusterName)
