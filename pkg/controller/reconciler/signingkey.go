@@ -104,9 +104,11 @@ func (r *SigningKeyReconciler) SetupWithManager(ctx context.Context,
 
 // Reconcile handles the deletion of the signing key secret.
 // When the signing key secret is deleted, it:
-// 1. Fetch / regenerates a new signing key
+// 1. Fetch signing key
 // 2. Finds all service account token secrets
 // 3. Deletes and recreates them to trigger token regeneration with the new key.
+//
+//nolint:funlen // Mostly long due to logging and error handling for each step of the process.
 func (r *SigningKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := logging.FromContext(ctx)
 	logger.Info("Signing key secret was deleted, regenerating key and rotating tokens",
