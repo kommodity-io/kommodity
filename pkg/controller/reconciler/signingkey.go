@@ -214,7 +214,7 @@ func (r *SigningKeyReconciler) rotateServiceAccountTokenSecret(
 
 	clusterName, labels, annotations, err := extractSecretMetadata(oldSecret)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to extract metadata from old secret: %w", err)
 	}
 
 	err = r.Delete(ctx, oldSecret)

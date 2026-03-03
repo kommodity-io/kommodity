@@ -245,7 +245,7 @@ func getOrCreateSigningKey(ctx context.Context, client corev1client.CoreV1Interf
 		return nil, fmt.Errorf("failed to generate signing key: %w", err)
 	}
 
-	err = persistSigningKey(ctx, client, key)
+	err = persistSigningKey(ctx, client, key, false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to persist signing key: %w", err)
 	}
@@ -253,7 +253,12 @@ func getOrCreateSigningKey(ctx context.Context, client corev1client.CoreV1Interf
 	return key, nil
 }
 
-func persistSigningKey(ctx context.Context, client corev1client.CoreV1Interface, key *rsa.PrivateKey) error {
+func persistSigningKey(
+	ctx context.Context,
+	client corev1client.CoreV1Interface,
+	key *rsa.PrivateKey,
+	updateIfExists bool,
+) error {
 	keyPEM := convertRSAKeyToPEM(key)
 
 	secret := &corev1.Secret{
@@ -274,6 +279,10 @@ func persistSigningKey(ctx context.Context, client corev1client.CoreV1Interface,
 	if err != nil {
 		if !apierrors.IsAlreadyExists(err) {
 			return fmt.Errorf("failed to create signing key secret: %w", err)
+		}
+
+		if !updateIfExists {
+			return nil
 		}
 
 		// Secret was created between our Get and Create (race condition).
