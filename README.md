@@ -44,8 +44,8 @@ port5000((:5000))
 Make sure to have a recent version of Go installed. We recommend using [gvm][gvm] to install Go.
 
 ```bash
-gvm install go1.24.2 -B
-gvm use go1.24.2 --default
+gvm install go1.25.3 -B
+gvm use go1.25.3 --default
 ```
 
 As a build system, we use `make`.

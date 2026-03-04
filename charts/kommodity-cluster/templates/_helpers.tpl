@@ -78,18 +78,18 @@ Compute sha256sum of parameters givens to the TalosConfigTemplate.
 Any values that should trigger a new Talos config template when changed should be added to the hash computation.
 */}}
 {{- define "kommodity-cluster.talosConfigHash" -}}
-{{- $hasPoolConfigPatches := and .poolValues.configPatches (gt (len .poolValues.configPatches) 0) }}
-{{- $hasGlobalConfigPatches := and .allValues.kommodity.global.configPatches (gt (len .allValues.kommodity.global.configPatches) 0) }}
+{{- $hasPoolPatches := and .poolValues.strategicPatches (gt (len .poolValues.strategicPatches) 0) }}
+{{- $hasGlobalPatches := and .allValues.kommodity.global.strategicPatches (gt (len .allValues.kommodity.global.strategicPatches) 0) }}
 {{- $data := dict -}}
-{{- $configPatches := list -}}
-{{- if $hasGlobalConfigPatches }}
-	{{- $configPatches = concat $configPatches .allValues.kommodity.global.configPatches -}}
+{{- $patches := list -}}
+{{- if $hasGlobalPatches }}
+	{{- $patches = concat $patches .allValues.kommodity.global.strategicPatches -}}
 {{- end }}
-{{- if $hasPoolConfigPatches }}
-	{{- $configPatches = concat $configPatches .poolValues.configPatches -}}
+{{- if $hasPoolPatches }}
+	{{- $patches = concat $patches .poolValues.strategicPatches -}}
 {{- end }}
-{{- if gt (len $configPatches) 0 }}
-	{{- $_ := set $data "configPatches" $configPatches -}}
+{{- if gt (len $patches) 0 }}
+	{{- $_ := set $data "strategicPatches" $patches -}}
 {{- end }}
 {{- $talosVersion := default .allValues.talos.version (dig "talos" "version" "" .poolValues) -}}
 {{- $_ := set $data "talosVersion" $talosVersion -}}
@@ -122,94 +122,70 @@ Any values that should trigger a new Machine template when changed should be add
 {{- end -}}
 
 {{/*
-Add or merge a patch into the patches dict.
-Takes: patches (dict), op (string), path (string), value (dict or list)
-For dict values: merges the values together
-For list values: concatenates the lists
-*/}}
-{{- define "kommodity-cluster.addOrMergePatch" -}}
-{{- $patches := .patches -}}
-{{- $op := .op -}}
-{{- $path := .path -}}
-{{- $value := .value -}}
-{{- $key := printf "%s:%s" $op $path -}}
-{{- if hasKey $patches $key -}}
-{{- $existing := get $patches $key -}}
-{{- $existingValue := get $existing "value" -}}
-{{- if and (kindIs "slice" $existingValue) (kindIs "slice" $value) -}}
-{{- $_ := set $existing "value" (concat $existingValue $value) -}}
-{{- else -}}
-{{- $_ := set $existing "value" (merge $existingValue $value) -}}
-{{- end -}}
-{{- else -}}
-{{- $_ := set $patches $key (dict "op" $op "path" $path "value" (deepCopy $value)) -}}
-{{- end -}}
-{{- end -}}
-
-{{/*
-Build combined config patches from global config patches, nodepool config patches, taints, labels, and annotations.
-Patches with the same op and path are merged together (dicts are merged, lists are concatenated).
-Note: /cluster/inlineManifests patches are skipped here and handled separately in controlplane.yaml
+Build a merged strategic patch from all configuration sources.
+Returns a YAML block scalar list item (- |\n  <yaml>) representing a single MachineConfig strategic patch.
+Returns empty string if there are no patches to apply.
+User patches from nodepools override global patches for same keys via deep merge.
+Note: /cluster/inlineManifests are handled separately in controlplane.yaml
 to preserve YAML block scalar formatting for multi-line contents.
 */}}
-{{- define "kommodity-cluster.combinedConfigPatches" -}}
-{{- $patches := dict -}}
-{{- /* Collect global config patches (skip /cluster/inlineManifests - handled separately) */ -}}
-{{- range .globalConfigPatches -}}
-{{- if ne .path "/cluster/inlineManifests" -}}
-{{- include "kommodity-cluster.addOrMergePatch" (dict "patches" $patches "op" .op "path" .path "value" .value) -}}
+{{- define "kommodity-cluster.mergedStrategicPatch" -}}
+{{- $result := dict -}}
+{{- /* Add labels */ -}}
+{{- if and .labels (gt (len .labels) 0) -}}
+{{- $_ :=   $result (dict "machine" (dict "nodeLabels" (deepCopy .labels))) -}}
 {{- end -}}
+{{- /* Add annotations */ -}}
+{{- if and .annotations (gt (len .annotations) 0) -}}
+{{- $_ := mustMergeOverwrite $result (dict "machine" (dict "nodeAnnotations" (deepCopy .annotations))) -}}
 {{- end -}}
-{{- /* Collect nodepool config patches (skip /cluster/inlineManifests - handled separately) */ -}}
-{{- range .nodepoolConfigPatches -}}
-{{- if ne .path "/cluster/inlineManifests" -}}
-{{- include "kommodity-cluster.addOrMergePatch" (dict "patches" $patches "op" .op "path" .path "value" .value) -}}
-{{- end -}}
-{{- end -}}
-{{- /* Add taints patches */ -}}
-{{- $taints := .taints -}}
-{{- if and $taints (gt (len $taints) 0) -}}
-{{- /* Build register-with-taints for kubelet extraArgs */ -}}
+{{- /* Add taints */ -}}
+{{- if and .taints (gt (len .taints) 0) -}}
 {{- $taintStrings := list -}}
-{{- range $key, $value := $taints -}}
+{{- range $key, $value := .taints -}}
 {{- $taintStrings = append $taintStrings (printf "%s=%s" $key $value) -}}
 {{- end -}}
-{{- include "kommodity-cluster.addOrMergePatch" (dict "patches" $patches "op" "add" "path" "/machine/kubelet/extraArgs" "value" (dict "register-with-taints" (join "," $taintStrings))) -}}
-{{- /* Build nodeTaints */ -}}
-{{- $nodeTaintsValue := dict -}}
-{{- range $key, $value := $taints -}}
-{{- $_ := set $nodeTaintsValue $key $value -}}
+{{- $_ := mustMergeOverwrite $result (dict "machine" (dict "kubelet" (dict "extraArgs" (dict "register-with-taints" (join "," $taintStrings))))) -}}
+{{- $_ := mustMergeOverwrite $result (dict "machine" (dict "nodeTaints" (deepCopy .taints))) -}}
 {{- end -}}
-{{- include "kommodity-cluster.addOrMergePatch" (dict "patches" $patches "op" "add" "path" "/machine/nodeTaints" "value" $nodeTaintsValue) -}}
-{{- end -}}
-{{- /* Add labels patch */ -}}
-{{- if and .labels (gt (len .labels) 0) -}}
-{{- include "kommodity-cluster.addOrMergePatch" (dict "patches" $patches "op" "add" "path" "/machine/nodeLabels" "value" .labels) -}}
-{{- end -}}
-{{- /* Add annotations patch */ -}}
-{{- if and .annotations (gt (len .annotations) 0) -}}
-{{- include "kommodity-cluster.addOrMergePatch" (dict "patches" $patches "op" "add" "path" "/machine/nodeAnnotations" "value" .annotations) -}}
-{{- end -}}
-{{- /* Add OIDC apiServer extraArgs patch */ -}}
+{{- /* Add OIDC apiServer extraArgs */ -}}
 {{- if and .oidc .oidc.enabled -}}
 {{- $oidcExtraArgs := include "kommodity.talos.oidc.extraArgs" (dict "oidc" .oidc) | fromJson -}}
-{{- include "kommodity-cluster.addOrMergePatch" (dict "patches" $patches "op" "add" "path" "/cluster/apiServer/extraArgs" "value" $oidcExtraArgs) -}}
+{{- $_ := mustMergeOverwrite $result (dict "cluster" (dict "apiServer" (dict "extraArgs" $oidcExtraArgs))) -}}
 {{- end -}}
-{{- /* Add installer image patch */ -}}
+{{- /* Add installer image */ -}}
 {{- if .installer -}}
 {{- $installerImage := include "kommodity.talos.installer.image" (dict "installer" .installer) -}}
-{{- include "kommodity-cluster.addOrMergePatch" (dict "patches" $patches "op" "add" "path" "/machine/install/image" "value" $installerImage) -}}
+{{- $_ := mustMergeOverwrite $result (dict "machine" (dict "install" (dict "image" $installerImage))) -}}
 {{- end -}}
-{{- /* Add global Kommodity environment variables patch */ -}}
+{{- /* Add global Kommodity environment variables */ -}}
 {{- if .logLevel -}}
 {{- $globalEnv := include "kommodity.talos.globalEnv" (dict "logLevel" .logLevel) | fromJson -}}
-{{- include "kommodity-cluster.addOrMergePatch" (dict "patches" $patches "op" "add" "path" "/machine/env" "value" $globalEnv) -}}
+{{- $_ := mustMergeOverwrite $result (dict "machine" (dict "env" $globalEnv)) -}}
 {{- end -}}
-{{- /* Output all combined patches */ -}}
-{{- range $key, $patch := $patches }}
-- op: {{ $patch.op }}
-  path: {{ $patch.path }}
-  value:
-{{ $patch.value | toYaml | indent 4 }}
+{{- /* Disable CNI (controlplane only) */ -}}
+{{- if .disableCNI -}}
+{{- $_ := mustMergeOverwrite $result (include "kommodity.talos.cni.disable" . | fromJson) -}}
+{{- end -}}
+{{- /* Disable proxy (controlplane only) */ -}}
+{{- if .disableProxy -}}
+{{- $_ := mustMergeOverwrite $result (include "kommodity.talos.proxy.disable" . | fromJson) -}}
+{{- end -}}
+{{- /* Cloud Controller Manager (controlplane only) */ -}}
+{{- if .ccmEnabled -}}
+{{- $_ := mustMergeOverwrite $result (include "kommodity.talos.ccm" (dict "manifest" .ccmManifest) | fromJson) -}}
+{{- end -}}
+{{- /* Merge global user patches */ -}}
+{{- range .globalPatches -}}
+{{- $_ := mustMergeOverwrite $result (deepCopy .) -}}
+{{- end -}}
+{{- /* Merge nodepool user patches (override global for same keys) */ -}}
+{{- range .nodepoolPatches -}}
+{{- $_ := mustMergeOverwrite $result (deepCopy .) -}}
+{{- end -}}
+{{- /* Output as YAML block scalar if non-empty */ -}}
+{{- if gt (len (keys $result)) 0 -}}
+- |
+{{ $result | toYaml | indent 2 }}
 {{- end -}}
 {{- end -}}

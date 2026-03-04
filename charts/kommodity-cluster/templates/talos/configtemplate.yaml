@@ -12,27 +12,29 @@ spec:
     spec:
       generateType: worker
       talosVersion: {{ default (include "kommodity.talosVersion" $) (dig "talos" "version" "" $np) }}
-      {{- $hasNpConfigPatches := and $np.configPatches (gt (len $np.configPatches) 0) }}
-      {{- $hasGlobalConfigPatches := and $.Values.kommodity.global.configPatches (gt (len $.Values.kommodity.global.configPatches) 0) }}
-      {{- $hasTaints := and $np.taints (gt (len $np.taints) 0) }}
-      {{- $hasLabels := and $np.labels (gt (len $np.labels) 0) }}
-      {{- $hasAnnotations := and $np.annotations (gt (len $np.annotations) 0) }}
-      {{- $hasInstaller := $.Values.talos.installer }}
-      {{- $hasLogLevel := $.Values.kommodity.logLevel }}
-      {{- /* Note: /cluster/inlineManifests is skipped for workers - only control plane nodes apply inline manifests during bootstrap */ -}}
-      {{- if or $hasNpConfigPatches $hasGlobalConfigPatches $hasTaints $hasLabels $hasAnnotations $hasInstaller $hasLogLevel }}
-      configPatches:
-{{- include "kommodity-cluster.combinedConfigPatches" (dict "globalConfigPatches" $.Values.kommodity.global.configPatches "nodepoolConfigPatches" $np.configPatches "taints" $np.taints "labels" $np.labels "annotations" $np.annotations "installer" $.Values.talos.installer "logLevel" $.Values.kommodity.logLevel) | trim | nindent 8 }}
-      {{- end }}
-      {{- if or $.Values.kommodity.kms.enabled $.Values.kommodity.security.enabled }}
+      {{- /* Build merged MachineConfig strategic patch for workers */ -}}
+      {{- $mergedPatch := include "kommodity-cluster.mergedStrategicPatch" (dict
+        "globalPatches" $.Values.kommodity.global.strategicPatches
+        "nodepoolPatches" $np.strategicPatches
+        "taints" $np.taints
+        "labels" $np.labels
+        "annotations" $np.annotations
+        "installer" $.Values.talos.installer
+        "logLevel" $.Values.kommodity.logLevel
+      ) | trim -}}
+      {{- $needsStrategicPatches := or (not (empty $mergedPatch)) $.Values.kommodity.kms.enabled $.Values.kommodity.security.enabled }}
+      {{- if $needsStrategicPatches }}
       strategicPatches:
+      {{- if not (empty $mergedPatch) }}
+{{ $mergedPatch | nindent 6 }}
+      {{- end }}
       {{- if $.Values.kommodity.kms.enabled }}
-      {{- /* Use VolumeConfig for disk encryption (Talos v1.12+) instead of deprecated machine.systemDiskEncryption */}}
-{{- include "kommodity.talos.volumeEncryption" (dict "endpoint" $.Values.kommodity.kms.endpoint) | nindent 8 }}
+      {{- /* VolumeConfig for disk encryption (Talos v1.12+) */ -}}
+{{- include "kommodity.talos.volumeEncryption" (dict "endpoint" $.Values.kommodity.kms.endpoint) | nindent 6 }}
       {{- end }}
       {{- if $.Values.kommodity.security.enabled }}
-      {{- /* ExtensionServiceConfig for kommodity-attestation extension */}}
-{{- include "kommodity.talos.attestationExtensionServiceConfig" (dict "logLevel" $.Values.kommodity.logLevel) | nindent 8 }}
+      {{- /* ExtensionServiceConfig for kommodity-attestation extension */ -}}
+{{- include "kommodity.talos.attestationExtensionServiceConfig" (dict "logLevel" $.Values.kommodity.logLevel) | nindent 6 }}
       {{- end }}
       {{- end }}
 {{- end }}
