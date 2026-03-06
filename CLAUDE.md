@@ -109,7 +109,7 @@ This is applicable for the `Implement Mode`.
 
 ## Validating changes
 
-When a task is considering done with development, you should use the `code-simplifier` plugin to simplify your code and make it more readable.
+When a task is considering done with development, you should use the `code-simplifier:code-simplifier` subagent (via the Task tool with `subagent_type="code-simplifier:code-simplifier"`) to simplify your code and make it more readable.
 When all simplifications are done you should run `make test` to ensure that all tests are passing. If any tests are failing, you should fix the issues before considering the task complete.
 
 When tests are passing, you should also run `make build-image` to ensure that the Docker image can be built successfully. If the image fails to build, you should fix the issues before considering the task complete.
