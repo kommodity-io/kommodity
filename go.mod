@@ -4,7 +4,10 @@ go 1.24.0
 
 toolchain go1.24.2
 
-replace github.com/google/cel-go => github.com/google/cel-go v0.22.0
+replace (
+	github.com/google/cel-go => github.com/google/cel-go v0.22.0
+	github.com/siderolabs/cluster-api-control-plane-provider-talos => github.com/kommodity-io/cluster-api-control-plane-provider-talos v0.5.11-7a5376dbda4555912f35bf95c516e1d4d4596bc9 // Fork that includes WithDefaultGRPCDialOptions when creating talosclient
+)
 
 require (
 	github.com/Masterminds/sprig/v3 v3.3.0
@@ -16,7 +19,7 @@ require (
 	github.com/k3s-io/kine v1.14.2
 	github.com/scaleway/cluster-api-provider-scaleway v0.1.4
 	github.com/siderolabs/cluster-api-bootstrap-provider-talos v0.6.10
-	github.com/siderolabs/cluster-api-control-plane-provider-talos v0.5.10
+	github.com/siderolabs/cluster-api-control-plane-provider-talos v0.5.11
 	github.com/siderolabs/kms-client v0.1.0
 	github.com/siderolabs/talos/pkg/machinery v1.11.0
 	github.com/stretchr/testify v1.11.1

@@ -53,7 +53,7 @@ For non-matching traffic (API server, etc.), the proxy dials directly (passthrou
 
 The `talos-proxy` pod expects a simple framing header before proxying:
 
-```
+```text
 [4 bytes: big-endian uint32 length][N bytes: target address string]
 ```
 
