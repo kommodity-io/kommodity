@@ -92,3 +92,7 @@ For example, to connect to `10.200.0.5:50000`, the proxy writes `0x00000012` (18
 ## Platform Support
 
 The HTTP CONNECT proxy approach is fully platform-independent — it works on Linux, macOS, and any other platform that supports Go's `net/http`. No `NET_ADMIN` capability or nftables is required.
+
+## Note
+
+In order to use the `DynamicProxyDialer` with the `HTTPS_PROXY` environment variable, we had to fork the `cluster-api-control-plane-provider-talos` module and [modify](https://github.com/kommodity-io/cluster-api-control-plane-provider-talos/commit/7a5376dbda4555912f35bf95c516e1d4d4596bc9) the Talos client initialization to set the dialer.

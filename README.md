@@ -252,6 +252,19 @@ The Terraform modules in [terraform/modules](terraform/modules) can be used to d
 
 See examples in [terraform/examples](terraform/examples) for specific deployment examples.
 
+## CAPI Providers Versions
+
+Kommodity supports the following versions of Cluster API providers:
+
+| Provider                                 | Version(s)     |
+| ---------------------------------------- | -------------- |
+| cluster-api                              | v1.10.4        |
+| cluster-api-control-plane-provider-talos | v0.5.11 (fork) |
+| cluster-api-bootstrap-provider-talos     | v0.6.10        |
+| cluster-api-provider-scaleway            | v0.1.4         |
+| cluster-api-provider-kubevirt            | v0.1.10        |
+| cluster-api-provider-azure               | v1.21.0        |
+
 ## ⛔ Limitations
 
 - Helm [`hooks`](https://helm.sh/docs/topics/charts_hooks/) are not supported.
