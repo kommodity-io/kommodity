@@ -133,7 +133,7 @@ to preserve YAML block scalar formatting for multi-line contents.
 {{- $result := dict -}}
 {{- /* Add labels */ -}}
 {{- if and .labels (gt (len .labels) 0) -}}
-{{- $_ :=   $result (dict "machine" (dict "nodeLabels" (deepCopy .labels))) -}}
+{{- $_ := mustMergeOverwrite $result (dict "machine" (dict "nodeLabels" (deepCopy .labels))) -}}
 {{- end -}}
 {{- /* Add annotations */ -}}
 {{- if and .annotations (gt (len .annotations) 0) -}}
