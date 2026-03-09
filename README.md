@@ -44,8 +44,8 @@ port5000((:5000))
 Make sure to have a recent version of Go installed. We recommend using [gvm][gvm] to install Go.
 
 ```bash
-gvm install go1.24.2 -B
-gvm use go1.24.2 --default
+gvm install go1.26.1 -B
+gvm use go1.26.1 --default
 ```
 
 As a build system, we use `make`.
@@ -256,14 +256,14 @@ See examples in [terraform/examples](terraform/examples) for specific deployment
 
 Kommodity supports the following versions of Cluster API providers:
 
-| Provider                                 | Version(s)     |
-| ---------------------------------------- | -------------- |
-| cluster-api                              | v1.10.4        |
-| cluster-api-control-plane-provider-talos | v0.5.11 (fork) |
-| cluster-api-bootstrap-provider-talos     | v0.6.10        |
-| cluster-api-provider-scaleway            | v0.1.4         |
-| cluster-api-provider-kubevirt            | v0.1.10        |
-| cluster-api-provider-azure               | v1.21.0        |
+| Provider                                 | Version(s) |
+| ---------------------------------------- | ---------- |
+| cluster-api                              | v1.10.9    |
+| cluster-api-control-plane-provider-talos | v0.5.12    |
+| cluster-api-bootstrap-provider-talos     | v0.6.11    |
+| cluster-api-provider-scaleway            | v0.1.4     |
+| cluster-api-provider-kubevirt            | v0.1.10    |
+| cluster-api-provider-azure               | v1.21.0    |
 
 ## ⛔ Limitations
 
