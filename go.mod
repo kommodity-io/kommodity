@@ -1,11 +1,8 @@
 module github.com/kommodity-io/kommodity
 
-go 1.25.3
+go 1.26.1
 
-replace (
-	github.com/google/cel-go => github.com/google/cel-go v0.22.0
-	github.com/siderolabs/cluster-api-control-plane-provider-talos => github.com/pthuriot-corti/cluster-api-control-plane-provider-talos v0.0.0-20260304114524-4f82415eaad0
-)
+replace github.com/google/cel-go => github.com/google/cel-go v0.22.0
 
 require (
 	github.com/Masterminds/sprig/v3 v3.3.0
@@ -17,7 +14,7 @@ require (
 	github.com/k3s-io/kine v1.14.2
 	github.com/scaleway/cluster-api-provider-scaleway v0.1.4
 	github.com/siderolabs/cluster-api-bootstrap-provider-talos v0.6.11
-	github.com/siderolabs/cluster-api-control-plane-provider-talos v0.5.10
+	github.com/siderolabs/cluster-api-control-plane-provider-talos v0.5.13-0.20260306160140-6254d39cf77c
 	github.com/siderolabs/kms-client v0.1.0
 	github.com/siderolabs/talos/pkg/machinery v1.12.0
 	github.com/stretchr/testify v1.11.1

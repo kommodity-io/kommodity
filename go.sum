@@ -570,8 +570,6 @@ github.com/prometheus/common v0.66.1 h1:h5E0h5/Y8niHc5DlaLlWLArTQI7tMrsfQjHV+d9Z
 github.com/prometheus/common v0.66.1/go.mod h1:gcaUsgf3KfRSwHY4dIMXLPV0K/Wg1oZ8+SbZk/HH/dA=
 github.com/prometheus/procfs v0.19.2 h1:zUMhqEW66Ex7OXIiDkll3tl9a1ZdilUOd/F6ZXw4Vws=
 github.com/prometheus/procfs v0.19.2/go.mod h1:M0aotyiemPhBCM0z5w87kL22CxfcH05ZpYlu+b4J7mw=
-github.com/pthuriot-corti/cluster-api-control-plane-provider-talos v0.0.0-20260304114524-4f82415eaad0 h1:jTyNIPMUDXGF7xaW/3SWqEkI0Q1nruyw2ZKCmsSgCPo=
-github.com/pthuriot-corti/cluster-api-control-plane-provider-talos v0.0.0-20260304114524-4f82415eaad0/go.mod h1:lOqJsnz7zByVryhABb6n6an1EJrW6NVrbVNACTttduM=
 github.com/rogpeppe/go-internal v1.14.1 h1:UQB4HGPB6osV0SQTLymcB4TgvyWu6ZyliaW0tI/otEQ=
 github.com/rogpeppe/go-internal v1.14.1/go.mod h1:MaRKkUm5W0goXpeCfT7UZI6fk/L7L7so1lCWt35ZSgc=
 github.com/rotisserie/eris v0.5.4 h1:Il6IvLdAapsMhvuOahHWiBnl1G++Q0/L5UIkI5mARSk=
@@ -598,6 +596,8 @@ github.com/shopspring/decimal v1.4.0 h1:bxl37RwXBklmTi0C79JfXCEBD1cqqHt0bbgBAGFp
 github.com/shopspring/decimal v1.4.0/go.mod h1:gawqmDU56v4yIKSwfBSFip1HdCCXN8/+DMd9qYNcwME=
 github.com/siderolabs/cluster-api-bootstrap-provider-talos v0.6.11 h1:Fp5BiyVrbKlcWJi9GB3SmMQF1cPF8QREUH6mUHCzN8w=
 github.com/siderolabs/cluster-api-bootstrap-provider-talos v0.6.11/go.mod h1:WEKfiGUToGl+da/Nox+aunySN/KkrndBearpjAGb8k8=
+github.com/siderolabs/cluster-api-control-plane-provider-talos v0.5.13-0.20260306160140-6254d39cf77c h1:gQjbeG4IyLLQySok6sr9gv7+f7o4la/ECWKvUAQNX00=
+github.com/siderolabs/cluster-api-control-plane-provider-talos v0.5.13-0.20260306160140-6254d39cf77c/go.mod h1:lOqJsnz7zByVryhABb6n6an1EJrW6NVrbVNACTttduM=
 github.com/siderolabs/crypto v0.6.4 h1:uMoe/X/mABOv6yOgvKcjmjIMdv6U8JegBXlPKtyjn3g=
 github.com/siderolabs/crypto v0.6.4/go.mod h1:39B7Mdrd8qTfEYOjsWPQOk7gLTWrEI30isAW+YYj9nk=
 github.com/siderolabs/gen v0.8.6 h1:pE6shuqov3L+5rEcAUJ/kY6iJofimljQw5G95P8a5c4=

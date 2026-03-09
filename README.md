@@ -44,8 +44,8 @@ port5000((:5000))
 Make sure to have a recent version of Go installed. We recommend using [gvm][gvm] to install Go.
 
 ```bash
-gvm install go1.25.3 -B
-gvm use go1.25.3 --default
+gvm install go1.26.1 -B
+gvm use go1.26.1 --default
 ```
 
 As a build system, we use `make`.
@@ -251,6 +251,19 @@ As Kommodity is a single binary, it can easily be deployed on any infrastructure
 The Terraform modules in [terraform/modules](terraform/modules) can be used to deploy Kommodity on some of the major hyperscalers (Azure for now, more to come).
 
 See examples in [terraform/examples](terraform/examples) for specific deployment examples.
+
+## CAPI Providers Versions
+
+Kommodity supports the following versions of Cluster API providers:
+
+| Provider                                 | Version(s) |
+| ---------------------------------------- | ---------- |
+| cluster-api                              | v1.10.9    |
+| cluster-api-control-plane-provider-talos | v0.5.12    |
+| cluster-api-bootstrap-provider-talos     | v0.6.11    |
+| cluster-api-provider-scaleway            | v0.1.4     |
+| cluster-api-provider-kubevirt            | v0.1.10    |
+| cluster-api-provider-azure               | v1.21.0    |
 
 ## ⛔ Limitations
 

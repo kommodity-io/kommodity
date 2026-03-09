@@ -8,7 +8,7 @@ RUN apt-get update && apt-get install -y make
 
 RUN make build-ui
 
-FROM --platform=$BUILDPLATFORM golang:1.25-alpine AS build-api
+FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS build-api
 
 # This is set automatically by buildx
 ARG TARGETARCH
