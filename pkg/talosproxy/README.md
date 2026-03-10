@@ -18,7 +18,7 @@ sequenceDiagram
     participant TN as Talos Node<br/>10.200.0.5:50000
 
     R->>D: dial 10.200.0.5:50000
-    D->>P: CONNECT 10.200.0.5:50000
+    D->>P: CONNECT 10.200.0.5:15050
     P->>CR: lookup(10.200.0.5)
     CR-->>P: cluster: "my-cluster"
     P->>T: getOrCreateTunnel("my-cluster")
@@ -77,8 +77,8 @@ For example, to connect to `10.200.0.5:50000`, the proxy writes `0x00000012` (18
 | Environment Variable                 | Description                                               | Default                              |
 | ------------------------------------ | --------------------------------------------------------- | ------------------------------------ |
 | `KOMMODITY_TALOS_PROXY_ENABLED`      | Enable the HTTP CONNECT Talos gRPC proxy                  | `true`                               |
-| `KOMMODITY_TALOS_PROXY_PORT`         | Local listen port for the proxy                           | `50000`                              |
-| `KOMMODITY_TALOS_PROXY_NAMESPACE`    | Namespace where talos-proxy pods run in workload clusters | `default`                        |
+| `KOMMODITY_TALOS_PROXY_PORT`         | Local listen port for the proxy                           | `15050`                              |
+| `KOMMODITY_TALOS_PROXY_NAMESPACE`    | Namespace where talos-proxy pods run in workload clusters | `default`                            |
 | `KOMMODITY_TALOS_PROXY_LABEL`        | Label selector to find talos-proxy pods                   | `app.kubernetes.io/name=talos-proxy` |
 | `KOMMODITY_TALOS_PROXY_POD_PORT`     | Port on the talos-proxy pod to forward to                 | `50000`                              |
 | `KOMMODITY_TALOS_PROXY_IDLE_TIMEOUT` | Idle timeout before closing unused tunnels (e.g., `1m`)   | `1m`                                 |

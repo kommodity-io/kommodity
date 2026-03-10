@@ -52,7 +52,7 @@ const (
 	envTalosProxyIdleTimeout = "KOMMODITY_TALOS_PROXY_IDLE_TIMEOUT"
 
 	defaultTalosProxyEnabled     = true
-	defaultTalosProxyPort        = 50000
+	defaultTalosProxyPort        = 15050
 	defaultTalosProxyNamespace   = "default"
 	defaultTalosProxyLabel       = "app.kubernetes.io/name=talos-proxy"
 	defaultTalosProxyPodPort     = 50000

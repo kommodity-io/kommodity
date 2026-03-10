@@ -30,7 +30,7 @@ func newTestHandler(t *testing.T) *talosproxy.ConnectHandler {
 		ListenPort:     0,
 		ProxyNamespace: "default",
 		ProxyLabel:     "app=talos-proxy",
-		ProxyPort:      50000,
+		ProxyPort:      15050,
 	}
 
 	registry := talosproxy.NewCIDRRegistry()
@@ -128,7 +128,7 @@ func TestConnectHandler_InvalidIP(t *testing.T) {
 	handler := newTestHandler(t)
 	listener := startTestProxyServer(t, handler)
 
-	statusCode := sendCONNECT(t, listener.Addr().String(), "not-an-ip:50000")
+	statusCode := sendCONNECT(t, listener.Addr().String(), "not-an-ip:15050")
 	assert.Equal(t, http.StatusBadRequest, statusCode)
 }
 
@@ -174,7 +174,7 @@ func TestConnectHandler_TunnelDialFailure(t *testing.T) {
 		ListenPort:     0,
 		ProxyNamespace: "default",
 		ProxyLabel:     "app=talos-proxy",
-		ProxyPort:      50000,
+		ProxyPort:      15050,
 	}
 
 	registry := talosproxy.NewCIDRRegistry()
