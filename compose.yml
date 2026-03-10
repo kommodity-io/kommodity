@@ -18,6 +18,26 @@ services:
       timeout: 3s
       retries: 5
 
+  kommodity:
+    image: kommodity:latest
+    restart: always
+    profiles:
+      - kommodity
+    environment:
+      KOMMODITY_DB_URI: postgres://kommodity:kommodity@postgres:5432/kommodity?sslmode=disable
+      KOMMODITY_INFRASTRUCTURE_PROVIDERS: scaleway,kubevirt
+      KOMMODITY_KINE_URI: unix:///tmp/kine.sock
+      KOMMODITY_BASE_URL: https://localhost:5443
+      KOMMODITY_INSECURE_DISABLE_AUTHENTICATION: "true"
+      KOMMODITY_DEVELOPMENT_MODE: "true"
+      LOG_LEVEL: "info"
+    ports:
+      - "5000:5000"
+    depends_on:
+      - postgres
+    networks:
+      - kommodity-net
+
   pgadmin:
     image: dpage/pgadmin4:8
     restart: always
@@ -37,6 +57,8 @@ services:
   caddy:
     image: caddy:2
     restart: always
+    profiles:
+      - kommodity
     ports:
       - "5443:5443"
     volumes:
@@ -44,7 +66,7 @@ services:
     networks:
       - kommodity-net
     depends_on:
-      - postgres
+      - kommodity
 
 volumes:
   pgdata:

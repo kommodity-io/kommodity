@@ -60,13 +60,17 @@ generate-caddyfile: # Generate a Caddyfile for local development.
 	touch Caddyfile
 	echo "$(KOMMODITY_BASE_URL) {\n  reverse_proxy host.docker.internal:$(KOMMODITY_PORT) {\n    transport http {\n      versions h2c\n    }\n  }\n  tls internal\n}" > Caddyfile
 
-.PHONY: compose-up
+.PHONY: compose-up ## Start the local development environment using Docker Compose (excluding Kommodity, run it separately with 'make run')
 compose-up: generate-caddyfile
 	docker compose up -d --build --force-recreate
 
+.PHONY: compose-up-kommodity ## Start the local development environment using Docker Compose (including Kommodity)
+compose-up-kommodity: generate-caddyfile
+	docker compose --profile kommodity up -d --build --force-recreate
+
 .PHONY: compose-down
 compose-down: # Shuts down docker containers and removes volumes
-	docker compose down --remove-orphans -v
+	docker compose --profile kommodity down --remove-orphans -v
 	rm -f Caddyfile
 
 .PHONY: select-in-local-db
