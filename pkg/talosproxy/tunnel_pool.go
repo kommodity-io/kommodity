@@ -81,11 +81,11 @@ func (p *TunnelPool) GetOrCreateTunnel(
 
 		// Wait path: another goroutine is already establishing this tunnel.
 		// Release the lock and block until it signals completion, then retry.
-		if ch, inProgress := p.establishing[clusterName]; inProgress {
+		if notifyChan, inProgress := p.establishing[clusterName]; inProgress {
 			p.mu.Unlock()
 
 			select {
-			case <-ch:
+			case <-notifyChan:
 				// Establishing goroutine finished (success or failure); retry.
 				continue
 			case <-ctx.Done():
@@ -100,8 +100,8 @@ func (p *TunnelPool) GetOrCreateTunnel(
 			zap.String("cluster", clusterName),
 			zap.String("namespace", namespace))
 
-		ch := make(chan struct{})
-		p.establishing[clusterName] = ch
+		notifyChan := make(chan struct{})
+		p.establishing[clusterName] = notifyChan
 
 		newTunnel := NewTunnel(TunnelDeps{
 			ClusterName: clusterName,
@@ -109,27 +109,7 @@ func (p *TunnelPool) GetOrCreateTunnel(
 			OnIdle:      func() { p.scheduleIdleClose(clusterName) },
 		})
 
-		p.mu.Unlock()
-
-		// Establish without holding the pool mutex.
-		err := newTunnel.Establish(ctx, p.client)
-
-		p.mu.Lock()
-
-		delete(p.establishing, clusterName)
-		close(ch) // wake up all waiters regardless of success or failure
-
-		if err != nil {
-			p.mu.Unlock()
-
-			return nil, fmt.Errorf("failed to establish tunnel for cluster %s: %w", clusterName, err)
-		}
-
-		p.tunnels[clusterName] = newTunnel
-
-		p.mu.Unlock()
-
-		return newTunnel, nil
+		return p.doEstablish(ctx, clusterName, newTunnel, notifyChan)
 	}
 }
 
@@ -166,6 +146,37 @@ func (p *TunnelPool) CloseAll() {
 	}
 
 	p.tunnels = make(map[string]*Tunnel)
+}
+
+// doEstablish establishes newTunnel outside the pool mutex, updates pool state,
+// and signals notifyChan. The pool mutex must be held on entry; it is released
+// during establishment and re-acquired afterward. The mutex is always released on return.
+func (p *TunnelPool) doEstablish(
+	ctx context.Context,
+	clusterName string,
+	newTunnel *Tunnel,
+	notifyChan chan struct{},
+) (*Tunnel, error) {
+	p.mu.Unlock()
+
+	err := newTunnel.Establish(ctx, p.client)
+
+	p.mu.Lock()
+
+	delete(p.establishing, clusterName)
+	close(notifyChan) // wake up all waiters regardless of success or failure
+
+	if err != nil {
+		p.mu.Unlock()
+
+		return nil, fmt.Errorf("failed to establish tunnel for cluster %s: %w", clusterName, err)
+	}
+
+	p.tunnels[clusterName] = newTunnel
+
+	p.mu.Unlock()
+
+	return newTunnel, nil
 }
 
 // scheduleIdleClose starts an idle timer for the given cluster. When the timer

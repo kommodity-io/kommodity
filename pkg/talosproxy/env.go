@@ -56,12 +56,12 @@ func SetProxyEnv(logger *zap.Logger, listenAddr string) error {
 func appendNoProxy() error {
 	current := os.Getenv(envNoProxy)
 
-	parts := make([]string, 0)
+	var parts []string
 	if current != "" {
 		parts = append(parts, current)
 	}
 
-	for _, entry := range strings.Split(noProxyDefaults, ",") {
+	for entry := range strings.SplitSeq(noProxyDefaults, ",") {
 		if !strings.Contains(current, entry) {
 			parts = append(parts, entry)
 		}

@@ -126,7 +126,10 @@ func (p *Proxy) Start(ctx context.Context) error {
 
 		logger.Info("Talos proxy shutting down")
 
-		_ = p.cleanup()
+		err := p.cleanup()
+		if err != nil {
+			logger.Error("Talos proxy cleanup failed", zap.Error(err))
+		}
 	}()
 
 	err := p.httpServer.Serve(listener)

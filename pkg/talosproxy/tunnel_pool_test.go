@@ -113,15 +113,15 @@ func TestTunnelPool_ConcurrentGetOrCreateTunnel_DoesNotBlock(t *testing.T) {
 
 	const numClusters = 5
 
-	var wg sync.WaitGroup
+	var waitGroup sync.WaitGroup
 
 	errChan := make(chan error, numClusters)
 
-	for i := range numClusters {
-		wg.Add(1)
+	for clusterIndex := range numClusters {
+		waitGroup.Add(1)
 
 		go func(idx int) {
-			defer wg.Done()
+			defer waitGroup.Done()
 
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 			defer cancel()
@@ -131,13 +131,14 @@ func TestTunnelPool_ConcurrentGetOrCreateTunnel_DoesNotBlock(t *testing.T) {
 			_, err := pool.GetOrCreateTunnel(ctx, clusterName, "default")
 			// Error is expected (nil client), but it must not block other clusters.
 			errChan <- err
-		}(i)
+		}(clusterIndex)
 	}
 
-	wg.Wait()
+	waitGroup.Wait()
 	close(errChan)
 
 	var errCount int
+
 	for err := range errChan {
 		if err != nil {
 			errCount++
@@ -166,25 +167,24 @@ func TestTunnelPool_ConcurrentGetOrCreateTunnel_SameClusterWaits(t *testing.T) {
 
 	const numCallers = 10
 
-	var wg sync.WaitGroup
+	var waitGroup sync.WaitGroup
 
 	errChan := make(chan error, numCallers)
 
 	for range numCallers {
-		wg.Add(1)
-
-		go func() {
-			defer wg.Done()
+		waitGroup.Add(1)
+		waitGroup.Go(func() {
+			defer waitGroup.Done()
 
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 			defer cancel()
 
 			_, err := pool.GetOrCreateTunnel(ctx, "shared-cluster", "default")
 			errChan <- err
-		}()
+		})
 	}
 
-	wg.Wait()
+	waitGroup.Wait()
 	close(errChan)
 
 	var returned int
