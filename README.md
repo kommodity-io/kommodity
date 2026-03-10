@@ -14,30 +14,7 @@ Kommodity is an open-source infrastructure platform to commoditize compute, stor
 
 ## Architecture
 
-```mermaid
-graph LR
-port5000((:5000))
-
-    port5000 -- HTTP --> ReverseProxy[Reverse Proxy]
-    port5000 -- gRPC --> KMS[KMS]
-
-    ReverseProxy -- HTTPS --> AggregatorServer[Aggregator Server]
-    ReverseProxy -- HTTP --> Attestation[Attestation]
-    ReverseProxy -- HTTP --> Metadata[Metadata]
-
-    subgraph K8s
-        AggregatorServer --> ControllerManager[Controller Manager]
-        AggregatorServer --> APIServer[APIServer]
-        APIServer --> ExtensionServer[Extension Server]
-        ControllerManager --> WebhookServer[Webhook Server]
-        ControllerManager --> Reconcilers[Reconcilers]
-    end
-
-    APIServer -- gRPC --> Kine
-    ExtensionServer -- gRPC --> Kine
-
-    Kine --> port5432((:5432))
-```
+![Kommodity Architecture](images/kommodity-architecture.excalidraw.png)
 
 ## Development
 
