@@ -11,6 +11,7 @@ kommodity:
 
   kms:
     enabled: false
+    endpoint: "<REPLACE_ME>"
 
   clusterAutoscaler:
     # If enabled, each nodepool must have autoscaling.minReplicas and autoscaling.maxReplicas set
