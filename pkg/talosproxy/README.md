@@ -92,3 +92,7 @@ For example, to connect to `10.200.0.5:50000`, the proxy writes `0x00000012` (18
 ## Platform Support
 
 The HTTP CONNECT proxy approach is fully platform-independent — it works on Linux, macOS, and any other platform that supports Go's `net/http`. No `NET_ADMIN` capability or nftables is required.
+
+## Limitations
+
+If `HTTPS_PROXY` environment variable is already set (e.g., corporate proxy), the value WON'T be overridden, and the Talos proxy will be disabled.
