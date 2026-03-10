@@ -144,6 +144,9 @@ tests:
       - matchRegex:
           path: spec.template.spec.strategicPatches[0]
           pattern: "SHARED_VAR: nodepool-value"
+      - notMatchRegex:
+          path: spec.template.spec.strategicPatches[0]
+          pattern: "SHARED_VAR: global-value"
 
   # Taints tests
   - it: should generate kubelet extraArgs and nodeTaints in strategic patch for taints
@@ -265,6 +268,8 @@ tests:
           count: 1
       - exists:
           path: spec.controlPlaneConfig.controlplane.strategicPatches
+      - notExists:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[2]
       - not: true
         matchRegex:
           path: spec.controlPlaneConfig.controlplane.strategicPatches[0]
