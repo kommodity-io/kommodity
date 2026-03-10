@@ -215,7 +215,7 @@ kommodity:
 
   global:
     # Configurations applied to all nodepools and controlplanes in the cluster
-    # Using Talos strategic merge patches: https://www.talos.dev/v1.9/talos-guides/configuration/patching/#strategic-merge-patches
+    # Using Talos strategic merge patches: https://docs.siderolabs.com/talos/v1.12/configure-your-talos-cluster/system-configuration/patching
     # Each entry is a partial MachineConfig YAML object that gets deep-merged into the base config
     # Example:
     #   strategicPatches:
@@ -227,7 +227,7 @@ kommodity:
 
   controlplane:
     # Configurations related to the control plane nodes
-    # Using Talos strategic merge patches: https://www.talos.dev/v1.9/talos-guides/configuration/patching/#strategic-merge-patches
+    # Using Talos strategic merge patches: https://docs.siderolabs.com/talos/v1.12/configure-your-talos-cluster/system-configuration/patching
     strategicPatches: []
 
     # Kubernetes version can be overridden here, otherwise the top-level kubernetes.version is used
@@ -236,10 +236,10 @@ kommodity:
     #   version: v1.33.4
 
     # Talos version and imageName can be overridden here, otherwise the top-level talos.version and talos.imageName are used
-    # This is especially useful for Talos upgrades, where it is recommended to not upgrade all nodes at once (https://docs.siderolabs.com/talos/v1.11/configure-your-talos-cluster/lifecycle-management/upgrading-talos)
+    # This is especially useful for Talos upgrades, where it is recommended to not upgrade all nodes at once (https://docs.siderolabs.com/talos/v1.12/configure-your-talos-cluster/lifecycle-management/upgrading-talos)
     # talos:
-    #   version: v1.11.3
-    #   imageName: talos-base-v1.11.3
+    #   version: v1.12.2
+    #   imageName: talos-base-v1.12.2
 
     # labels:
     #   my-label: my-value
@@ -279,8 +279,8 @@ kommodity:
     #     version: v1.33.4
     #   # Talos version and imageName can be overridden here, otherwise the top-level talos.version and talos.imageName are used
     #   talos:
-    #     version: v1.11.3
-    #     imageName: talos-base-v1.11.3
+    #     version: v1.12.2
+    #     imageName: talos-base-v1.12.2
 
     #   labels:
     #     my-label: my-value
