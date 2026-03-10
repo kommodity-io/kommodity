@@ -239,7 +239,7 @@ Several environment variables can be set to configure Kommodity:
 | `KOMMODITY_AUDIT_POLICY_FILE_PATH`          | File path to the audit policy file                         | (none)                               |
 | `KOMMODITY_TALOS_PROXY_ENABLED`             | Enable the HTTP CONNECT Talos gRPC proxy                   | `true`                               |
 | `KOMMODITY_TALOS_PROXY_PORT`                | Local listen port for the proxy                            | `50000`                              |
-| `KOMMODITY_TALOS_PROXY_NAMESPACE`           | Namespace where talos-proxy pods run in workload clusters  | `kube-system`                        |
+| `KOMMODITY_TALOS_PROXY_NAMESPACE`           | Namespace where talos-proxy pods run in workload clusters  | `default`                            |
 | `KOMMODITY_TALOS_PROXY_LABEL`               | Label selector to find talos-proxy pods                    | `app.kubernetes.io/name=talos-proxy` |
 | `KOMMODITY_TALOS_PROXY_POD_PORT`            | Port on the talos-proxy pod to forward to                  | `50000`                              |
 | `KOMMODITY_TALOS_PROXY_IDLE_TIMEOUT`        | Idle timeout before closing unused tunnels (e.g., `1m`)    | `1m`                                 |

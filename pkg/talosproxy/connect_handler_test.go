@@ -28,7 +28,7 @@ func newTestHandler(t *testing.T) *talosproxy.ConnectHandler {
 	proxyConfig := &config.TalosProxyConfig{
 		Enabled:        true,
 		ListenPort:     0,
-		ProxyNamespace: "kube-system",
+		ProxyNamespace: "default",
 		ProxyLabel:     "app=talos-proxy",
 		ProxyPort:      50000,
 	}
@@ -172,7 +172,7 @@ func TestConnectHandler_TunnelDialFailure(t *testing.T) {
 	proxyConfig := &config.TalosProxyConfig{
 		Enabled:        true,
 		ListenPort:     0,
-		ProxyNamespace: "kube-system",
+		ProxyNamespace: "default",
 		ProxyLabel:     "app=talos-proxy",
 		ProxyPort:      50000,
 	}

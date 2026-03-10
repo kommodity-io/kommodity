@@ -17,7 +17,7 @@ func TestTrackedConn_CloseDecrementsRefCount(t *testing.T) {
 	proxyConfig := &config.TalosProxyConfig{
 		Enabled:        true,
 		ListenPort:     0,
-		ProxyNamespace: "kube-system",
+		ProxyNamespace: "default",
 		ProxyLabel:     "app=talos-proxy",
 		ProxyPort:      50000,
 	}
@@ -55,7 +55,7 @@ func TestTrackedConn_DoubleCloseDoesNotDoublDecrement(t *testing.T) {
 	proxyConfig := &config.TalosProxyConfig{
 		Enabled:        true,
 		ListenPort:     0,
-		ProxyNamespace: "kube-system",
+		ProxyNamespace: "default",
 		ProxyLabel:     "app=talos-proxy",
 		ProxyPort:      50000,
 	}
@@ -95,7 +95,7 @@ func TestTrackedConn_ReadWritePassThrough(t *testing.T) {
 	proxyConfig := &config.TalosProxyConfig{
 		Enabled:        true,
 		ListenPort:     0,
-		ProxyNamespace: "kube-system",
+		ProxyNamespace: "default",
 		ProxyLabel:     "app=talos-proxy",
 		ProxyPort:      50000,
 	}

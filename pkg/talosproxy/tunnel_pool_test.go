@@ -16,7 +16,7 @@ func TestTunnelPool_CloseAllStopsIdleTimers(t *testing.T) {
 	proxyConfig := &config.TalosProxyConfig{
 		Enabled:        true,
 		ListenPort:     0,
-		ProxyNamespace: "kube-system",
+		ProxyNamespace: "default",
 		ProxyLabel:     "app=talos-proxy",
 		ProxyPort:      50000,
 		IdleTimeout:    50 * time.Millisecond,
@@ -34,7 +34,7 @@ func TestTunnelPool_RemoveTunnelWithNoTunnel(t *testing.T) {
 	proxyConfig := &config.TalosProxyConfig{
 		Enabled:        true,
 		ListenPort:     0,
-		ProxyNamespace: "kube-system",
+		ProxyNamespace: "default",
 		ProxyLabel:     "app=talos-proxy",
 		ProxyPort:      50000,
 		IdleTimeout:    50 * time.Millisecond,
@@ -52,7 +52,7 @@ func TestTunnel_OnIdleCallback(t *testing.T) {
 	proxyConfig := &config.TalosProxyConfig{
 		Enabled:        true,
 		ListenPort:     0,
-		ProxyNamespace: "kube-system",
+		ProxyNamespace: "default",
 		ProxyLabel:     "app=talos-proxy",
 		ProxyPort:      50000,
 	}
@@ -98,7 +98,7 @@ func TestTunnel_NoOnIdleCallback(t *testing.T) {
 	proxyConfig := &config.TalosProxyConfig{
 		Enabled:        true,
 		ListenPort:     0,
-		ProxyNamespace: "kube-system",
+		ProxyNamespace: "default",
 		ProxyLabel:     "app=talos-proxy",
 		ProxyPort:      50000,
 	}

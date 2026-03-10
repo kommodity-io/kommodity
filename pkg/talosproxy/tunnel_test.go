@@ -16,7 +16,7 @@ func TestNewTunnel(t *testing.T) {
 	proxyConfig := &config.TalosProxyConfig{
 		Enabled:        true,
 		ListenPort:     50000,
-		ProxyNamespace: "kube-system",
+		ProxyNamespace: "default",
 		ProxyLabel:     "app=talos-proxy",
 		ProxyPort:      50000,
 	}
@@ -37,7 +37,7 @@ func TestTunnel_Close(t *testing.T) {
 	proxyConfig := &config.TalosProxyConfig{
 		Enabled:        true,
 		ListenPort:     50000,
-		ProxyNamespace: "kube-system",
+		ProxyNamespace: "default",
 		ProxyLabel:     "app=talos-proxy",
 		ProxyPort:      50000,
 	}
@@ -65,7 +65,7 @@ func TestTunnel_DialBeforeEstablish(t *testing.T) {
 	proxyConfig := &config.TalosProxyConfig{
 		Enabled:        true,
 		ListenPort:     50000,
-		ProxyNamespace: "kube-system",
+		ProxyNamespace: "default",
 		ProxyLabel:     "app=talos-proxy",
 		ProxyPort:      50000,
 	}
@@ -86,7 +86,7 @@ func TestTunnel_DialAfterClose(t *testing.T) {
 	proxyConfig := &config.TalosProxyConfig{
 		Enabled:        true,
 		ListenPort:     50000,
-		ProxyNamespace: "kube-system",
+		ProxyNamespace: "default",
 		ProxyLabel:     "app=talos-proxy",
 		ProxyPort:      50000,
 	}

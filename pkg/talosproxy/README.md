@@ -51,7 +51,7 @@ For non-matching traffic (API server, etc.), the proxy dials directly (passthrou
 
 ## Talos-Proxy Header Protocol
 
-The `talos-proxy` pod expects a simple framing header before proxying:
+The `talos-proxy` pod is a simple proxy that forwards raw TCP connections to Talos nodes. It has no knowledge of node IPs or cluster topology, so the local proxy must send a header indicating the target address for each new connection. The header protocol expects a simple framing header before proxying:
 
 ```text
 [4 bytes: big-endian uint32 length][N bytes: target address string]
@@ -63,11 +63,11 @@ For example, to connect to `10.200.0.5:50000`, the proxy writes `0x00000012` (18
 
 1. On first connection to a cluster, `TunnelPool.GetOrCreateTunnel` creates a new `Tunnel`
 2. The tunnel fetches the workload cluster kubeconfig from Secret `<cluster-name>-kubeconfig` in the `default` namespace
-3. It discovers a running `talos-proxy` pod using the configured label selector (default: `app=talos-proxy`) in the configured namespace (default: `kube-system`)
+3. It discovers a running `talos-proxy` pod using the configured label selector (default: `app=talos-proxy`) in the configured namespace (default: `default`)
 4. A SPDY port-forward is established to the pod, with a system-assigned local port
 5. Subsequent connections to the same cluster reuse the cached tunnel
 6. Each connection is wrapped in a `trackedConn` that reference-counts active connections
-7. When all connections are closed, an idle timer starts (default: 30s). If no new connections arrive, the tunnel is closed and removed
+7. When all connections are closed, an idle timer starts (default: 1m). If no new connections arrive, the tunnel is closed and removed
 8. New requests arriving during the idle period cancel the timer and reuse the existing tunnel
 9. On dial failure, the stale tunnel is removed and a fresh one is created on the next attempt
 10. On cluster deregistration or proxy shutdown, tunnels and idle timers are closed
@@ -78,7 +78,7 @@ For example, to connect to `10.200.0.5:50000`, the proxy writes `0x00000012` (18
 | ------------------------------------ | --------------------------------------------------------- | ------------------------------------ |
 | `KOMMODITY_TALOS_PROXY_ENABLED`      | Enable the HTTP CONNECT Talos gRPC proxy                  | `true`                               |
 | `KOMMODITY_TALOS_PROXY_PORT`         | Local listen port for the proxy                           | `50000`                              |
-| `KOMMODITY_TALOS_PROXY_NAMESPACE`    | Namespace where talos-proxy pods run in workload clusters | `kube-system`                        |
+| `KOMMODITY_TALOS_PROXY_NAMESPACE`    | Namespace where talos-proxy pods run in workload clusters | `default`                        |
 | `KOMMODITY_TALOS_PROXY_LABEL`        | Label selector to find talos-proxy pods                   | `app.kubernetes.io/name=talos-proxy` |
 | `KOMMODITY_TALOS_PROXY_POD_PORT`     | Port on the talos-proxy pod to forward to                 | `50000`                              |
 | `KOMMODITY_TALOS_PROXY_IDLE_TIMEOUT` | Idle timeout before closing unused tunnels (e.g., `1m`)   | `1m`                                 |
