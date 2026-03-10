@@ -1,6 +1,8 @@
 package talosproxy_test
 
 import (
+	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -8,6 +10,7 @@ import (
 	"github.com/kommodity-io/kommodity/pkg/talosproxy"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
 func TestTunnelPool_CloseAllStopsIdleTimers(t *testing.T) {
@@ -90,6 +93,106 @@ func TestTunnel_OnIdleCallback(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("onIdle was not called after all connections were released")
 	}
+}
+
+func TestTunnelPool_ConcurrentGetOrCreateTunnel_DoesNotBlock(t *testing.T) {
+	t.Parallel()
+
+	// Verify that concurrent GetOrCreateTunnel calls for different clusters
+	// do not block each other even when establishment fails (nil client).
+	proxyConfig := &config.TalosProxyConfig{
+		Enabled:        true,
+		ListenPort:     0,
+		ProxyNamespace: "kube-system",
+		ProxyLabel:     "app=talos-proxy",
+		ProxyPort:      50000,
+		IdleTimeout:    50 * time.Millisecond,
+	}
+
+	pool := talosproxy.NewTunnelPool(proxyConfig, fake.NewClientBuilder().Build(), zap.NewNop())
+
+	const numClusters = 5
+
+	var wg sync.WaitGroup
+
+	errChan := make(chan error, numClusters)
+
+	for i := range numClusters {
+		wg.Add(1)
+
+		go func(idx int) {
+			defer wg.Done()
+
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+
+			clusterName := "cluster-" + string(rune('a'+idx))
+
+			_, err := pool.GetOrCreateTunnel(ctx, clusterName, "default")
+			// Error is expected (nil client), but it must not block other clusters.
+			errChan <- err
+		}(i)
+	}
+
+	wg.Wait()
+	close(errChan)
+
+	var errCount int
+	for err := range errChan {
+		if err != nil {
+			errCount++
+		}
+	}
+
+	// All calls should have returned (with errors due to nil client), not timed out.
+	assert.Equal(t, numClusters, errCount, "all goroutines should have returned errors, not blocked")
+}
+
+func TestTunnelPool_ConcurrentGetOrCreateTunnel_SameClusterWaits(t *testing.T) {
+	t.Parallel()
+
+	// Verify that concurrent callers for the same cluster all return after the
+	// single in-progress establishment completes (with failure in this case).
+	proxyConfig := &config.TalosProxyConfig{
+		Enabled:        true,
+		ListenPort:     0,
+		ProxyNamespace: "kube-system",
+		ProxyLabel:     "app=talos-proxy",
+		ProxyPort:      50000,
+		IdleTimeout:    50 * time.Millisecond,
+	}
+
+	pool := talosproxy.NewTunnelPool(proxyConfig, fake.NewClientBuilder().Build(), zap.NewNop())
+
+	const numCallers = 10
+
+	var wg sync.WaitGroup
+
+	errChan := make(chan error, numCallers)
+
+	for range numCallers {
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+
+			_, err := pool.GetOrCreateTunnel(ctx, "shared-cluster", "default")
+			errChan <- err
+		}()
+	}
+
+	wg.Wait()
+	close(errChan)
+
+	var returned int
+	for range errChan {
+		returned++
+	}
+
+	assert.Equal(t, numCallers, returned, "all concurrent callers should return, not block indefinitely")
 }
 
 func TestTunnel_NoOnIdleCallback(t *testing.T) {

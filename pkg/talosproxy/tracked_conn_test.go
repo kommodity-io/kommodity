@@ -49,7 +49,7 @@ func TestTrackedConn_CloseDecrementsRefCount(t *testing.T) {
 	assert.True(t, idleCalled.Load(), "onIdle callback should have been called")
 }
 
-func TestTrackedConn_DoubleCloseDoesNotDoublDecrement(t *testing.T) {
+func TestTrackedConn_DoubleCloseDoesNotDoubleDecrement(t *testing.T) {
 	t.Parallel()
 
 	proxyConfig := &config.TalosProxyConfig{

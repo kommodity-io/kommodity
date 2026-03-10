@@ -17,13 +17,19 @@ import (
 // Lock ordering: pool.mu is always acquired before tunnel.mu.
 // The onIdle callback (which acquires pool.mu) is called from
 // ReleaseConn without holding tunnel.mu, preserving this order.
+//
+// Tunnel establishment (which involves blocking network I/O) is performed
+// outside the pool mutex. The establishing map coordinates concurrent callers
+// for the same cluster: only one goroutine establishes at a time; others wait
+// on the channel and retry once the establishing goroutine is done.
 type TunnelPool struct {
-	mu         sync.Mutex
-	tunnels    map[string]*Tunnel
-	idleTimers map[string]*time.Timer
-	config     *config.TalosProxyConfig
-	client     client.Client
-	logger     *zap.Logger
+	mu           sync.Mutex
+	tunnels      map[string]*Tunnel
+	idleTimers   map[string]*time.Timer
+	establishing map[string]chan struct{}
+	config       *config.TalosProxyConfig
+	client       client.Client
+	logger       *zap.Logger
 }
 
 // NewTunnelPool creates a new tunnel pool.
@@ -33,58 +39,98 @@ func NewTunnelPool(
 	logger *zap.Logger,
 ) *TunnelPool {
 	return &TunnelPool{
-		tunnels:    make(map[string]*Tunnel),
-		idleTimers: make(map[string]*time.Timer),
-		config:     cfg,
-		client:     kubeClient,
-		logger:     logger,
+		tunnels:      make(map[string]*Tunnel),
+		idleTimers:   make(map[string]*time.Timer),
+		establishing: make(map[string]chan struct{}),
+		config:       cfg,
+		client:       kubeClient,
+		logger:       logger,
 	}
 }
 
 // GetOrCreateTunnel retrieves an existing tunnel or creates and establishes a new one.
+// The pool mutex is not held during tunnel establishment (which performs blocking
+// network I/O), so concurrent requests for other clusters are never blocked.
+// Concurrent requests for the same cluster wait for the single in-progress
+// establishment to complete, then retry.
 func (p *TunnelPool) GetOrCreateTunnel(
 	ctx context.Context,
 	clusterName string,
 	namespace string,
 ) (*Tunnel, error) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
+	for {
+		p.mu.Lock()
 
-	tunnel, exists := p.tunnels[clusterName]
-	if exists && !tunnel.IsClosed() {
-		p.cancelIdleTimerLocked(clusterName)
+		// Fast path: existing open tunnel.
+		tunnel, exists := p.tunnels[clusterName]
+		if exists && !tunnel.IsClosed() {
+			p.cancelIdleTimerLocked(clusterName)
+			p.mu.Unlock()
 
-		return tunnel, nil
+			return tunnel, nil
+		}
+
+		// Clean up stale closed tunnel.
+		if exists {
+			p.cancelIdleTimerLocked(clusterName)
+
+			_ = tunnel.Close()
+
+			delete(p.tunnels, clusterName)
+		}
+
+		// Wait path: another goroutine is already establishing this tunnel.
+		// Release the lock and block until it signals completion, then retry.
+		if ch, inProgress := p.establishing[clusterName]; inProgress {
+			p.mu.Unlock()
+
+			select {
+			case <-ch:
+				// Establishing goroutine finished (success or failure); retry.
+				continue
+			case <-ctx.Done():
+				return nil, fmt.Errorf("context cancelled waiting for tunnel for cluster %s: %w",
+					clusterName, ctx.Err())
+			}
+		}
+
+		// Create path: register ourselves as the establishing goroutine.
+		logger := logging.FromContext(ctx)
+		logger.Info("Creating new tunnel",
+			zap.String("cluster", clusterName),
+			zap.String("namespace", namespace))
+
+		ch := make(chan struct{})
+		p.establishing[clusterName] = ch
+
+		newTunnel := NewTunnel(TunnelDeps{
+			ClusterName: clusterName,
+			Config:      p.config,
+			OnIdle:      func() { p.scheduleIdleClose(clusterName) },
+		})
+
+		p.mu.Unlock()
+
+		// Establish without holding the pool mutex.
+		err := newTunnel.Establish(ctx, p.client)
+
+		p.mu.Lock()
+
+		delete(p.establishing, clusterName)
+		close(ch) // wake up all waiters regardless of success or failure
+
+		if err != nil {
+			p.mu.Unlock()
+
+			return nil, fmt.Errorf("failed to establish tunnel for cluster %s: %w", clusterName, err)
+		}
+
+		p.tunnels[clusterName] = newTunnel
+
+		p.mu.Unlock()
+
+		return newTunnel, nil
 	}
-
-	// Remove stale closed tunnel if present
-	if exists {
-		p.cancelIdleTimerLocked(clusterName)
-
-		_ = tunnel.Close()
-
-		delete(p.tunnels, clusterName)
-	}
-
-	logger := logging.FromContext(ctx)
-	logger.Info("Creating new tunnel",
-		zap.String("cluster", clusterName),
-		zap.String("namespace", namespace))
-
-	tunnel = NewTunnel(TunnelDeps{
-		ClusterName: clusterName,
-		Config:      p.config,
-		OnIdle:      func() { p.scheduleIdleClose(clusterName) },
-	})
-
-	err := tunnel.Establish(ctx, p.client)
-	if err != nil {
-		return nil, fmt.Errorf("failed to establish tunnel for cluster %s: %w", clusterName, err)
-	}
-
-	p.tunnels[clusterName] = tunnel
-
-	return tunnel, nil
 }
 
 // RemoveTunnel closes and removes the tunnel for the given cluster.
