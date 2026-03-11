@@ -19,7 +19,7 @@ const (
 )
 
 // ConnectHandler implements an HTTP CONNECT proxy that routes connections
-// matching registered CIDRs through SPDY tunnels to talos-proxy pods,
+// matching registered CIDRs through SPDY tunnels to talos-cluster-proxy pods,
 // and passes through all other traffic directly.
 type ConnectHandler struct {
 	cidrRegistry *CIDRRegistry
@@ -163,7 +163,7 @@ func (h *ConnectHandler) dialTunnel(
 ) (net.Conn, error) {
 	conn, err := h.dialTunnelOnce(ctx, entry)
 	if err != nil {
-		// Tunnel may be stale (e.g., talos-proxy pod was evicted during rollout).
+		// Tunnel may be stale (e.g., talos-cluster-proxy pod was evicted during rollout).
 		// Remove it and retry once with a fresh tunnel for transparent recovery.
 		h.logger.Warn("Tunnel dial failed, retrying with fresh tunnel",
 			zap.String("cluster", entry.ClusterName),

@@ -7,7 +7,7 @@ import (
 )
 
 // WriteTargetAddress writes the target address header to the writer using the
-// talos-proxy protocol: 4-byte big-endian uint32 length followed by the address string.
+// talos-cluster-proxy protocol: 4-byte big-endian uint32 length followed by the address string.
 func WriteTargetAddress(writer io.Writer, address string) error {
 	length := uint32(len(address)) //nolint:gosec // len(address) for a network address string will never overflow uint32
 

@@ -172,19 +172,19 @@ kommodity:
         configs:
           cm:
             admin.enabled: false
-  
-    # talos-proxy is an addon that deploys the talos-proxy pod, a component that runs on the cluster 
+
+    # talos-cluster-proxy is an addon that deploys the talos-cluster-proxy pod, a component that runs on the cluster
     # and proxies requests coming from Kommodity (TalosControlPlaneReconciler) to the Talos nodes.
     # This is required when the Talos nodes are running in private networks.
-    talos-proxy:
+    talos-cluster-proxy:
       enabled: true
-      namespace: talos-proxy
+      namespace: talos-cluster-proxy
       lifecycle:
         install:
           mode: HelmInstall
       chart:
         repository: oci://ghcr.io/kommodity-io/charts
-        name: talos-proxy
+        name: talos-cluster-proxy
         version: 0.1.0
 
       # Defines extra environment variables to be added to the installer job

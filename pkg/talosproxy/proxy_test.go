@@ -19,7 +19,7 @@ func TestProxy_RegisterAndDeregisterCluster(t *testing.T) {
 		Enabled:        true,
 		ListenPort:     0,
 		ProxyNamespace: "default",
-		ProxyLabel:     "app=talos-proxy",
+		ProxyLabel:     "app=talos-cluster-proxy",
 		ProxyPort:      50000,
 	}
 
@@ -64,7 +64,7 @@ func TestProxy_ListenAndStart(t *testing.T) {
 		Enabled:        true,
 		ListenPort:     0, // Use random port
 		ProxyNamespace: "default",
-		ProxyLabel:     "app=talos-proxy",
+		ProxyLabel:     "app=talos-cluster-proxy",
 		ProxyPort:      50000,
 	}
 
@@ -104,7 +104,7 @@ func TestProxy_StartWithoutListen(t *testing.T) {
 		Enabled:        true,
 		ListenPort:     0,
 		ProxyNamespace: "default",
-		ProxyLabel:     "app=talos-proxy",
+		ProxyLabel:     "app=talos-cluster-proxy",
 		ProxyPort:      50000,
 	}
 

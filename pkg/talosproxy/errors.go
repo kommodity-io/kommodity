@@ -1,5 +1,5 @@
 // Package talosproxy provides an HTTP CONNECT proxy that intercepts Talos gRPC
-// connections and tunnels them through a Kubernetes port-forward to talos-proxy pods
+// connections and tunnels them through a Kubernetes port-forward to talos-cluster-proxy pods
 // running inside workload clusters.
 package talosproxy
 
@@ -14,8 +14,8 @@ var (
 	ErrTunnelClosed = errors.New("tunnel is closed")
 	// ErrKubeconfigNotFound is returned when the kubeconfig secret for a cluster cannot be found.
 	ErrKubeconfigNotFound = errors.New("kubeconfig secret not found")
-	// ErrProxyPodNotFound is returned when no talos-proxy pod is found in the workload cluster.
-	ErrProxyPodNotFound = errors.New("talos-proxy pod not found")
+	// ErrProxyPodNotFound is returned when no talos-cluster-proxy pod is found in the workload cluster.
+	ErrProxyPodNotFound = errors.New("talos-cluster-proxy pod not found")
 	// ErrInvalidProxyLabel is returned when the proxy label format is invalid.
 	ErrInvalidProxyLabel = errors.New("invalid proxy label format")
 	// ErrNoForwardedPorts is returned when no forwarded ports are returned after port-forward setup.

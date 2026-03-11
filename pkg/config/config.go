@@ -54,7 +54,7 @@ const (
 	defaultTalosProxyEnabled     = true
 	defaultTalosProxyPort        = 15050
 	defaultTalosProxyNamespace   = "default"
-	defaultTalosProxyLabel       = "app.kubernetes.io/name=talos-proxy"
+	defaultTalosProxyLabel       = "app.kubernetes.io/name=talos-cluster-proxy"
 	defaultTalosProxyPodPort     = 50000
 	defaultTalosProxyIdleTimeout = 1 * time.Minute
 )

@@ -149,13 +149,13 @@ Kommodity natively supports Kubernetes audit policy format documented here: http
 
 ### Talos Proxy
 
-When Kommodity manages clusters deployed on private networks, the TalosControlPlane reconciler cannot reach Talos nodes on their private IPs (port 50000). The Talos Proxy runs a local HTTP CONNECT proxy that intercepts these outbound gRPC connections and tunnels them through a Kubernetes port-forward to a `talos-proxy` pod running inside the workload cluster.
+When Kommodity manages clusters deployed on private networks, the TalosControlPlane reconciler cannot reach Talos nodes on their private IPs (port 50000). The Talos Proxy runs a local HTTP CONNECT proxy that intercepts these outbound gRPC connections and tunnels them through a Kubernetes port-forward to a `talos-cluster-proxy` pod running inside the workload cluster.
 
 **How it works:**
 
 1. A reconciler watches `Cluster` resources for the `kommodity.io/node-cidr` annotation
 2. On startup, the proxy sets `HTTPS_PROXY=http://127.0.0.1:<port>` so gRPC connections are routed through the local proxy
-3. On CONNECT, the proxy looks up the target IP in the CIDR registry and establishes a port-forward tunnel to the `talos-proxy` pod in the matching workload cluster
+3. On CONNECT, the proxy looks up the target IP in the CIDR registry and establishes a port-forward tunnel to the `talos-cluster-proxy` pod in the matching workload cluster
 4. Traffic is forwarded bidirectionally — mTLS between Kommodity and the Talos node passes through end-to-end
 5. Non-matching traffic (API server, etc.) passes through directly with minimal overhead
 
@@ -163,7 +163,7 @@ The approach is fully platform-independent — no `NET_ADMIN` capability or nfta
 
 **Requirements:**
 
-- A `talos-proxy` pod running in the workload cluster ([repository](https://github.com/kommodity-io/talos-proxy)). It will be deployed by default by the `kommodity-cluster` Helm [chart](charts/kommodity-cluster).
+- A `talos-cluster-proxy` pod running in the workload cluster ([repository](https://github.com/kommodity-io/talos-cluster-proxy)). It will be deployed by default by the `kommodity-cluster` Helm [chart](charts/kommodity-cluster).
 - The `kommodity.io/node-cidr` annotation on the `Cluster` resource (e.g. `10.200.16.0/20`)
 
 More info in package [documentation](pkg/talosproxy/README.md).
@@ -199,27 +199,27 @@ grpcurl -plaintext -d "{\"data\": \"$(echo -n "$SEALED" | base64)\"}" \
 
 Several environment variables can be set to configure Kommodity:
 
-| Environment Variable                        | Description                                                | Default Value                        |
-| ------------------------------------------- | ---------------------------------------------------------- | ------------------------------------ |
-| `KOMMODITY_PORT`                            | Port for the Kommodity server                              | `5000`                               |
-| `KOMMODITY_BASE_URL`                        | Base URL for the Kommodity server                          | `http://localhost:5000`              |
-| `KOMMODITY_ADMIN_GROUP`                     | Name of the admin group for privileged access              | (none)                               |
-| `KOMMODITY_INSECURE_DISABLE_AUTHENTICATION` | Disable authentication for local development               | `false`                              |
-| `KOMMODITY_OIDC_ISSUER_URL`                 | OIDC issuer URL for authentication                         | (none)                               |
-| `KOMMODITY_OIDC_CLIENT_ID`                  | OIDC client ID for authentication                          | (none)                               |
-| `KOMMODITY_OIDC_USERNAME_CLAIM`             | OIDC claim used for username                               | `email`                              |
-| `KOMMODITY_OIDC_GROUPS_CLAIM`               | OIDC claim used for groups                                 | `groups`                             |
-| `KOMMODITY_ATTESTATION_NONCE_TTL`           | TTL for attestation nonces (e.g., `5m`, `1h`)              | `5m`                                 |
-| `KOMMODITY_DB_URI`                          | URI of the PostgreSQL database                             | (none)                               |
-| `KOMMODITY_DEVELOPMENT_MODE`                | Enable development mode                                    | `false`                              |
-| `KOMMODITY_INFRASTRUCTURE_PROVIDERS`        | Comma-separated list of infrastructure providers to enable | All                                  |
-| `KOMMODITY_AUDIT_POLICY_FILE_PATH`          | File path to the audit policy file                         | (none)                               |
-| `KOMMODITY_TALOS_PROXY_ENABLED`             | Enable the HTTP CONNECT Talos gRPC proxy                   | `true`                               |
-| `KOMMODITY_TALOS_PROXY_PORT`                | Local listen port for the proxy                            | `15050`                              |
-| `KOMMODITY_TALOS_PROXY_NAMESPACE`           | Namespace where talos-proxy pods run in workload clusters  | `default`                            |
-| `KOMMODITY_TALOS_PROXY_LABEL`               | Label selector to find talos-proxy pods                    | `app.kubernetes.io/name=talos-proxy` |
-| `KOMMODITY_TALOS_PROXY_POD_PORT`            | Port on the talos-proxy pod to forward to                  | `50000`                              |
-| `KOMMODITY_TALOS_PROXY_IDLE_TIMEOUT`        | Idle timeout before closing unused tunnels (e.g., `1m`)    | `1m`                                 |
+| Environment Variable                        | Description                                                       | Default Value                                |
+| ------------------------------------------- | ----------------------------------------------------------------- | -------------------------------------------- |
+| `KOMMODITY_PORT`                            | Port for the Kommodity server                                     | `5000`                                       |
+| `KOMMODITY_BASE_URL`                        | Base URL for the Kommodity server                                 | `http://localhost:5000`                      |
+| `KOMMODITY_ADMIN_GROUP`                     | Name of the admin group for privileged access                     | (none)                                       |
+| `KOMMODITY_INSECURE_DISABLE_AUTHENTICATION` | Disable authentication for local development                      | `false`                                      |
+| `KOMMODITY_OIDC_ISSUER_URL`                 | OIDC issuer URL for authentication                                | (none)                                       |
+| `KOMMODITY_OIDC_CLIENT_ID`                  | OIDC client ID for authentication                                 | (none)                                       |
+| `KOMMODITY_OIDC_USERNAME_CLAIM`             | OIDC claim used for username                                      | `email`                                      |
+| `KOMMODITY_OIDC_GROUPS_CLAIM`               | OIDC claim used for groups                                        | `groups`                                     |
+| `KOMMODITY_ATTESTATION_NONCE_TTL`           | TTL for attestation nonces (e.g., `5m`, `1h`)                     | `5m`                                         |
+| `KOMMODITY_DB_URI`                          | URI of the PostgreSQL database                                    | (none)                                       |
+| `KOMMODITY_DEVELOPMENT_MODE`                | Enable development mode                                           | `false`                                      |
+| `KOMMODITY_INFRASTRUCTURE_PROVIDERS`        | Comma-separated list of infrastructure providers to enable        | All                                          |
+| `KOMMODITY_AUDIT_POLICY_FILE_PATH`          | File path to the audit policy file                                | (none)                                       |
+| `KOMMODITY_TALOS_PROXY_ENABLED`             | Enable the HTTP CONNECT Talos gRPC proxy                          | `true`                                       |
+| `KOMMODITY_TALOS_PROXY_PORT`                | Local listen port for the proxy                                   | `15050`                                      |
+| `KOMMODITY_TALOS_PROXY_NAMESPACE`           | Namespace where talos-cluster-proxy pods run in workload clusters | `talos-cluster-proxy`                        |
+| `KOMMODITY_TALOS_PROXY_LABEL`               | Label selector to find talos-cluster-proxy pods                   | `app.kubernetes.io/name=talos-cluster-proxy` |
+| `KOMMODITY_TALOS_PROXY_POD_PORT`            | Port on the talos-cluster-proxy pod to forward to                 | `50000`                                      |
+| `KOMMODITY_TALOS_PROXY_IDLE_TIMEOUT`        | Idle timeout before closing unused tunnels (e.g., `1m`)           | `1m`                                         |
 
 ## 🚀 Deployment
 

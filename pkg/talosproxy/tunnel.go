@@ -36,7 +36,7 @@ const (
 	runningPodFieldSelector = "status.phase=Running"
 )
 
-// Tunnel represents a port-forward connection to a talos-proxy pod in a workload cluster.
+// Tunnel represents a port-forward connection to a talos-cluster-proxy pod in a workload cluster.
 type Tunnel struct {
 	mu          sync.Mutex
 	clusterName string
@@ -66,7 +66,7 @@ func NewTunnel(deps TunnelDeps) *Tunnel {
 	}
 }
 
-// Establish sets up the port-forward to the talos-proxy pod.
+// Establish sets up the port-forward to the talos-cluster-proxy pod.
 func (t *Tunnel) Establish(ctx context.Context, kubeClient client.Client) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -84,7 +84,7 @@ func (t *Tunnel) Establish(ctx context.Context, kubeClient client.Client) error 
 
 	podName, err := t.findProxyPod(ctx, restConfig)
 	if err != nil {
-		return fmt.Errorf("failed to find talos-proxy pod in cluster %s: %w", t.clusterName, err)
+		return fmt.Errorf("failed to find talos-cluster-proxy pod in cluster %s: %w", t.clusterName, err)
 	}
 
 	t.podName = podName
@@ -181,7 +181,7 @@ func (t *Tunnel) Close() error {
 
 // monitorPortForward watches for the port-forward goroutine to exit and marks
 // the tunnel as closed. This enables the connect handler to detect stale tunnels
-// and create fresh ones when the talos-proxy pod is evicted or rescheduled.
+// and create fresh ones when the talos-cluster-proxy pod is evicted or rescheduled.
 func (t *Tunnel) monitorPortForward(errChan <-chan error, logger *zap.Logger) {
 	err := <-errChan
 
@@ -242,7 +242,7 @@ func (t *Tunnel) findProxyPod(ctx context.Context, restConfig *rest.Config) (str
 		FieldSelector: runningPodFieldSelector,
 	})
 	if err != nil {
-		return "", fmt.Errorf("failed to list talos-proxy pods: %w", err)
+		return "", fmt.Errorf("failed to list talos-cluster-proxy pods: %w", err)
 	}
 
 	if len(pods.Items) == 0 {
@@ -327,7 +327,7 @@ func (t *Tunnel) waitForPortForward(
 	}
 
 	// Monitor port-forward health — marks tunnel as closed if port-forward exits unexpectedly.
-	// This enables early detection of stale tunnels when the talos-proxy pod is evicted or rescheduled.
+	// This enables early detection of stale tunnels when the talos-cluster-proxy pod is evicted or rescheduled.
 	go t.monitorPortForward(errChan, logger)
 
 	forwardedPorts, err := forwarder.GetPorts()
