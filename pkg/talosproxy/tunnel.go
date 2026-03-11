@@ -279,11 +279,16 @@ func (t *Tunnel) createPortForwarder(
 		t.config.ProxyNamespace, podName)
 	serverURL := restConfig.Host + path
 
+	parsedURL, err := url.Parse(serverURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse server URL: %w", err)
+	}
+
 	spdyDialer := spdy.NewDialer(
 		upgrader,
 		&http.Client{Transport: transport},
 		http.MethodPost,
-		parseURL(serverURL),
+		parsedURL,
 	)
 
 	// Use port 0 to let the system assign a local port
@@ -348,14 +353,4 @@ func (t *Tunnel) waitForPortForward(
 		zap.Int("remotePort", t.config.ProxyPort))
 
 	return localPort, nil
-}
-
-// parseURL parses a raw URL string into a *url.URL, returning nil on error.
-func parseURL(rawURL string) *url.URL {
-	u, err := url.Parse(rawURL)
-	if err != nil {
-		return nil
-	}
-
-	return u
 }
