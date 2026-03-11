@@ -185,7 +185,7 @@ kommodity:
       chart:
         repository: oci://ghcr.io/kommodity-io/charts
         name: talos-cluster-proxy
-        version: 0.1.0
+        version: 0.1.1
 
       # Defines extra environment variables to be added to the installer job
       # extraEnvs:
