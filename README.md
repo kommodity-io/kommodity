@@ -163,7 +163,7 @@ The approach is fully platform-independent — no `NET_ADMIN` capability or nfta
 
 **Requirements:**
 
-- A `talos-proxy` pod running in the workload cluster ([repository](https://github.com/kommodity-io/talos-proxy))
+- A `talos-proxy` pod running in the workload cluster ([repository](https://github.com/kommodity-io/talos-proxy)). It will be deployed by default by the `kommodity-cluster` Helm [chart](charts/kommodity-cluster).
 - The `kommodity.io/node-cidr` annotation on the `Cluster` resource (e.g. `10.200.16.0/20`)
 
 More info in package [documentation](pkg/talosproxy/README.md).
