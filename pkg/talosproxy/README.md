@@ -85,13 +85,13 @@ For example, to connect to `10.200.0.5:50000`, the proxy writes `0x00000012` (18
 
 ## Requirements
 
-- **`talos-cluster-proxy` pod** running in the workload cluster ([repository](https://github.com/kommodity-io/talos-cluster-proxy))
+- **`talos-cluster-proxy` pod** running in the workload cluster ([repository](https://github.com/kommodity-io/talos-cluster-proxy)). It will be deployed by default by the `kommodity-cluster` Helm [chart](charts/kommodity-cluster).
 - **Workload cluster kubeconfig** available as a `<cluster-name>-kubeconfig` Secret in the `default` namespace
 - **`kommodity.io/node-cidr` annotation** on the `Cluster` resource with the node CIDR (e.g. `10.200.16.0/20`)
 
 ## Platform Support
 
-The HTTP CONNECT proxy approach is fully platform-independent — it works on Linux, macOS, and any other platform that supports Go's `net/http`. No `NET_ADMIN` capability or nftables is required.
+The HTTP CONNECT proxy approach is fully platform-independent — it works on Linux, macOS, and any other platform that supports Go's `net/http`.
 
 ## Limitations
 

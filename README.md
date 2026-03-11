@@ -161,11 +161,6 @@ When Kommodity manages clusters deployed on private networks, the TalosControlPl
 
 The approach is fully platform-independent — no `NET_ADMIN` capability or nftables is required.
 
-**Requirements:**
-
-- A `talos-cluster-proxy` pod running in the workload cluster ([repository](https://github.com/kommodity-io/talos-cluster-proxy)). It will be deployed by default by the `kommodity-cluster` Helm [chart](charts/kommodity-cluster).
-- The `kommodity.io/node-cidr` annotation on the `Cluster` resource (e.g. `10.200.16.0/20`)
-
 More info in package [documentation](pkg/talosproxy/README.md).
 
 ### Mock KMS Service
