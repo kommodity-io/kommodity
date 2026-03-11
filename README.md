@@ -228,14 +228,14 @@ See examples in [terraform/examples](terraform/examples) for specific deployment
 
 Kommodity supports the following versions of Cluster API providers:
 
-| Provider                                 | Version(s) |
-| ---------------------------------------- | ---------- |
-| cluster-api                              | v1.10.9    |
-| cluster-api-control-plane-provider-talos | v0.5.12    |
-| cluster-api-bootstrap-provider-talos     | v0.6.11    |
-| cluster-api-provider-scaleway            | v0.1.4     |
-| cluster-api-provider-kubevirt            | v0.1.10    |
-| cluster-api-provider-azure               | v1.21.0    |
+| Provider                                 | Version(s) | Type           |
+| ---------------------------------------- | ---------- | -------------- |
+| cluster-api                              | v1.10.9    | Core           |
+| cluster-api-control-plane-provider-talos | v0.5.12    | Control Plane  |
+| cluster-api-bootstrap-provider-talos     | v0.6.11    | Bootstrap      |
+| cluster-api-provider-scaleway            | v0.1.4     | Infrastructure |
+| cluster-api-provider-kubevirt            | v0.1.10    | Infrastructure |
+| cluster-api-provider-azure               | v1.21.0    | Infrastructure |
 
 ## ⛔ Limitations
 
