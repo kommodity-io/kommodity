@@ -220,6 +220,18 @@ jobs:
         with:
           name: kommodity-test-logs
           path: pkg/test/kommodity_container.log
+  
+  scaleway-integration-tests:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    # Requires approval before running
+    environment: scaleway-integration-tests
+    steps:
+      - name: Run Scaleway integration tests
+        run: |
+          export CLUSTER_NAME="ci-cluster-${GITHUB_SHA::5}"
+          make run-scaleway-integration-test
 
   build:
     name: Build binary
