@@ -17,7 +17,7 @@ func TestTrackedConn_CloseDecrementsRefCount(t *testing.T) {
 	proxyConfig := &config.TalosProxyConfig{
 		Enabled:        true,
 		ListenPort:     0,
-		ProxyNamespace: "default",
+		ProxyNamespace: "talos-cluster-proxy",
 		ProxyLabel:     "app=talos-cluster-proxy",
 		ProxyPort:      50000,
 	}
@@ -55,7 +55,7 @@ func TestTrackedConn_DoubleCloseDoesNotDoubleDecrement(t *testing.T) {
 	proxyConfig := &config.TalosProxyConfig{
 		Enabled:        true,
 		ListenPort:     0,
-		ProxyNamespace: "default",
+		ProxyNamespace: "talos-cluster-proxy",
 		ProxyLabel:     "app=talos-cluster-proxy",
 		ProxyPort:      50000,
 	}
@@ -95,7 +95,7 @@ func TestTrackedConn_ReadWritePassThrough(t *testing.T) {
 	proxyConfig := &config.TalosProxyConfig{
 		Enabled:        true,
 		ListenPort:     0,
-		ProxyNamespace: "default",
+		ProxyNamespace: "talos-cluster-proxy",
 		ProxyLabel:     "app=talos-cluster-proxy",
 		ProxyPort:      50000,
 	}
