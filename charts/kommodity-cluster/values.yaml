@@ -188,6 +188,15 @@ kommodity:
         repository: oci://ghcr.io/kommodity-io/charts
         name: talos-cluster-proxy
         version: 0.1.1
+      initialExtraValues:
+        tolerations:
+          - key: node.cloudprovider.kubernetes.io/uninitialized
+            operator: Equal
+            value: "true"
+            effect: NoSchedule
+          - key: node.kubernetes.io/not-ready
+            operator: Exists
+            effect: NoSchedule
 
       # Defines extra environment variables to be added to the installer job
       # extraEnvs:
