@@ -1,8 +1,4 @@
 {{- define "kommodity.talos.ccm" -}}
-- op: add
-  path: /cluster/externalCloudProvider
-  value:
-    enabled: true
-    manifests:
-      - {{ .manifest }}
+{{- $manifests := list .manifest -}}
+{{- dict "cluster" (dict "externalCloudProvider" (dict "enabled" true "manifests" $manifests)) | toJson -}}
 {{- end}}

@@ -5,6 +5,10 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     app.kubernetes.io/managed-by: kommodity
+  {{- if and .Values.kommodity.network.ipv4.enabled (not (default false .Values.kommodity.network.ipv4.public)) .Values.kommodity.network.ipv4.nodeCIDR }}
+  annotations:
+    kommodity.io/node-cidr: {{ .Values.kommodity.network.ipv4.nodeCIDR }}
+  {{- end }}
 spec:
   clusterNetwork:
     pods:
