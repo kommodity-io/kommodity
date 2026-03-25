@@ -41,5 +41,15 @@ spec:
       rootVolume:
         size: {{ $np.os.disk.size }}
         type: block
+      {{- if $np.additionalVolumes }}
+      additionalVolumes:
+        {{- range $np.additionalVolumes }}
+        - type: {{ .type | default "block" }}
+          size: {{ .size }}
+          {{- if .iops }}
+          iops: {{ .iops }}
+          {{- end }}
+        {{- end }}
+      {{- end }}
 {{- end }}
 {{- end }}
