@@ -24,19 +24,19 @@ jobs:
       issues: write
     steps:
       - name: Checkout PR
-        uses: actions/checkout@v5
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           path: pr
 
       - name: Checkout main
-        uses: actions/checkout@v5
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
         with:
           ref: main
           path: main
 
       - name: Setup Helm
-        uses: azure/setup-helm@v4
+        uses: azure/setup-helm@dda3372f752e03dde6b3237bc9431cdc2f7a02a2 # v5
 
       - name: Diff charts
         id: diff
@@ -102,7 +102,7 @@ jobs:
           fi
 
       - name: Upload diffs
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
         id: diff-upload
         if: steps.diff.outputs.changed != '0' && steps.diff.outputs.long == '1'
         with:
@@ -130,7 +130,7 @@ jobs:
           fi
 
       - name: Find diff comment
-        uses: peter-evans/find-comment@v4
+        uses: peter-evans/find-comment@b30e6a3c0ed37e7c023ccd3f1db5c6c0b0c23aad # v4
         id: find-diff
         with:
           issue-number: ${{ github.event.pull_request.number }}
@@ -138,7 +138,7 @@ jobs:
           body-includes: "Chart changes"
 
       - name: Publish chart changes
-        uses: peter-evans/create-or-update-comment@v5
+        uses: peter-evans/create-or-update-comment@e8674b075228eee787fea43ef493e45ece1004c9 # v5
         if: steps.diff.outputs.changed != '0'
         with:
           comment-id: ${{ steps.find-diff.outputs.comment-id }}
@@ -212,7 +212,7 @@ jobs:
           } >>"$GITHUB_OUTPUT"
 
       - name: Find pending version updates comment
-        uses: peter-evans/find-comment@v4
+        uses: peter-evans/find-comment@b30e6a3c0ed37e7c023ccd3f1db5c6c0b0c23aad # v4
         id: find-version
         with:
           issue-number: ${{ github.event.pull_request.number }}
@@ -220,7 +220,7 @@ jobs:
           body-includes: "Pending version updates"
 
       - name: Publish pending version updates
-        uses: peter-evans/create-or-update-comment@v5
+        uses: peter-evans/create-or-update-comment@e8674b075228eee787fea43ef493e45ece1004c9 # v5
         if: steps.version.outputs.pending != '0'
         with:
           comment-id: ${{ steps.find-version.outputs.comment-id }}
@@ -267,7 +267,7 @@ jobs:
           } >>"$GITHUB_OUTPUT"
 
       - name: Find lint comment
-        uses: peter-evans/find-comment@v4
+        uses: peter-evans/find-comment@b30e6a3c0ed37e7c023ccd3f1db5c6c0b0c23aad # v4
         id: find-lint
         with:
           issue-number: ${{ github.event.pull_request.number }}
@@ -275,7 +275,7 @@ jobs:
           body-includes: "Helm linting"
 
       - name: Publish lint results
-        uses: peter-evans/create-or-update-comment@v5
+        uses: peter-evans/create-or-update-comment@e8674b075228eee787fea43ef493e45ece1004c9 # v5
         if: steps.lint.outputs.result != '0'
         with:
           comment-id: ${{ steps.find-lint.outputs.comment-id }}
@@ -312,10 +312,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
 
       - name: Setup Helm
-        uses: azure/setup-helm@v4
+        uses: azure/setup-helm@dda3372f752e03dde6b3237bc9431cdc2f7a02a2 # v5
 
       - name: Install helm-unittest plugin
         run: helm plugin install https://github.com/helm-unittest/helm-unittest.git --verify=false --version 1.0.3
@@ -364,15 +364,15 @@ jobs:
       packages: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
         with:
           fetch-depth: 2
 
       - name: Setup Helm
-        uses: azure/setup-helm@v4
+        uses: azure/setup-helm@dda3372f752e03dde6b3237bc9431cdc2f7a02a2 # v5
 
       - name: Setup ORAS
-        uses: oras-project/setup-oras@v1
+        uses: oras-project/setup-oras@22ce207df3b08e061f537244349aac6ae1d214f6 # v1
 
       - name: Publish charts
         run: |
