@@ -21,8 +21,8 @@ Kommodity is an open-source infrastructure platform to commoditize compute, stor
 Make sure to have a recent version of Go installed. We recommend using [gvm][gvm] to install Go.
 
 ```bash
-gvm install go1.24.2 -B
-gvm use go1.24.2 --default
+gvm install go1.26.1 -B
+gvm use go1.26.1 --default
 ```
 
 As a build system, we use `make`.

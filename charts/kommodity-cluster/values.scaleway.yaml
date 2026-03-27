@@ -73,6 +73,10 @@ kommodity:
       os:
         disk:
           size: 20
+      # additionalVolumes:
+      #   - size: 50 # size in GB
+      #     type: block # optional, defaults to block (local, block, scratch)
+      #     iops: 5000 # optional, only valid for block volumes (min 5000)
       labels:
         my-label: my-value
       annotations:

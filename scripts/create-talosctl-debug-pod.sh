@@ -197,6 +197,11 @@ spec:
         secretName: ${DOWNSTREAM_SECRET}
     - name: tools
       emptyDir: {}
+  tolerations:
+    # Allow to be scheduled on nodes that have not been initialized by the Cloud Controller Manager yet
+    - key: node.cloudprovider.kubernetes.io/uninitialized
+      value: "true"
+      effect: NoSchedule
   restartPolicy: Never
 EOF
 
