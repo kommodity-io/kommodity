@@ -147,6 +147,22 @@ This flexible configuration allows you to streamline your setup and avoid instal
 Kommodity supports audit logging to track and record API requests and responses. Audit logs can be configured to use a custom audit policy file, specified via the `KOMMODITY_AUDIT_POLICY_FILE_PATH` environment variable.
 Kommodity natively supports Kubernetes audit policy format documented here: https://kubernetes.io/docs/tasks/debug/debug-cluster/audit/
 
+### Talos Proxy
+
+When Kommodity manages clusters deployed on private networks, the TalosControlPlane reconciler cannot reach Talos nodes on their private IPs (port 50000). The Talos Proxy runs a local HTTP CONNECT proxy that intercepts these outbound gRPC connections and tunnels them through a Kubernetes port-forward to a `talos-cluster-proxy` pod running inside the workload cluster.
+
+**How it works:**
+
+1. A reconciler watches `Cluster` resources for the `kommodity.io/node-cidr` annotation
+2. On startup, the proxy sets `HTTPS_PROXY=http://127.0.0.1:<port>` so gRPC connections are routed through the local proxy
+3. On CONNECT, the proxy looks up the target IP in the CIDR registry and establishes a port-forward tunnel to the `talos-cluster-proxy` pod in the matching workload cluster
+4. Traffic is forwarded bidirectionally — mTLS between Kommodity and the Talos node passes through end-to-end
+5. Non-matching traffic (API server, etc.) passes through directly with minimal overhead
+
+The approach is fully platform-independent — no `NET_ADMIN` capability or nftables is required.
+
+More info in package [documentation](pkg/talosproxy/README.md).
+
 ### Mock KMS Service
 
 The `kms` package provides a mock implementation of the [Talos Linux Key Management Service (KMS)][talos-kms-api]. This implementation:
@@ -178,21 +194,27 @@ grpcurl -plaintext -d "{\"data\": \"$(echo -n "$SEALED" | base64)\"}" \
 
 Several environment variables can be set to configure Kommodity:
 
-| Environment Variable                        | Description                                                | Default Value           |
-| ------------------------------------------- | ---------------------------------------------------------- | ----------------------- |
-| `KOMMODITY_PORT`                            | Port for the Kommodity server                              | `5000`                  |
-| `KOMMODITY_BASE_URL`                        | Base URL for the Kommodity server                          | `http://localhost:5000` |
-| `KOMMODITY_ADMIN_GROUP`                     | Name of the admin group for privileged access              | (none)                  |
-| `KOMMODITY_INSECURE_DISABLE_AUTHENTICATION` | Disable authentication for local development               | `false`                 |
-| `KOMMODITY_OIDC_ISSUER_URL`                 | OIDC issuer URL for authentication                         | (none)                  |
-| `KOMMODITY_OIDC_CLIENT_ID`                  | OIDC client ID for authentication                          | (none)                  |
-| `KOMMODITY_OIDC_USERNAME_CLAIM`             | OIDC claim used for username                               | `email`                 |
-| `KOMMODITY_OIDC_GROUPS_CLAIM`               | OIDC claim used for groups                                 | `groups`                |
-| `KOMMODITY_ATTESTATION_NONCE_TTL`           | TTL for attestation nonces (e.g., `5m`, `1h`)              | `5m`                    |
-| `KOMMODITY_DB_URI`                          | URI of the PostgreSQL database                             | (none)                  |
-| `KOMMODITY_DEVELOPMENT_MODE`                | Enable development mode                                    | `false`                 |
-| `KOMMODITY_INFRASTRUCTURE_PROVIDERS`        | Comma-separated list of infrastructure providers to enable | All                     |
-| `KOMMODITY_AUDIT_POLICY_FILE_PATH`          | File path to the audit policy file                         | (none)                  |
+| Environment Variable                        | Description                                                       | Default Value                                |
+| ------------------------------------------- | ----------------------------------------------------------------- | -------------------------------------------- |
+| `KOMMODITY_PORT`                            | Port for the Kommodity server                                     | `5000`                                       |
+| `KOMMODITY_BASE_URL`                        | Base URL for the Kommodity server                                 | `http://localhost:5000`                      |
+| `KOMMODITY_ADMIN_GROUP`                     | Name of the admin group for privileged access                     | (none)                                       |
+| `KOMMODITY_INSECURE_DISABLE_AUTHENTICATION` | Disable authentication for local development                      | `false`                                      |
+| `KOMMODITY_OIDC_ISSUER_URL`                 | OIDC issuer URL for authentication                                | (none)                                       |
+| `KOMMODITY_OIDC_CLIENT_ID`                  | OIDC client ID for authentication                                 | (none)                                       |
+| `KOMMODITY_OIDC_USERNAME_CLAIM`             | OIDC claim used for username                                      | `email`                                      |
+| `KOMMODITY_OIDC_GROUPS_CLAIM`               | OIDC claim used for groups                                        | `groups`                                     |
+| `KOMMODITY_ATTESTATION_NONCE_TTL`           | TTL for attestation nonces (e.g., `5m`, `1h`)                     | `5m`                                         |
+| `KOMMODITY_DB_URI`                          | URI of the PostgreSQL database                                    | (none)                                       |
+| `KOMMODITY_DEVELOPMENT_MODE`                | Enable development mode                                           | `false`                                      |
+| `KOMMODITY_INFRASTRUCTURE_PROVIDERS`        | Comma-separated list of infrastructure providers to enable        | All                                          |
+| `KOMMODITY_AUDIT_POLICY_FILE_PATH`          | File path to the audit policy file                                | (none)                                       |
+| `KOMMODITY_TALOS_PROXY_ENABLED`             | Enable the HTTP CONNECT Talos gRPC proxy                          | `true`                                       |
+| `KOMMODITY_TALOS_PROXY_PORT`                | Local listen port for the proxy                                   | `15050`                                      |
+| `KOMMODITY_TALOS_PROXY_NAMESPACE`           | Namespace where talos-cluster-proxy pods run in workload clusters | `talos-cluster-proxy`                        |
+| `KOMMODITY_TALOS_PROXY_LABEL`               | Label selector to find talos-cluster-proxy pods                   | `app.kubernetes.io/name=talos-cluster-proxy` |
+| `KOMMODITY_TALOS_PROXY_POD_PORT`            | Port on the talos-cluster-proxy pod to forward to                 | `50000`                                      |
+| `KOMMODITY_TALOS_PROXY_IDLE_TIMEOUT`        | Idle timeout before closing unused tunnels (e.g., `1m`)           | `1m`                                         |
 
 ## 🚀 Deployment
 
@@ -201,6 +223,19 @@ As Kommodity is a single binary, it can easily be deployed on any infrastructure
 The Terraform modules in [terraform/modules](terraform/modules) can be used to deploy Kommodity on some of the major hyperscalers (Azure for now, more to come).
 
 See examples in [terraform/examples](terraform/examples) for specific deployment examples.
+
+## CAPI Providers Versions
+
+Kommodity supports the following versions of Cluster API providers:
+
+| Provider                                 | Version(s) | Type           |
+| ---------------------------------------- | ---------- | -------------- |
+| cluster-api                              | v1.10.9    | Core           |
+| cluster-api-control-plane-provider-talos | v0.5.12    | Control Plane  |
+| cluster-api-bootstrap-provider-talos     | v0.6.11    | Bootstrap      |
+| cluster-api-provider-scaleway            | v0.1.4     | Infrastructure |
+| cluster-api-provider-kubevirt            | v0.1.10    | Infrastructure |
+| cluster-api-provider-azure               | v1.21.0    | Infrastructure |
 
 ## ⛔ Limitations
 

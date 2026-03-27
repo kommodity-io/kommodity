@@ -11,6 +11,7 @@ kommodity:
 
   kms:
     enabled: false
+    endpoint: "<REPLACE_ME>"
 
   clusterAutoscaler:
     enabled: false
@@ -171,6 +172,31 @@ kommodity:
           cm:
             admin.enabled: false
 
+    # talos-cluster-proxy is an addon that deploys the talos-cluster-proxy pod, a component that runs on the cluster
+    # and proxies requests coming from Kommodity (TalosControlPlaneReconciler) to the Talos nodes.
+    # This is required when the Talos nodes are running in private networks.
+    talos-cluster-proxy:
+      enabled: true
+      namespace: talos-cluster-proxy
+      lifecycle:
+        install:
+          mode: HelmInstall
+        upgrade:
+          disable: true
+      chart:
+        repository: oci://ghcr.io/kommodity-io/charts
+        name: talos-cluster-proxy
+        version: 0.1.1
+      initialExtraValues:
+        tolerations:
+          - key: node.cloudprovider.kubernetes.io/uninitialized
+            operator: Equal
+            value: "true"
+            effect: NoSchedule
+          - key: node.kubernetes.io/not-ready
+            operator: Exists
+            effect: NoSchedule
+
       # Defines extra environment variables to be added to the installer job
       # extraEnvs:
       #   MY_FIRST_EXTRA_ENV:
@@ -213,13 +239,20 @@ kommodity:
 
   global:
     # Configurations applied to all nodepools and controlplanes in the cluster
-    # Using RFC6902 JSON Patch format: https://docs.siderolabs.com/talos/v1.11/configure-your-talos-cluster/system-configuration/patching#rfc6902-json-patches
-    configPatches: []
+    # Using Talos strategic merge patches: https://docs.siderolabs.com/talos/v1.12/configure-your-talos-cluster/system-configuration/patching
+    # Each entry is a partial MachineConfig YAML object that gets deep-merged into the base config
+    # Example:
+    #   strategicPatches:
+    #     - machine:
+    #         kubelet:
+    #           extraArgs:
+    #             cloud-provider: external
+    strategicPatches: []
 
   controlplane:
     # Configurations related to the control plane nodes
-    # Using RFC6902 JSON Patch format: https://docs.siderolabs.com/talos/v1.11/configure-your-talos-cluster/system-configuration/patching#rfc6902-json-patches
-    configPatches: []
+    # Using Talos strategic merge patches: https://docs.siderolabs.com/talos/v1.12/configure-your-talos-cluster/system-configuration/patching
+    strategicPatches: []
 
     # Kubernetes version can be overridden here, otherwise the top-level kubernetes.version is used
     # This is especially useful for K8s upgrades, where it is recommended to upgrade the control plane first (https://cluster-api.sigs.k8s.io/tasks/upgrading-clusters#upgrading-using-cluster-api)
@@ -227,10 +260,10 @@ kommodity:
     #   version: v1.33.4
 
     # Talos version and imageName can be overridden here, otherwise the top-level talos.version and talos.imageName are used
-    # This is especially useful for Talos upgrades, where it is recommended to not upgrade all nodes at once (https://docs.siderolabs.com/talos/v1.11/configure-your-talos-cluster/lifecycle-management/upgrading-talos)
+    # This is especially useful for Talos upgrades, where it is recommended to not upgrade all nodes at once (https://docs.siderolabs.com/talos/v1.12/configure-your-talos-cluster/lifecycle-management/upgrading-talos)
     # talos:
-    #   version: v1.11.3
-    #   imageName: talos-base-v1.11.3
+    #   version: v1.12.2
+    #   imageName: talos-base-v1.12.2
 
     # labels:
     #   my-label: my-value
@@ -262,16 +295,16 @@ kommodity:
     #     maxReplicas: 3
 
     #   # Configurations related the specific nodepool
-    #   # Using RFC6902 JSON Patch format: https://docs.siderolabs.com/talos/v1.11/configure-your-talos-cluster/system-configuration/patching#rfc6902-json-patches
-    #   configPatches: []
+    #   # Using Talos strategic merge patches: https://docs.siderolabs.com/talos/v1.12/configure-your-talos-cluster/system-configuration/patching
+    #   strategicPatches: []
     #   # Kubernetes version can be overridden here, otherwise the top-level kubernetes.version is used
 
     #   kubernetes:
     #     version: v1.33.4
     #   # Talos version and imageName can be overridden here, otherwise the top-level talos.version and talos.imageName are used
     #   talos:
-    #     version: v1.11.3
-    #     imageName: talos-base-v1.11.3
+    #     version: v1.12.2
+    #     imageName: talos-base-v1.12.2
 
     #   labels:
     #     my-label: my-value

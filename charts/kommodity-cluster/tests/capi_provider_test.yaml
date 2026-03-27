@@ -37,6 +37,35 @@ tests:
           path: spec.template.spec.bootstrap.configRef.name
           pattern: ^test-cluster-worker-default-[a-f0-9]{6}$
 
+  # Talos proxy CIDR annotation tests
+  - it: should add node-cidr annotation when private network with nodeCIDR
+    template: templates/provider/capi/cluster.yaml
+    set:
+      kommodity.network.ipv4.enabled: true
+      kommodity.network.ipv4.public: false
+      kommodity.network.ipv4.nodeCIDR: "10.200.0.0/20"
+    asserts:
+      - equal:
+          path: metadata.annotations["kommodity.io/node-cidr"]
+          value: "10.200.0.0/20"
+
+  - it: should not add node-cidr annotation when public network
+    template: templates/provider/capi/cluster.yaml
+    set:
+      kommodity.network.ipv4.enabled: true
+      kommodity.network.ipv4.public: true
+    asserts:
+      - notExists:
+          path: metadata.annotations["kommodity.io/node-cidr"]
+
+  - it: should not add node-cidr annotation when ipv4 disabled
+    template: templates/provider/capi/cluster.yaml
+    set:
+      kommodity.network.ipv4.enabled: false
+    asserts:
+      - notExists:
+          path: metadata.annotations["kommodity.io/node-cidr"]
+
   # Autoscaling annotation tests
   - it: should set autoscaler annotations when both minReplicas and maxReplicas are set
     template: templates/provider/capi/machinedeployment.yaml
