@@ -42,14 +42,14 @@ tests:
     template: templates/provider/capi/machinedeployment.yaml
     set:
       kommodity.nodepools.default.replicas: null
-      kommodity.nodepools.default.autoscaling.minReplicas: 1
+      kommodity.nodepools.default.autoscaling.minReplicas: 0
       kommodity.nodepools.default.autoscaling.maxReplicas: 5
     asserts:
       - isKind:
           of: MachineDeployment
       - equal:
           path: metadata.annotations["cluster.x-k8s.io/cluster-api-autoscaler-node-group-min-size"]
-          value: "1"
+          value: "0"
       - equal:
           path: metadata.annotations["cluster.x-k8s.io/cluster-api-autoscaler-node-group-max-size"]
           value: "5"
