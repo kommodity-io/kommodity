@@ -37,6 +37,53 @@ tests:
           path: spec.template.spec.bootstrap.configRef.name
           pattern: ^test-cluster-worker-default-[a-f0-9]{6}$
 
+  # Autoscaling annotation tests
+  - it: should set autoscaler annotations when both minReplicas and maxReplicas are set
+    template: templates/provider/capi/machinedeployment.yaml
+    set:
+      kommodity.nodepools.default.replicas: null
+      kommodity.nodepools.default.autoscaling.minReplicas: 1
+      kommodity.nodepools.default.autoscaling.maxReplicas: 5
+    asserts:
+      - isKind:
+          of: MachineDeployment
+      - equal:
+          path: metadata.annotations["cluster.x-k8s.io/cluster-api-autoscaler-node-group-min-size"]
+          value: "1"
+      - equal:
+          path: metadata.annotations["cluster.x-k8s.io/cluster-api-autoscaler-node-group-max-size"]
+          value: "5"
+      - notExists:
+          path: spec.replicas
+
+  - it: should fail when only minReplicas is set without maxReplicas
+    template: templates/provider/capi/machinedeployment.yaml
+    set:
+      kommodity.nodepools.default.replicas: null
+      kommodity.nodepools.default.autoscaling.minReplicas: 1
+    asserts:
+      - failedTemplate:
+          errorMessage: "nodepool default: both autoscaling.minReplicas and autoscaling.maxReplicas must be set together"
+
+  - it: should fail when only maxReplicas is set without minReplicas
+    template: templates/provider/capi/machinedeployment.yaml
+    set:
+      kommodity.nodepools.default.replicas: null
+      kommodity.nodepools.default.autoscaling.maxReplicas: 5
+    asserts:
+      - failedTemplate:
+          errorMessage: "nodepool default: both autoscaling.minReplicas and autoscaling.maxReplicas must be set together"
+
+  - it: should fail when replicas is set together with autoscaling
+    template: templates/provider/capi/machinedeployment.yaml
+    set:
+      kommodity.nodepools.default.replicas: 3
+      kommodity.nodepools.default.autoscaling.minReplicas: 1
+      kommodity.nodepools.default.autoscaling.maxReplicas: 5
+    asserts:
+      - failedTemplate:
+          errorMessage: "nodepool default: replicas cannot be set together with autoscaling.minReplicas or autoscaling.maxReplicas"
+
   # Test Kubernetes version precedence
   - it: should make sure Kubernetes version defined in nodepool's config take precedence
     template: templates/provider/capi/machinedeployment.yaml

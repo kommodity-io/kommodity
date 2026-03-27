@@ -13,7 +13,6 @@ kommodity:
     enabled: false
 
   clusterAutoscaler:
-    # If enabled, each nodepool must have autoscaling.minReplicas and autoscaling.maxReplicas set
     enabled: false
     namespace: kube-system
     chart:
