@@ -296,7 +296,39 @@ tests:
       - notExists:
           path: spec.controlPlaneConfig.controlplane.strategicPatches
 
-  # Test Kubernetes version precedence
+  # UserVolumeConfig tests for additionalVolumes
+  - it: should generate UserVolumeConfig strategic patches named data-INDEX when kms is enabled and nodepool has additionalVolumes
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.kms.enabled: true
+      kommodity.kms.endpoint: "https://kms.example.com"
+      kommodity.nodepools.default.additionalVolumes:
+        - size: 50
+        - size: 50
+    asserts:
+      - isKind:
+          of: TalosConfigTemplate
+      - hasDocuments:
+          count: 1
+      - exists:
+          path: spec.template.spec.strategicPatches
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[2]
+          pattern: "kind: UserVolumeConfig"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[2]
+          pattern: "name: data-0"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[2]
+          pattern: "disk.size >= 50 \\* GB"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "name: data-1"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "disk.size >= 50 \\* GB"
+
+  # Kubernetes version precedence test
   - it: should make sure Kubernetes version defined in controlplane's config takes precedence
     template: templates/talos/controlplane.yaml
     set:

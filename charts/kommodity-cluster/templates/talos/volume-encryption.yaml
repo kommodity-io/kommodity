@@ -1,7 +1,8 @@
 {{/*
-VolumeConfig documents for KMS disk encryption.
+VolumeConfig and UserVolumeConfig documents for KMS disk encryption.
 These are used as strategic patches in TalosConfigTemplate and TalosControlPlane.
 See: https://docs.siderolabs.com/talos/v1.12/reference/configuration/block/volumeconfig
+See: https://docs.siderolabs.com/talos/v1.12/reference/configuration/block/uservolumeconfig
 */}}
 {{- define "kommodity.talos.volumeEncryption" -}}
 {{- $endpoint := .endpoint -}}
@@ -29,4 +30,21 @@ See: https://docs.siderolabs.com/talos/v1.12/reference/configuration/block/volum
       - slot: 0
         kms:
           endpoint: {{ $endpoint | quote }}
+{{- range $index, $vol := .additionalVolumes -}}
+{{- $name := printf "data-%d" $index }}
+- |
+  apiVersion: v1alpha1
+  kind: UserVolumeConfig
+  name: {{ $name }}
+  volumeType: disk
+  provisioning:
+    diskSelector:
+      match: "disk.size >= {{ $vol.size }} * GB && !system_disk"
+  encryption:
+    provider: luks2
+    keys:
+      - slot: 0
+        kms:
+          endpoint: {{ $endpoint | quote }}
+{{ end -}}
 {{- end -}}
