@@ -335,6 +335,7 @@ tests:
   - it: should not generate UserVolumeConfig strategic patches when kms is enabled and nodepool has no additionalVolumes
     template: templates/talos/configtemplate.yaml
     set:
+      kommodity.kms.enabled: true
       kommodity.kms.endpoint: "https://kms.example.com"
       kommodity.nodepools.default.additionalVolumes: null
     asserts:
