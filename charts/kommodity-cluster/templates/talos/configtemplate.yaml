@@ -27,8 +27,8 @@ spec:
       {{- if or $.Values.kommodity.kms.enabled $.Values.kommodity.security.enabled }}
       strategicPatches:
       {{- if $.Values.kommodity.kms.enabled }}
-      {{- /* Use VolumeConfig for disk encryption (Talos v1.12+) instead of deprecated machine.systemDiskEncryption */}}
-{{- include "kommodity.talos.volumeEncryption" (dict "endpoint" $.Values.kommodity.kms.endpoint) | nindent 8 }}
+      {{- /* VolumeConfig for KMS disk encryption and UserVolumeConfig for additional volumes (Talos v1.12+) */}}
+{{- include "kommodity.talos.volumeEncryption" (dict "endpoint" $.Values.kommodity.kms.endpoint "additionalVolumes" $np.additionalVolumes) | nindent 8 }}
       {{- end }}
       {{- if $.Values.kommodity.security.enabled }}
       {{- /* ExtensionServiceConfig for kommodity-attestation extension */}}
