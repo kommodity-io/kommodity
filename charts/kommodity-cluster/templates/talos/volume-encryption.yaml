@@ -30,7 +30,8 @@ See: https://docs.siderolabs.com/talos/v1.12/reference/configuration/block/userv
       - slot: 0
         kms:
           endpoint: {{ $endpoint | quote }}
-{{- if .additionalVolumes }}
+{{- range $index, $vol := .additionalVolumes -}}
+{{- $name := printf "data-%d" $index }}
 - |
   apiVersion: v1alpha1
   kind: UserVolumeConfig
@@ -45,5 +46,5 @@ See: https://docs.siderolabs.com/talos/v1.12/reference/configuration/block/userv
       - slot: 0
         kms:
           endpoint: {{ $endpoint | quote }}
-{{- end }}
+{{ end -}}
 {{- end -}}

@@ -270,7 +270,7 @@ tests:
       - exists:
           path: spec.controlPlaneConfig.controlplane.strategicPatches
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[0]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[2]
           pattern: "name: kommodity-autobootstrap"
 
   - it: should include autoBootstrap extension when autoBootstrap.enabled value is true
@@ -283,7 +283,7 @@ tests:
       - exists:
           path: spec.controlPlaneConfig.controlplane.strategicPatches
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[0]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[2]
           pattern: "name: kommodity-autobootstrap"
 
   - it: should not include autoBootstrap extension when kommodity.network.ipv4.public is true and talos.autoBootstrap.enabled is not set
@@ -295,17 +295,17 @@ tests:
       - hasDocuments:
           count: 1
       - notExists:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[2]
 
   # UserVolumeConfig tests for additionalVolumes
-  - it: should generate a single UserVolumeConfig strategic patch for all non-system disks when kms is enabled and nodepool has additionalVolumes
+  - it: should generate one UserVolumeConfig strategic patch per additionalVolume when kms is enabled
     template: templates/talos/configtemplate.yaml
     set:
       kommodity.kms.enabled: true
       kommodity.kms.endpoint: "https://kms.example.com"
       kommodity.nodepools.default.additionalVolumes:
-        - size: 50
-        - size: 50
+        - size: 30
+        - size: 20
     asserts:
       - isKind:
           of: TalosConfigTemplate
@@ -318,12 +318,19 @@ tests:
           pattern: "kind: UserVolumeConfig"
       - matchRegex:
           path: spec.template.spec.strategicPatches[2]
-          pattern: "name: data"
+          pattern: "name: data-0"
       - matchRegex:
           path: spec.template.spec.strategicPatches[2]
-          pattern: "!system_disk"
-      - notExists:
+          pattern: "disk.size == uint\\(30\\)"
+      - matchRegex:
           path: spec.template.spec.strategicPatches[3]
+          pattern: "kind: UserVolumeConfig"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "name: data-1"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "disk.size == uint\\(20\\)"
 
   - it: should not generate UserVolumeConfig strategic patches when kms is enabled and nodepool has no additionalVolumes
     template: templates/talos/configtemplate.yaml
