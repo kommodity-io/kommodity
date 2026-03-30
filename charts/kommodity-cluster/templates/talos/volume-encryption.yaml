@@ -34,11 +34,14 @@ See: https://docs.siderolabs.com/talos/v1.12/reference/configuration/block/userv
 - |
   apiVersion: v1alpha1
   kind: UserVolumeConfig
-  name: data
-  volumeType: disk
+  name: {{ $name }}
   provisioning:
     diskSelector:
-      match: "!system_disk"
+      # Match a non-system disk of exactly the requested size (in GB).
+      # The range [size, size+1) avoids type mismatch between int literals and the uint GB constant,
+      # and ensures each UserVolumeConfig targets only its own disk when multiple additional volumes are configured.
+      match: "disk.size >= uint({{ $vol.size }}) * GB && disk.size < uint({{ add $vol.size 1 }}) * GB && !system_disk"
+    maxSize: {{ $vol.size }}GB
   encryption:
     provider: luks2
     keys:

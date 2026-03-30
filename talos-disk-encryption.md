@@ -12,11 +12,10 @@ Talos Linux system volumes are encrypted at rest using LUKS2, with encryption ke
 
 Two system partitions are mandatory to encrypt:
 
-| Partition | Device Mapper | Contains |
-|-----------|--------------|----------|
-| **STATE** | `luks2-STATE` (`dm-1`) | Kubernetes secrets, certificates, etcd data |
+| Partition     | Device Mapper              | Contains                                       |
+| ------------- | -------------------------- | ---------------------------------------------- |
+| **STATE**     | `luks2-STATE` (`dm-1`)     | Kubernetes secrets, certificates, etcd data    |
 | **EPHEMERAL** | `luks2-EPHEMERAL` (`dm-0`) | Container runtime data, emptyDir volumes, logs |
-
 
 ```
 Physical disk:    sda (20 GB)
@@ -126,11 +125,11 @@ The AAD is built by concatenating three components:
 AAD = nodeUUID || aadNonce || clientIP
 ```
 
-| Component | Size | Purpose |
-|-----------|------|---------|
-| `nodeUUID` | variable | Binds the key to a specific node |
+| Component  | Size     | Purpose                                                                                      |
+| ---------- | -------- | -------------------------------------------------------------------------------------------- |
+| `nodeUUID` | variable | Binds the key to a specific node                                                             |
 | `aadNonce` | 32 bytes | Per-volume random value — ensures each volume has a unique AAD even for the same node and IP |
-| `clientIP` | variable | Binds the key to the node's network identity |
+| `clientIP` | variable | Binds the key to the node's network identity                                                 |
 
 This provides defense-in-depth: even if an attacker obtains the encrypted LUKS key blob from disk, they cannot decrypt it without the correct AES key **and** the correct AAD context (node UUID, nonce, and IP).
 
@@ -151,12 +150,12 @@ Per-node encryption keys are stored as Kubernetes Secrets in the `kommodity-syst
 
 **Secret data structure** (one entry set per volume, prefixed for isolation):
 
-| Key | Value |
-|-----|-------|
-| `sealedFromIP` | Client IP that created the secret (used for verification) |
-| `<prefix>.key` | 256-bit AES encryption key for this volume |
-| `<prefix>.nonce` | 256-bit random AAD nonce for this volume |
-| `<prefix>.luksKey` | AES-256-GCM encrypted LUKS key for this volume |
+| Key                | Value                                                     |
+| ------------------ | --------------------------------------------------------- |
+| `sealedFromIP`     | Client IP that created the secret (used for verification) |
+| `<prefix>.key`     | 256-bit AES encryption key for this volume                |
+| `<prefix>.nonce`   | 256-bit random AAD nonce for this volume                  |
+| `<prefix>.luksKey` | AES-256-GCM encrypted LUKS key for this volume            |
 
 Each volume gets a unique random prefix (16 hex chars). A node with two encrypted volumes (STATE + EPHEMERAL) will have two sets of `<prefix>.{key,nonce,luksKey}` entries in the same secret.
 
@@ -292,6 +291,7 @@ If you need to run `talosctl` commands against nodes in a downstream (workload) 
 ```
 
 The script:
+
 1. Extracts the `talosconfig` from the `<cluster-name>-talosconfig` secret in the upstream cluster.
 2. Creates a secret and a debug pod in the downstream cluster with `talosctl` downloaded and ready.
 3. Prints instructions for attaching to the pod and running commands.
