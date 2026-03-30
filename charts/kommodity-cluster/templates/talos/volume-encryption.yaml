@@ -5,7 +5,7 @@ See: https://docs.siderolabs.com/talos/v1.12/reference/configuration/block/volum
 See: https://docs.siderolabs.com/talos/v1.12/reference/configuration/block/uservolumeconfig
 */}}
 {{- define "kommodity.talos.volumeEncryption" -}}
-{{- $endpoint := .endpoint -}}
+{{- $endpoint := required "kommodity.kms.endpoint is required when kms is enabled" .endpoint -}}
 - |
   apiVersion: v1alpha1
   kind: VolumeConfig
