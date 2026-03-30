@@ -30,21 +30,20 @@ See: https://docs.siderolabs.com/talos/v1.12/reference/configuration/block/userv
       - slot: 0
         kms:
           endpoint: {{ $endpoint | quote }}
-{{- range $index, $vol := .additionalVolumes -}}
-{{- $name := printf "data-%d" $index }}
+{{- if .additionalVolumes }}
 - |
   apiVersion: v1alpha1
   kind: UserVolumeConfig
-  name: {{ $name }}
+  name: data
   volumeType: disk
   provisioning:
     diskSelector:
-      match: "disk.size >= {{ $vol.size }} * GB && !system_disk"
+      match: "!system_disk"
   encryption:
     provider: luks2
     keys:
       - slot: 0
         kms:
           endpoint: {{ $endpoint | quote }}
-{{ end -}}
+{{- end }}
 {{- end -}}

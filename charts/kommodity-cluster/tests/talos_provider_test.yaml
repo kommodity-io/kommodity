@@ -298,7 +298,7 @@ tests:
           path: spec.controlPlaneConfig.controlplane.strategicPatches
 
   # UserVolumeConfig tests for additionalVolumes
-  - it: should generate UserVolumeConfig strategic patches named data-INDEX when kms is enabled and nodepool has additionalVolumes
+  - it: should generate a single UserVolumeConfig strategic patch for all non-system disks when kms is enabled and nodepool has additionalVolumes
     template: templates/talos/configtemplate.yaml
     set:
       kommodity.kms.enabled: true
@@ -318,16 +318,12 @@ tests:
           pattern: "kind: UserVolumeConfig"
       - matchRegex:
           path: spec.template.spec.strategicPatches[2]
-          pattern: "name: data-0"
+          pattern: "name: data"
       - matchRegex:
           path: spec.template.spec.strategicPatches[2]
-          pattern: "disk.size >= 50 \\* GB"
-      - matchRegex:
+          pattern: "!system_disk"
+      - notExists:
           path: spec.template.spec.strategicPatches[3]
-          pattern: "name: data-1"
-      - matchRegex:
-          path: spec.template.spec.strategicPatches[3]
-          pattern: "disk.size >= 50 \\* GB"
 
   - it: should not generate UserVolumeConfig strategic patches when kms is enabled and nodepool has no additionalVolumes
     template: templates/talos/configtemplate.yaml
@@ -342,6 +338,39 @@ tests:
       - notMatchRegex:
           path: spec.template.spec.strategicPatches[0]
           pattern: "kind: UserVolumeConfig"
+
+  - it: should generate one UserVolumeConfig per nodepool when both nodepools have additionalVolumes
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.kms.enabled: true
+      kommodity.kms.endpoint: "https://kms.example.com"
+      kommodity.nodepools.default.additionalVolumes:
+        - size: 50
+      kommodity.nodepools.gpu.replicas: 2
+      kommodity.nodepools.gpu.sku: "GPU-LARGE"
+      kommodity.nodepools.gpu.zone: "fr-par-2"
+      kommodity.nodepools.gpu.os.disk.size: 50
+      kommodity.nodepools.gpu.additionalVolumes:
+        - size: 100
+    asserts:
+      - isKind:
+          of: TalosConfigTemplate
+      - hasDocuments:
+          count: 2
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[2]
+          pattern: "kind: UserVolumeConfig"
+        documentIndex: 0
+      - notExists:
+          path: spec.template.spec.strategicPatches[3]
+        documentIndex: 0
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[2]
+          pattern: "kind: UserVolumeConfig"
+        documentIndex: 1
+      - notExists:
+          path: spec.template.spec.strategicPatches[3]
+        documentIndex: 1
 
   # Kubernetes version precedence test
   - it: should make sure Kubernetes version defined in controlplane's config takes precedence
