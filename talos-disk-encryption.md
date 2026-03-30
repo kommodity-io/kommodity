@@ -40,7 +40,54 @@ Talos Linux supports four encryption methods (can be combined per partition):
 
 ## Talos Machine Configuration
 
-Disk encryption is configured in the Talos machine config under `machine.systemDiskEncryption`:
+Configuration of disk encryption in Talos is done with [VolumeConfig](https://docs.siderolabs.com/talos/v1.12/reference/configuration/block/volumeconfig) for system disks and [UserVolumeConfig](https://docs.siderolabs.com/talos/v1.12/reference/configuration/block/uservolumeconfig) for additional data disks.
+
+Example:
+
+```yaml
+# STATE partition encryption config
+apiVersion: v1alpha1
+  kind: VolumeConfig
+  name: STATE
+  # provisioning config is not allowed for the STATE volume
+  encryption:
+    provider: luks2
+    keys:
+      - slot: 0
+        kms:
+          endpoint: https://kommodity.example.com
+---
+# EPHEMERAL partition encryption config
+apiVersion: v1alpha1
+kind: VolumeConfig
+name: EPHEMERAL
+provisioning:
+  diskSelector:
+    match: "system_disk"
+encryption:
+  provider: luks2
+  keys:
+    - slot: 0
+      kms:
+        endpoint: https://kommodity.example.com
+---
+# Additional data disk encryption config
+apiVersion: v1alpha1
+kind: UserVolumeConfig
+name: data-1
+provisioning:
+  diskSelector:
+    match: "disk.model == 'sbs' && disk.transport == 'virtio' && disk.size == 20GB && !system_disk"
+  maxSize: 20GB
+encryption:
+  provider: luks2
+  keys:
+    - slot: 0
+      kms:
+        endpoint: https://kommodity.example.com
+```
+
+Disk encryption is shown in the Talos machine config under `machine.systemDiskEncryption`:
 
 ```yaml
 machine:
@@ -50,14 +97,16 @@ machine:
       keys:
         - slot: 0
           kms:
-            endpoint: https://kommodity
+            endpoint: https://kommodity.example.com
     ephemeral:
       provider: luks2
       keys:
         - slot: 0
           kms:
-            endpoint: https://kommodity
+            endpoint: https://kommodity.example.com
 ```
+
+### System disk encryption
 
 ### Important Caveat
 
