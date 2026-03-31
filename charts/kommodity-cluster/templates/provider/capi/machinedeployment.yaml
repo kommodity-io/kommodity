@@ -1,4 +1,8 @@
 {{- range $name, $np := .Values.kommodity.nodepools }}
+{{- $minReplicas := dig "autoscaling" "minReplicas" nil $np }}
+{{- $maxReplicas := dig "autoscaling" "maxReplicas" nil $np }}
+{{- $hasMinReplicas := not (kindIs "invalid" $minReplicas) }}
+{{- $hasMaxReplicas := not (kindIs "invalid" $maxReplicas) }}
 ---
 apiVersion: cluster.x-k8s.io/v1beta1
 kind: MachineDeployment
@@ -7,19 +11,19 @@ metadata:
   namespace: {{ $.Release.Namespace }}
   labels:
     app.kubernetes.io/managed-by: kommodity
-{{- if or (dig "autoscaling" "minReplicas" "" $np) (dig "autoscaling" "maxReplicas" "" $np) }}
-{{- if not (and (dig "autoscaling" "minReplicas" "" $np) (dig "autoscaling" "maxReplicas" "" $np)) }}
+{{- if or $hasMinReplicas $hasMaxReplicas }}
+{{- if not (and $hasMinReplicas $hasMaxReplicas) }}
 {{- fail (printf "nodepool %s: both autoscaling.minReplicas and autoscaling.maxReplicas must be set together" $name) }}
 {{- end }}
   annotations:
-    cluster.x-k8s.io/cluster-api-autoscaler-node-group-min-size: {{ $np.autoscaling.minReplicas | quote }}
-    cluster.x-k8s.io/cluster-api-autoscaler-node-group-max-size: {{ $np.autoscaling.maxReplicas | quote }}
+    cluster.x-k8s.io/cluster-api-autoscaler-node-group-min-size: {{ $minReplicas | quote }}
+    cluster.x-k8s.io/cluster-api-autoscaler-node-group-max-size: {{ $maxReplicas | quote }}
 {{- end }}
 spec:
   clusterName: {{ $.Release.Name }}
   minReadySeconds: 0
   progressDeadlineSeconds: 600
-{{- if and $np.replicas (or (dig "autoscaling" "minReplicas" "" $np) (dig "autoscaling" "maxReplicas" "" $np)) }}
+{{- if and $np.replicas (or $hasMinReplicas $hasMaxReplicas) }}
 {{- fail (printf "nodepool %s: replicas cannot be set together with autoscaling.minReplicas or autoscaling.maxReplicas" $name) }}
 {{- end }}
 {{- if $np.replicas }}
