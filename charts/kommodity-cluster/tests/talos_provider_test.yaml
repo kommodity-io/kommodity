@@ -297,8 +297,8 @@ tests:
       - notExists:
           path: spec.controlPlaneConfig.controlplane.strategicPatches[2]
 
-  # UserVolumeConfig tests for additionalVolumes
-  - it: should generate one UserVolumeConfig strategic patch per additionalVolume when kms is enabled
+  # RawVolumeConfig tests for additionalVolumes
+  - it: should generate one RawVolumeConfig strategic patch per additionalVolume when kms is enabled
     template: templates/talos/configtemplate.yaml
     set:
       kommodity.kms.enabled: true
@@ -315,7 +315,7 @@ tests:
           path: spec.template.spec.strategicPatches
       - matchRegex:
           path: spec.template.spec.strategicPatches[2]
-          pattern: "kind: UserVolumeConfig"
+          pattern: "kind: RawVolumeConfig"
       - matchRegex:
           path: spec.template.spec.strategicPatches[2]
           pattern: "name: data-0"
@@ -324,7 +324,7 @@ tests:
           pattern: "disk.size == uint\\(30\\)"
       - matchRegex:
           path: spec.template.spec.strategicPatches[3]
-          pattern: "kind: UserVolumeConfig"
+          pattern: "kind: RawVolumeConfig"
       - matchRegex:
           path: spec.template.spec.strategicPatches[3]
           pattern: "name: data-1"
@@ -332,7 +332,7 @@ tests:
           path: spec.template.spec.strategicPatches[3]
           pattern: "disk.size == uint\\(20\\)"
 
-  - it: should not generate UserVolumeConfig strategic patches when kms is enabled and nodepool has no additionalVolumes
+  - it: should not generate RawVolumeConfig strategic patches when kms is enabled and nodepool has no additionalVolumes
     template: templates/talos/configtemplate.yaml
     set:
       kommodity.kms.enabled: true
@@ -345,9 +345,9 @@ tests:
           count: 1
       - notMatchRegex:
           path: spec.template.spec.strategicPatches[0]
-          pattern: "kind: UserVolumeConfig"
+          pattern: "kind: RawVolumeConfig"
 
-  - it: should generate one UserVolumeConfig per nodepool when both nodepools have additionalVolumes
+  - it: should generate one RawVolumeConfig per nodepool when both nodepools have additionalVolumes
     template: templates/talos/configtemplate.yaml
     set:
       kommodity.kms.enabled: true
@@ -367,14 +367,14 @@ tests:
           count: 2
       - matchRegex:
           path: spec.template.spec.strategicPatches[2]
-          pattern: "kind: UserVolumeConfig"
+          pattern: "kind: RawVolumeConfig"
         documentIndex: 0
       - notExists:
           path: spec.template.spec.strategicPatches[3]
         documentIndex: 0
       - matchRegex:
           path: spec.template.spec.strategicPatches[2]
-          pattern: "kind: UserVolumeConfig"
+          pattern: "kind: RawVolumeConfig"
         documentIndex: 1
       - notExists:
           path: spec.template.spec.strategicPatches[3]

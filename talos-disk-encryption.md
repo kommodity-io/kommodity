@@ -40,7 +40,7 @@ Talos Linux supports four encryption methods (can be combined per partition):
 
 ## Talos Machine Configuration
 
-Configuration of disk encryption in Talos is done with [VolumeConfig](https://docs.siderolabs.com/talos/v1.12/reference/configuration/block/volumeconfig) for system disks and [UserVolumeConfig](https://docs.siderolabs.com/talos/v1.12/reference/configuration/block/uservolumeconfig) for additional data disks.
+Configuration of disk encryption in Talos is done with [VolumeConfig](https://docs.siderolabs.com/talos/v1.12/reference/configuration/block/volumeconfig) for system disks and [RawVolumeConfig](https://docs.siderolabs.com/talos/v1.12/reference/configuration/block/rawvolumeconfig) for additional data disks.
 
 Example:
 
@@ -73,7 +73,7 @@ encryption:
 ---
 # Additional data disk encryption config
 apiVersion: v1alpha1
-kind: UserVolumeConfig
+kind: RawVolumeConfig
 name: data-1
 provisioning:
   diskSelector:
