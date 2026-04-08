@@ -163,7 +163,7 @@ kommodity:
       chart:
         repository: oci://ghcr.io/argoproj/argo-helm
         name: argo-cd
-        version: 9.1.2
+        version: 9.4.17
       # Defines the values to be passed to the downstream Helm chart at first install only, immutable after that
       initialExtraValues:
         enabled: true
