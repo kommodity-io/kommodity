@@ -120,6 +120,9 @@ Any values that should trigger a new Machine template when changed should be add
 {{- $_ := set $data "sku" .poolValues.sku -}}
 {{- $_ := set $data "diskSize" (dig "os" "disk" "size" "" .poolValues) -}}
 {{- $_ := set $data "gpus" (dig "gpus" "" .poolValues) -}}
+{{- with (dig "additionalVolumes" "" .poolValues) -}}
+	{{- $_ := set $data "additionalVolumes" . -}}
+{{- end -}}
 {{- $_ := set $data "publicNetworkEnabled" .allValues.kommodity.network.ipv4.public -}}
 {{- toJson $data | sha256sum | trunc 6 -}}
 {{- end -}}
