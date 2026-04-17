@@ -125,6 +125,7 @@ types:
     - k8s.io/api/rbac/v1.ClusterRoleList
     - k8s.io/api/rbac/v1.ClusterRoleBinding
     - k8s.io/api/rbac/v1.ClusterRoleBindingList
+    - k8s.io/api/rbac/v1.AggregationRule
     - k8s.io/api/rbac/v1.PolicyRule
     - k8s.io/api/rbac/v1.RoleRef
     - k8s.io/api/rbac/v1.Subject
