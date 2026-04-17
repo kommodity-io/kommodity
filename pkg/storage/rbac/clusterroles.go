@@ -11,6 +11,7 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/validation"
 	k8spath "k8s.io/apimachinery/pkg/api/validation/path"
+	metav1validation "k8s.io/apimachinery/pkg/apis/meta/v1/validation"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -152,7 +153,7 @@ func (clusterRoleStrategy) PrepareForUpdate(ctx context.Context, obj, old runtim
 
 	_, success = old.(*rbacv1.ClusterRole)
 	if !success {
-		logger.Error(storage.ExpectedGot(storage.ErrObjectIsNotAClusterRole, obj))
+		logger.Error(storage.ExpectedGot(storage.ErrObjectIsNotAClusterRole, old))
 
 		return
 	}
@@ -173,10 +174,37 @@ func (clusterRoleStrategy) Validate(_ context.Context, obj runtime.Object) field
 		validateClusterRoleName,
 		field.NewPath("metadata"))
 
-	for i, rule := range clusterRoleObject.Rules {
-		errs := validatePolicyRule(rule, false, field.NewPath("rules").Index(i))
-		if len(errs) > 0 {
-			allErrs = append(allErrs, errs...)
+	// Validate aggregationRule constraints
+	if clusterRoleObject.AggregationRule != nil {
+		// If aggregationRule is set, rules should be empty (rules are auto-populated by controller)
+		if len(clusterRoleObject.Rules) > 0 {
+			allErrs = append(allErrs, field.Invalid(
+				field.NewPath("rules"),
+				clusterRoleObject.Rules,
+				"rules cannot be specified when aggregationRule is set"))
+		}
+
+		// Validate clusterRoleSelectors
+		if len(clusterRoleObject.AggregationRule.ClusterRoleSelectors) == 0 {
+			allErrs = append(allErrs, field.Required(
+				field.NewPath("aggregationRule", "clusterRoleSelectors"),
+				"at least one cluster role selector is required"))
+		}
+
+		for i, selector := range clusterRoleObject.AggregationRule.ClusterRoleSelectors {
+			selectorErrs := metav1validation.ValidateLabelSelector(
+				&selector,
+				metav1validation.LabelSelectorValidationOptions{},
+				field.NewPath("aggregationRule", "clusterRoleSelectors").Index(i))
+			allErrs = append(allErrs, selectorErrs...)
+		}
+	} else {
+		// If no aggregationRule, validate rules
+		for i, rule := range clusterRoleObject.Rules {
+			errs := validatePolicyRule(rule, false, field.NewPath("rules").Index(i))
+			if len(errs) > 0 {
+				allErrs = append(allErrs, errs...)
+			}
 		}
 	}
 

@@ -175,6 +175,7 @@ func (clusterRoleBindingStrategy) Validate(_ context.Context, obj runtime.Object
 		validateClusterRoleBindingName,
 		field.NewPath("metadata"))
 
+	// Validate RoleRef
 	if clusterRoleBindingObject.RoleRef.APIGroup != rbacv1.GroupName {
 		allErrs = append(allErrs, field.NotSupported(
 			field.NewPath("roleRef", "apiGroup"),
@@ -186,6 +187,24 @@ func (clusterRoleBindingStrategy) Validate(_ context.Context, obj runtime.Object
 		allErrs = append(allErrs, field.Required(
 			field.NewPath("roleRef", "name"),
 			""))
+	}
+
+	if len(clusterRoleBindingObject.RoleRef.Kind) == 0 {
+		allErrs = append(allErrs, field.Required(
+			field.NewPath("roleRef", "kind"),
+			""))
+	} else if clusterRoleBindingObject.RoleRef.Kind != "ClusterRole" &&
+		clusterRoleBindingObject.RoleRef.Kind != "Role" {
+		allErrs = append(allErrs, field.NotSupported(
+			field.NewPath("roleRef", "kind"),
+			clusterRoleBindingObject.RoleRef.Kind,
+			[]string{"ClusterRole", "Role"}))
+	}
+
+	// Validate Subjects
+	for i, subject := range clusterRoleBindingObject.Subjects {
+		subjectPath := field.NewPath("subjects").Index(i)
+		allErrs = append(allErrs, validateRoleBindingSubject(subject, subjectPath)...)
 	}
 
 	return allErrs
@@ -226,4 +245,76 @@ func (clusterRoleBindingStrategy) AllowUnconditionalUpdate() bool {
 
 func validateClusterRoleBindingName(name string, _ bool) []string {
 	return k8spath.IsValidPathSegmentName(name)
+}
+
+func validateRoleBindingSubject(subject rbacv1.Subject, fldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	if len(subject.Name) == 0 {
+		allErrs = append(allErrs, field.Required(
+			fldPath.Child("name"),
+			""))
+	}
+
+	if len(subject.Kind) == 0 {
+		allErrs = append(allErrs, field.Required(
+			fldPath.Child("kind"),
+			""))
+
+		return allErrs
+	}
+
+	// Validate based on subject kind
+	switch subject.Kind {
+	case rbacv1.ServiceAccountKind:
+		allErrs = append(allErrs, validateServiceAccountSubject(subject, fldPath)...)
+	case rbacv1.UserKind, rbacv1.GroupKind:
+		allErrs = append(allErrs, validateUserOrGroupSubject(subject, fldPath)...)
+	default:
+		allErrs = append(allErrs, field.NotSupported(
+			fldPath.Child("kind"),
+			subject.Kind,
+			[]string{rbacv1.ServiceAccountKind, rbacv1.UserKind, rbacv1.GroupKind}))
+	}
+
+	return allErrs
+}
+
+func validateServiceAccountSubject(subject rbacv1.Subject, fldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	if len(subject.Namespace) == 0 {
+		allErrs = append(allErrs, field.Required(
+			fldPath.Child("namespace"),
+			"namespace is required for ServiceAccount subjects"))
+	}
+
+	if subject.APIGroup != "" {
+		allErrs = append(allErrs, field.Invalid(
+			fldPath.Child("apiGroup"),
+			subject.APIGroup,
+			"apiGroup should be empty for ServiceAccount subjects"))
+	}
+
+	return allErrs
+}
+
+func validateUserOrGroupSubject(subject rbacv1.Subject, fldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	if len(subject.Namespace) > 0 {
+		allErrs = append(allErrs, field.Invalid(
+			fldPath.Child("namespace"),
+			subject.Namespace,
+			"namespace should not be set for User or Group subjects"))
+	}
+
+	if subject.APIGroup != rbacv1.GroupName {
+		allErrs = append(allErrs, field.NotSupported(
+			fldPath.Child("apiGroup"),
+			subject.APIGroup,
+			[]string{rbacv1.GroupName}))
+	}
+
+	return allErrs
 }
