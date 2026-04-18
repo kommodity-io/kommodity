@@ -18,10 +18,15 @@ import (
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-const (
-	clusterNameLabel = "cluster.x-k8s.io/cluster-name"
-	defaultNamespace = "default"
-)
+// helmRelease represents a minimal subset of Helm release data needed to extract chart version.
+type helmRelease struct {
+	Chart *struct {
+		Metadata *struct {
+			Version string `json:"version"`
+		} `json:"metadata"`
+	} `json:"chart"`
+}
+
 
 // DashboardMetrics holds the metrics for the dashboard.
 type DashboardMetrics struct {
@@ -72,9 +77,9 @@ func GetDashboardMetrics(
 
 	for _, machine := range machines.Items {
 		switch machine.Status.Phase {
-		case "Running":
+		case MachinePhaseRunning:
 			running++
-		case "Provisioning":
+		case MachinePhaseProvisioning:
 			provisioning++
 		}
 	}
@@ -114,10 +119,25 @@ func GetClusterList(
 		return nil, fmt.Errorf("failed to list clusters: %w", err)
 	}
 
+	// Batch fetch all resources to avoid N+1 queries
+	controlPlanesMap, err := fetchAllControlPlanes(ctx, client)
+	if err != nil {
+		logger.Warn("Failed to fetch control planes", zap.Error(err))
+		// Continue with empty map
+		controlPlanesMap = make(map[string]*taloscontrolplanev1.TalosControlPlane)
+	}
+
+	helmSecretsMap, err := fetchAllHelmSecrets(ctx, kubeClient)
+	if err != nil {
+		logger.Warn("Failed to fetch helm secrets", zap.Error(err))
+		// Continue with empty map
+		helmSecretsMap = make(map[string]string)
+	}
+
 	clusterInfos := make([]ClusterInfo, 0, len(clusters.Items))
 
 	for _, cluster := range clusters.Items {
-		info := buildClusterInfo(ctx, client, kubeClient, cluster)
+		info := buildClusterInfoFromCache(ctx, cluster, controlPlanesMap, helmSecretsMap)
 		clusterInfos = append(clusterInfos, info)
 	}
 
@@ -126,12 +146,122 @@ func GetClusterList(
 	return clusterInfos, nil
 }
 
-// buildClusterInfo builds a ClusterInfo struct for a given cluster.
-func buildClusterInfo(
+// fetchAllControlPlanes fetches all TalosControlPlanes and returns them as a map keyed by cluster name.
+func fetchAllControlPlanes(
 	ctx context.Context,
 	client ctrlclient.Client,
+) (map[string]*taloscontrolplanev1.TalosControlPlane, error) {
+	var controlPlaneList taloscontrolplanev1.TalosControlPlaneList
+
+	err := client.List(ctx, &controlPlaneList)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list control planes: %w", err)
+	}
+
+	controlPlanesMap := make(map[string]*taloscontrolplanev1.TalosControlPlane, len(controlPlaneList.Items))
+
+	for i := range controlPlaneList.Items {
+		cp := &controlPlaneList.Items[i]
+		if cp.Labels != nil {
+			if clusterName, ok := cp.Labels[ClusterNameLabel]; ok {
+				controlPlanesMap[clusterName] = cp
+			}
+		}
+	}
+
+	return controlPlanesMap, nil
+}
+
+// fetchAllHelmSecrets fetches all Helm release secrets and returns them as a map keyed by release name.
+func fetchAllHelmSecrets(
+	ctx context.Context,
 	kubeClient *clientgoclientset.Clientset,
+) (map[string]string, error) {
+	logger := logging.FromContext(ctx)
+
+	// List all Helm release secrets across all namespaces
+	secrets, err := kubeClient.CoreV1().Secrets("").List(ctx, metav1.ListOptions{
+		LabelSelector: fmt.Sprintf("%s=%s,%s=%s",
+			HelmLabelOwner, HelmOwnerHelm,
+			HelmLabelStatus, HelmStatusDeployed),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list helm secrets: %w", err)
+	}
+
+	helmSecretsMap := make(map[string]string, len(secrets.Items))
+
+	for _, secret := range secrets.Items {
+		releaseName := secret.Labels[HelmLabelName]
+		if releaseName == "" {
+			continue
+		}
+
+		releaseData, ok := secret.Data[HelmSecretKeyRelease]
+		if !ok {
+			continue
+		}
+
+		version, err := decodeHelmRelease(releaseData)
+		if err != nil {
+			logger.Warn("Failed to decode helm release",
+				zap.String("releaseName", releaseName),
+				zap.Error(err),
+			)
+
+			continue
+		}
+
+		helmSecretsMap[releaseName] = version
+	}
+
+	return helmSecretsMap, nil
+}
+
+// decodeHelmRelease decodes a Helm release secret and extracts the chart version.
+func decodeHelmRelease(releaseData []byte) (string, error) {
+	// Decode base64
+	decoded, err := base64.StdEncoding.DecodeString(string(releaseData))
+	if err != nil {
+		return "", fmt.Errorf("failed to decode release data: %w", err)
+	}
+
+	// Decompress gzip
+	gzipReader, err := gzip.NewReader(bytes.NewReader(decoded))
+	if err != nil {
+		return "", fmt.Errorf("failed to create gzip reader: %w", err)
+	}
+
+	defer func() {
+		_ = gzipReader.Close()
+	}()
+
+	decompressed, err := io.ReadAll(gzipReader)
+	if err != nil {
+		return "", fmt.Errorf("failed to decompress release data: %w", err)
+	}
+
+	// Decode JSON (Helm v3 uses JSON encoding)
+	var rel helmRelease
+
+	err = json.Unmarshal(decompressed, &rel)
+	if err != nil {
+		return "", fmt.Errorf("failed to unmarshal helm release: %w", err)
+	}
+
+	if rel.Chart == nil || rel.Chart.Metadata == nil || rel.Chart.Metadata.Version == "" {
+		return "", ErrChartVersionNotFound
+	}
+
+	return rel.Chart.Metadata.Version, nil
+}
+
+// buildClusterInfoFromCache builds a ClusterInfo struct using pre-fetched data.
+func buildClusterInfoFromCache(
+	ctx context.Context,
 	cluster clusterv1.Cluster,
+	controlPlanesMap map[string]*taloscontrolplanev1.TalosControlPlane,
+	helmSecretsMap map[string]string,
 ) ClusterInfo {
 	logger := logging.FromContext(ctx)
 
@@ -142,268 +272,31 @@ func buildClusterInfo(
 		TalosVersion:      UnknownVersion,
 	}
 
-	// Get chart version from Helm release
-	chartVersion, err := getHelmChartVersion(ctx, cluster.Name, cluster.Namespace, kubeClient)
-	if err != nil {
-		logger.Warn("Failed to get chart version for cluster",
-			zap.String("cluster", cluster.Name),
-			zap.Error(err),
-		)
-	} else {
+	// Get chart version from pre-fetched Helm secrets
+	if chartVersion, ok := helmSecretsMap[cluster.Name]; ok {
 		info.ChartVersion = chartVersion
+	} else {
+		logger.Debug("No Helm chart version found for cluster",
+			zap.String("cluster", cluster.Name),
+		)
 	}
 
-	// Get Kubernetes version from control plane
-	k8sVersion, err := getKubernetesVersion(ctx, client, cluster.Name, cluster.Namespace)
-	if err != nil {
-		logger.Warn("Failed to get Kubernetes version for cluster",
-			zap.String("cluster", cluster.Name),
-			zap.Error(err),
-		)
-	} else {
-		info.KubernetesVersion = k8sVersion
-	}
+	// Get Kubernetes and Talos versions from pre-fetched control plane
+	if controlPlane, ok := controlPlanesMap[cluster.Name]; ok {
+		if controlPlane.Spec.Version != "" {
+			info.KubernetesVersion = controlPlane.Spec.Version
+		}
 
-	// Get Talos version from TalosControlPlane
-	talosVersion, err := getTalosVersionForCluster(ctx, client, cluster.Name, cluster.Namespace)
-	if err != nil {
-		logger.Warn("Failed to get Talos version for cluster",
-			zap.String("cluster", cluster.Name),
-			zap.String("namespace", cluster.Namespace),
-			zap.Error(err),
-		)
+		if controlPlane.Spec.ControlPlaneConfig.ControlPlaneConfig.TalosVersion != "" {
+			info.TalosVersion = controlPlane.Spec.ControlPlaneConfig.ControlPlaneConfig.TalosVersion
+		}
 	} else {
-		info.TalosVersion = talosVersion
+		logger.Debug("No control plane found for cluster",
+			zap.String("cluster", cluster.Name),
+		)
 	}
 
 	return info
 }
 
-// getKubernetesVersion retrieves the Kubernetes version for a cluster.
-func getKubernetesVersion(
-	ctx context.Context,
-	client ctrlclient.Client,
-	clusterName string,
-	namespace string,
-) (string, error) {
-	// Try to get from TalosControlPlane first
-	version, err := getKubernetesVersionFromControlPlane(ctx, client, clusterName, namespace)
-	if err == nil && version != "" {
-		return version, nil
-	}
-
-	// Fallback: try to get from any machine in the cluster
-	version, err = getKubernetesVersionFromMachines(ctx, client, clusterName, namespace)
-	if err != nil {
-		return "", err
-	}
-
-	if version != "" {
-		return version, nil
-	}
-
-	return UnknownVersion, nil
-}
-
-// getKubernetesVersionFromControlPlane retrieves K8s version from TalosControlPlane.
-func getKubernetesVersionFromControlPlane(
-	ctx context.Context,
-	client ctrlclient.Client,
-	clusterName string,
-	namespace string,
-) (string, error) {
-	logger := logging.FromContext(ctx)
-
-	var controlPlaneList taloscontrolplanev1.TalosControlPlaneList
-
-	err := client.List(ctx, &controlPlaneList, &ctrlclient.ListOptions{
-		Namespace: namespace,
-	})
-	if err != nil {
-		return "", fmt.Errorf("failed to list control planes: %w", err)
-	}
-
-	logger.Debug("Searching for TalosControlPlane",
-		zap.String("clusterName", clusterName),
-		zap.String("namespace", namespace),
-		zap.Int("totalControlPlanes", len(controlPlaneList.Items)),
-	)
-
-	for _, controlPlane := range controlPlaneList.Items {
-		logger.Debug("Checking TalosControlPlane",
-			zap.String("name", controlPlane.Name),
-			zap.Any("labels", controlPlane.Labels),
-			zap.String("version", controlPlane.Spec.Version),
-		)
-
-		if controlPlane.Labels != nil && controlPlane.Labels[clusterNameLabel] == clusterName {
-			if controlPlane.Spec.Version != "" {
-				logger.Debug("Found Kubernetes version",
-					zap.String("clusterName", clusterName),
-					zap.String("version", controlPlane.Spec.Version),
-				)
-
-				return controlPlane.Spec.Version, nil
-			}
-		}
-	}
-
-	return "", nil
-}
-
-// getKubernetesVersionFromMachines retrieves K8s version from machines.
-func getKubernetesVersionFromMachines(
-	ctx context.Context,
-	client ctrlclient.Client,
-	clusterName string,
-	namespace string,
-) (string, error) {
-	var machines clusterv1.MachineList
-
-	err := client.List(ctx, &machines, &ctrlclient.ListOptions{
-		Namespace: namespace,
-	})
-	if err != nil {
-		return "", fmt.Errorf("failed to list machines: %w", err)
-	}
-
-	for _, machine := range machines.Items {
-		if machine.Labels != nil && machine.Labels[clusterNameLabel] == clusterName {
-			if machine.Spec.Version != nil && *machine.Spec.Version != "" {
-				return *machine.Spec.Version, nil
-			}
-		}
-	}
-
-	return "", nil
-}
-
-// getTalosVersionForCluster retrieves the Talos version for a cluster from TalosControlPlane.
-func getTalosVersionForCluster(
-	ctx context.Context,
-	client ctrlclient.Client,
-	clusterName string,
-	namespace string,
-) (string, error) {
-	logger := logging.FromContext(ctx)
-
-	// Get TalosControlPlane for this cluster
-	var controlPlaneList taloscontrolplanev1.TalosControlPlaneList
-
-	err := client.List(ctx, &controlPlaneList, &ctrlclient.ListOptions{
-		Namespace: namespace,
-	})
-	if err != nil {
-		return UnknownVersion, fmt.Errorf("failed to list control planes: %w", err)
-	}
-
-	logger.Debug("Searching for TalosControlPlane for Talos version",
-		zap.String("clusterName", clusterName),
-		zap.String("namespace", namespace),
-		zap.Int("totalControlPlanes", len(controlPlaneList.Items)),
-	)
-
-	// Find control plane for this cluster
-	for _, controlPlane := range controlPlaneList.Items {
-		logger.Debug("Checking TalosControlPlane for Talos version",
-			zap.String("name", controlPlane.Name),
-			zap.Any("labels", controlPlane.Labels),
-			zap.String("talosVersion", controlPlane.Spec.ControlPlaneConfig.ControlPlaneConfig.TalosVersion),
-		)
-
-		if controlPlane.Labels != nil && controlPlane.Labels[clusterNameLabel] == clusterName {
-			// Get Talos version from spec.controlPlaneConfig.controlplane.talosVersion
-			if controlPlane.Spec.ControlPlaneConfig.ControlPlaneConfig.TalosVersion != "" {
-				logger.Debug("Found Talos version",
-					zap.String("clusterName", clusterName),
-					zap.String("version", controlPlane.Spec.ControlPlaneConfig.ControlPlaneConfig.TalosVersion),
-				)
-
-				return controlPlane.Spec.ControlPlaneConfig.ControlPlaneConfig.TalosVersion, nil
-			}
-		}
-	}
-
-	logger.Warn("No Talos version found for cluster",
-		zap.String("clusterName", clusterName),
-		zap.String("namespace", namespace),
-	)
-
-	return UnknownVersion, nil
-}
-
-// helmRelease represents a subset of Helm release data.
-type helmRelease struct {
-	Chart struct {
-		Metadata struct {
-			Version string `json:"version"`
-		} `json:"metadata"`
-	} `json:"chart"`
-}
-
-// getHelmChartVersion retrieves the Helm chart version from the release secret.
-func getHelmChartVersion(
-	ctx context.Context,
-	releaseName string,
-	namespace string,
-	kubeClient *clientgoclientset.Clientset,
-) (string, error) {
-	// List secrets with Helm release labels
-	secrets, err := kubeClient.CoreV1().Secrets(namespace).List(ctx, metav1.ListOptions{
-		LabelSelector: fmt.Sprintf("owner=helm,name=%s,status=deployed", releaseName),
-	})
-	if err != nil {
-		return UnknownVersion, fmt.Errorf("failed to list helm secrets: %w", err)
-	}
-
-	if len(secrets.Items) == 0 {
-		return UnknownVersion, fmt.Errorf("%w for %s", ErrNoHelmReleaseSecret, releaseName)
-	}
-
-	// Get the release data from the secret
-	secret := secrets.Items[0]
-
-	releaseData, ok := secret.Data["release"]
-	if !ok {
-		return UnknownVersion, ErrReleaseDataNotFound
-	}
-
-	// Decode base64
-	decoded, err := base64.StdEncoding.DecodeString(string(releaseData))
-	if err != nil {
-		return UnknownVersion, fmt.Errorf("failed to decode release data: %w", err)
-	}
-
-	// Decompress gzip
-	gzipReader, err := gzip.NewReader(bytes.NewReader(decoded))
-	if err != nil {
-		return UnknownVersion, fmt.Errorf("failed to create gzip reader: %w", err)
-	}
-
-	defer func() {
-		closeErr := gzipReader.Close()
-		if closeErr != nil {
-			err = fmt.Errorf("failed to close gzip reader: %w", closeErr)
-		}
-	}()
-
-	decompressed, err := io.ReadAll(gzipReader)
-	if err != nil {
-		return UnknownVersion, fmt.Errorf("failed to decompress release data: %w", err)
-	}
-
-	// Parse JSON
-	var release helmRelease
-
-	err = json.Unmarshal(decompressed, &release)
-	if err != nil {
-		return UnknownVersion, fmt.Errorf("failed to unmarshal release data: %w", err)
-	}
-
-	if release.Chart.Metadata.Version == "" {
-		return UnknownVersion, nil
-	}
-
-	return release.Chart.Metadata.Version, nil
-}
 

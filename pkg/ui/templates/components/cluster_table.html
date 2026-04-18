@@ -63,57 +63,45 @@
 </div>
 
 <script>
+    // Fetch cluster kubeconfig with error handling
+    async function fetchClusterKubeconfig(clusterName) {
+        const response = await fetch('/api/kubeconfig/cluster/' + clusterName);
+
+        if (!response.ok) {
+            if (response.status === 404 || response.status === 500) {
+                throw new Error('The cluster name: ' + clusterName + ' is not a valid Kommodity cluster');
+            } else if (response.status === 403) {
+                throw new Error('Unsupported: ' + clusterName + ', cluster is not properly configured with OIDC');
+            } else {
+                throw new Error('Failed to fetch kubeconfig (HTTP ' + response.status + ')');
+            }
+        }
+
+        const text = await response.text();
+        if (!text || !text.trim()) {
+            throw new Error('The cluster name: ' + clusterName + ' is not a valid Kommodity cluster');
+        }
+
+        return text;
+    }
+
     async function copyClusterKubeconfig(clusterName) {
         try {
-            const response = await fetch('/api/kubeconfig/cluster/' + clusterName);
-            if (!response.ok) {
-                if (response.status === 404 || response.status === 500) {
-                    showToast('The cluster name: ' + clusterName + ' is not a valid Kommodity cluster', 'error');
-                } else if (response.status === 403) {
-                    showToast('Unsupported: ' + clusterName + ', cluster is not properly configured with OIDC', 'error');
-                } else {
-                    showToast('Failed to fetch kubeconfig (HTTP ' + response.status + ')', 'error');
-                }
-                return;
-            }
-
-            const text = await response.text();
-            if (!text || !text.trim()) {
-                showToast('The cluster name: ' + clusterName + ' is not a valid Kommodity cluster', 'error');
-                return;
-            }
-
+            const text = await fetchClusterKubeconfig(clusterName);
             copyToClipboard(text, 'Kubeconfig for ' + clusterName + ' copied to clipboard');
         } catch (error) {
             console.error('Error copying cluster kubeconfig:', error);
-            showToast('Failed to copy kubeconfig. Please try again.', 'error');
+            showToast(error.message || 'Failed to copy kubeconfig. Please try again.', 'error');
         }
     }
 
     async function downloadClusterKubeconfig(clusterName) {
         try {
-            const response = await fetch('/api/kubeconfig/cluster/' + clusterName);
-            if (!response.ok) {
-                if (response.status === 404 || response.status === 500) {
-                    showToast('The cluster name: ' + clusterName + ' is not a valid Kommodity cluster', 'error');
-                } else if (response.status === 403) {
-                    showToast('Unsupported: ' + clusterName + ', cluster is not properly configured with OIDC', 'error');
-                } else {
-                    showToast('Failed to fetch kubeconfig (HTTP ' + response.status + ')', 'error');
-                }
-                return;
-            }
-
-            const text = await response.text();
-            if (!text || !text.trim()) {
-                showToast('The cluster name: ' + clusterName + ' is not a valid Kommodity cluster', 'error');
-                return;
-            }
-
+            const text = await fetchClusterKubeconfig(clusterName);
             downloadKubeconfig(text, clusterName + '.yaml');
         } catch (error) {
             console.error('Error downloading cluster kubeconfig:', error);
-            showToast('Failed to download kubeconfig. Please try again.', 'error');
+            showToast(error.message || 'Failed to download kubeconfig. Please try again.', 'error');
         }
     }
 </script>

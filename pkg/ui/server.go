@@ -20,8 +20,7 @@ func NewHTTPMuxFactory(
 
 	return func(mux *http.ServeMux) error {
 		// Serve static files from public directory
-		publicFS := http.Dir("./public")
-		mux.Handle("GET /public/", http.StripPrefix("/public/", http.FileServer(publicFS)))
+		mux.Handle("GET /public/", http.StripPrefix("/public/", http.FileServer(http.Dir("./public"))))
 
 		// UI router with HTMX templates
 		router := NewRouter(cfg, logger)

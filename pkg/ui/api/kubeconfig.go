@@ -142,7 +142,7 @@ func GetKubeConfig(cfg *config.KommodityConfig, logger *zap.Logger) func(http.Re
 
 		// Fetch OIDC config from the downstream Talos cluster's machine config
 		// Note: Using "default" namespace for backward compatibility with URL-based cluster access
-		oidcConfig, err := getOIDCConfigFromCluster(request.Context(), clusterName, defaultNamespace, kubeClient)
+		oidcConfig, err := getOIDCConfigFromCluster(request.Context(), clusterName, DefaultNamespace, kubeClient)
 		if err != nil {
 			if errors.Is(err, ErrOIDCNotConfigured) {
 				http.Error(response, "Cluster does not have OIDC configured in apiServer.extraArgs",

@@ -15,9 +15,7 @@ var (
 	ErrNoHelmReleaseSecret = errors.New("no helm release secret found")
 	// ErrReleaseDataNotFound is returned when release data is not found in the Helm secret.
 	ErrReleaseDataNotFound = errors.New("release data not found in secret")
+	// ErrChartVersionNotFound is returned when chart version is not found in the Helm release.
+	ErrChartVersionNotFound = errors.New("chart version not found in release")
 )
 
-const (
-	// UnknownVersion is the default value when a version cannot be determined.
-	UnknownVersion = "Unknown"
-)

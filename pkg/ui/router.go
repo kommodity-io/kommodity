@@ -13,7 +13,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
-	componentbaseversion "k8s.io/component-base/version"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -116,11 +115,10 @@ func (r *Router) handleApp(writer http.ResponseWriter, req *http.Request) {
 	}
 
 	// Build template data
-	versionInfo := componentbaseversion.Get()
 	data := map[string]any{
 		"Metrics":  metrics,
 		"Clusters": clusters,
-		"Version":  versionInfo.GitVersion,
+		"Version":  api.GetKommodityVersion(),
 		"KubeconfigSection": KubeconfigSection{
 			ID:      "kommodity",
 			Title:   "Kubeconfig for connecting to Kommodity",
