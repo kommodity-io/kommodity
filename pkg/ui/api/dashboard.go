@@ -407,10 +407,3 @@ func getHelmChartVersion(
 	return release.Chart.Metadata.Version, nil
 }
 
-// GetKubeconfig retrieves the kubeconfig for Kommodity.
-func GetKubeconfig(_ context.Context) (string, error) {
-	// This will be fetched via API endpoint /api/kubeconfig/kommodity
-	// The actual implementation is in kubeconfig.go
-	// This is just a placeholder
-	return "", nil
-}

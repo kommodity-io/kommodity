@@ -21,6 +21,14 @@ import (
 	"github.com/kommodity-io/kommodity/pkg/ui/api"
 )
 
+// KubeconfigSection holds configuration for rendering a kubeconfig section.
+type KubeconfigSection struct {
+	ID       string
+	Title    string
+	Endpoint string
+	Filename string
+}
+
 //go:embed templates
 var templatesFS embed.FS
 
@@ -105,6 +113,12 @@ func (r *Router) handleApp(writer http.ResponseWriter, req *http.Request) {
 		"Metrics":  metrics,
 		"Clusters": clusters,
 		"Version":  versionInfo.GitVersion,
+		"KubeconfigSection": KubeconfigSection{
+			ID:       "kommodity",
+			Title:    "Kubeconfig for connecting to Kommodity",
+			Endpoint: "/api/kubeconfig/kommodity",
+			Filename: "kommodity.yaml",
+		},
 	}
 
 	// Render full page or content only
