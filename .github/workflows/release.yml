@@ -57,7 +57,7 @@ jobs:
             echo "should_run=true" >> "$GITHUB_OUTPUT"
           fi
 
-  # Shared job to build UI once and compute version
+  # Compute version for the release
   prepare:
     name: Prepare
     runs-on: ubuntu-latest
@@ -78,26 +78,6 @@ jobs:
         with:
           go-version: stable
           check-latest: true
-
-      - name: Setup NPM
-        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6
-        with:
-          node-version: "24.2.0"
-          cache: "npm"
-          cache-dependency-path: pkg/ui/web/kommodity-ui/package-lock.json
-
-      - name: Install UI dependencies
-        run: npm install --prefix pkg/ui/web/kommodity-ui
-
-      - name: Build UI
-        run: make build-ui
-
-      - name: Upload UI artifact
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
-        with:
-          name: ui-dist
-          path: pkg/ui/web/kommodity-ui/dist
-          retention-days: 1
 
       - name: Detect semantic release
         uses: docker://ghcr.io/codfish/semantic-release-action@sha256:5d5447090feb2f9252aac2825ef14e244ecf53528fbe87d585b459adb547b914 # v4
@@ -149,12 +129,6 @@ jobs:
       - name: Install dependencies
         run: go mod download
 
-      - name: Download UI artifact
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
-        with:
-          name: ui-dist
-          path: pkg/ui/web/kommodity-ui/dist
-
       - name: Lint
         run: make lint
 
@@ -179,12 +153,6 @@ jobs:
 
       - name: Install dependencies
         run: go mod download
-
-      - name: Download UI artifact
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
-        with:
-          name: ui-dist
-          path: pkg/ui/web/kommodity-ui/dist
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
@@ -246,12 +214,6 @@ jobs:
 
       - name: Install dependencies
         run: go mod download
-
-      - name: Download UI artifact
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
-        with:
-          name: ui-dist
-          path: pkg/ui/web/kommodity-ui/dist
 
       - name: Compute compression flags
         id: compression
