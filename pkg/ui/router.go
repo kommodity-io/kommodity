@@ -23,10 +23,9 @@ import (
 
 // KubeconfigSection holds configuration for rendering a kubeconfig section.
 type KubeconfigSection struct {
-	ID       string
-	Title    string
-	Endpoint string
-	Filename string
+	ID      string
+	Title   string
+	Content string
 }
 
 //go:embed templates
@@ -107,6 +106,15 @@ func (r *Router) handleApp(writer http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	// Get kubeconfig content
+	kubeconfigContent, err := api.GetKommodityKubeConfig(r.cfg)
+	if err != nil {
+		r.logger.Error("failed to get kubeconfig", zap.Error(err))
+		http.Error(writer, "Failed to load kubeconfig", http.StatusInternalServerError)
+
+		return
+	}
+
 	// Build template data
 	versionInfo := componentbaseversion.Get()
 	data := map[string]any{
@@ -114,10 +122,9 @@ func (r *Router) handleApp(writer http.ResponseWriter, req *http.Request) {
 		"Clusters": clusters,
 		"Version":  versionInfo.GitVersion,
 		"KubeconfigSection": KubeconfigSection{
-			ID:       "kommodity",
-			Title:    "Kubeconfig for connecting to Kommodity",
-			Endpoint: "/api/kubeconfig/kommodity",
-			Filename: "kommodity.yaml",
+			ID:      "kommodity",
+			Title:   "Kubeconfig for connecting to Kommodity",
+			Content: kubeconfigContent,
 		},
 	}
 

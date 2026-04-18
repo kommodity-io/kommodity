@@ -2,6 +2,7 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"embed"
 	"encoding/base64"
@@ -60,21 +61,34 @@ func (o *oidcKubeConfig) writeResponse(response http.ResponseWriter,
 	}
 }
 
-// GetKommodityKubeConfig handles requests for retrieving the Kommodity kubeconfig.
-func GetKommodityKubeConfig(cfg *config.KommodityConfig, logger *zap.Logger) func(http.ResponseWriter, *http.Request) {
-	return func(response http.ResponseWriter, request *http.Request) {
-		if request.Method != http.MethodGet {
-			http.Error(response, "Method not allowed", http.StatusMethodNotAllowed)
+// GetKommodityKubeConfig returns the Kommodity kubeconfig as a string.
+func GetKommodityKubeConfig(cfg *config.KommodityConfig) (string, error) {
+	var buf bytes.Buffer
 
-			return
-		}
-
-		(&oidcKubeConfig{
-			BaseURL:    cfg.BaseURL,
-			Config:     nil,
-			OIDCConfig: *cfg.AuthConfig.OIDCConfig,
-		}).writeResponse(response, kommodityConfigFS, "kommodityconfig.tmpl", logger)
+	oidcCfg := &oidcKubeConfig{
+		BaseURL:    cfg.BaseURL,
+		Config:     nil,
+		OIDCConfig: *cfg.AuthConfig.OIDCConfig,
 	}
+
+	funcs := sprig.FuncMap()
+	funcs["b64encBytes"] = func(b []byte) string {
+		return base64.StdEncoding.EncodeToString(b)
+	}
+
+	tpl, err := template.New("kubeconfig").
+		Funcs(funcs).
+		ParseFS(kommodityConfigFS, "kommodityconfig.tmpl")
+	if err != nil {
+		return "", fmt.Errorf("failed to parse kubeconfig template: %w", err)
+	}
+
+	err = tpl.ExecuteTemplate(&buf, "kommodityconfig.tmpl", oidcCfg)
+	if err != nil {
+		return "", fmt.Errorf("failed to execute kubeconfig template: %w", err)
+	}
+
+	return buf.String(), nil
 }
 
 // GetKubeConfig handles requests for retrieving the kubeconfig for a given cluster.

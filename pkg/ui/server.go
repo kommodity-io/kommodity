@@ -8,7 +8,6 @@ import (
 	"github.com/kommodity-io/kommodity/pkg/combinedserver"
 	"github.com/kommodity-io/kommodity/pkg/config"
 	"github.com/kommodity-io/kommodity/pkg/logging"
-	"github.com/kommodity-io/kommodity/pkg/ui/api"
 )
 
 // NewHTTPMuxFactory creates a new HTTP mux factory for serving the Kommodity UI.
@@ -23,10 +22,6 @@ func NewHTTPMuxFactory(
 		// Serve static files from public directory
 		publicFS := http.Dir("./public")
 		mux.Handle("GET /public/", http.StripPrefix("/public/", http.FileServer(publicFS)))
-
-		// API endpoints for kubeconfig
-		mux.HandleFunc("GET /api/kubeconfig/kommodity", api.GetKommodityKubeConfig(cfg, logger))
-		mux.HandleFunc("GET /api/kubeconfig/cluster/{clusterName}", api.GetKubeConfig(cfg, logger))
 
 		// UI router with HTMX templates
 		router := NewRouter(cfg, logger)
