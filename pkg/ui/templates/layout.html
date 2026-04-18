@@ -1,0 +1,272 @@
+{{define "layout.html"}}
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kommodity Dashboard</title>
+
+    <!-- HTMX -->
+    <script src="https://unpkg.com/htmx.org@2.0.4" integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+" crossorigin="anonymous"></script>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        accent: '#B8F818',
+                        'accent-glow': '#A8E810',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* Loading Animation */
+        @keyframes square-orbit {
+            0% { transform: translate(0, 0); }
+            25% { transform: translate(20px, 0); }
+            50% { transform: translate(20px, 20px); }
+            75% { transform: translate(0, 20px); }
+            100% { transform: translate(0, 0); }
+        }
+
+        .loader {
+            position: relative;
+            width: 60px;
+            height: 60px;
+        }
+
+        .loader-square {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background-color: #B8F818;
+            animation: square-orbit 2s infinite;
+        }
+
+        .loader-square:nth-child(2) {
+            animation-delay: 0.5s;
+            background-color: #A8E810;
+        }
+
+        .loader-square:nth-child(3) {
+            animation-delay: 1s;
+            background-color: #98D800;
+        }
+
+        .loader-square:nth-child(4) {
+            animation-delay: 1.5s;
+            background-color: #88C800;
+        }
+
+        /* Fade In Animation */
+        @keyframes fade-in {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .animate-fade-in {
+            animation: fade-in 0.5s ease-out;
+        }
+
+        /* Card Table Responsive */
+        @media (max-width: 1023px) {
+            .card-table thead {
+                display: none;
+            }
+
+            .card-table tbody tr {
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 1rem;
+                padding: 1rem;
+                border-bottom: 1px solid rgb(31 41 55);
+                background-color: rgb(17 24 39);
+                margin-bottom: 0.5rem;
+                border-radius: 0.5rem;
+            }
+
+            .card-table tbody td {
+                border: none;
+                padding: 0;
+            }
+
+            .card-table tbody td::before {
+                content: attr(data-label);
+                font-weight: 600;
+                display: block;
+                margin-bottom: 0.25rem;
+                color: rgb(156 163 175);
+                font-size: 0.875rem;
+            }
+
+            .card-table tbody td:last-child {
+                grid-column: 1 / -1;
+            }
+        }
+
+        /* Collapsible Animation */
+        .collapsible {
+            display: grid;
+            grid-template-rows: 1fr;
+            transition: grid-template-rows 150ms ease;
+        }
+
+        .collapsible.collapsed {
+            grid-template-rows: 0fr;
+        }
+
+        .collapsible > div {
+            overflow: hidden;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgb(3 7 18);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgb(55 65 81);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgb(75 85 99);
+        }
+
+        /* Code Block Styling */
+        .code-block {
+            background-color: rgb(17 24 39);
+            border-radius: 0.5rem;
+            overflow-x: auto;
+        }
+
+        .code-block pre {
+            margin: 0;
+            padding: 1.5rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.875rem;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+    </style>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen">
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="hidden fixed inset-0 flex items-center justify-center bg-gray-950/80 z-50">
+        <div class="loader">
+            <div class="loader-square"></div>
+            <div class="loader-square"></div>
+            <div class="loader-square"></div>
+            <div class="loader-square"></div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div id="main-content" class="container mx-auto px-4 py-8 max-w-7xl">
+        {{block "content" .}}{{end}}
+    </div>
+
+    <script>
+        let loadingTimer = null;
+
+        // Show loading overlay after delay
+        function showLoading() {
+            document.getElementById('loading-overlay').classList.remove('hidden');
+        }
+
+        // Hide loading overlay
+        function hideLoading() {
+            if (loadingTimer) {
+                clearTimeout(loadingTimer);
+                loadingTimer = null;
+            }
+            document.getElementById('loading-overlay').classList.add('hidden');
+        }
+
+        // HTMX event listeners
+        document.addEventListener('htmx:beforeRequest', function(e) {
+            if (e.detail.elt.getAttribute('hx-target') === '#main-content') {
+                loadingTimer = setTimeout(showLoading, 100);
+            }
+        });
+
+        document.addEventListener('htmx:afterRequest', function() {
+            hideLoading();
+        });
+
+        document.addEventListener('htmx:afterSettle', function() {
+            var el = document.querySelector('[data-page-title]');
+            if (el) {
+                document.title = el.getAttribute('data-page-title') + ' - Kommodity';
+            }
+        });
+
+        // Utility functions
+        function copyToClipboard(text, successMessage) {
+            navigator.clipboard.writeText(text).then(function() {
+                showToast(successMessage || 'Copied to clipboard');
+            }, function() {
+                showToast('Failed to copy to clipboard', 'error');
+            });
+        }
+
+        function downloadKubeconfig(content, filename) {
+            var blob = new Blob([content], { type: 'text/yaml' });
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast('Kubeconfig downloaded');
+        }
+
+        function showToast(message, type) {
+            type = type || 'success';
+            var toast = document.createElement('div');
+            toast.className = 'fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 animate-fade-in ' +
+                (type === 'error' ? 'bg-red-600 text-white' : 'bg-accent text-gray-950');
+            toast.textContent = message;
+            document.body.appendChild(toast);
+
+            setTimeout(function() {
+                toast.style.opacity = '0';
+                toast.style.transition = 'opacity 0.3s ease';
+                setTimeout(function() {
+                    document.body.removeChild(toast);
+                }, 300);
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
+{{end}}

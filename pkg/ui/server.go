@@ -3,115 +3,35 @@ package ui
 
 import (
 	"context"
-	"embed"
-	"fmt"
-	"io"
-	"io/fs"
-	"mime"
 	"net/http"
-	"os"
-	"path/filepath"
-	"strconv"
-	"strings"
 
 	"github.com/kommodity-io/kommodity/pkg/combinedserver"
 	"github.com/kommodity-io/kommodity/pkg/config"
 	"github.com/kommodity-io/kommodity/pkg/logging"
-
 	"github.com/kommodity-io/kommodity/pkg/ui/api"
 )
 
-//go:embed web/kommodity-ui/dist
-var webDist embed.FS
-
 // NewHTTPMuxFactory creates a new HTTP mux factory for serving the Kommodity UI.
-func NewHTTPMuxFactory(ctx context.Context, cfg *config.KommodityConfig) combinedserver.HTTPMuxFactory {
+func NewHTTPMuxFactory(
+	ctx context.Context,
+	cfg *config.KommodityConfig,
+) combinedserver.HTTPMuxFactory {
 	logger := logging.FromContext(ctx)
 	logger.Info("Initializing Kommodity UI server")
 
 	return func(mux *http.ServeMux) error {
-		sub, err := fs.Sub(webDist, "web/kommodity-ui/dist")
-		if err != nil {
-			return fmt.Errorf("failed to create sub filesystem for UI: %w", err)
-		}
+		// Serve static files from public directory
+		publicFS := http.Dir("./public")
+		mux.Handle("GET /public/", http.StripPrefix("/public/", http.FileServer(publicFS)))
 
-		handler := spaHandler(sub)
-
-		mux.Handle("/env.js", api.EnvJSHandler([]string{
-			config.EnvBaseURL,
-		}))
-		mux.Handle("/ui/kommodity", handler)
-		mux.Handle("/ui/cluster/{clusterName}", handler)
-		mux.Handle("/assets/", handler)
-		mux.Handle("/public/", handler)
-		mux.Handle("/static/", handler)
-
+		// API endpoints for kubeconfig
 		mux.HandleFunc("GET /api/kubeconfig/kommodity", api.GetKommodityKubeConfig(cfg, logger))
 		mux.HandleFunc("GET /api/kubeconfig/cluster/{clusterName}", api.GetKubeConfig(cfg, logger))
 
+		// UI router with HTMX templates
+		router := NewRouter(cfg, logger)
+		router.RegisterRoutes(mux)
+
 		return nil
 	}
-}
-
-func spaHandler(dist fs.FS) http.Handler {
-	return http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-		if request.Method != http.MethodGet {
-			http.Error(response, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
-
-			return
-		}
-
-		path := filepath.Clean(strings.TrimPrefix(request.URL.Path, "/ui"))
-		if isRoot(path) || isClusterPath(path) {
-			path = "index.html"
-		}
-
-		path = strings.TrimPrefix(path, "/")
-
-		file, err := dist.Open(path)
-		if err != nil {
-			if os.IsNotExist(err) {
-				http.NotFound(response, request)
-
-				return
-			}
-
-			http.Error(response, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-
-			return
-		}
-
-		response.Header().Set("Content-Type", mime.TypeByExtension(filepath.Ext(path)))
-
-		if strings.HasPrefix(path, "static/") {
-			response.Header().Set("Cache-Control", "public, max-age=31536000")
-		}
-
-		stat, err := file.Stat()
-		if err == nil && stat.Size() > 0 {
-			response.Header().Set("Content-Length", strconv.FormatInt(stat.Size(), 10))
-		}
-
-		_, err = io.Copy(response, file)
-
-		defer func() {
-			_ = file.Close()
-		}()
-
-		if err != nil {
-			http.Error(response, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-
-			return
-		}
-	})
-}
-
-func isRoot(path string) bool {
-	return path == "/" || path == "" || path == "."
-}
-
-func isClusterPath(path string) bool {
-	trimmed := strings.Trim(path, "/cluster")
-
-	return strings.Count(trimmed, "/") == 0 && !strings.Contains(trimmed, ".")
 }

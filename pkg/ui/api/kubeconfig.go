@@ -127,7 +127,8 @@ func GetKubeConfig(cfg *config.KommodityConfig, logger *zap.Logger) func(http.Re
 		}
 
 		// Fetch OIDC config from the downstream Talos cluster's machine config
-		oidcConfig, err := getOIDCConfigFromCluster(request.Context(), clusterName, kubeClient)
+		// Note: Using "default" namespace for backward compatibility with URL-based cluster access
+		oidcConfig, err := getOIDCConfigFromCluster(request.Context(), clusterName, defaultNamespace, kubeClient)
 		if err != nil {
 			if errors.Is(err, ErrOIDCNotConfigured) {
 				http.Error(response, "Cluster does not have OIDC configured in apiServer.extraArgs",
@@ -184,9 +185,13 @@ func getKubeConfig(ctx context.Context, clusterName string, kubeClient *clientgo
 // and extracts OIDC configuration from cluster.apiServer.extraArgs.
 //
 //nolint:cyclop
-func getOIDCConfigFromCluster(ctx context.Context, clusterName string,
-	kubeClient *clientgoclientset.Clientset) (*config.OIDCConfig, error) {
-	provider, err := getFirstMachineConfig(ctx, clusterName, kubeClient)
+func getOIDCConfigFromCluster(
+	ctx context.Context,
+	clusterName string,
+	namespace string,
+	kubeClient *clientgoclientset.Clientset,
+) (*config.OIDCConfig, error) {
+	provider, err := getFirstMachineConfig(ctx, clusterName, namespace, kubeClient)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get machine config: %w", err)
 	}
@@ -238,9 +243,13 @@ func getOIDCConfigFromCluster(ctx context.Context, clusterName string,
 	return oidcConfig, nil
 }
 
-func getFirstMachineConfig(ctx context.Context, clusterName string,
-	kubeClient *clientgoclientset.Clientset) (talosconfig.Provider, error) {
-	machineConfigList, err := kubeClient.CoreV1().Secrets("default").List(ctx, metav1.ListOptions{
+func getFirstMachineConfig(
+	ctx context.Context,
+	clusterName string,
+	namespace string,
+	kubeClient *clientgoclientset.Clientset,
+) (talosconfig.Provider, error) {
+	machineConfigList, err := kubeClient.CoreV1().Secrets(namespace).List(ctx, metav1.ListOptions{
 		LabelSelector: "cluster.x-k8s.io/cluster-name=" + clusterName,
 	})
 	if err != nil {

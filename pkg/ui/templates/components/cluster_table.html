@@ -1,0 +1,120 @@
+{{define "cluster_table.html"}}
+<div class="rounded-lg border border-gray-800 bg-gray-900 p-6 animate-fade-in">
+    <h2 class="text-xl font-semibold mb-4">Clusters</h2>
+
+    {{if .}}
+    <div class="overflow-x-auto">
+        <table class="card-table w-full text-sm">
+            <thead class="text-left border-b border-gray-800">
+                <tr>
+                    <th class="pb-3 font-semibold text-gray-400">Name</th>
+                    <th class="pb-3 font-semibold text-gray-400">Chart Version</th>
+                    <th class="pb-3 font-semibold text-gray-400">Kubernetes Version</th>
+                    <th class="pb-3 font-semibold text-gray-400">Talos Version</th>
+                    <th class="pb-3 font-semibold text-gray-400 text-right"></th>
+                </tr>
+            </thead>
+            <tbody>
+                {{range .}}
+                <tr class="border-b border-gray-800 hover:bg-gray-800/50">
+                    <td class="py-4" data-label="Name">
+                        <span class="font-medium">{{.Name}}</span>
+                    </td>
+                    <td class="py-4" data-label="Chart Version">
+                        <code class="px-2 py-1 bg-gray-800 rounded text-xs">{{.ChartVersion}}</code>
+                    </td>
+                    <td class="py-4" data-label="Kubernetes Version">
+                        <code class="px-2 py-1 bg-gray-800 rounded text-xs">{{.KubernetesVersion}}</code>
+                    </td>
+                    <td class="py-4" data-label="Talos Version">
+                        <code class="px-2 py-1 bg-gray-800 rounded text-xs">{{.TalosVersion}}</code>
+                    </td>
+                    <td class="py-4 text-right" data-label="">
+                        <div class="flex gap-2 justify-end">
+                            <button
+                                onclick="copyClusterKubeconfig('{{.Name}}')"
+                                class="inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent border border-gray-700 bg-gray-800 hover:bg-gray-700 hover:text-white h-8 px-3"
+                                title="Copy kubeconfig"
+                            >
+                                {{template "icon_copy.html"}}
+                                <span class="hidden sm:inline">Copy</span>
+                            </button>
+                            <button
+                                onclick="downloadClusterKubeconfig('{{.Name}}')"
+                                class="inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent bg-accent text-gray-950 hover:bg-accent-glow hover:shadow-lg h-8 px-3"
+                                title="Download kubeconfig"
+                            >
+                                {{template "icon_download.html"}}
+                                <span class="hidden sm:inline">Download</span>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+                {{end}}
+            </tbody>
+        </table>
+    </div>
+    {{else}}
+    <div class="text-center py-12 text-gray-500">
+        <p class="text-lg">No clusters found</p>
+        <p class="text-sm mt-2">Clusters will appear here once they are created</p>
+    </div>
+    {{end}}
+</div>
+
+<script>
+    async function copyClusterKubeconfig(clusterName) {
+        try {
+            const response = await fetch('/api/kubeconfig/cluster/' + clusterName);
+            if (!response.ok) {
+                if (response.status === 404 || response.status === 500) {
+                    showToast('The cluster name: ' + clusterName + ' is not a valid Kommodity cluster', 'error');
+                } else if (response.status === 403) {
+                    showToast('Unsupported: ' + clusterName + ', cluster is not properly configured with OIDC', 'error');
+                } else {
+                    showToast('Failed to fetch kubeconfig (HTTP ' + response.status + ')', 'error');
+                }
+                return;
+            }
+
+            const text = await response.text();
+            if (!text || !text.trim()) {
+                showToast('The cluster name: ' + clusterName + ' is not a valid Kommodity cluster', 'error');
+                return;
+            }
+
+            copyToClipboard(text, 'Kubeconfig for ' + clusterName + ' copied to clipboard');
+        } catch (error) {
+            console.error('Error copying cluster kubeconfig:', error);
+            showToast('Failed to copy kubeconfig. Please try again.', 'error');
+        }
+    }
+
+    async function downloadClusterKubeconfig(clusterName) {
+        try {
+            const response = await fetch('/api/kubeconfig/cluster/' + clusterName);
+            if (!response.ok) {
+                if (response.status === 404 || response.status === 500) {
+                    showToast('The cluster name: ' + clusterName + ' is not a valid Kommodity cluster', 'error');
+                } else if (response.status === 403) {
+                    showToast('Unsupported: ' + clusterName + ', cluster is not properly configured with OIDC', 'error');
+                } else {
+                    showToast('Failed to fetch kubeconfig (HTTP ' + response.status + ')', 'error');
+                }
+                return;
+            }
+
+            const text = await response.text();
+            if (!text || !text.trim()) {
+                showToast('The cluster name: ' + clusterName + ' is not a valid Kommodity cluster', 'error');
+                return;
+            }
+
+            downloadKubeconfig(text, clusterName + '.yaml');
+        } catch (error) {
+            console.error('Error downloading cluster kubeconfig:', error);
+            showToast('Failed to download kubeconfig. Please try again.', 'error');
+        }
+    }
+</script>
+{{end}}
