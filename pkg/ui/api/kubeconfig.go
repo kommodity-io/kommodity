@@ -170,6 +170,7 @@ func writeResponse(response http.ResponseWriter, data []byte) {
 	response.Header().Set("Content-Type", "application/x-yaml")
 	response.WriteHeader(http.StatusOK)
 
+	//nolint:gosec // G705: Writing YAML kubeconfig data, not HTML/JS - XSS not applicable
 	_, err := response.Write(data)
 	if err != nil {
 		http.Error(response, fmt.Sprintf("Failed to write kubeconfig response: %v", err),
