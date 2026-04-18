@@ -80,7 +80,6 @@ func TestAPIIntegration(t *testing.T) {
 	require.Contains(t, coreGroupVersions, "v1")
 }
 
-//nolint:funlen // Test function length is acceptable.
 func TestCreateScalewayCluster(t *testing.T) {
 	t.Parallel()
 
@@ -105,8 +104,6 @@ func TestCreateScalewayCluster(t *testing.T) {
 		clusterName = defaultClusterName
 	}
 
-	log.Printf("cluster name set to '%s'", clusterName)
-
 	_, err = client.CoreV1().Secrets("default").Create(ctx, &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "scaleway-secret",
@@ -120,8 +117,6 @@ func TestCreateScalewayCluster(t *testing.T) {
 		},
 	}, metav1.CreateOptions{})
 	require.NoError(t, err)
-
-	log.Printf("Using project ID %s", scalewayProjectID)
 
 	// Install Scaleway cluster helm chart in Kommodity
 	scalewayDefaultZone := helpers.InstallKommodityClusterChartScaleway(t, env,
