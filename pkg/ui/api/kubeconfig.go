@@ -2,6 +2,7 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"embed"
 	"encoding/base64"
@@ -60,21 +61,34 @@ func (o *oidcKubeConfig) writeResponse(response http.ResponseWriter,
 	}
 }
 
-// GetKommodityKubeConfig handles requests for retrieving the Kommodity kubeconfig.
-func GetKommodityKubeConfig(cfg *config.KommodityConfig, logger *zap.Logger) func(http.ResponseWriter, *http.Request) {
-	return func(response http.ResponseWriter, request *http.Request) {
-		if request.Method != http.MethodGet {
-			http.Error(response, "Method not allowed", http.StatusMethodNotAllowed)
+// GetKommodityKubeConfig returns the Kommodity kubeconfig as a string.
+func GetKommodityKubeConfig(cfg *config.KommodityConfig) (string, error) {
+	var buf bytes.Buffer
 
-			return
-		}
-
-		(&oidcKubeConfig{
-			BaseURL:    cfg.BaseURL,
-			Config:     nil,
-			OIDCConfig: *cfg.AuthConfig.OIDCConfig,
-		}).writeResponse(response, kommodityConfigFS, "kommodityconfig.tmpl", logger)
+	oidcCfg := &oidcKubeConfig{
+		BaseURL:    cfg.BaseURL,
+		Config:     nil,
+		OIDCConfig: *cfg.AuthConfig.OIDCConfig,
 	}
+
+	funcs := sprig.FuncMap()
+	funcs["b64encBytes"] = func(b []byte) string {
+		return base64.StdEncoding.EncodeToString(b)
+	}
+
+	tpl, err := template.New("kubeconfig").
+		Funcs(funcs).
+		ParseFS(kommodityConfigFS, "kommodityconfig.tmpl")
+	if err != nil {
+		return "", fmt.Errorf("failed to parse kubeconfig template: %w", err)
+	}
+
+	err = tpl.ExecuteTemplate(&buf, "kommodityconfig.tmpl", oidcCfg)
+	if err != nil {
+		return "", fmt.Errorf("failed to execute kubeconfig template: %w", err)
+	}
+
+	return buf.String(), nil
 }
 
 // GetKubeConfig handles requests for retrieving the kubeconfig for a given cluster.
@@ -127,7 +141,8 @@ func GetKubeConfig(cfg *config.KommodityConfig, logger *zap.Logger) func(http.Re
 		}
 
 		// Fetch OIDC config from the downstream Talos cluster's machine config
-		oidcConfig, err := getOIDCConfigFromCluster(request.Context(), clusterName, kubeClient)
+		// Note: Using "default" namespace for backward compatibility with URL-based cluster access
+		oidcConfig, err := getOIDCConfigFromCluster(request.Context(), clusterName, DefaultNamespace, kubeClient)
 		if err != nil {
 			if errors.Is(err, ErrOIDCNotConfigured) {
 				http.Error(response, "Cluster does not have OIDC configured in apiServer.extraArgs",
@@ -185,9 +200,13 @@ func getKubeConfig(ctx context.Context, clusterName string, kubeClient *clientgo
 // and extracts OIDC configuration from cluster.apiServer.extraArgs.
 //
 //nolint:cyclop
-func getOIDCConfigFromCluster(ctx context.Context, clusterName string,
-	kubeClient *clientgoclientset.Clientset) (*config.OIDCConfig, error) {
-	provider, err := getFirstMachineConfig(ctx, clusterName, kubeClient)
+func getOIDCConfigFromCluster(
+	ctx context.Context,
+	clusterName string,
+	namespace string,
+	kubeClient *clientgoclientset.Clientset,
+) (*config.OIDCConfig, error) {
+	provider, err := getFirstMachineConfig(ctx, clusterName, namespace, kubeClient)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get machine config: %w", err)
 	}
@@ -239,9 +258,13 @@ func getOIDCConfigFromCluster(ctx context.Context, clusterName string,
 	return oidcConfig, nil
 }
 
-func getFirstMachineConfig(ctx context.Context, clusterName string,
-	kubeClient *clientgoclientset.Clientset) (talosconfig.Provider, error) {
-	machineConfigList, err := kubeClient.CoreV1().Secrets("default").List(ctx, metav1.ListOptions{
+func getFirstMachineConfig(
+	ctx context.Context,
+	clusterName string,
+	namespace string,
+	kubeClient *clientgoclientset.Clientset,
+) (talosconfig.Provider, error) {
+	machineConfigList, err := kubeClient.CoreV1().Secrets(namespace).List(ctx, metav1.ListOptions{
 		LabelSelector: "cluster.x-k8s.io/cluster-name=" + clusterName,
 	})
 	if err != nil {
