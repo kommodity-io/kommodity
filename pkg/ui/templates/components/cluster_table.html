@@ -17,9 +17,9 @@
             </thead>
             <tbody>
                 {{range .}}
-                <tr class="border-b border-gray-800 hover:bg-gray-800/50" data-cluster-name="{{.Name}}">
+                <tr class="border-b border-gray-800 hover:bg-gray-800/50 cursor-pointer" data-cluster-name="{{.Name}}" onclick="window.location='/app/clusters/{{.Name}}'">
                     <td class="py-4 pl-4">
-                        <button type="button" class="health-indicator inline-flex items-center cursor-help border-0 bg-transparent p-0 m-0 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 focus:ring-offset-gray-900 rounded" data-cluster="{{.Name}}" aria-label="Cluster health status">
+                        <button type="button" class="health-indicator inline-flex items-center cursor-help border-0 bg-transparent p-0 m-0 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 focus:ring-offset-gray-900 rounded" data-cluster="{{.Name}}" aria-label="Cluster health status" onclick="event.stopPropagation()">
                             <span class="health-icon text-gray-500">●</span>
                         </button>
                     </td>
@@ -38,7 +38,7 @@
                     <td class="py-4 text-right" data-label="">
                         <div class="flex gap-2 justify-end">
                             <button
-                                onclick="copyClusterKubeconfig('{{.Name}}')"
+                                onclick="event.stopPropagation(); copyClusterKubeconfig('{{.Name}}')"
                                 class="inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent border border-gray-700 bg-gray-800 hover:bg-gray-700 hover:text-white h-8 px-3"
                                 title="Copy kubeconfig"
                             >
@@ -46,7 +46,7 @@
                                 <span class="hidden sm:inline">Copy</span>
                             </button>
                             <button
-                                onclick="downloadClusterKubeconfig('{{.Name}}')"
+                                onclick="event.stopPropagation(); downloadClusterKubeconfig('{{.Name}}')"
                                 class="inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent bg-accent text-gray-950 hover:bg-accent-glow hover:shadow-lg h-8 px-3"
                                 title="Download kubeconfig"
                             >
@@ -68,128 +68,15 @@
     {{end}}
 </div>
 
-<!-- Health tooltip (positioned outside table to avoid clipping) -->
-<div id="health-tooltip" class="invisible fixed w-56 bg-gray-800 border border-gray-600 text-gray-300 text-xs font-normal p-3 z-50 leading-relaxed normal-case tracking-normal whitespace-normal pointer-events-none">
-    <span class="flex items-center gap-2 mb-1.5">
-        <span class="inline-flex w-5 shrink-0 justify-center text-green-500">●</span>
-        <span>Healthy</span>
-    </span>
-    <span class="flex items-center gap-2 mb-1.5">
-        <span class="inline-flex w-5 shrink-0 justify-center text-red-500">●</span>
-        <span>Unhealthy</span>
-    </span>
-    <span class="flex items-center gap-2 mb-1.5">
-        <span class="inline-flex w-5 shrink-0 justify-center text-yellow-500">●</span>
-        <span>Check failed</span>
-    </span>
-    <span class="flex items-center gap-2">
-        <span class="inline-flex w-5 shrink-0 justify-center text-gray-500">●</span>
-        <span>Unknown</span>
-    </span>
-    <div id="health-reason" class="hidden mt-2 pt-2 border-t border-gray-700 text-gray-400"></div>
-</div>
+{{template "health_tooltip.html" (dict "TooltipID" "health-tooltip" "ReasonID" "health-reason")}}
+
+{{template "health_indicator.js.html"}}
 
 <script>
-    // Position and show/hide health tooltip
-    function setupHealthTooltips() {
-        const tooltip = document.getElementById('health-tooltip');
-        const reasonDiv = document.getElementById('health-reason');
-
-        function showTooltip(indicator) {
-            const rect = indicator.getBoundingClientRect();
-
-            // Show reason if it exists for this cluster
-            const clusterName = indicator.getAttribute('data-cluster');
-            const clusterReasonData = indicator.getAttribute('data-reason');
-            if (clusterReasonData) {
-                reasonDiv.textContent = clusterReasonData;
-                reasonDiv.classList.remove('hidden');
-            } else {
-                reasonDiv.classList.add('hidden');
-            }
-
-            // Recompute tooltip bounding box after visibility changes
-            const tooltipRect = tooltip.getBoundingClientRect();
-
-            // Position tooltip above the indicator, centered
-            tooltip.style.left = (rect.left + rect.width / 2 - tooltipRect.width / 2) + 'px';
-            tooltip.style.top = (rect.top - tooltipRect.height - 8) + 'px';
-
-            tooltip.classList.remove('invisible');
-        }
-
-        function hideTooltip() {
-            tooltip.classList.add('invisible');
-        }
-
-        document.querySelectorAll('.health-indicator').forEach(function(indicator) {
-            indicator.addEventListener('mouseenter', function() {
-                showTooltip(indicator);
-            });
-
-            indicator.addEventListener('mouseleave', function() {
-                hideTooltip();
-            });
-
-            indicator.addEventListener('focus', function() {
-                showTooltip(indicator);
-            });
-
-            indicator.addEventListener('blur', function() {
-                hideTooltip();
-            });
-        });
-    }
-
-    // Check cluster health status
-    async function checkClusterHealth(clusterName) {
-        const indicator = document.querySelector('.health-indicator[data-cluster="' + clusterName + '"]');
-        if (!indicator) return;
-
-        const icon = indicator.querySelector('.health-icon');
-        icon.textContent = '●';
-
-        try {
-            const response = await fetch('/api/cluster/' + clusterName + '/health');
-
-            if (response.ok) {
-                const data = await response.json();
-                if (data.healthy) {
-                    icon.className = 'health-icon text-green-500';
-                    indicator.removeAttribute('data-reason');
-                } else {
-                    icon.className = 'health-icon text-red-500';
-                    if (data.reason) {
-                        indicator.setAttribute('data-reason', data.reason);
-                    }
-                }
-            } else {
-                const errorText = await response.text();
-                icon.className = 'health-icon text-yellow-500';
-                
-                let errorMessage = 'HTTP ' + response.status + ': Health check failed';
-                if (errorText) {
-                    errorMessage += ' - ' + errorText;
-                }
-
-                indicator.setAttribute('data-reason', errorMessage);
-            }
-        } catch (error) {
-            console.error('Error checking cluster health:', error);
-            icon.className = 'health-icon text-gray-500';
-            indicator.setAttribute('data-reason', 'Unable to connect: ' + error.message);
-        }
-    }
-
-    // Check health for all clusters on page load
+    // Initialize health indicators
     document.addEventListener('DOMContentLoaded', function() {
-        setupHealthTooltips();
-        document.querySelectorAll('.health-indicator').forEach(function(indicator) {
-            const clusterName = indicator.getAttribute('data-cluster');
-            if (clusterName) {
-                checkClusterHealth(clusterName);
-            }
-        });
+        window.HealthIndicator.setup('health-tooltip', 'health-reason');
+        window.HealthIndicator.checkAllClusters();
     });
 
     // Fetch cluster kubeconfig with error handling

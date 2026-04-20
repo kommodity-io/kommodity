@@ -178,6 +178,25 @@ func writeResponse(response http.ResponseWriter, data []byte) {
 	}
 }
 
+// GetClusterKubeconfigContent retrieves the kubeconfig content for a cluster as a string.
+func GetClusterKubeconfigContent(
+	ctx context.Context,
+	cfg *config.KommodityConfig,
+	clusterName string,
+) (string, error) {
+	kubeClient, err := clientgoclientset.NewForConfig(cfg.ClientConfig.LoopbackClientConfig)
+	if err != nil {
+		return "", fmt.Errorf("failed to create kube client: %w", err)
+	}
+
+	kubeConfigBytes, err := getKubeConfig(ctx, clusterName, kubeClient)
+	if err != nil {
+		return "", fmt.Errorf("failed to get kubeconfig: %w", err)
+	}
+
+	return string(kubeConfigBytes), nil
+}
+
 func getKubeConfig(ctx context.Context, clusterName string, kubeClient *clientgoclientset.Clientset) ([]byte, error) {
 	secretName := clusterName + "-kubeconfig"
 
