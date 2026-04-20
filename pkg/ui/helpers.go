@@ -9,5 +9,8 @@ import (
 func templateFuncs() template.FuncMap {
 	return template.FuncMap{
 		"lower": strings.ToLower,
+		"mul": func(a int, b int) int {
+			return a * b
+		},
 	}
 }
