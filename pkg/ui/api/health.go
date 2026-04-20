@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"time"
 
 	"github.com/kommodity-io/kommodity/pkg/config"
 	"go.uber.org/zap"
@@ -44,7 +43,7 @@ func GetClusterHealth(
 				zap.String("cluster", clusterName),
 				zap.Error(err),
 			)
-			writeHealthResponse(writer, false, "Unable to retrieve cluster configuration")
+			http.Error(writer, "Unable to retrieve cluster configuration", http.StatusInternalServerError)
 
 			return
 		}
@@ -97,7 +96,7 @@ func checkClusterLivez(
 	}
 
 	// Create HTTP client with timeout
-	restConfig.Timeout = HealthCheckTimeoutSeconds * time.Second
+	restConfig.Timeout = HealthCheckTimeout
 
 	httpClient, err := rest.HTTPClientFor(restConfig)
 	if err != nil {
@@ -139,7 +138,7 @@ func executeLivezCheck(
 	livezURL := host + "/livez"
 
 	// Create request with context
-	// #nosec G704 -- URL is derived from cluster kubeconfig, not user input
+	// #nosec G107 -- URL is derived from cluster kubeconfig, not user input
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, livezURL, nil)
 	if err != nil {
 		logger.Warn("Failed to create health check request", zap.Error(err))
@@ -148,7 +147,6 @@ func executeLivezCheck(
 	}
 
 	// Execute request
-	// #nosec G704 -- URL is derived from cluster kubeconfig, not user input
 	resp, err := httpClient.Do(req)
 	if err != nil {
 		logger.Debug("Cluster health check failed",
@@ -166,16 +164,23 @@ func executeLivezCheck(
 		}
 	}()
 
-	// Read response body for details
-	body, _ := io.ReadAll(resp.Body)
-
 	// Check status code
 	if resp.StatusCode == http.StatusOK {
 		return true, ""
 	}
 
+	// Read response body for details (limited to prevent memory exhaustion)
+	limitedReader := io.LimitReader(resp.Body, MaxHealthResponseBytes)
+
+	body, err := io.ReadAll(limitedReader)
+	if err != nil {
+		logger.Warn("Failed to read response body", zap.Error(err))
+
+		return false, fmt.Sprintf("Health check returned status %d", resp.StatusCode)
+	}
+
 	reason := fmt.Sprintf("Health check returned status %d", resp.StatusCode)
-	if len(body) > 0 && len(body) < 200 {
+	if len(body) > 0 {
 		reason = string(body)
 	}
 

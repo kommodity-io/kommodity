@@ -19,9 +19,9 @@
                 {{range .}}
                 <tr class="border-b border-gray-800 hover:bg-gray-800/50" data-cluster-name="{{.Name}}">
                     <td class="py-4 pl-4">
-                        <span class="health-indicator inline-flex items-center cursor-help" data-cluster="{{.Name}}">
+                        <button type="button" class="health-indicator inline-flex items-center cursor-help border-0 bg-transparent p-0 m-0 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 focus:ring-offset-gray-900 rounded" data-cluster="{{.Name}}" aria-label="Cluster health status">
                             <span class="health-icon text-gray-500">●</span>
-                        </span>
+                        </button>
                     </td>
                     <td class="py-4" data-label="Name">
                         <span class="font-medium">{{.Name}}</span>
@@ -95,30 +95,48 @@
         const tooltip = document.getElementById('health-tooltip');
         const reasonDiv = document.getElementById('health-reason');
 
+        function showTooltip(indicator) {
+            const rect = indicator.getBoundingClientRect();
+
+            // Show reason if it exists for this cluster
+            const clusterName = indicator.getAttribute('data-cluster');
+            const clusterReasonData = indicator.getAttribute('data-reason');
+            if (clusterReasonData) {
+                reasonDiv.textContent = clusterReasonData;
+                reasonDiv.classList.remove('hidden');
+            } else {
+                reasonDiv.classList.add('hidden');
+            }
+
+            // Recompute tooltip bounding box after visibility changes
+            const tooltipRect = tooltip.getBoundingClientRect();
+
+            // Position tooltip above the indicator, centered
+            tooltip.style.left = (rect.left + rect.width / 2 - tooltipRect.width / 2) + 'px';
+            tooltip.style.top = (rect.top - tooltipRect.height - 8) + 'px';
+
+            tooltip.classList.remove('invisible');
+        }
+
+        function hideTooltip() {
+            tooltip.classList.add('invisible');
+        }
+
         document.querySelectorAll('.health-indicator').forEach(function(indicator) {
             indicator.addEventListener('mouseenter', function() {
-                const rect = indicator.getBoundingClientRect();
-                const tooltipRect = tooltip.getBoundingClientRect();
-
-                // Position tooltip above the indicator, centered
-                tooltip.style.left = (rect.left + rect.width / 2 - tooltipRect.width / 2) + 'px';
-                tooltip.style.top = (rect.top - tooltipRect.height - 8) + 'px';
-
-                // Show reason if it exists for this cluster
-                const clusterName = indicator.getAttribute('data-cluster');
-                const clusterReasonData = indicator.getAttribute('data-reason');
-                if (clusterReasonData) {
-                    reasonDiv.textContent = clusterReasonData;
-                    reasonDiv.classList.remove('hidden');
-                } else {
-                    reasonDiv.classList.add('hidden');
-                }
-
-                tooltip.classList.remove('invisible');
+                showTooltip(indicator);
             });
 
             indicator.addEventListener('mouseleave', function() {
-                tooltip.classList.add('invisible');
+                hideTooltip();
+            });
+
+            indicator.addEventListener('focus', function() {
+                showTooltip(indicator);
+            });
+
+            indicator.addEventListener('blur', function() {
+                hideTooltip();
             });
         });
     }
@@ -129,6 +147,7 @@
         if (!indicator) return;
 
         const icon = indicator.querySelector('.health-icon');
+        icon.textContent = '●';
 
         try {
             const response = await fetch('/api/cluster/' + clusterName + '/health');
@@ -137,24 +156,27 @@
                 const data = await response.json();
                 if (data.healthy) {
                     icon.className = 'health-icon text-green-500';
-                    icon.textContent = '●';
                     indicator.removeAttribute('data-reason');
                 } else {
                     icon.className = 'health-icon text-red-500';
-                    icon.textContent = '●';
                     if (data.reason) {
                         indicator.setAttribute('data-reason', data.reason);
                     }
                 }
             } else {
+                const errorText = await response.text();
                 icon.className = 'health-icon text-yellow-500';
-                icon.textContent = '●';
-                indicator.setAttribute('data-reason', 'HTTP ' + response.status + ': Health check failed');
+                
+                let errorMessage = 'HTTP ' + response.status + ': Health check failed';
+                if (errorText) {
+                    errorMessage += ' - ' + errorText;
+                }
+
+                indicator.setAttribute('data-reason', errorMessage);
             }
         } catch (error) {
             console.error('Error checking cluster health:', error);
             icon.className = 'health-icon text-gray-500';
-            icon.textContent = '●';
             indicator.setAttribute('data-reason', 'Unable to connect: ' + error.message);
         }
     }
