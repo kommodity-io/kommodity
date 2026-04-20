@@ -81,6 +81,9 @@ func NewRouter(
 // RegisterRoutes registers all UI routes.
 func (r *Router) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /ui", r.handleApp)
+
+	// API routes
+	mux.HandleFunc("GET /api/cluster/{clusterName}/health", api.GetClusterHealth(r.cfg, r.logger))
 }
 
 // handleApp renders the dashboard page.

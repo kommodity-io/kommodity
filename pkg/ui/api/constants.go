@@ -1,5 +1,7 @@
 package api
 
+import "time"
+
 const (
 	// UnknownVersion is the default value when a version cannot be determined.
 	UnknownVersion = "Unknown"
@@ -28,4 +30,10 @@ const (
 
 	// DefaultNamespace is the default Kubernetes namespace.
 	DefaultNamespace = "default"
+
+	// MaxHealthResponseBytes is the maximum size of health check response body to read.
+	MaxHealthResponseBytes = 1024
+
+	// HealthCheckTimeout is the timeout duration for cluster health checks.
+	HealthCheckTimeout = 5 * time.Second
 )
