@@ -28,6 +28,22 @@ type KubeconfigSection struct {
 	Content string
 }
 
+// MetricCard holds data for a single metric card.
+type MetricCard struct {
+	Value int
+	Label string
+}
+
+// buildDashboardMetricCards converts DashboardMetrics into a slice of MetricCards.
+func buildDashboardMetricCards(metrics *api.DashboardMetrics) []MetricCard {
+	return []MetricCard{
+		{Value: metrics.Clusters, Label: "Number of clusters"},
+		{Value: metrics.Running, Label: "Running machines"},
+		{Value: metrics.Provisioning, Label: "Provisioning machines"},
+		{Value: metrics.Total, Label: "Total machines"},
+	}
+}
+
 //go:embed templates
 var templatesFS embed.FS
 
@@ -64,7 +80,7 @@ func NewRouter(
 
 // RegisterRoutes registers all UI routes.
 func (r *Router) RegisterRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("GET /app", r.handleApp)
+	mux.HandleFunc("GET /ui", r.handleApp)
 }
 
 // handleApp renders the dashboard page.
@@ -117,12 +133,12 @@ func (r *Router) handleApp(writer http.ResponseWriter, req *http.Request) {
 
 	// Build template data
 	data := map[string]any{
-		"Metrics":  metrics,
+		"Metrics":  buildDashboardMetricCards(metrics),
 		"Clusters": clusters,
 		"Version":  getKommodityVersion(),
 		"KubeconfigSection": KubeconfigSection{
 			ID:      "kommodity",
-			Title:   "Kubeconfig for connecting to Kommodity",
+			Title:   getClusterTitle("Kommodity"),
 			Content: kubeconfigContent,
 		},
 	}
@@ -133,6 +149,10 @@ func (r *Router) handleApp(writer http.ResponseWriter, req *http.Request) {
 		r.logger.Error("failed to render page", zap.Error(err))
 		http.Error(writer, "Failed to render page", http.StatusInternalServerError)
 	}
+}
+
+func getClusterTitle(name string) string {
+	return "Kubeconfig for connecting to: " + name
 }
 
 // getClient returns the controller-runtime client, creating it on first call.

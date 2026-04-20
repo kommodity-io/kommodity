@@ -1,27 +1,10 @@
 {{define "metrics_cards.html"}}
 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-    <!-- Total Clusters Card -->
-    <div class="rounded-lg border border-gray-800 bg-gray-900 p-6 animate-fade-in" style="animation-delay: 0ms;">
-        <div class="text-3xl font-bold text-accent mb-2">{{.Clusters}}</div>
-        <div class="text-sm text-gray-400">Number of clusters</div>
+    {{range $index, $metric := .}}
+    <div class="rounded-lg border border-gray-800 bg-gray-900 p-6 animate-fade-in" style="animation-delay: {{mul $index 100}}ms;">
+        <div class="text-3xl font-bold text-accent mb-2">{{$metric.Value}}</div>
+        <div class="text-sm text-gray-400">{{$metric.Label}}</div>
     </div>
-
-    <!-- Running Machines Card -->
-    <div class="rounded-lg border border-gray-800 bg-gray-900 p-6 animate-fade-in" style="animation-delay: 100ms;">
-        <div class="text-3xl font-bold text-accent mb-2">{{.Running}}</div>
-        <div class="text-sm text-gray-400">Running machines</div>
-    </div>
-
-    <!-- Provisioning Machines Card -->
-    <div class="rounded-lg border border-gray-800 bg-gray-900 p-6 animate-fade-in" style="animation-delay: 200ms;">
-        <div class="text-3xl font-bold text-accent mb-2">{{.Provisioning}}</div>
-        <div class="text-sm text-gray-400">Provisioning machines</div>
-    </div>
-
-    <!-- Total Machines Card -->
-    <div class="rounded-lg border border-gray-800 bg-gray-900 p-6 animate-fade-in" style="animation-delay: 300ms;">
-        <div class="text-3xl font-bold text-accent mb-2">{{.Total}}</div>
-        <div class="text-sm text-gray-400">Total machines</div>
-    </div>
+    {{end}}
 </div>
 {{end}}
