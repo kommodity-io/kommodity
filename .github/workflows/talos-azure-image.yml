@@ -163,7 +163,7 @@ jobs:
           name: ${{ env.IMAGE_NAME }}-${{ inputs.talos_version }}
           path: _out/*.vhd
           retention-days: 7
-          compression-level: 0 # VHD is already compressed
+          compression-level: 0 # Skip compression - large binary file
 
       - name: Summary
         if: always()
