@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kommodity Dashboard</title>
+    <title>{{.Title}} - Kommodity</title>
 
     <!-- HTMX -->
     <script src="https://unpkg.com/htmx.org@2.0.4" integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+" crossorigin="anonymous"></script>
@@ -31,6 +31,11 @@
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 
     <style>
+        html {
+            -webkit-font-smoothing: antialiased;
+            overflow-y: scroll;
+        }
+
         body {
             font-family: 'JetBrains Mono', monospace;
         }
@@ -212,7 +217,8 @@
 
         // HTMX event listeners
         document.addEventListener('htmx:beforeRequest', function(e) {
-            if (e.detail.elt.getAttribute('hx-target') === '#main-content') {
+            // Show loading for main content changes (not polls)
+            if (e.detail.elt.getAttribute('hx-target') === '#main-content' && !e.detail.elt.hasAttribute('data-poll')) {
                 loadingTimer = setTimeout(showLoading, 100);
             }
         });
@@ -226,6 +232,10 @@
             if (el) {
                 document.title = el.getAttribute('data-page-title') + ' - Kommodity';
             }
+        });
+
+        document.addEventListener('htmx:historyRestore', function() {
+            hideLoading();
         });
 
         // Utility functions

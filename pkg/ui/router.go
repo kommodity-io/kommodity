@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
+	"strconv"
 	"sync"
 
 	taloscontrolplanev1 "github.com/siderolabs/cluster-api-control-plane-provider-talos/api/v1alpha3"
@@ -24,7 +25,6 @@ import (
 // KubeconfigSection holds configuration for rendering a kubeconfig section.
 type KubeconfigSection struct {
 	ID      string
-	Title   string
 	Content string
 }
 
@@ -51,6 +51,7 @@ const (
 	htmxRequestHeader = "Hx-Request"
 	htmxTrue          = "true"
 	pageApp           = "app.html"
+	pageClusterDetail = "cluster_detail.html"
 )
 
 // ErrTemplateNotFound is returned when a template is not found.
@@ -58,12 +59,15 @@ var ErrTemplateNotFound = errors.New("template not found")
 
 // Router handles HTTP routes for the UI.
 type Router struct {
-	cfg        *config.KommodityConfig
-	logger     *zap.Logger
-	client     ctrlclient.Client
-	clientOnce sync.Once
-	clientErr  error
-	pages      map[string]*template.Template
+	cfg            *config.KommodityConfig
+	logger         *zap.Logger
+	client         ctrlclient.Client
+	clientOnce     sync.Once
+	clientErr      error
+	kubeClient     *kubernetes.Clientset
+	kubeClientOnce sync.Once
+	kubeClientErr  error
+	pages          map[string]*template.Template
 }
 
 // NewRouter creates a new router instance.
@@ -81,6 +85,7 @@ func NewRouter(
 // RegisterRoutes registers all UI routes.
 func (r *Router) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /ui", r.handleApp)
+	mux.HandleFunc("GET /app/clusters/{clusterName}", r.handleClusterDetail)
 
 	// API routes
 	mux.HandleFunc("GET /api/cluster/{clusterName}/health", api.GetClusterHealth(r.cfg, r.logger))
@@ -90,11 +95,19 @@ func (r *Router) RegisterRoutes(mux *http.ServeMux) {
 func (r *Router) handleApp(writer http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 
-	// Get client (created lazily on first call)
+	// Get clients (created lazily on first call)
 	client, err := r.getClient()
 	if err != nil {
 		r.logger.Error("failed to get controller-runtime client", zap.Error(err))
 		http.Error(writer, "Failed to initialize Kubernetes client", http.StatusInternalServerError)
+
+		return
+	}
+
+	kubeClient, err := r.getKubeClient()
+	if err != nil {
+		r.logger.Error("failed to get kubernetes client", zap.Error(err))
+		http.Error(writer, "Failed to connect to Kubernetes", http.StatusInternalServerError)
 
 		return
 	}
@@ -109,14 +122,6 @@ func (r *Router) handleApp(writer http.ResponseWriter, req *http.Request) {
 	}
 
 	// Get cluster list
-	kubeClient, err := kubernetes.NewForConfig(r.cfg.ClientConfig.LoopbackClientConfig)
-	if err != nil {
-		r.logger.Error("failed to get kubernetes client", zap.Error(err))
-		http.Error(writer, "Failed to connect to Kubernetes", http.StatusInternalServerError)
-
-		return
-	}
-
 	clusters, err := api.GetClusterList(ctx, client, kubeClient)
 	if err != nil {
 		r.logger.Error("failed to get cluster list", zap.Error(err))
@@ -136,12 +141,12 @@ func (r *Router) handleApp(writer http.ResponseWriter, req *http.Request) {
 
 	// Build template data
 	data := map[string]any{
+		"Title":    "Dashboard",
 		"Metrics":  buildDashboardMetricCards(metrics),
 		"Clusters": clusters,
 		"Version":  getKommodityVersion(),
 		"KubeconfigSection": KubeconfigSection{
 			ID:      "kommodity",
-			Title:   getClusterTitle("Kommodity"),
 			Content: kubeconfigContent,
 		},
 	}
@@ -154,8 +159,107 @@ func (r *Router) handleApp(writer http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func getClusterTitle(name string) string {
-	return "Kubeconfig for connecting to: " + name
+// handleClusterDetail renders the cluster detail page.
+func (r *Router) handleClusterDetail(writer http.ResponseWriter, req *http.Request) {
+	ctx := req.Context()
+	clusterName := req.PathValue("clusterName")
+
+	if clusterName == "" {
+		http.Error(writer, "Cluster name is required", http.StatusBadRequest)
+
+		return
+	}
+
+	// Get clients (created lazily on first call)
+	client, err := r.getClient()
+	if err != nil {
+		r.logger.Error("failed to get controller-runtime client", zap.Error(err))
+		http.Error(writer, "Failed to initialize Kubernetes client", http.StatusInternalServerError)
+
+		return
+	}
+
+	kubeClient, err := r.getKubeClient()
+	if err != nil {
+		r.logger.Error("failed to get kubernetes client", zap.Error(err))
+		http.Error(writer, "Failed to connect to Kubernetes", http.StatusInternalServerError)
+
+		return
+	}
+
+	// Get cluster detail
+	clusterDetail, err := api.GetClusterDetail(ctx, client, kubeClient, clusterName, r.logger)
+	if err != nil {
+		// Return 404 for cluster not found, 500 for other errors
+		if errors.Is(err, api.ErrClusterNotFound) {
+			http.Error(writer, fmt.Sprintf("Cluster %s not found", clusterName), http.StatusNotFound)
+
+			return
+		}
+
+		r.logger.Error("failed to get cluster detail",
+			zap.String("cluster", clusterName),
+			zap.Error(err),
+		)
+		http.Error(writer, "Failed to load cluster details", http.StatusInternalServerError)
+
+		return
+	}
+
+	// Get kubeconfig content for this cluster
+	kubeconfigContent, err := api.GetClusterKubeconfigContent(ctx, r.cfg, clusterName)
+	if err != nil {
+		r.logger.Warn("failed to get cluster kubeconfig",
+			zap.String("cluster", clusterName),
+			zap.Error(err),
+		)
+
+		kubeconfigContent = "# Kubeconfig not available"
+	}
+
+	// Build and render template data
+	data := buildClusterDetailData(clusterName, clusterDetail, kubeconfigContent)
+
+	err = r.renderPageOrContent(writer, req, pageClusterDetail, data)
+	if err != nil {
+		r.logger.Error("failed to render cluster detail page", zap.Error(err))
+		http.Error(writer, "Failed to render page", http.StatusInternalServerError)
+	}
+}
+
+// buildClusterDetailData builds the template data for the cluster detail page.
+func buildClusterDetailData(
+	clusterName string,
+	clusterDetail *api.ClusterDetail,
+	kubeconfigContent string,
+) map[string]any {
+	// Calculate total machines
+	totalMachines := 0
+	for _, deployment := range clusterDetail.MachineDeployments {
+		totalMachines += len(deployment.Machines)
+	}
+
+	clusterMetrics := []struct {
+		Value string
+		Label string
+	}{
+		{Value: clusterDetail.ChartVersion, Label: "Chart Version"},
+		{Value: clusterDetail.KubernetesVersion, Label: "Kubernetes Version"},
+		{Value: clusterDetail.TalosVersion, Label: "Talos Version"},
+		{Value: strconv.Itoa(totalMachines), Label: "Total Machines"},
+	}
+
+	return map[string]any{
+		"Title":          "Cluster: " + clusterName,
+		"Cluster":        clusterDetail,
+		"ClusterName":    clusterName,
+		"ClusterMetrics": clusterMetrics,
+		"Version":        getKommodityVersion(),
+		"KubeconfigSection": KubeconfigSection{
+			ID:      clusterName,
+			Content: kubeconfigContent,
+		},
+	}
 }
 
 // getClient returns the controller-runtime client, creating it on first call.
@@ -187,6 +291,22 @@ func (r *Router) getClient() (ctrlclient.Client, error) {
 	})
 
 	return r.client, r.clientErr
+}
+
+// getKubeClient returns the Kubernetes clientset, creating it on first call.
+func (r *Router) getKubeClient() (*kubernetes.Clientset, error) {
+	r.kubeClientOnce.Do(func() {
+		kubeClient, err := kubernetes.NewForConfig(r.cfg.ClientConfig.LoopbackClientConfig)
+		if err != nil {
+			r.kubeClientErr = fmt.Errorf("failed to create kubernetes client: %w", err)
+
+			return
+		}
+
+		r.kubeClient = kubeClient
+	})
+
+	return r.kubeClient, r.kubeClientErr
 }
 
 // enhanceSchemeForUI adds all schemes needed for the UI client.
@@ -275,10 +395,13 @@ func loadTemplates() map[string]*template.Template {
 		"templates/components/icon_copy.html",
 		"templates/components/icon_download.html",
 		"templates/components/icon_chevron.html",
+		"templates/components/health_tooltip.html",
+		"templates/components/health_indicator.js.html",
 	}
 
 	return map[string]*template.Template{
-		pageApp: mustParsePage(shared, "templates/app.html"),
+		pageApp:           mustParsePage(shared, "templates/app.html"),
+		pageClusterDetail: mustParsePage(shared, "templates/cluster_detail.html"),
 	}
 }
 

@@ -1,0 +1,22 @@
+{{define "health_tooltip.html"}}
+<!-- Health tooltip (positioned outside table to avoid clipping) -->
+<div id="{{.TooltipID}}" class="invisible fixed w-56 bg-gray-800 border border-gray-600 text-gray-300 text-xs font-normal p-3 z-50 leading-relaxed normal-case tracking-normal whitespace-normal pointer-events-none">
+    <span class="flex items-center gap-2 mb-1.5">
+        <span class="inline-flex w-5 shrink-0 justify-center text-green-500">●</span>
+        <span>Healthy</span>
+    </span>
+    <span class="flex items-center gap-2 mb-1.5">
+        <span class="inline-flex w-5 shrink-0 justify-center text-red-500">●</span>
+        <span>Unhealthy</span>
+    </span>
+    <span class="flex items-center gap-2 mb-1.5">
+        <span class="inline-flex w-5 shrink-0 justify-center text-yellow-500">●</span>
+        <span>Check failed</span>
+    </span>
+    <span class="flex items-center gap-2">
+        <span class="inline-flex w-5 shrink-0 justify-center text-gray-500">●</span>
+        <span>Unknown</span>
+    </span>
+    <div id="{{.ReasonID}}" class="hidden mt-2 pt-2 border-t border-gray-700 text-gray-400"></div>
+</div>
+{{end}}

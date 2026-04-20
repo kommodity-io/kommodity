@@ -17,5 +17,9 @@ var (
 	ErrReleaseDataNotFound = errors.New("release data not found in secret")
 	// ErrChartVersionNotFound is returned when chart version is not found in the Helm release.
 	ErrChartVersionNotFound = errors.New("chart version not found in release")
+	// ErrClusterNotFound is returned when the requested cluster is not found.
+	ErrClusterNotFound = errors.New("cluster not found")
+	// ErrAuthConfigDisabled is returned when auth config application is disabled.
+	ErrAuthConfigDisabled = errors.New("auth config application is disabled")
 )
 
