@@ -17,7 +17,7 @@
             </thead>
             <tbody>
                 {{range .}}
-                <tr class="border-b border-gray-800 hover:bg-gray-800/50 cursor-pointer" data-cluster-name="{{.Name}}" onclick="window.location='/app/clusters/{{.Name}}'">
+                <tr class="border-b border-gray-800 hover:bg-gray-800/50 cursor-pointer" data-cluster-name="{{.Name}}" role="link" tabindex="0" onclick="window.location='/app/clusters/{{.Name}}'" onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); window.location='/app/clusters/{{.Name}}'; }">
                     <td class="py-4 pl-4">
                         <button type="button" class="health-indicator inline-flex items-center cursor-help border-0 bg-transparent p-0 m-0 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 focus:ring-offset-gray-900 rounded" data-cluster="{{.Name}}" aria-label="Cluster health status" onclick="event.stopPropagation()">
                             <span class="health-icon text-gray-500">●</span>

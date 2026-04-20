@@ -190,6 +190,13 @@ func (r *Router) handleClusterDetail(writer http.ResponseWriter, req *http.Reque
 	// Get cluster detail
 	clusterDetail, err := api.GetClusterDetail(ctx, client, kubeClient, clusterName, r.logger)
 	if err != nil {
+		// Return 404 for cluster not found, 500 for other errors
+		if errors.Is(err, api.ErrClusterNotFound) {
+			http.Error(writer, fmt.Sprintf("Cluster %s not found", clusterName), http.StatusNotFound)
+
+			return
+		}
+
 		r.logger.Error("failed to get cluster detail",
 			zap.String("cluster", clusterName),
 			zap.Error(err),

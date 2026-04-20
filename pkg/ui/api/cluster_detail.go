@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"go.uber.org/zap"
 	clientgoclientset "k8s.io/client-go/kubernetes"
@@ -92,6 +93,14 @@ func getMachineDeployments(
 		return nil, fmt.Errorf("failed to list machine deployments: %w", err)
 	}
 
+	// Fetch all machines once to avoid N+1 queries
+	machinesByDeployment, err := getMachinesGroupedByDeployment(ctx, client)
+	if err != nil {
+		logger.Warn("Failed to get machines", zap.Error(err))
+		// Continue with empty machines rather than failing
+		machinesByDeployment = make(map[string][]MachineDetail)
+	}
+
 	var result []MachineDeploymentDetail
 
 	for i := range mdList.Items {
@@ -107,14 +116,8 @@ func getMachineDeployments(
 			"cluster.x-k8s.io/cluster-api-autoscaler-node-group-max-size",
 		)
 
-		// Get machines
-		machines, err := getMachinesForDeployment(ctx, client, deployment.Name, logger)
-		if err != nil {
-			logger.Warn("Failed to get machines for deployment",
-				zap.String("deployment", deployment.Name),
-				zap.Error(err),
-			)
-		}
+		// Get machines for this deployment from the grouped map
+		machines := machinesByDeployment[deployment.Name]
 
 		phase := deployment.Status.Phase
 		if phase == "" {
@@ -136,13 +139,12 @@ func getMachineDeployments(
 	return result, nil
 }
 
-// getMachinesForDeployment retrieves all Machines for a MachineDeployment.
-func getMachinesForDeployment(
+// getMachinesGroupedByDeployment fetches all machines once and groups them by deployment.
+// This avoids N+1 queries when fetching machines for multiple deployments.
+func getMachinesGroupedByDeployment(
 	ctx context.Context,
 	client ctrlclient.Client,
-	deploymentName string,
-	_ *zap.Logger,
-) ([]MachineDetail, error) {
+) (map[string][]MachineDetail, error) {
 	machineList := &clusterv1.MachineList{}
 
 	err := client.List(ctx, machineList, ctrlclient.InNamespace(DefaultNamespace))
@@ -150,13 +152,15 @@ func getMachinesForDeployment(
 		return nil, fmt.Errorf("failed to list machines: %w", err)
 	}
 
-	var result []MachineDetail
+	// Group machines by their owning MachineDeployment
+	result := make(map[string][]MachineDetail)
 
 	for i := range machineList.Items {
 		machine := &machineList.Items[i]
 
-		// Check if machine belongs to this deployment
-		if !machineOwnerBelongsToDeployment(machine, deploymentName) {
+		// Find which deployment this machine belongs to
+		deploymentName := getDeploymentNameFromMachine(machine)
+		if deploymentName == "" {
 			continue
 		}
 
@@ -182,27 +186,29 @@ func getMachinesForDeployment(
 			KubernetesVersion: kubernetesVersion,
 		}
 
-		result = append(result, detail)
+		result[deploymentName] = append(result[deploymentName], detail)
 	}
 
 	return result, nil
 }
 
-// machineOwnerBelongsToDeployment checks if a machine belongs to a MachineDeployment.
-func machineOwnerBelongsToDeployment(machine *clusterv1.Machine, deploymentName string) bool {
-	// Machines are owned by MachineSets, which are owned by MachineDeployments
-	// Check owner references to find the MachineSet
+// getDeploymentNameFromMachine extracts the deployment name from a machine's owner references.
+// Returns empty string if the machine doesn't belong to a deployment.
+func getDeploymentNameFromMachine(machine *clusterv1.Machine) string {
 	for _, owner := range machine.OwnerReferences {
 		if owner.Kind == "MachineSet" {
-			// The MachineSet name typically starts with the deployment name
-			// Format: <deployment-name>-<hash>
-			if len(owner.Name) > len(deploymentName) && owner.Name[:len(deploymentName)] == deploymentName {
-				return true
+			// MachineSet name format: <deployment-name>-<hash>
+			// Extract deployment name by removing the hash suffix
+			name := owner.Name
+
+			lastDash := strings.LastIndex(name, "-")
+			if lastDash > 0 {
+				return name[:lastDash]
 			}
 		}
 	}
 
-	return false
+	return ""
 }
 
 // getAutoscalerAnnotation retrieves and parses an autoscaler annotation.

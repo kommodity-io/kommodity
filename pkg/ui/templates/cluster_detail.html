@@ -86,7 +86,7 @@
                             </td>
                             {{if .MinSize}}
                             <td class="py-4">
-                                <span>{{.MaxSize}}</span>
+                                <span>{{if .MaxSize}}{{.MaxSize}}{{else}}—{{end}}</span>
                             </td>
                             {{end}}
                         </tr>
