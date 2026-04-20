@@ -6,17 +6,14 @@ import (
 	"context"
 	"embed"
 	"encoding/base64"
-	"errors"
 	"fmt"
 	"html/template"
-	"net/http"
 	"strings"
 
 	"github.com/Masterminds/sprig/v3"
 	"github.com/kommodity-io/kommodity/pkg/config"
 	talosconfig "github.com/siderolabs/talos/pkg/machinery/config"
 	"github.com/siderolabs/talos/pkg/machinery/config/configloader"
-	"go.uber.org/zap"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientgoclientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
@@ -36,8 +33,9 @@ type oidcKubeConfig struct {
 	BaseURL string
 }
 
-func (o *oidcKubeConfig) writeResponse(response http.ResponseWriter,
-	templateFS embed.FS, templateName string, logger *zap.Logger) {
+func (o *oidcKubeConfig) renderToString(templateFS embed.FS, templateName string) (string, error) {
+	var buf bytes.Buffer
+
 	funcs := sprig.FuncMap()
 	funcs["b64encBytes"] = func(b []byte) string {
 		return base64.StdEncoding.EncodeToString(b)
@@ -47,18 +45,15 @@ func (o *oidcKubeConfig) writeResponse(response http.ResponseWriter,
 		Funcs(funcs).
 		ParseFS(templateFS, templateName)
 	if err != nil {
-		http.Error(response, fmt.Sprintf("Failed to parse kubeconfig template: %v", err), http.StatusInternalServerError)
-
-		return
+		return "", fmt.Errorf("failed to parse kubeconfig template: %w", err)
 	}
 
-	response.Header().Set("Content-Type", "application/x-yaml")
-	response.WriteHeader(http.StatusOK)
-
-	err = tpl.ExecuteTemplate(response, templateName, o)
+	err = tpl.ExecuteTemplate(&buf, templateName, o)
 	if err != nil {
-		logger.Error("Failed to execute kubeconfig template", zap.Error(err))
+		return "", fmt.Errorf("failed to execute kubeconfig template: %w", err)
 	}
+
+	return buf.String(), nil
 }
 
 // GetKommodityKubeConfig returns the Kommodity kubeconfig as a string.
@@ -91,94 +86,9 @@ func GetKommodityKubeConfig(cfg *config.KommodityConfig) (string, error) {
 	return buf.String(), nil
 }
 
-// GetKubeConfig handles requests for retrieving the kubeconfig for a given cluster.
-//
-//nolint:funlen
-func GetKubeConfig(cfg *config.KommodityConfig, logger *zap.Logger) func(http.ResponseWriter, *http.Request) {
-	return func(response http.ResponseWriter, request *http.Request) {
-		if request.Method != http.MethodGet {
-			http.Error(response, "Method not allowed", http.StatusMethodNotAllowed)
-
-			return
-		}
-
-		clusterName := request.PathValue("clusterName")
-
-		kubeClient, err := clientgoclientset.NewForConfig(cfg.ClientConfig.LoopbackClientConfig)
-		if err != nil {
-			http.Error(response, fmt.Sprintf("Failed to create kube client: %v", err),
-				http.StatusInternalServerError)
-		}
-
-		kubeConfigBytes, err := getKubeConfig(request.Context(), clusterName, kubeClient)
-		if err != nil {
-			http.Error(response, fmt.Sprintf("Failed to get kubeconfig secret: %v", err),
-				http.StatusInternalServerError)
-
-			return
-		}
-
-		if cfg.DevelopmentMode {
-			// No need to mask anything in development mode.
-			writeResponse(response, kubeConfigBytes)
-
-			return
-		}
-
-		if !cfg.AuthConfig.Apply {
-			// If auth config application is disabled and not in development mode, do not return kubeconfig,
-			http.Error(response, "Auth config application is disabled", http.StatusForbidden)
-
-			return
-		}
-
-		kubeConfig, err := clientcmd.Load(kubeConfigBytes)
-		if err != nil {
-			http.Error(response, fmt.Sprintf("Failed to load kubeconfig: %v", err),
-				http.StatusInternalServerError)
-
-			return
-		}
-
-		// Fetch OIDC config from the downstream Talos cluster's machine config
-		// Note: Using "default" namespace for backward compatibility with URL-based cluster access
-		oidcConfig, err := getOIDCConfigFromCluster(request.Context(), clusterName, DefaultNamespace, kubeClient)
-		if err != nil {
-			if errors.Is(err, ErrOIDCNotConfigured) {
-				http.Error(response, "Cluster does not have OIDC configured in apiServer.extraArgs",
-					http.StatusForbidden)
-
-				return
-			}
-
-			http.Error(response, fmt.Sprintf("Failed to get OIDC config from cluster: %v", err),
-				http.StatusInternalServerError)
-
-			return
-		}
-
-		// Override admin user kubeconfig with OIDC settings from the cluster.
-		(&oidcKubeConfig{
-			BaseURL:    cfg.BaseURL,
-			Config:     kubeConfig,
-			OIDCConfig: *oidcConfig,
-		}).writeResponse(response, clusterConfigFS, "clusterconfig.tmpl", logger)
-	}
-}
-
-func writeResponse(response http.ResponseWriter, data []byte) {
-	response.Header().Set("Content-Type", "application/x-yaml")
-	response.WriteHeader(http.StatusOK)
-
-	//nolint:gosec // G705: Writing YAML kubeconfig data, not HTML/JS - XSS not applicable
-	_, err := response.Write(data)
-	if err != nil {
-		http.Error(response, fmt.Sprintf("Failed to write kubeconfig response: %v", err),
-			http.StatusInternalServerError)
-	}
-}
-
 // GetClusterKubeconfigContent retrieves the kubeconfig content for a cluster as a string.
+// It applies the same logic as the API endpoint: returning raw kubeconfig in dev mode,
+// or OIDC-enabled kubeconfig in production.
 func GetClusterKubeconfigContent(
 	ctx context.Context,
 	cfg *config.KommodityConfig,
@@ -194,7 +104,36 @@ func GetClusterKubeconfigContent(
 		return "", fmt.Errorf("failed to get kubeconfig: %w", err)
 	}
 
-	return string(kubeConfigBytes), nil
+	// In development mode, return raw kubeconfig
+	if cfg.DevelopmentMode {
+		return string(kubeConfigBytes), nil
+	}
+
+	// If auth config application is disabled, return error
+	if !cfg.AuthConfig.Apply {
+		return "", ErrAuthConfigDisabled
+	}
+
+	// Load kubeconfig
+	kubeConfig, err := clientcmd.Load(kubeConfigBytes)
+	if err != nil {
+		return "", fmt.Errorf("failed to load kubeconfig: %w", err)
+	}
+
+	// Fetch OIDC config from cluster
+	oidcConfig, err := getOIDCConfigFromCluster(ctx, clusterName, DefaultNamespace, kubeClient)
+	if err != nil {
+		return "", fmt.Errorf("failed to get OIDC config: %w", err)
+	}
+
+	// Render OIDC-enabled kubeconfig
+	oidcKubeconfig := &oidcKubeConfig{
+		BaseURL:    cfg.BaseURL,
+		Config:     kubeConfig,
+		OIDCConfig: *oidcConfig,
+	}
+
+	return oidcKubeconfig.renderToString(clusterConfigFS, "clusterconfig.tmpl")
 }
 
 func getKubeConfig(ctx context.Context, clusterName string, kubeClient *clientgoclientset.Clientset) ([]byte, error) {

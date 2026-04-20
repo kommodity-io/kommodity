@@ -59,12 +59,15 @@ var ErrTemplateNotFound = errors.New("template not found")
 
 // Router handles HTTP routes for the UI.
 type Router struct {
-	cfg        *config.KommodityConfig
-	logger     *zap.Logger
-	client     ctrlclient.Client
-	clientOnce sync.Once
-	clientErr  error
-	pages      map[string]*template.Template
+	cfg            *config.KommodityConfig
+	logger         *zap.Logger
+	client         ctrlclient.Client
+	clientOnce     sync.Once
+	clientErr      error
+	kubeClient     *kubernetes.Clientset
+	kubeClientOnce sync.Once
+	kubeClientErr  error
+	pages          map[string]*template.Template
 }
 
 // NewRouter creates a new router instance.
@@ -92,11 +95,19 @@ func (r *Router) RegisterRoutes(mux *http.ServeMux) {
 func (r *Router) handleApp(writer http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 
-	// Get client (created lazily on first call)
+	// Get clients (created lazily on first call)
 	client, err := r.getClient()
 	if err != nil {
 		r.logger.Error("failed to get controller-runtime client", zap.Error(err))
 		http.Error(writer, "Failed to initialize Kubernetes client", http.StatusInternalServerError)
+
+		return
+	}
+
+	kubeClient, err := r.getKubeClient()
+	if err != nil {
+		r.logger.Error("failed to get kubernetes client", zap.Error(err))
+		http.Error(writer, "Failed to connect to Kubernetes", http.StatusInternalServerError)
 
 		return
 	}
@@ -111,14 +122,6 @@ func (r *Router) handleApp(writer http.ResponseWriter, req *http.Request) {
 	}
 
 	// Get cluster list
-	kubeClient, err := kubernetes.NewForConfig(r.cfg.ClientConfig.LoopbackClientConfig)
-	if err != nil {
-		r.logger.Error("failed to get kubernetes client", zap.Error(err))
-		http.Error(writer, "Failed to connect to Kubernetes", http.StatusInternalServerError)
-
-		return
-	}
-
 	clusters, err := api.GetClusterList(ctx, client, kubeClient)
 	if err != nil {
 		r.logger.Error("failed to get cluster list", zap.Error(err))
@@ -138,6 +141,7 @@ func (r *Router) handleApp(writer http.ResponseWriter, req *http.Request) {
 
 	// Build template data
 	data := map[string]any{
+		"Title":    "Dashboard",
 		"Metrics":  buildDashboardMetricCards(metrics),
 		"Clusters": clusters,
 		"Version":  getKommodityVersion(),
@@ -166,7 +170,7 @@ func (r *Router) handleClusterDetail(writer http.ResponseWriter, req *http.Reque
 		return
 	}
 
-	// Get client (created lazily on first call)
+	// Get clients (created lazily on first call)
 	client, err := r.getClient()
 	if err != nil {
 		r.logger.Error("failed to get controller-runtime client", zap.Error(err))
@@ -175,8 +179,7 @@ func (r *Router) handleClusterDetail(writer http.ResponseWriter, req *http.Reque
 		return
 	}
 
-	// Get Kubernetes client
-	kubeClient, err := kubernetes.NewForConfig(r.cfg.ClientConfig.LoopbackClientConfig)
+	kubeClient, err := r.getKubeClient()
 	if err != nil {
 		r.logger.Error("failed to get kubernetes client", zap.Error(err))
 		http.Error(writer, "Failed to connect to Kubernetes", http.StatusInternalServerError)
@@ -240,6 +243,7 @@ func buildClusterDetailData(
 	}
 
 	return map[string]any{
+		"Title":          "Cluster: " + clusterName,
 		"Cluster":        clusterDetail,
 		"ClusterName":    clusterName,
 		"ClusterMetrics": clusterMetrics,
@@ -280,6 +284,22 @@ func (r *Router) getClient() (ctrlclient.Client, error) {
 	})
 
 	return r.client, r.clientErr
+}
+
+// getKubeClient returns the Kubernetes clientset, creating it on first call.
+func (r *Router) getKubeClient() (*kubernetes.Clientset, error) {
+	r.kubeClientOnce.Do(func() {
+		kubeClient, err := kubernetes.NewForConfig(r.cfg.ClientConfig.LoopbackClientConfig)
+		if err != nil {
+			r.kubeClientErr = fmt.Errorf("failed to create kubernetes client: %w", err)
+
+			return
+		}
+
+		r.kubeClient = kubeClient
+	})
+
+	return r.kubeClient, r.kubeClientErr
 }
 
 // enhanceSchemeForUI adds all schemes needed for the UI client.
