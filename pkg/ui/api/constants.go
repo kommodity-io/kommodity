@@ -28,4 +28,7 @@ const (
 
 	// DefaultNamespace is the default Kubernetes namespace.
 	DefaultNamespace = "default"
+
+	// HealthCheckTimeoutSeconds is the timeout duration for cluster health checks.
+	HealthCheckTimeoutSeconds = 5
 )
