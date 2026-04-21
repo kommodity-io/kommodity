@@ -25,8 +25,9 @@ sequenceDiagram
     T-->>P: tunnel connection
     P->>PF: dial through tunnel
     PF->>TP: port-forward
-    P->>TP: header: [len][10.200.0.5:50000]
+    P->>TP: CONNECT 10.200.0.5:50000 HTTP/1.1
     TP->>TN: dial 10.200.0.5:50000
+    TP-->>P: HTTP/1.1 200 Connection Established
     P-->>D: HTTP/1.1 200 Connection Established
     R<<-->>TN: bidirectional mTLS (pass-through)
 ```
@@ -46,18 +47,20 @@ For non-matching traffic (API server, etc.), the proxy dials directly (passthrou
 | `tunnel_pool.go`     | Manages tunnels keyed by cluster name with double-checked locking. Creates tunnels on demand, closes idle tunnels after a configurable timeout, and removes stale ones on dial failure.                                   |
 | `tracked_conn.go`    | `trackedConn` wrapper for `net.Conn` that decrements the tunnel's active connection count on close using `sync.Once`.                                                                                                     |
 | `connection.go`      | `bidirectionalCopy` helper: copies data between two connections with half-close propagation.                                                                                                                              |
-| `header.go`          | Writes the talos-cluster-proxy protocol header: 4-byte big-endian `uint32` length prefix followed by the target address string.                                                                                           |
+| `handshake.go`       | Performs the HTTP CONNECT handshake with the talos-cluster-proxy pod: sends `CONNECT <target> HTTP/1.1` and parses the response status line.                                                                              |
 | `errors.go`          | Sentinel errors for the package.                                                                                                                                                                                          |
 
-## Talos-Proxy Header Protocol
+## Talos-Proxy CONNECT Protocol
 
-The `talos-cluster-proxy` pod is a simple proxy that forwards raw TCP connections to Talos nodes. It has no knowledge of node IPs or cluster topology, so the local proxy must send a header indicating the target address for each new connection. The header protocol expects a simple framing header before proxying:
+The `talos-cluster-proxy` pod is an HTTP CONNECT proxy that forwards raw TCP connections to Talos nodes. It has no knowledge of node IPs or cluster topology, so the local proxy opens a CONNECT tunnel for each new connection:
 
 ```text
-[4 bytes: big-endian uint32 length][N bytes: target address string]
+CONNECT 10.200.0.5:50000 HTTP/1.1\r\n
+Host: 10.200.0.5:50000\r\n
+\r\n
 ```
 
-For example, to connect to `10.200.0.5:50000`, the proxy writes `0x00000012` (18 bytes) followed by the ASCII string `10.200.0.5:50000`. After the header, all subsequent bytes are forwarded to the target.
+The pod replies with `HTTP/1.1 200 Connection Established\r\n\r\n` on success. After that, all subsequent bytes in both directions are forwarded verbatim between the local proxy and the Talos node — no additional framing is applied. A non-200 status indicates the pod rejected the request (for example, an unresolvable target or an unreachable node).
 
 ## Tunnel Lifecycle
 

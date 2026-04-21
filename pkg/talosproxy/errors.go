@@ -28,4 +28,11 @@ var (
 	ErrInvalidConnectTarget = errors.New("invalid CONNECT target")
 	// ErrHijackNotSupported is returned when the HTTP response writer does not support hijacking.
 	ErrHijackNotSupported = errors.New("hijack not supported")
+	// ErrConnectRejected is returned when the talos-cluster-proxy pod rejects a CONNECT request
+	// with a non-200 status code.
+	ErrConnectRejected = errors.New("talos-cluster-proxy rejected CONNECT request")
+	// ErrConnectMalformedResponse is returned when the CONNECT response status line cannot be parsed.
+	ErrConnectMalformedResponse = errors.New("malformed CONNECT response status line")
+	// ErrConnectResponseTooLarge is returned when a CONNECT response header line exceeds the size limit.
+	ErrConnectResponseTooLarge = errors.New("CONNECT response header line exceeds size limit")
 )

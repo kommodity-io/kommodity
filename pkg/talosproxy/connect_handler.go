@@ -179,14 +179,14 @@ func (h *ConnectHandler) dialTunnel(
 		}
 	}
 
-	err = WriteTargetAddress(conn, targetAddr)
+	err = EstablishConnectTunnel(conn, targetAddr)
 	if err != nil {
 		closeErr := conn.Close()
 		if closeErr != nil {
-			h.logger.Debug("Failed to close tunnel connection after header write failure", zap.Error(closeErr))
+			h.logger.Debug("Failed to close tunnel connection after CONNECT handshake failure", zap.Error(closeErr))
 		}
 
-		return nil, fmt.Errorf("failed to write target address header: %w", err)
+		return nil, fmt.Errorf("failed to establish CONNECT tunnel: %w", err)
 	}
 
 	h.logger.Debug("Routed through tunnel",

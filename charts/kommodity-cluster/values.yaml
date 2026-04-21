@@ -186,7 +186,7 @@ kommodity:
       chart:
         repository: oci://ghcr.io/kommodity-io/charts
         name: talos-cluster-proxy
-        version: 0.1.1
+        version: 0.1.2
       initialExtraValues:
         tolerations:
           - key: node.cloudprovider.kubernetes.io/uninitialized
