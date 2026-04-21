@@ -1,0 +1,342 @@
+---
+name: Build Talos Cloud Images
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/talos-cloud-image.yml"
+  workflow_dispatch:
+    inputs:
+      talos_version:
+        description: "Talos version (e.g., v1.11.3)"
+        required: false
+        type: string
+      extensions:
+        description: "Comma-separated list of extension images (leave empty for defaults)"
+        required: false
+        type: string
+      platforms:
+        description: "Platforms to build (comma-separated: scaleway,azure or 'all')"
+        required: false
+        default: "all"
+        type: string
+      push:
+        description: "Push image to registry"
+        required: false
+        default: true
+        type: boolean
+      base_installer_image:
+        description: "Custom base installer image (e.g. for a patched kernel). Leave empty to use the official Talos installer."
+        required: false
+        type: string
+
+env:
+  REGISTRY: ghcr.io/kommodity-io
+  # Default values for inputs
+  DEFAULT_TALOS_VERSION: "v1.11.3"
+  DEFAULT_EXTENSIONS: "ghcr.io/kommodity-io/kommodity-attestation-extension:latest,ghcr.io/kommodity-io/kommodity-autobootstrap-extension:latest"
+
+jobs:
+  setup:
+    name: Setup Build Matrix
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+      talos_version: ${{ steps.resolve-inputs.outputs.talos_version }}
+      extensions: ${{ steps.resolve-inputs.outputs.extensions }}
+      push: ${{ steps.resolve-inputs.outputs.push }}
+      base_installer_image: ${{ steps.resolve-inputs.outputs.base_installer_image }}
+    steps:
+      - name: Resolve inputs with defaults
+        id: resolve-inputs
+        run: |
+          echo "talos_version=${{ inputs.talos_version || env.DEFAULT_TALOS_VERSION }}" >> "$GITHUB_OUTPUT"
+          echo "extensions=${{ inputs.extensions || env.DEFAULT_EXTENSIONS }}" >> "$GITHUB_OUTPUT"
+          echo "push=${{ inputs.push == '' && 'true' || inputs.push }}" >> "$GITHUB_OUTPUT"
+          echo "base_installer_image=${{ inputs.base_installer_image || '' }}" >> "$GITHUB_OUTPUT"
+
+      - name: Validate talos_version
+        env:
+          TALOS_VERSION: ${{ steps.resolve-inputs.outputs.talos_version }}
+        run: |
+          if [[ ! "${TALOS_VERSION}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
+            echo "::error::Invalid talos_version format. Expected semver (e.g., v1.11.3)"
+            exit 1
+          fi
+
+      - name: Set build matrix
+        id: set-matrix
+        run: |
+          PLATFORMS="${{ inputs.platforms || 'all' }}"
+
+          # Define all available platforms with their configuration
+          ALL_PLATFORMS='[
+            {
+              "platform": "scaleway",
+              "image_name": "kommodity-talos-scaleway",
+              "imager_output": "scaleway-amd64.raw.zst",
+              "final_extension": "qcow2",
+              "artifact_type": "application/vnd.talos.scaleway.image",
+              "needs_conversion": "true"
+            },
+            {
+              "platform": "azure",
+              "image_name": "kommodity-talos-azure",
+              "imager_output": "azure-amd64.vhd",
+              "final_extension": "vhd",
+              "artifact_type": "application/vnd.talos.azure.image",
+              "needs_conversion": "false"
+            }
+          ]'
+
+          if [[ "${PLATFORMS}" == "all" ]]; then
+            MATRIX="${ALL_PLATFORMS}"
+          else
+            # Filter platforms based on input
+            MATRIX=$(echo "${ALL_PLATFORMS}" | jq -c --arg platforms "${PLATFORMS}" '
+              [.[] | select(.platform as $p | ($platforms | split(",") | map(gsub("^\\s+|\\s+$";"")) | index($p)))]
+            ')
+          fi
+
+          echo "matrix={\"include\":${MATRIX}}" >> "$GITHUB_OUTPUT"
+          echo "Building for platforms: $(echo "${MATRIX}" | jq -r '.[].platform' | tr '\n' ' ')"
+
+  build:
+    name: Build ${{ matrix.platform }}
+    needs: setup
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      pages: write
+      packages: write
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.setup.outputs.matrix) }}
+    env:
+      TALOS_VERSION: ${{ needs.setup.outputs.talos_version }}
+      EXTENSIONS: ${{ needs.setup.outputs.extensions }}
+      PUSH: ${{ needs.setup.outputs.push }}
+      BASE_INSTALLER_IMAGE: ${{ needs.setup.outputs.base_installer_image }}
+      IMAGE_NAME: ${{ matrix.image_name }}
+      PLATFORM: ${{ matrix.platform }}
+      IMAGER_OUTPUT: ${{ matrix.imager_output }}
+      FINAL_EXTENSION: ${{ matrix.final_extension }}
+      ARTIFACT_TYPE: ${{ matrix.artifact_type }}
+      NEEDS_CONVERSION: ${{ matrix.needs_conversion }}
+    steps:
+      - name: Free disk space
+        run: |
+          sudo swapoff -a || true
+          sudo rm -f /swapfile || true
+          sudo rm -rf /usr/local/lib/android >/dev/null 2>&1 || true
+          docker system prune -af || true
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-utils zstd
+
+      - name: Install oras
+        run: |
+          ORAS_VERSION="1.2.0"
+          curl -LO "https://github.com/oras-project/oras/releases/download/v${ORAS_VERSION}/oras_${ORAS_VERSION}_linux_amd64.tar.gz"
+          tar -xzf "oras_${ORAS_VERSION}_linux_amd64.tar.gz"
+          sudo mv oras /usr/local/bin/
+          oras version
+
+      - name: Log in to GitHub Container Registry
+        if: ${{ env.PUSH == 'true' }}
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build image
+        run: |
+          set -euo pipefail
+
+          # Optionally use a custom base installer image
+          BASE_INSTALLER_ARG=""
+          if [[ -n "${BASE_INSTALLER_IMAGE}" ]]; then
+            BASE_INSTALLER_ARG="--base-installer-image ${BASE_INSTALLER_IMAGE}"
+          fi
+
+          # Parse extensions into imager args
+          EXTENSION_ARGS=""
+          if [[ -n "${EXTENSIONS}" ]]; then
+            IFS=',' read -ra EXT_ARRAY <<< "${EXTENSIONS}"
+            for ext in "${EXT_ARRAY[@]}"; do
+              ext=$(echo "$ext" | xargs)
+              [[ -n "$ext" ]] && EXTENSION_ARGS="${EXTENSION_ARGS} --system-extension-image ${ext}"
+            done
+          fi
+
+          echo "=========================================="
+          echo "Building ${PLATFORM} image for Talos ${TALOS_VERSION}..."
+          echo "Extensions: ${EXTENSIONS:-none}"
+          echo "=========================================="
+
+          mkdir -p _out
+
+          # Build image using Talos imager
+          docker run --rm -t \
+            -v "${PWD}/_out":/out \
+            -v /dev:/dev \
+            --privileged \
+            "ghcr.io/siderolabs/imager:${TALOS_VERSION}" \
+            "${PLATFORM}" \
+            --arch amd64 \
+            ${BASE_INSTALLER_ARG} \
+            ${EXTENSION_ARGS}
+
+          echo "=========================================="
+          echo "Build complete."
+          echo "=========================================="
+          ls -la _out/
+
+      - name: Convert image (Scaleway)
+        if: ${{ env.NEEDS_CONVERSION == 'true' }}
+        run: |
+          set -euo pipefail
+
+          echo "=========================================="
+          echo "Converting to ${FINAL_EXTENSION}..."
+          echo "=========================================="
+
+          # Decompress the raw image (Talos imager outputs .zst format for Scaleway)
+          zstd -d "_out/${IMAGER_OUTPUT}"
+
+          # Get the raw filename (without .zst)
+          RAW_FILE="${IMAGER_OUTPUT%.zst}"
+
+          # Convert to final format
+          qemu-img convert -f raw -O "${FINAL_EXTENSION}" "_out/${RAW_FILE}" "_out/${IMAGE_NAME}-${TALOS_VERSION}.${FINAL_EXTENSION}"
+
+          # Remove intermediate files to save space
+          rm -f "_out/${RAW_FILE}"
+
+          echo "=========================================="
+          echo "Conversion complete!"
+          echo "=========================================="
+          ls -la _out/
+
+      - name: Rename image (Azure)
+        if: ${{ env.NEEDS_CONVERSION == 'false' }}
+        run: |
+          set -euo pipefail
+
+          # Rename to include version
+          mv "_out/${IMAGER_OUTPUT}" "_out/${IMAGE_NAME}-${TALOS_VERSION}.${FINAL_EXTENSION}"
+
+          echo "=========================================="
+          echo "Output file ready!"
+          echo "=========================================="
+          ls -la _out/
+
+      - name: Push to registry
+        if: ${{ env.PUSH == 'true' }}
+        run: |
+          set -euo pipefail
+
+          IMAGE_TAG="${{ env.REGISTRY }}/${IMAGE_NAME}:${TALOS_VERSION}"
+          LATEST_TAG="${{ env.REGISTRY }}/${IMAGE_NAME}:latest"
+          OUTPUT_FILE="_out/${IMAGE_NAME}-${TALOS_VERSION}.${FINAL_EXTENSION}"
+
+          echo "=========================================="
+          echo "Pushing to registry..."
+          echo "=========================================="
+
+          # Push as OCI artifact using oras
+          oras push "${IMAGE_TAG}" \
+            --artifact-type "${ARTIFACT_TYPE}" \
+            "${OUTPUT_FILE}:application/octet-stream"
+
+          echo "Pushed: ${IMAGE_TAG}"
+
+          # Tag as latest
+          oras tag "${IMAGE_TAG}" "latest"
+
+          echo "Tagged as: ${LATEST_TAG}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
+        with:
+          name: ${{ env.IMAGE_NAME }}-${{ env.TALOS_VERSION }}
+          path: _out/*.${{ env.FINAL_EXTENSION }}
+          retention-days: 7
+          compression-level: 0
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## Talos ${PLATFORM^} Boot Image Build Summary"
+            echo ""
+            echo "| Setting | Value |"
+            echo "|---------|-------|"
+            echo "| Platform | \`${PLATFORM}\` |"
+            echo "| Talos Version | \`${TALOS_VERSION}\` |"
+            echo "| Extensions | \`${EXTENSIONS:-none}\` |"
+            echo "| Push | \`${PUSH}\` |"
+            echo ""
+
+            if [[ "${PUSH}" == "true" ]]; then
+              echo "### Published Images"
+              echo "\`\`\`"
+              echo "${{ env.REGISTRY }}/${IMAGE_NAME}:${TALOS_VERSION}"
+              echo "${{ env.REGISTRY }}/${IMAGE_NAME}:latest"
+              echo "\`\`\`"
+              echo ""
+              echo "### Download from registry"
+              echo "\`\`\`bash"
+              echo "oras pull ${{ env.REGISTRY }}/${IMAGE_NAME}:${TALOS_VERSION}"
+              echo "\`\`\`"
+              echo ""
+            fi
+
+            # Platform-specific upload instructions
+            if [[ "${PLATFORM}" == "scaleway" ]]; then
+              echo "### Upload to Scaleway"
+              echo "To use this image in Scaleway:"
+              echo ""
+              echo "1. Download the qcow2 file (from artifact or registry)"
+              echo "2. Import as Scaleway image:"
+              echo "   \`\`\`bash"
+              echo "   scw block snapshot create name=${IMAGE_NAME}-${TALOS_VERSION} volume-type=b_ssd bucket=your-bucket key=${IMAGE_NAME}-${TALOS_VERSION}.qcow2"
+              echo "   scw instance image create name=${IMAGE_NAME}-${TALOS_VERSION} arch=x86_64 snapshot-id=<snapshot-id>"
+              echo "   \`\`\`"
+            elif [[ "${PLATFORM}" == "azure" ]]; then
+              echo "### Upload to Azure"
+              echo "To use this image in Azure:"
+              echo ""
+              echo "1. Download the VHD file (from artifact or registry)"
+              echo "2. Upload to Azure Blob Storage:"
+              echo "   \`\`\`bash"
+              echo "   az storage blob upload \\"
+              echo "     --account-name <storage-account> \\"
+              echo "     --container-name <container> \\"
+              echo "     --name ${IMAGE_NAME}-${TALOS_VERSION}.vhd \\"
+              echo "     --file ${IMAGE_NAME}-${TALOS_VERSION}.vhd \\"
+              echo "     --type page"
+              echo "   \`\`\`"
+              echo ""
+              echo "3. Create a Managed Image from the VHD:"
+              echo "   \`\`\`bash"
+              echo "   az image create \\"
+              echo "     --resource-group <resource-group> \\"
+              echo "     --name ${IMAGE_NAME}-${TALOS_VERSION} \\"
+              echo "     --os-type Linux \\"
+              echo "     --hyper-v-generation V2 \\"
+              echo "     --source https://<storage-account>.blob.core.windows.net/<container>/${IMAGE_NAME}-${TALOS_VERSION}.vhd"
+              echo "   \`\`\`"
+            fi
+
+            echo ""
+            echo "### Use in values.yaml"
+            echo "\`\`\`yaml"
+            echo "talos:"
+            echo "  imageName: ${IMAGE_NAME}-${TALOS_VERSION}"
+            echo "\`\`\`"
+          } >> "$GITHUB_STEP_SUMMARY"
