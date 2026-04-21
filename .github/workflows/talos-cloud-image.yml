@@ -82,7 +82,7 @@ jobs:
             {
               "platform": "azure",
               "image_name": "kommodity-talos-azure",
-              "imager_output": "azure-amd64.vhd",
+              "imager_output": "azure-amd64.vhd.zst",
               "final_extension": "vhd",
               "artifact_type": "application/vnd.talos.azure.image",
               "needs_conversion": "false"
@@ -223,13 +223,23 @@ jobs:
           echo "=========================================="
           ls -la _out/
 
-      - name: Rename image (Azure)
+      - name: Decompress and rename image (Azure)
         if: ${{ env.NEEDS_CONVERSION == 'false' }}
         run: |
           set -euo pipefail
 
+          echo "=========================================="
+          echo "Decompressing ${IMAGER_OUTPUT}..."
+          echo "=========================================="
+
+          # Decompress the .zst file (Talos imager outputs compressed VHD)
+          zstd -d "_out/${IMAGER_OUTPUT}"
+
+          # Get the decompressed filename (without .zst)
+          DECOMPRESSED_FILE="${IMAGER_OUTPUT%.zst}"
+
           # Rename to include version
-          mv "_out/${IMAGER_OUTPUT}" "_out/${IMAGE_NAME}-${TALOS_VERSION}.${FINAL_EXTENSION}"
+          mv "_out/${DECOMPRESSED_FILE}" "_out/${IMAGE_NAME}-${TALOS_VERSION}.${FINAL_EXTENSION}"
 
           echo "=========================================="
           echo "Output file ready!"
