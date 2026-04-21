@@ -81,39 +81,56 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Optionally use a custom base installer image (e.g. with a patched kernel)
-          BASE_INSTALLER_ARG=""
-          if [[ -n "${{ inputs.base_installer_image }}" ]]; then
-            BASE_INSTALLER_ARG="--base-installer-image ${{ inputs.base_installer_image }}"
-          fi
-
-          # Parse extensions into imager args
-          EXTENSION_ARGS=""
-          if [[ -n "${EXTENSIONS}" ]]; then
-            IFS=',' read -ra EXT_ARRAY <<< "${EXTENSIONS}"
-            for ext in "${EXT_ARRAY[@]}"; do
-              ext=$(echo "$ext" | xargs)
-              [[ -n "$ext" ]] && EXTENSION_ARGS="${EXTENSION_ARGS} --system-extension-image ${ext}"
-            done
-          fi
-
           echo "=========================================="
           echo "Building Scaleway image for Talos ${TALOS_VERSION}..."
           echo "Extensions: ${EXTENSIONS:-none}"
+          echo "Base installer: ${{ inputs.base_installer_image }}"
           echo "=========================================="
 
           mkdir -p _out
 
-          # Build Scaleway image (only amd64 supported)
-          docker run --rm -t \
+          BASE_INSTALLER="${{ inputs.base_installer_image }}"
+          BASE_INSTALLER="${BASE_INSTALLER:-ghcr.io/siderolabs/installer:${TALOS_VERSION}}"
+          PROFILE_FILE="_out/profile.yaml"
+
+          cat > "${PROFILE_FILE}" <<EOF
+          arch: amd64
+          platform: scaleway
+          secureboot: false
+          version: ${TALOS_VERSION}
+          input:
+            baseInstaller:
+              imageRef: ${BASE_INSTALLER}
+          EOF
+
+          if [[ -n "${EXTENSIONS}" ]]; then
+            echo "  systemExtensions:" >> "${PROFILE_FILE}"
+            IFS=',' read -ra EXT_ARRAY <<< "${EXTENSIONS}"
+            for ext in "${EXT_ARRAY[@]}"; do
+              ext=$(echo "$ext" | xargs)
+              [[ -n "$ext" ]] && echo "    - imageRef: ${ext}" >> "${PROFILE_FILE}"
+            done
+          fi
+
+          cat >> "${PROFILE_FILE}" <<'EOF'
+          output:
+            kind: image
+            imageOptions:
+              diskSize: 1288490188
+              diskFormat: raw
+            outFormat: .zst
+          EOF
+
+          echo "---- profile.yaml ----"
+          cat "${PROFILE_FILE}"
+          echo "----------------------"
+
+          docker run --rm -i \
             -v "${PWD}/_out":/out \
             -v /dev:/dev \
             --privileged \
             "ghcr.io/siderolabs/imager:${TALOS_VERSION}" \
-            scaleway \
-            --arch amd64 \
-            ${BASE_INSTALLER_ARG} \
-            ${EXTENSION_ARGS}
+            - < "${PROFILE_FILE}"
 
           echo "=========================================="
           echo "Build complete. Converting to qcow2..."
@@ -176,6 +193,7 @@ jobs:
           TALOS_VERSION: ${{ inputs.talos_version }}
           EXTENSIONS: ${{ inputs.extensions }}
           PUSH: ${{ inputs.push }}
+          BASE_INSTALLER: ${{ inputs.base_installer_image }}
         run: |
           {
             echo "## Talos Scaleway Boot Image Build Summary"
@@ -184,6 +202,7 @@ jobs:
             echo "|---------|-------|"
             echo "| Talos Version | \`${TALOS_VERSION}\` |"
             echo "| Extensions | \`${EXTENSIONS:-none}\` |"
+            echo "| Base Installer | \`${BASE_INSTALLER:-default}\` |"
             echo "| Push | \`${PUSH}\` |"
             echo ""
 
