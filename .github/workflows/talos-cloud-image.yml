@@ -90,9 +90,10 @@ jobs:
           ]'
 
           if [[ "${PLATFORMS}" == "all" ]]; then
-            MATRIX="${ALL_PLATFORMS}"
+            # Compact JSON to single line for GITHUB_OUTPUT
+            MATRIX=$(echo "${ALL_PLATFORMS}" | jq -c '.')
           else
-            # Filter platforms based on input
+            # Filter platforms based on input and compact
             MATRIX=$(echo "${ALL_PLATFORMS}" | jq -c --arg platforms "${PLATFORMS}" '
               [.[] | select(.platform as $p | ($platforms | split(",") | map(gsub("^\\s+|\\s+$";"")) | index($p)))]
             ')
