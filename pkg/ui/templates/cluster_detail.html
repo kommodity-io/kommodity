@@ -53,8 +53,8 @@
                             <th class="pb-3 font-semibold text-gray-400 w-8"></th>
                             <th class="pb-3 font-semibold text-gray-400">Name</th>
                             <th class="pb-3 font-semibold text-gray-400">Phase</th>
-                            <th class="pb-3 font-semibold text-gray-400">{{if (index .Cluster.MachineDeployments 0).MinSize}}Min{{else}}Replicas{{end}}</th>
-                            {{if (index .Cluster.MachineDeployments 0).MinSize}}
+                            <th class="pb-3 font-semibold text-gray-400">{{if $.HasAutoscaler}}Min{{else}}Replicas{{end}}</th>
+                            {{if $.HasAutoscaler}}
                             <th class="pb-3 font-semibold text-gray-400">Max</th>
                             {{end}}
                         </tr>
@@ -84,15 +84,19 @@
                                 <span>0</span>
                                 {{end}}
                             </td>
-                            {{if .MinSize}}
+                            {{if $.HasAutoscaler}}
                             <td class="py-4">
-                                <span>{{if .MaxSize}}{{.MaxSize}}{{else}}—{{end}}</span>
+                                {{if .MaxSize}}
+                                <span>{{.MaxSize}}</span>
+                                {{else}}
+                                <span class="text-gray-500">—</span>
+                                {{end}}
                             </td>
                             {{end}}
                         </tr>
                         {{if .Machines}}
                         <tr class="machine-row hidden border-b border-gray-800 bg-gray-800/30" data-deployment="{{.Name}}">
-                            <td colspan="{{if .MinSize}}5{{else}}4{{end}}" class="p-0">
+                            <td colspan="{{if $.HasAutoscaler}}5{{else}}4{{end}}" class="p-0">
                                 <table class="w-full text-xs">
                                     <thead class="text-left border-b border-gray-700">
                                         <tr>
