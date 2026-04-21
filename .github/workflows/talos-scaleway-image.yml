@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       talos_version:
-        description: "Talos version (e.g., v1.11.3)"
+        description: "Talos version (e.g., v1.12.3)"
         required: true
-        default: "v1.11.3"
+        default: "v1.12.3"
         type: string
       extensions:
         description: "Comma-separated list of extension images"
@@ -35,9 +35,9 @@ jobs:
     steps:
       - name: Validate inputs
         run: |
-          # Validate talos_version format (must be semver like v1.11.3)
+          # Validate talos_version format (must be semver like v1.12.3)
           if [[ ! "${{ inputs.talos_version }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
-            echo "::error::Invalid talos_version format. Expected semver (e.g., v1.11.3)"
+            echo "::error::Invalid talos_version format. Expected semver (e.g., v1.12.3)"
             exit 1
           fi
 
@@ -99,9 +99,8 @@ jobs:
             -v /dev:/dev \
             --privileged \
             "ghcr.io/kommodity-io/kommodity-talos-installer-fscrypt:${TALOS_VERSION}" \
-            --help
-            # scaleway \
-            # --arch amd64 \
+            --platform scaleway \
+            --arch amd64
             # ${EXTENSION_ARGS}
 
           echo "=========================================="
