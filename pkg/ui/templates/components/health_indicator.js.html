@@ -1,0 +1,111 @@
+{{define "health_indicator.js.html"}}
+<script>
+(function() {
+    // Global health indicator management
+    window.HealthIndicator = {
+        // Setup health indicators for all elements with class 'health-indicator'
+        setup: function(tooltipId, reasonDivId) {
+            const tooltip = document.getElementById(tooltipId);
+            const reasonDiv = document.getElementById(reasonDivId);
+
+            if (!tooltip || !reasonDiv) {
+                console.error('Health indicator tooltip or reason div not found');
+                return;
+            }
+
+            function showTooltip(indicator) {
+                const rect = indicator.getBoundingClientRect();
+
+                // Show reason if it exists for this cluster
+                const clusterReasonData = indicator.getAttribute('data-reason');
+                if (clusterReasonData) {
+                    reasonDiv.textContent = clusterReasonData;
+                    reasonDiv.classList.remove('hidden');
+                } else {
+                    reasonDiv.classList.add('hidden');
+                }
+
+                // Recompute tooltip bounding box after visibility changes
+                const tooltipRect = tooltip.getBoundingClientRect();
+
+                // Position tooltip above the indicator, centered
+                tooltip.style.left = (rect.left + rect.width / 2 - tooltipRect.width / 2) + 'px';
+                tooltip.style.top = (rect.top - tooltipRect.height - 8) + 'px';
+
+                tooltip.classList.remove('invisible');
+            }
+
+            function hideTooltip() {
+                tooltip.classList.add('invisible');
+            }
+
+            document.querySelectorAll('.health-indicator').forEach(function(indicator) {
+                indicator.addEventListener('mouseenter', function() {
+                    showTooltip(indicator);
+                });
+
+                indicator.addEventListener('mouseleave', function() {
+                    hideTooltip();
+                });
+
+                indicator.addEventListener('focus', function() {
+                    showTooltip(indicator);
+                });
+
+                indicator.addEventListener('blur', function() {
+                    hideTooltip();
+                });
+            });
+        },
+
+        // Check cluster health status
+        checkClusterHealth: async function(clusterName) {
+            const indicator = document.querySelector('.health-indicator[data-cluster="' + clusterName + '"]');
+            if (!indicator) return;
+
+            const icon = indicator.querySelector('.health-icon');
+
+            try {
+                const response = await fetch('/api/cluster/' + clusterName + '/health');
+
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.healthy) {
+                        icon.className = 'health-icon text-green-500';
+                        icon.textContent = '●';
+                        indicator.removeAttribute('data-reason');
+                    } else {
+                        icon.className = 'health-icon text-red-500';
+                        icon.textContent = '●';
+                        if (data.reason) {
+                            indicator.setAttribute('data-reason', data.reason);
+                        }
+                    }
+                } else {
+                    // Read error message from response body
+                    const errorText = await response.text();
+                    icon.className = 'health-icon text-yellow-500';
+                    icon.textContent = '●';
+                    indicator.setAttribute('data-reason', errorText || 'HTTP ' + response.status + ': Health check failed');
+                }
+            } catch (error) {
+                console.error('Error checking cluster health:', error);
+                icon.className = 'health-icon text-gray-500';
+                icon.textContent = '●';
+                indicator.setAttribute('data-reason', 'Unable to connect: ' + error.message);
+            }
+        },
+
+        // Check health for all clusters on page
+        checkAllClusters: function() {
+            document.querySelectorAll('.health-indicator').forEach(function(indicator) {
+                const clusterName = indicator.getAttribute('data-cluster');
+                if (clusterName) {
+                    window.HealthIndicator.checkClusterHealth(clusterName);
+                }
+            });
+        }
+    };
+})();
+</script>
+{{end}}

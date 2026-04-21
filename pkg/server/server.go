@@ -302,9 +302,21 @@ func setupRBACAPIGroupInfo(cfg *config.KommodityConfig,
 		return nil, fmt.Errorf("unable to create REST storage service for rbac v1 rolebindings: %w", err)
 	}
 
+	clusterRolesStorage, err := rbac.NewClusterRoleREST(*kineStorageConfig, *scheme)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create REST storage service for rbac v1 clusterroles: %w", err)
+	}
+
+	clusterRoleBindingsStorage, err := rbac.NewClusterRoleBindingREST(*kineStorageConfig, *scheme)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create REST storage service for rbac v1 clusterrolebindings: %w", err)
+	}
+
 	apiGroupInfo.VersionedResourcesStorageMap["v1"] = map[string]rest.Storage{
-		"roles":        rolesStorage,
-		"rolebindings": roleBindingsStorage,
+		"roles":               rolesStorage,
+		"rolebindings":        roleBindingsStorage,
+		"clusterroles":        clusterRolesStorage,
+		"clusterrolebindings": clusterRoleBindingsStorage,
 	}
 
 	return &apiGroupInfo, nil

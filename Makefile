@@ -35,7 +35,7 @@ LINTER := bin/golangci-lint
 .PHONY: golangci-lint
 golangci-lint: $(LINTER) ## Download golangci-lint locally if necessary.
 $(LINTER):
-	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b bin/ v2.9.0
+	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b bin/ v2.11.4
 
 ##@ Development
 
@@ -53,8 +53,6 @@ KOMMODITY_PORT     ?= 5000
 	grep -q '^KOMMODITY_PORT=' .env || echo 'KOMMODITY_PORT=5000' >> .env
 	grep -q '^KOMMODITY_INSECURE_DISABLE_AUTHENTICATION=' .env || echo 'KOMMODITY_INSECURE_DISABLE_AUTHENTICATION=true' >> .env
 	grep -q '^KOMMODITY_DEVELOPMENT_MODE=' .env || echo 'KOMMODITY_DEVELOPMENT_MODE=true' >> .env
-	touch pkg/ui/web/kommodity-ui/.env
-	grep -q '^VITE_KOMMODITY_BASE_URL=' pkg/ui/web/kommodity-ui/.env || echo 'VITE_KOMMODITY_BASE_URL=https://localhost:5443' >> pkg/ui/web/kommodity-ui/.env
 
 generate-caddyfile: # Generate a Caddyfile for local development.
 	touch Caddyfile
@@ -88,7 +86,7 @@ fetch-providers:
 	./scripts/add-to-scheme-providers.sh
 	./scripts/generate-provider-consts.sh
 
-build: build-ui bin/kommodity ## Build all components (api and UI).
+build: bin/kommodity ## Build the application.
 
 build-api: bin/kommodity ## Build the api
 
@@ -97,12 +95,6 @@ bin/kommodity: $(SOURCES) ## Build the application.
 ifneq ($(UPX_FLAGS),)
 	upx $(UPX_FLAGS) bin/kommodity
 endif
-
-install-npm-deps:
-	npm install --prefix pkg/ui/web/kommodity-ui
-
-build-ui: install-npm-deps ## Build the UI
-	VITE_KOMMODITY_BASE_URL=$(KOMMODITY_BASE_URL) npm run build --prefix pkg/ui/web/kommodity-ui
 
 .PHONY: clean
 clean: ## Clean the build artifacts.
