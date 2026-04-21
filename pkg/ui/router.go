@@ -233,10 +233,16 @@ func buildClusterDetailData(
 	clusterDetail *api.ClusterDetail,
 	kubeconfigContent string,
 ) map[string]any {
-	// Calculate total machines
+	// Calculate total machines and check if any deployment has autoscaler
 	totalMachines := 0
+	hasAutoscaler := false
+
 	for _, deployment := range clusterDetail.MachineDeployments {
 		totalMachines += len(deployment.Machines)
+
+		if deployment.MinSize != nil {
+			hasAutoscaler = true
+		}
 	}
 
 	clusterMetrics := []struct {
@@ -254,6 +260,7 @@ func buildClusterDetailData(
 		"Cluster":        clusterDetail,
 		"ClusterName":    clusterName,
 		"ClusterMetrics": clusterMetrics,
+		"HasAutoscaler":  hasAutoscaler,
 		"Version":        getKommodityVersion(),
 		"KubeconfigSection": KubeconfigSection{
 			ID:      clusterName,
