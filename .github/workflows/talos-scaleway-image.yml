@@ -99,6 +99,10 @@ jobs:
           secureboot: false
           version: ${TALOS_VERSION}
           input:
+            kernel:
+              path: /usr/install/amd64/vmlinuz
+            initramfs:
+              path: /usr/install/amd64/initramfs.xz
             baseInstaller:
               imageRef: ${BASE_INSTALLER}
           EOF
