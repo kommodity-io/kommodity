@@ -2,6 +2,8 @@
 name: Build Talos Cloud Images
 
 on:
+  # Inputs like the ones provided for  the workflow_dispatch trigger
+  # are provided via the top level `env` field
   pull_request:
     paths:
       - ".github/workflows/talos-cloud-image.yml"
