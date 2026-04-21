@@ -99,12 +99,12 @@ jobs:
           secureboot: false
           version: ${TALOS_VERSION}
           input:
-            kernel:
-              path: /usr/install/amd64/vmlinuz
-            initramfs:
-              path: /usr/install/amd64/initramfs.xz
-            baseInstaller:
-              imageRef: ${BASE_INSTALLER}
+          kernel:
+            path: /usr/install/amd64/vmlinuz
+          initramfs:
+            path: /usr/install/amd64/initramfs.xz
+          baseInstaller:
+            imageRef: ${BASE_INSTALLER}
           EOF
 
           if [[ -n "${EXTENSIONS}" ]]; then
@@ -118,11 +118,8 @@ jobs:
 
           cat >> "${PROFILE_FILE}" <<'EOF'
           output:
-            kind: image
-            imageOptions:
-              diskSize: 1288490188
-              diskFormat: raw
-            outFormat: .zst
+          kind: installer
+          outFormat: raw
           EOF
 
           echo "---- profile.yaml ----"
@@ -141,9 +138,6 @@ jobs:
           echo "=========================================="
 
           ls -la _out/
-
-          # Decompress the raw image (Talos imager outputs .zst format)
-          zstd -d _out/scaleway-amd64.raw.zst
 
           # Convert to qcow2 (required for Scaleway import)
           qemu-img convert -f raw -O qcow2 _out/scaleway-amd64.raw "_out/${{ env.IMAGE_NAME }}-${TALOS_VERSION}.qcow2"
