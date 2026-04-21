@@ -99,9 +99,10 @@ jobs:
             -v /dev:/dev \
             --privileged \
             "ghcr.io/kommodity-io/kommodity-talos-installer-fscrypt:${TALOS_VERSION}" \
-            scaleway \
-            --arch amd64 \
-            ${EXTENSION_ARGS}
+            --help
+            # scaleway \
+            # --arch amd64 \
+            # ${EXTENSION_ARGS}
 
           echo "=========================================="
           echo "Build complete. Converting to qcow2..."
