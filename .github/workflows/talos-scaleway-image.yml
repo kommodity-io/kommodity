@@ -99,6 +99,7 @@ jobs:
             -v /dev:/dev \
             --privileged \
             "ghcr.io/kommodity-io/kommodity-talos-installer-fscrypt:${TALOS_VERSION}" \
+            install \
             --platform scaleway \
             --arch amd64
             # ${EXTENSION_ARGS}
