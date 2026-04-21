@@ -341,7 +341,6 @@ func legacyValidateEvent(event *corev1.Event, requestVersion schema.GroupVersion
 
 // ValidateQualifiedName validates if name is what Kubernetes calls a "qualified name".
 func validateQualifiedName(value string, fldPath *field.Path) field.ErrorList {
-	//nolint:prealloc // Cannot preallocate - size depends on validation result
 	allErrs := field.ErrorList{}
 	for _, msg := range utilvalidation.IsQualifiedName(value) {
 		allErrs = append(allErrs, field.Invalid(fldPath, value, msg))

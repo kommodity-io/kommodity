@@ -110,13 +110,11 @@ func isTrusted(ctx context.Context, ip string, cfg *config.KommodityConfig) (boo
 
 	client := &http.Client{}
 
-	//nolint:gosec // G704: URL is constructed from localhost and config, not user input - SSRF not possible
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, trustURL, nil)
 	if err != nil {
 		return false, fmt.Errorf("failed to create trust request: %w", err)
 	}
 
-	//nolint:gosec // G704: Calling localhost endpoint with internal configuration - SSRF not possible
 	resp, err := client.Do(req)
 	if err != nil {
 		return false, fmt.Errorf("failed to call trust endpoint: %w", err)
