@@ -2,6 +2,7 @@ package talosproxy_test
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -126,7 +127,7 @@ func TestTunnelPool_ConcurrentGetOrCreateTunnel_DoesNotBlock(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 			defer cancel()
 
-			clusterName := "cluster-" + string(rune('a'+idx))
+			clusterName := fmt.Sprintf("cluster-%d", idx)
 
 			_, err := pool.GetOrCreateTunnel(ctx, clusterName, "default")
 			// Error is expected (nil client), but it must not block other clusters.

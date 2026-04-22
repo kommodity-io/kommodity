@@ -29,13 +29,8 @@ grpcurl: $(GRPCURL) ## Download grpcurl locally if necessary.
 $(GRPCURL):
 	go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest
 
-# Set up the linter.
-LINTER := bin/golangci-lint
-
-.PHONY: golangci-lint
-golangci-lint: $(LINTER) ## Download golangci-lint locally if necessary.
-$(LINTER):
-	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b bin/ v2.11.4
+# Set up the linter. Version pinned via `tool` directive in go.mod.
+LINTER := go tool golangci-lint
 
 ##@ Development
 
@@ -104,13 +99,13 @@ clean: ## Clean the build artifacts.
 test: ## Run the tests.
 	go test -cover -v ./...
 
-lint: $(LINTER) ## Run the linter.
+lint: ## Run the linter.
 	$(LINTER) run
-	cd pkg/test && ../../$(LINTER) run
+	cd pkg/test && go tool -modfile=../../go.mod golangci-lint run
 
-lint-fix: $(LINTER) ## Run the linter and fix issues.
+lint-fix: ## Run the linter and fix issues.
 	$(LINTER) run --fix
-	cd pkg/test && ../../$(LINTER) run --fix
+	cd pkg/test && go tool -modfile=../../go.mod golangci-lint run --fix
 
 generate: .env fetch-providers ## Run code generation.
 	go generate ./...

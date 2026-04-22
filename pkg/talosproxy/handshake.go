@@ -1,6 +1,7 @@
 package talosproxy
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"net/http"
@@ -66,23 +67,20 @@ func readConnectResponse(reader io.Reader) error {
 }
 
 func readHeaderLine(reader io.Reader) (string, error) {
-	var buf [connectMaxLineBytes]byte
+	buf := make([]byte, 0, connectMaxLineBytes)
 
 	var oneByte [1]byte
 
-	count := 0
-
-	for count < len(buf) {
+	for len(buf) < connectMaxLineBytes {
 		_, err := io.ReadFull(reader, oneByte[:])
 		if err != nil {
 			return "", fmt.Errorf("read byte: %w", err)
 		}
 
-		buf[count] = oneByte[0]
-		count++
+		buf = append(buf, oneByte[0])
 
-		if count >= 2 && buf[count-2] == '\r' && buf[count-1] == '\n' {
-			return string(buf[:count-2]), nil
+		if bytes.HasSuffix(buf, []byte("\r\n")) {
+			return string(buf[:len(buf)-2]), nil
 		}
 	}
 
