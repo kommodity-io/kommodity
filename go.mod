@@ -2,6 +2,8 @@ module github.com/kommodity-io/kommodity
 
 go 1.26.1
 
+tool github.com/golangci/golangci-lint/v2/cmd/golangci-lint
+
 replace github.com/google/cel-go => github.com/google/cel-go v0.22.0
 
 require (
@@ -478,5 +480,3 @@ require (
 	sigs.k8s.io/kustomize/kyaml v0.20.1 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
 )
-
-tool github.com/golangci/golangci-lint/v2/cmd/golangci-lint
