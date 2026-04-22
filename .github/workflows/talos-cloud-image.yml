@@ -2,11 +2,6 @@
 name: Build Talos Cloud Images
 
 on:
-  # Inputs like the ones provided for  the workflow_dispatch trigger
-  # are provided via the top level `env` field
-  pull_request:
-    paths:
-      - ".github/workflows/talos-cloud-image.yml"
   workflow_dispatch:
     inputs:
       talos_version:
@@ -14,7 +9,7 @@ on:
         required: false
         type: string
       extensions:
-        description: "Comma-separated list of extension images (leave empty for defaults)"
+        description: "Comma-separated list of extension images ('none' for no extensions, empty for defaults)"
         required: false
         type: string
       platforms:
@@ -53,7 +48,17 @@ jobs:
         id: resolve-inputs
         run: |
           echo "talos_version=${{ inputs.talos_version || env.DEFAULT_TALOS_VERSION }}" >> "$GITHUB_OUTPUT"
-          echo "extensions=${{ inputs.extensions || env.DEFAULT_EXTENSIONS }}" >> "$GITHUB_OUTPUT"
+
+          # Handle extensions: 'none' means no extensions, empty means use defaults
+          EXTENSIONS_INPUT="${{ inputs.extensions }}"
+          if [[ "${EXTENSIONS_INPUT}" == "none" ]]; then
+            echo "extensions=" >> "$GITHUB_OUTPUT"
+          elif [[ -z "${EXTENSIONS_INPUT}" ]]; then
+            echo "extensions=${DEFAULT_EXTENSIONS}" >> "$GITHUB_OUTPUT"
+          else
+            echo "extensions=${EXTENSIONS_INPUT}" >> "$GITHUB_OUTPUT"
+          fi
+
           echo "push=${{ inputs.push == '' && 'true' || inputs.push }}" >> "$GITHUB_OUTPUT"
           echo "base_installer_image=${{ inputs.base_installer_image || '' }}" >> "$GITHUB_OUTPUT"
 
