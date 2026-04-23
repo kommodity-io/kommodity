@@ -34,9 +34,6 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 TALOS_VERSION="${1:?Usage: $0 <talos_version> (e.g. v1.12.3)}"
 
-# pkgs repo doesn't publish per-patch tags; v1.12.3 → v1.12.0
-PKGS_TAG="${TALOS_VERSION%.*}.0"
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 WORK_DIR="${REPO_ROOT}/_out/fscrypt-build"
@@ -65,7 +62,6 @@ echo "=========================================="
 echo "Talos fscrypt kernel builder"
 echo "------------------------------------------"
 echo "Talos version   : ${TALOS_VERSION}"
-echo "Pkgs tag        : ${PKGS_TAG}"
 echo "Build registry  : ${REGISTRY}"
 echo "Output image    : ${INSTALLER_IMAGE}"
 echo "Platform        : ${PLATFORM}"
@@ -96,7 +92,14 @@ systemctl enable docker
 
 docker login ghcr.io -u "${GITHUB_ACTOR:-pthuriot-corti}" --password-stdin <<< "${GITHUB_TOKEN}"
 
-apt install make -y
+apt install make jq -y
+
+# Install crane (for pushing OCI images)
+if ! command -v crane &>/dev/null; then
+  CRANE_VERSION="0.20.3"
+  curl -sL "https://github.com/google/go-containerregistry/releases/download/v${CRANE_VERSION}/go-containerregistry_Linux_x86_64.tar.gz" \
+    | tar -xz -C /usr/local/bin crane
+fi
 
 # ---------------------------------------------------------------------------
 # Step 0: Start local registry if using localhost
@@ -118,24 +121,84 @@ if [[ "${REGISTRY}" == 127.0.0.1:* ]]; then
 fi
 
 # ===========================================================================
+# Phase 0b: Clone talos first to determine correct pkgs version
+# ===========================================================================
+echo ""
+echo ">>> Clone siderolabs/talos @ ${TALOS_VERSION}"
+
+if [[ -d "${TALOS_DIR}/.git" ]]; then
+  echo "    Already cloned — checking out ${TALOS_VERSION}"
+  git -C "${TALOS_DIR}" fetch --tags --quiet
+  git -C "${TALOS_DIR}" checkout "${TALOS_VERSION}" --quiet
+else
+  git clone --branch "${TALOS_VERSION}" --depth 1 \
+    https://github.com/siderolabs/talos.git "${TALOS_DIR}"
+fi
+
+# Extract the pkgs version that this talos release expects.
+# The talos Makefile defines PKGS as the expected pkgs git ref.
+PKGS_REF=$(grep -oP '^\s*PKGS\s*\?=\s*\K\S+' "${TALOS_DIR}/Makefile" || true)
+if [[ -z "${PKGS_REF}" ]]; then
+  # Fallback: use a default derived from the kernel package refs in Makefile
+  PKGS_REF=$(grep -oP 'PKG_KERNEL\s*\?=.*:\K[^\s"]+' "${TALOS_DIR}/Makefile" || true)
+fi
+if [[ -z "${PKGS_REF}" ]]; then
+  # Last resort fallback
+  PKGS_REF="${TALOS_VERSION%.*}.0"
+fi
+echo "    Pkgs ref: ${PKGS_REF}"
+
+# ===========================================================================
 # Phase 1: Build custom kernel (siderolabs/pkgs)
 # ===========================================================================
 
 if [[ "${SKIP_KERNEL}" != "true" ]]; then
 
 # ---------------------------------------------------------------------------
-# Step 1: Clone siderolabs/pkgs
+# Step 1: Clone siderolabs/pkgs at the version talos expects
 # ---------------------------------------------------------------------------
 echo ""
-echo ">>> Step 1: Clone siderolabs/pkgs @ ${PKGS_TAG}"
+echo ">>> Step 1: Clone siderolabs/pkgs @ ${PKGS_REF}"
+
+# PKGS_REF may be a tag (v1.12.0) or a git-describe ref (v1.12.0-35-g15d5d78).
+# Parse into usable components.
+if [[ "${PKGS_REF}" =~ -[0-9]+-g([0-9a-f]+)$ ]]; then
+  # Describe-style ref: extract commit hash and release branch
+  PKGS_COMMIT="${BASH_REMATCH[1]}"
+  PKGS_MINOR="${PKGS_REF#v}"       # 1.12.0-35-g15d5d78
+  PKGS_MINOR="${PKGS_MINOR%%-*}"   # 1.12.0
+  PKGS_MINOR="${PKGS_MINOR%.*}"    # 1.12
+  PKGS_BRANCH="release-${PKGS_MINOR}"
+  echo "    Parsed: branch=${PKGS_BRANCH} commit=${PKGS_COMMIT}"
+else
+  # Simple tag/branch ref
+  PKGS_COMMIT=""
+  PKGS_BRANCH="${PKGS_REF}"
+fi
+
+# Remove stale shallow clone if it exists (can't reach other commits)
+if [[ -d "${PKGS_DIR}/.git" ]] && [[ -n "${PKGS_COMMIT}" ]]; then
+  if ! git -C "${PKGS_DIR}" cat-file -e "${PKGS_COMMIT}" 2>/dev/null; then
+    echo "    Removing stale shallow clone (commit ${PKGS_COMMIT} not reachable)"
+    rm -rf "${PKGS_DIR}"
+  fi
+fi
 
 if [[ -d "${PKGS_DIR}/.git" ]]; then
-  echo "    Already cloned — checking out ${PKGS_TAG}"
+  echo "    Already cloned — checking out ${PKGS_REF}"
   git -C "${PKGS_DIR}" fetch --tags --quiet
-  git -C "${PKGS_DIR}" checkout "${PKGS_TAG}" --quiet
+  git -C "${PKGS_DIR}" checkout "${PKGS_COMMIT:-${PKGS_REF}}" --quiet
 else
-  git clone --branch "${PKGS_TAG}" --depth 1 \
-    https://github.com/siderolabs/pkgs.git "${PKGS_DIR}"
+  if [[ -n "${PKGS_COMMIT}" ]]; then
+    # Need full branch history to reach the specific commit
+    echo "    Cloning ${PKGS_BRANCH} branch (need commit ${PKGS_COMMIT})"
+    git clone --branch "${PKGS_BRANCH}" \
+      https://github.com/siderolabs/pkgs.git "${PKGS_DIR}"
+    git -C "${PKGS_DIR}" checkout "${PKGS_COMMIT}"
+  else
+    git clone --branch "${PKGS_BRANCH}" --depth 1 \
+      https://github.com/siderolabs/pkgs.git "${PKGS_DIR}"
+  fi
 fi
 
 # ---------------------------------------------------------------------------
@@ -248,7 +311,7 @@ if [[ "${REGISTRY}" == 127.0.0.1:* ]]; then
 fi
 
 if [[ -z "${KERNEL_IMAGE}" ]]; then
-  KERNEL_TAG=$(git -C "${PKGS_DIR}" describe --tag --always 2>/dev/null || echo "${PKGS_TAG}")
+  KERNEL_TAG=$(git -C "${PKGS_DIR}" describe --tag --always 2>/dev/null || echo "${PKGS_REF}")
   KERNEL_IMAGE="${REGISTRY}/siderolabs/kernel:${KERNEL_TAG}"
 fi
 
@@ -260,18 +323,56 @@ echo "    Kernel image: ${KERNEL_IMAGE}"
 # ===========================================================================
 
 # ---------------------------------------------------------------------------
-# Step 5: Clone siderolabs/talos
+# Step 5: Validate hack/modules-amd64.txt against actual kernel contents
+#
+# Remove any module from the list that doesn't exist in the kernel image.
+# Causes: configs changed from =m to =y (built-in), or configs disabled
+# by olddefconfig, or modules not present at this pkgs commit.
 # ---------------------------------------------------------------------------
-echo ""
-echo ">>> Step 5: Clone siderolabs/talos @ ${TALOS_VERSION}"
+MODULES_FILE="${TALOS_DIR}/hack/modules-${ARCH}.txt"
+if [[ -f "${MODULES_FILE}" ]]; then
+  echo ""
+  echo ">>> Step 5: Validate modules list against kernel image"
 
-if [[ -d "${TALOS_DIR}/.git" ]]; then
-  echo "    Already cloned — checking out ${TALOS_VERSION}"
-  git -C "${TALOS_DIR}" fetch --tags --quiet
-  git -C "${TALOS_DIR}" checkout "${TALOS_VERSION}" --quiet
-else
-  git clone --branch "${TALOS_VERSION}" --depth 1 \
-    https://github.com/siderolabs/talos.git "${TALOS_DIR}"
+  # Extract module tree from kernel image
+  KERNEL_MOD_CHECK="${WORK_DIR}/kernel-modules-check"
+  rm -rf "${KERNEL_MOD_CHECK}"
+  mkdir -p "${KERNEL_MOD_CHECK}"
+
+  docker pull "${KERNEL_IMAGE}"
+  CID=$(docker create "${KERNEL_IMAGE}" /bin/true)
+  docker cp "${CID}:/usr/lib/modules" "${KERNEL_MOD_CHECK}/" 2>/dev/null || true
+  docker rm "${CID}" &>/dev/null || true
+
+  KERNEL_VERSION=$(ls "${KERNEL_MOD_CHECK}/modules/" 2>/dev/null | head -1)
+  KERNEL_MOD_DIR="${KERNEL_MOD_CHECK}/modules/${KERNEL_VERSION}"
+
+  if [[ -d "${KERNEL_MOD_DIR}" ]]; then
+    echo "    Kernel version: ${KERNEL_VERSION}"
+    echo "    Module dir: ${KERNEL_MOD_DIR}"
+
+    # Filter: keep only modules that exist in the kernel image
+    TMP_MODULES=$(mktemp)
+    REMOVED=0
+    while IFS= read -r mod_path; do
+      # Skip empty lines and comments
+      [[ -z "${mod_path}" || "${mod_path}" =~ ^[[:space:]]*# ]] && continue
+      if [[ -f "${KERNEL_MOD_DIR}/${mod_path}" ]]; then
+        echo "${mod_path}" >> "${TMP_MODULES}"
+      else
+        echo "    Removing: ${mod_path}"
+        ((REMOVED++)) || true
+      fi
+    done < "${MODULES_FILE}"
+    mv "${TMP_MODULES}" "${MODULES_FILE}"
+
+    echo "    Removed ${REMOVED} unavailable modules, $(wc -l < "${MODULES_FILE}") remaining"
+  else
+    echo "    WARNING: Could not extract modules from kernel image, skipping validation"
+    echo "    Contents: $(ls "${KERNEL_MOD_CHECK}/" 2>/dev/null)"
+  fi
+
+  rm -rf "${KERNEL_MOD_CHECK}"
 fi
 
 # ---------------------------------------------------------------------------
@@ -291,13 +392,28 @@ echo "    Output:"
 ls -lh "${TALOS_DIR}/_out/vmlinuz-${ARCH}" "${TALOS_DIR}/_out/initramfs-${ARCH}.xz" 2>/dev/null | sed 's/^/      /'
 
 # ---------------------------------------------------------------------------
-# Step 7: Build imager with custom kernel
+# Step 7a: Build installer-base
+#
+# The installer-base contains the base filesystem for the installer image.
+# Must be pushed to registry before the imager can build the installer.
+# ---------------------------------------------------------------------------
+echo ""
+echo ">>> Step 7a: Build installer-base → ${REGISTRY}"
+
+(cd "${TALOS_DIR}" && make installer-base \
+  PKG_KERNEL="${KERNEL_IMAGE}" \
+  PLATFORM="${PLATFORM}" \
+  PUSH=true \
+  REGISTRY="${REGISTRY}")
+
+# ---------------------------------------------------------------------------
+# Step 7b: Build imager with custom kernel
 #
 # The imager is a container that generates Talos boot assets (ISO, installer,
 # disk images). We push it to the build registry for Step 8.
 # ---------------------------------------------------------------------------
 echo ""
-echo ">>> Step 7: Build imager → ${REGISTRY}"
+echo ">>> Step 7b: Build imager → ${REGISTRY}"
 
 (cd "${TALOS_DIR}" && make imager \
   PKG_KERNEL="${KERNEL_IMAGE}" \
@@ -330,27 +446,32 @@ echo ">>> Step 8: Build installer"
 echo ""
 echo ">>> Step 9: Push installer → ${INSTALLER_IMAGE}"
 
-BUILT_INSTALLER="${REGISTRY}/siderolabs/installer:${TALOS_VERSION}"
-
-# Image may be in local docker (--load) or build registry; handle both
-docker pull "${BUILT_INSTALLER}" 2>/dev/null || true
-
-if ! docker inspect "${BUILT_INSTALLER}" &>/dev/null; then
-  echo "ERROR: Installer image not found: ${BUILT_INSTALLER}"
-  echo "Check 'make installer' output above for the actual image reference."
-  echo ""
-  echo "Available images in local docker:"
-  docker images --format '{{.Repository}}:{{.Tag}}' | grep -i installer | head -10
-  if [[ "${REGISTRY}" == 127.0.0.1:* ]]; then
-    echo ""
-    echo "Available tags in registry:"
-    curl -sf "http://${REGISTRY}/v2/siderolabs/installer/tags/list" 2>/dev/null || echo "  (none)"
+# Talos tags images with git describe, which includes -dirty when
+# the worktree is modified (e.g. from our modules-amd64.txt patch).
+# Discover the actual tag from the registry.
+INSTALLER_TAG=""
+if [[ "${REGISTRY}" == 127.0.0.1:* ]]; then
+  TAGS_JSON=$(curl -sf "http://${REGISTRY}/v2/siderolabs/installer/tags/list" 2>/dev/null || echo "")
+  if [[ -n "${TAGS_JSON}" ]]; then
+    INSTALLER_TAG=$(echo "${TAGS_JSON}" | jq -r '.tags[0]' 2>/dev/null || echo "")
   fi
-  exit 1
+fi
+if [[ -z "${INSTALLER_TAG}" || "${INSTALLER_TAG}" == "null" ]]; then
+  # Fallback: try common variants
+  INSTALLER_TAG="${TALOS_VERSION}-dirty"
 fi
 
-docker tag "${BUILT_INSTALLER}" "${INSTALLER_IMAGE}"
-docker push "${INSTALLER_IMAGE}"
+BUILT_INSTALLER="${REGISTRY}/siderolabs/installer:${INSTALLER_TAG}"
+echo "    Source: ${BUILT_INSTALLER}"
+
+# crane copy is more efficient (no local pull needed), fall back to docker
+if command -v crane &>/dev/null; then
+  crane copy "${BUILT_INSTALLER}" "${INSTALLER_IMAGE}"
+else
+  docker pull "${BUILT_INSTALLER}"
+  docker tag "${BUILT_INSTALLER}" "${INSTALLER_IMAGE}"
+  docker push "${INSTALLER_IMAGE}"
+fi
 
 echo ""
 echo "=========================================="

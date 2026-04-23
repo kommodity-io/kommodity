@@ -99,12 +99,12 @@ jobs:
           secureboot: false
           version: ${TALOS_VERSION}
           input:
-          kernel:
-            path: /usr/install/amd64/vmlinuz
-          initramfs:
-            path: /usr/install/amd64/initramfs.xz
-          baseInstaller:
-            imageRef: ${BASE_INSTALLER}
+            kernel:
+              path: /usr/install/amd64/vmlinuz
+            initramfs:
+              path: /usr/install/amd64/initramfs.xz
+            baseInstaller:
+              imageRef: ${BASE_INSTALLER}
           EOF
 
           if [[ -n "${EXTENSIONS}" ]]; then
@@ -118,8 +118,8 @@ jobs:
 
           cat >> "${PROFILE_FILE}" <<'EOF'
           output:
-          kind: installer
-          outFormat: raw
+            kind: installer
+            outFormat: raw
           EOF
 
           echo "---- profile.yaml ----"
