@@ -118,8 +118,11 @@ jobs:
 
           cat >> "${PROFILE_FILE}" <<'EOF'
           output:
-            kind: installer
-            outFormat: raw
+            kind: image
+            imageOptions:
+              diskSize: 1288490188
+              diskFormat: raw
+            outFormat: .zst
           EOF
 
           echo "---- profile.yaml ----"
@@ -138,6 +141,9 @@ jobs:
           echo "=========================================="
 
           ls -la _out/
+
+          # Decompress the raw image (Talos imager outputs .zst format)
+          zstd -d _out/scaleway-amd64.raw.zst
 
           # Convert to qcow2 (required for Scaleway import)
           qemu-img convert -f raw -O qcow2 _out/scaleway-amd64.raw "_out/${{ env.IMAGE_NAME }}-${TALOS_VERSION}.qcow2"
