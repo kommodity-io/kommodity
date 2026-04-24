@@ -218,7 +218,7 @@ jobs:
           echo "=========================================="
 
           # Decompress the .zst file (Talos imager outputs compressed images)
-          zstd -d "_out/${IMAGER_OUTPUT}"
+          zstd -d --rm "_out/${IMAGER_OUTPUT}"
 
           # Get the decompressed filename (without .zst)
           DECOMPRESSED_FILE="${IMAGER_OUTPUT%.zst}"
