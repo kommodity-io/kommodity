@@ -2,10 +2,11 @@
 name: Build Talos Cloud Images
 
 on:
+  # Inputs like the ones provided for the workflow_dispatch trigger
   workflow_dispatch:
     inputs:
       talos_version:
-        description: "Talos version (e.g., v1.11.3)"
+        description: "Talos version (e.g., v1.12.3)"
         required: false
         type: string
       extensions:
@@ -13,10 +14,14 @@ on:
         required: false
         type: string
       platforms:
-        description: "Platforms to build (comma-separated: scaleway,azure or 'all')"
+        description: "Platforms to build"
         required: false
         default: "all"
-        type: string
+        type: choice
+        options:
+          - all
+          - scaleway
+          - azure
       push:
         description: "Push image to registry"
         required: false
@@ -30,7 +35,7 @@ on:
 env:
   REGISTRY: ghcr.io/kommodity-io
   # Default values for inputs
-  DEFAULT_TALOS_VERSION: "v1.11.3"
+  DEFAULT_TALOS_VERSION: "v1.12.3"
   DEFAULT_EXTENSIONS: "ghcr.io/kommodity-io/kommodity-attestation-extension:latest,ghcr.io/kommodity-io/kommodity-autobootstrap-extension:latest"
 
 jobs:
@@ -67,7 +72,7 @@ jobs:
           TALOS_VERSION: ${{ steps.resolve-inputs.outputs.talos_version }}
         run: |
           if [[ ! "${TALOS_VERSION}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
-            echo "::error::Invalid talos_version format. Expected semver (e.g., v1.11.3)"
+            echo "::error::Invalid talos_version format. Expected semver (e.g., v1.12.3)"
             exit 1
           fi
 
@@ -204,49 +209,29 @@ jobs:
           echo "=========================================="
           ls -la _out/
 
-      - name: Convert image (Scaleway)
-        if: ${{ env.NEEDS_CONVERSION == 'true' }}
+      - name: Process image
         run: |
           set -euo pipefail
 
           echo "=========================================="
-          echo "Converting to ${FINAL_EXTENSION}..."
+          echo "Processing ${IMAGER_OUTPUT}..."
           echo "=========================================="
 
-          # Decompress the raw image (Talos imager outputs .zst format for Scaleway)
-          zstd -d "_out/${IMAGER_OUTPUT}"
-
-          # Get the raw filename (without .zst)
-          RAW_FILE="${IMAGER_OUTPUT%.zst}"
-
-          # Convert to final format
-          qemu-img convert -f raw -O "${FINAL_EXTENSION}" "_out/${RAW_FILE}" "_out/${IMAGE_NAME}-${TALOS_VERSION}.${FINAL_EXTENSION}"
-
-          # Remove intermediate files to save space
-          rm -f "_out/${RAW_FILE}"
-
-          echo "=========================================="
-          echo "Conversion complete!"
-          echo "=========================================="
-          ls -la _out/
-
-      - name: Decompress and rename image (Azure)
-        if: ${{ env.NEEDS_CONVERSION == 'false' }}
-        run: |
-          set -euo pipefail
-
-          echo "=========================================="
-          echo "Decompressing ${IMAGER_OUTPUT}..."
-          echo "=========================================="
-
-          # Decompress the .zst file (Talos imager outputs compressed VHD)
+          # Decompress the .zst file (Talos imager outputs compressed images)
           zstd -d "_out/${IMAGER_OUTPUT}"
 
           # Get the decompressed filename (without .zst)
           DECOMPRESSED_FILE="${IMAGER_OUTPUT%.zst}"
+          FINAL_FILE="_out/${IMAGE_NAME}-${TALOS_VERSION}.${FINAL_EXTENSION}"
 
-          # Rename to include version
-          mv "_out/${DECOMPRESSED_FILE}" "_out/${IMAGE_NAME}-${TALOS_VERSION}.${FINAL_EXTENSION}"
+          if [[ "${NEEDS_CONVERSION}" == "true" ]]; then
+            # Convert raw to final format (e.g., Scaleway raw -> qcow2)
+            qemu-img convert -f raw -O "${FINAL_EXTENSION}" "_out/${DECOMPRESSED_FILE}" "${FINAL_FILE}"
+            rm -f "_out/${DECOMPRESSED_FILE}"
+          else
+            # Just rename (e.g., Azure VHD)
+            mv "_out/${DECOMPRESSED_FILE}" "${FINAL_FILE}"
+          fi
 
           echo "=========================================="
           echo "Output file ready!"
