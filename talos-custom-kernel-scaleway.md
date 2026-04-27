@@ -118,35 +118,38 @@ scw instance server terminate zone=fr-par-1 \
 Environment variables: `REGISTRY`, `OUTPUT_REGISTRY`, `PLATFORM`,
 `SKIP_KERNEL`, `GITHUB_TOKEN`, `GITHUB_ACTOR`.
 
-## Building the Scaleway qcow2 Image
+## Building Cloud Images
 
-### `.github/workflows/talos-scaleway-image.yml`
+### `.github/workflows/talos-cloud-image.yml`
 
-Converts a Talos imager output into a Scaleway-compatible qcow2 image:
+Builds platform-specific disk images from a Talos imager. Supports
+multiple platforms via a build matrix (scaleway, azure).
 
-1. Generates a Talos `profile.yaml` (platform: scaleway, optional extensions)
-2. Runs the **imager** container to produce a raw disk image
-3. Converts raw to qcow2 via `qemu-img`
-4. Pushes qcow2 as OCI artifact to GHCR via `oras`
+1. Runs the **imager** container for each platform
+2. Decompresses and converts output (e.g. raw to qcow2 for Scaleway)
+3. Pushes as OCI artifact to GHCR via `oras`
 
 **Key inputs:**
 
-- `talos_version`: e.g. `v1.12.3`
+- `talos_version`: e.g. `v1.12.3` (defaults to `v1.12.3`)
+- `platforms`: `all`, `scaleway`, or `azure`
 - `custom_installer_image`: custom installer (for initramfs/extensions)
 - `custom_imager_image`: custom imager (for kernel) — **must be set for
   fscrypt builds**
-- `extensions`: comma-separated extension image refs
+- `extensions`: comma-separated extension image refs (`none` to skip,
+  empty for defaults)
 
 **Important:** The imager container bundles the kernel at
-`/usr/install/amd64/vmlinuz`. The `custom_installer_image` in the profile
-only affects extensions and initramfs overlay, **not the kernel**. To get a
-custom kernel into the output disk image, you must use a custom imager via
+`/usr/install/amd64/vmlinuz`. The `custom_installer_image` only affects
+extensions and initramfs overlay, **not the kernel**. To get a custom
+kernel into the output disk image, you must use a custom imager via
 `custom_imager_image`.
 
-Example workflow dispatch for fscrypt:
+Example workflow dispatch for fscrypt (Scaleway only):
 
 ```yaml
 talos_version: v1.12.3
+platforms: scaleway
 custom_installer_image: ghcr.io/kommodity-io/kommodity-talos-installer-fscrypt:v1.12.3
 custom_imager_image: ghcr.io/kommodity-io/kommodity-talos-imager-fscrypt:v1.12.3
 ```
