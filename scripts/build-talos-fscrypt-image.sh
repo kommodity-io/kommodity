@@ -48,6 +48,7 @@ ARCH="${PLATFORM#linux/}"
 SKIP_KERNEL="${SKIP_KERNEL:-false}"
 
 INSTALLER_IMAGE="${OUTPUT_REGISTRY}/kommodity-talos-installer-fscrypt:${TALOS_VERSION}"
+IMAGER_IMAGE="${OUTPUT_REGISTRY}/kommodity-talos-imager-fscrypt:${TALOS_VERSION}"
 
 # Kernel configs required for fscrypt support.
 # CONFIG_FS_ENCRYPTION is the Kconfig symbol (the internal rename to
@@ -473,8 +474,40 @@ else
   docker push "${INSTALLER_IMAGE}"
 fi
 
+# ---------------------------------------------------------------------------
+# Step 10: Push custom imager to output registry
+#
+# The imager contains the custom kernel and is needed by the Scaleway image
+# workflow to produce disk images with the fscrypt-enabled kernel.
+# ---------------------------------------------------------------------------
+echo ""
+echo ">>> Step 10: Push imager → ${IMAGER_IMAGE}"
+
+IMAGER_TAG=""
+if [[ "${REGISTRY}" == 127.0.0.1:* ]]; then
+  TAGS_JSON=$(curl -sf "http://${REGISTRY}/v2/siderolabs/imager/tags/list" 2>/dev/null || echo "")
+  if [[ -n "${TAGS_JSON}" ]]; then
+    IMAGER_TAG=$(echo "${TAGS_JSON}" | jq -r '.tags[0]' 2>/dev/null || echo "")
+  fi
+fi
+if [[ -z "${IMAGER_TAG}" || "${IMAGER_TAG}" == "null" ]]; then
+  IMAGER_TAG="${TALOS_VERSION}-dirty"
+fi
+
+BUILT_IMAGER="${REGISTRY}/siderolabs/imager:${IMAGER_TAG}"
+echo "    Source: ${BUILT_IMAGER}"
+
+if command -v crane &>/dev/null; then
+  crane copy "${BUILT_IMAGER}" "${IMAGER_IMAGE}"
+else
+  docker pull "${BUILT_IMAGER}"
+  docker tag "${BUILT_IMAGER}" "${IMAGER_IMAGE}"
+  docker push "${IMAGER_IMAGE}"
+fi
+
 echo ""
 echo "=========================================="
 echo "Build complete!"
 echo "Installer: ${INSTALLER_IMAGE}"
+echo "Imager:    ${IMAGER_IMAGE}"
 echo "=========================================="
