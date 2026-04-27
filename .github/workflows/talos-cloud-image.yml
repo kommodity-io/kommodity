@@ -84,7 +84,6 @@ jobs:
             {
               "platform": "scaleway",
               "image_name": "kommodity-talos-scaleway",
-              "disk_format": "raw",
               "imager_output": "scaleway-amd64.raw.zst",
               "final_extension": "qcow2",
               "artifact_type": "application/vnd.talos.scaleway.image",
@@ -93,7 +92,6 @@ jobs:
             {
               "platform": "azure",
               "image_name": "kommodity-talos-azure",
-              "disk_format": "vhd",
               "imager_output": "azure-amd64.vhd.zst",
               "final_extension": "vhd",
               "artifact_type": "application/vnd.talos.azure.image",
@@ -133,7 +131,6 @@ jobs:
       CUSTOM_IMAGER_IMAGE: ${{ needs.setup.outputs.custom_imager_image }}
       IMAGE_NAME: ${{ matrix.image_name }}
       PLATFORM: ${{ matrix.platform }}
-      DISK_FORMAT: ${{ matrix.disk_format }}
       IMAGER_OUTPUT: ${{ matrix.imager_output }}
       FINAL_EXTENSION: ${{ matrix.final_extension }}
       ARTIFACT_TYPE: ${{ matrix.artifact_type }}
@@ -174,7 +171,7 @@ jobs:
           # Custom imager for kernel (e.g. fscrypt-enabled kernel)
           IMAGER_IMAGE="${CUSTOM_IMAGER_IMAGE:-ghcr.io/siderolabs/imager:${TALOS_VERSION}}"
 
-          # Official installer used as baseInstaller (initramfs/extensions only)
+          # Official installer
           INSTALLER_IMAGE="ghcr.io/siderolabs/installer:${TALOS_VERSION}"
 
           echo "=========================================="
@@ -184,17 +181,18 @@ jobs:
           echo "Imager: ${IMAGER_IMAGE}"
           echo "=========================================="
 
-          mkdir -p _out
           
           # Parse extensions into imager args
           EXTENSION_ARGS=""
           if [[ -n "${EXTENSIONS}" ]]; then
-            IFS=',' read -ra EXT_ARRAY <<< "${EXTENSIONS}"
-            for ext in "${EXT_ARRAY[@]}"; do
-              ext=$(echo "$ext" | xargs)
-              [[ -n "$ext" ]] && EXTENSION_ARGS="${EXTENSION_ARGS} --system-extension-image ${ext}"
-            done
+          IFS=',' read -ra EXT_ARRAY <<< "${EXTENSIONS}"
+          for ext in "${EXT_ARRAY[@]}"; do
+          ext=$(echo "$ext" | xargs)
+          [[ -n "$ext" ]] && EXTENSION_ARGS="${EXTENSION_ARGS} --system-extension-image ${ext}"
+          done
           fi
+          
+          mkdir -p _out
 
           # Build image using Talos imager
           docker run --rm -t \
