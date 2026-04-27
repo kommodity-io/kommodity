@@ -31,3 +31,4 @@ Caddyfile
 # Terraform files
 .terraform*
 .debug/
+_out/

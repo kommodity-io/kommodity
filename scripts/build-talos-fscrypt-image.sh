@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Build a custom Talos installer with fscrypt (CONFIG_FS_ENCRYPTION=y) kernel support.
+# Build a custom Talos imager with fscrypt (CONFIG_FS_ENCRYPTION=y) kernel support.
 #
 # Follows the official Talos kernel customization process:
 #   Phase 1 — Build custom kernel in siderolabs/pkgs, push to build registry
-#   Phase 2 — Build kernel + initramfs + imager + installer in siderolabs/talos
-#   Phase 3 — Retag and push final installer to output registry
+#   Phase 2 — Build kernel + initramfs + imager in siderolabs/talos
+#   Phase 3 — Retag and push final imager to output registry
 #
 # References:
 #   https://docs.siderolabs.com/talos/v1.12/build-and-extend-talos/custom-images-and-development/customizing-the-kernel
@@ -47,7 +47,6 @@ ARCH="${PLATFORM#linux/}"
 
 SKIP_KERNEL="${SKIP_KERNEL:-false}"
 
-INSTALLER_IMAGE="${OUTPUT_REGISTRY}/kommodity-talos-installer-fscrypt:${TALOS_VERSION}"
 IMAGER_IMAGE="${OUTPUT_REGISTRY}/kommodity-talos-imager-fscrypt:${TALOS_VERSION}"
 
 # Kernel configs required for fscrypt support.
@@ -64,7 +63,7 @@ echo "Talos fscrypt kernel builder"
 echo "------------------------------------------"
 echo "Talos version   : ${TALOS_VERSION}"
 echo "Build registry  : ${REGISTRY}"
-echo "Output image    : ${INSTALLER_IMAGE}"
+echo "Output image    : ${IMAGER_IMAGE}"
 echo "Platform        : ${PLATFORM}"
 echo "Skip kernel     : ${SKIP_KERNEL}"
 echo "=========================================="
@@ -393,28 +392,15 @@ echo "    Output:"
 ls -lh "${TALOS_DIR}/_out/vmlinuz-${ARCH}" "${TALOS_DIR}/_out/initramfs-${ARCH}.xz" 2>/dev/null | sed 's/^/      /'
 
 # ---------------------------------------------------------------------------
-# Step 7a: Build installer-base
+# Step 7: Build imager with custom kernel
 #
-# The installer-base contains the base filesystem for the installer image.
-# Must be pushed to registry before the imager can build the installer.
+# The imager is a container that generates Talos boot assets (ISO,
+# disk images). The kernel is bundled into the imager at
+# /usr/install/${ARCH}/vmlinuz, so disk images produced by it carry the
+# custom kernel.
 # ---------------------------------------------------------------------------
 echo ""
-echo ">>> Step 7a: Build installer-base → ${REGISTRY}"
-
-(cd "${TALOS_DIR}" && make installer-base \
-  PKG_KERNEL="${KERNEL_IMAGE}" \
-  PLATFORM="${PLATFORM}" \
-  PUSH=true \
-  REGISTRY="${REGISTRY}")
-
-# ---------------------------------------------------------------------------
-# Step 7b: Build imager with custom kernel
-#
-# The imager is a container that generates Talos boot assets (ISO, installer,
-# disk images). We push it to the build registry for Step 8.
-# ---------------------------------------------------------------------------
-echo ""
-echo ">>> Step 7b: Build imager → ${REGISTRY}"
+echo ">>> Step 7: Build imager → ${REGISTRY}"
 
 (cd "${TALOS_DIR}" && make imager \
   PKG_KERNEL="${KERNEL_IMAGE}" \
@@ -423,65 +409,18 @@ echo ">>> Step 7b: Build imager → ${REGISTRY}"
   PUSH=true \
   REGISTRY="${REGISTRY}")
 
-# ---------------------------------------------------------------------------
-# Step 8: Build installer using custom imager
-#
-# The installer image is what Talos uses to install/upgrade nodes.
-# We build it via the custom imager from Step 7.
-# ---------------------------------------------------------------------------
-echo ""
-echo ">>> Step 8: Build installer"
-
-(cd "${TALOS_DIR}" && make installer \
-  PKG_KERNEL="${KERNEL_IMAGE}" \
-  PLATFORM="${PLATFORM}" \
-  REGISTRY="${REGISTRY}")
-
 # ===========================================================================
-# Phase 3: Tag and push final installer
+# Phase 3: Tag and push final imager
 # ===========================================================================
 
 # ---------------------------------------------------------------------------
-# Step 9: Retag and push to output registry
-# ---------------------------------------------------------------------------
-echo ""
-echo ">>> Step 9: Push installer → ${INSTALLER_IMAGE}"
-
-# Talos tags images with git describe, which includes -dirty when
-# the worktree is modified (e.g. from our modules-amd64.txt patch).
-# Discover the actual tag from the registry.
-INSTALLER_TAG=""
-if [[ "${REGISTRY}" == 127.0.0.1:* ]]; then
-  TAGS_JSON=$(curl -sf "http://${REGISTRY}/v2/siderolabs/installer/tags/list" 2>/dev/null || echo "")
-  if [[ -n "${TAGS_JSON}" ]]; then
-    INSTALLER_TAG=$(echo "${TAGS_JSON}" | jq -r '.tags[0]' 2>/dev/null || echo "")
-  fi
-fi
-if [[ -z "${INSTALLER_TAG}" || "${INSTALLER_TAG}" == "null" ]]; then
-  # Fallback: try common variants
-  INSTALLER_TAG="${TALOS_VERSION}-dirty"
-fi
-
-BUILT_INSTALLER="${REGISTRY}/siderolabs/installer:${INSTALLER_TAG}"
-echo "    Source: ${BUILT_INSTALLER}"
-
-# crane copy is more efficient (no local pull needed), fall back to docker
-if command -v crane &>/dev/null; then
-  crane copy "${BUILT_INSTALLER}" "${INSTALLER_IMAGE}"
-else
-  docker pull "${BUILT_INSTALLER}"
-  docker tag "${BUILT_INSTALLER}" "${INSTALLER_IMAGE}"
-  docker push "${INSTALLER_IMAGE}"
-fi
-
-# ---------------------------------------------------------------------------
-# Step 10: Push custom imager to output registry
+# Step 8: Push custom imager to output registry
 #
 # The imager contains the custom kernel and is needed by the Scaleway image
 # workflow to produce disk images with the fscrypt-enabled kernel.
 # ---------------------------------------------------------------------------
 echo ""
-echo ">>> Step 10: Push imager → ${IMAGER_IMAGE}"
+echo ">>> Step 8: Push imager → ${IMAGER_IMAGE}"
 
 IMAGER_TAG=""
 if [[ "${REGISTRY}" == 127.0.0.1:* ]]; then
@@ -508,6 +447,5 @@ fi
 echo ""
 echo "=========================================="
 echo "Build complete!"
-echo "Installer: ${INSTALLER_IMAGE}"
-echo "Imager:    ${IMAGER_IMAGE}"
+echo "Imager: ${IMAGER_IMAGE}"
 echo "=========================================="
