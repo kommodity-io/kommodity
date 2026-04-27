@@ -37,8 +37,9 @@ siderolabs/talos (build system)
 
 ### Prerequisites
 
-The build requires significant CPU/RAM (~32 vCPU, 128 GB recommended) and
-Docker. Run it on a remote VM, not locally.
+The build requires significant CPU/RAM (~32 vCPU, 128 GB recommended).
+The script installs Docker, crane, jq, and other dependencies automatically
+— just run it on a fresh Ubuntu VM.
 
 #### 1. Create a build VM on Scaleway
 
@@ -55,7 +56,8 @@ scw instance server create \
   --wait
 ```
 
-Wait a few minutes for cloud-init to finish (it may reboot once), then SSH in:
+Wait a few minutes for cloud-init to finish (it may reboot once),
+then SSH in:
 
 ```bash
 ssh root@<PUBLIC_IP>
@@ -73,19 +75,18 @@ On the VM:
 
 ```bash
 chmod +x /root/build-talos-fscrypt-image.sh
-
-# Log in to GHCR for pushing images
-echo "<GHCR_TOKEN>" | docker login ghcr.io -u <GHCR_USER> --password-stdin
-
-./build-talos-fscrypt-image.sh v1.12.3
+GITHUB_TOKEN=<YOUR_GHCR_TOKEN> /root/build-talos-fscrypt-image.sh v1.12.3
 ```
 
+The script will install Docker, log in to GHCR (using `GITHUB_TOKEN` and
+`GITHUB_ACTOR`, which defaults to `pthuriot-corti`), and run the full build.
 The kernel build takes ~40-60 minutes.
 
 To skip the kernel build on re-runs (e.g. to rebuild just the installer):
 
 ```bash
-SKIP_KERNEL=true ./build-talos-fscrypt-image.sh v1.12.3
+SKIP_KERNEL=true GITHUB_TOKEN=<YOUR_GHCR_TOKEN> \
+  /root/build-talos-fscrypt-image.sh v1.12.3
 ```
 
 #### 3. Terminate the build VM
@@ -99,22 +100,23 @@ scw instance server terminate zone=fr-par-1 \
 
 | Step | What                                    | Make target / Command                                                 |
 | ---- | --------------------------------------- | --------------------------------------------------------------------- |
-| 0    | Start local registry                    | `docker run registry:2`                                               |
-| 0b   | Clone `siderolabs/talos` at tag         | Determines matching `pkgs` version                                    |
-| 1    | Clone `siderolabs/pkgs` at matching ref | Supports tag or git-describe refs                                     |
-| 2    | Patch `kernel/build/config-amd64`       | Enables `CONFIG_FS_ENCRYPTION=y`, `CRYPTO_CTS=y`, `CRYPTO_HKDF=y`     |
-| 3    | `make kernel-olddefconfig`              | Resolves Kconfig dependencies                                         |
-| 4    | `make kernel PUSH=true`                 | Builds kernel, pushes to local registry                               |
-| 5    | Validate `hack/modules-amd64.txt`       | Removes modules that no longer exist (e.g. changed from `=m` to `=y`) |
-| 6    | `make kernel initramfs`                 | Repackages custom kernel into Talos boot artifacts                    |
-| 7a   | `make installer-base PUSH=true`         | Base filesystem for installer                                         |
-| 7b   | `make imager PUSH=true`                 | **Imager container with custom kernel**                               |
-| 8    | `make installer`                        | Installer image via custom imager                                     |
-| 9    | Push installer to GHCR                  | `ghcr.io/kommodity-io/kommodity-talos-installer-fscrypt:<version>`    |
-| 10   | Push imager to GHCR                     | `ghcr.io/kommodity-io/kommodity-talos-imager-fscrypt:<version>`       |
+| 1    | Setup                                   | Installs Docker, crane, jq; logs into GHCR via `GITHUB_TOKEN`         |
+| 2    | Start local registry                    | `docker run registry:2`                                               |
+| 3    | Clone `siderolabs/talos` at tag         | Determines matching `pkgs` version                                    |
+| 4    | Clone `siderolabs/pkgs` at matching ref | Supports tag or git-describe refs                                     |
+| 5    | Patch `kernel/build/config-amd64`       | Enables `CONFIG_FS_ENCRYPTION=y`, `CRYPTO_CTS=y`, `CRYPTO_HKDF=y`     |
+| 6    | `make kernel-olddefconfig`              | Resolves Kconfig dependencies                                         |
+| 7    | `make kernel PUSH=true`                 | Builds kernel, pushes to local registry                               |
+| 8    | Validate `hack/modules-amd64.txt`       | Removes modules that no longer exist (e.g. changed from `=m` to `=y`) |
+| 9    | `make kernel initramfs`                 | Repackages custom kernel into Talos boot artifacts                    |
+| 10a  | `make installer-base PUSH=true`         | Base filesystem for installer                                         |
+| 10b  | `make imager PUSH=true`                 | **Imager container with custom kernel**                               |
+| 11   | `make installer`                        | Installer image via custom imager                                     |
+| 12   | Push installer to GHCR                  | `ghcr.io/kommodity-io/kommodity-talos-installer-fscrypt:<version>`    |
+| 13   | Push imager to GHCR                     | `ghcr.io/kommodity-io/kommodity-talos-imager-fscrypt:<version>`       |
 
 Environment variables: `REGISTRY`, `OUTPUT_REGISTRY`, `PLATFORM`,
-`SKIP_KERNEL`.
+`SKIP_KERNEL`, `GITHUB_TOKEN`, `GITHUB_ACTOR`.
 
 ## Building the Scaleway qcow2 Image
 
