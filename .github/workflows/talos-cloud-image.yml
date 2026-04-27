@@ -27,7 +27,7 @@ on:
         default: true
         type: boolean
       custom_imager_image:
-        description: "Custom imager image (for kernel). Leave empty to use the official Talos imager."
+        description: "Custom imager image (for custom kernel). Leave empty to use the official Talos imager."
         required: false
         type: string
 
@@ -185,52 +185,26 @@ jobs:
           echo "=========================================="
 
           mkdir -p _out
-
-          # Build profile.yaml for the imager
-          PROFILE_FILE="_out/profile.yaml"
-
-          cat > "${PROFILE_FILE}" <<EOF
-          arch: amd64
-          platform: ${PLATFORM}
-          secureboot: false
-          version: ${TALOS_VERSION}
-          input:
-            kernel:
-              path: /usr/install/amd64/vmlinuz
-            initramfs:
-              path: /usr/install/amd64/initramfs.xz
-            baseInstaller:
-              imageRef: ${INSTALLER_IMAGE}
-          EOF
-
+          
+          # Parse extensions into imager args
+          EXTENSION_ARGS=""
           if [[ -n "${EXTENSIONS}" ]]; then
-            echo "  systemExtensions:" >> "${PROFILE_FILE}"
             IFS=',' read -ra EXT_ARRAY <<< "${EXTENSIONS}"
             for ext in "${EXT_ARRAY[@]}"; do
               ext=$(echo "$ext" | xargs)
-              [[ -n "$ext" ]] && echo "    - imageRef: ${ext}" >> "${PROFILE_FILE}"
+              [[ -n "$ext" ]] && EXTENSION_ARGS="${EXTENSION_ARGS} --system-extension-image ${ext}"
             done
           fi
 
-          cat >> "${PROFILE_FILE}" <<EOF
-          output:
-            kind: image
-            imageOptions:
-              diskSize: 1288490188
-              diskFormat: ${DISK_FORMAT}
-            outFormat: .zst
-          EOF
-
-          echo "---- profile.yaml ----"
-          cat "${PROFILE_FILE}"
-          echo "----------------------"
-
-          docker run --rm -i \
+          # Build image using Talos imager
+          docker run --rm -t \
             -v "${PWD}/_out":/out \
             -v /dev:/dev \
             --privileged \
-            "${IMAGER_IMAGE}" \
-            - < "${PROFILE_FILE}"
+            "${INSTALLER_IMAGE}" \
+            "${PLATFORM}" \
+            --arch amd64 \
+            ${EXTENSION_ARGS}
 
           echo "=========================================="
           echo "Build complete."

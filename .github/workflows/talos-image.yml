@@ -23,11 +23,6 @@ on:
         required: false
         default: true
         type: boolean
-      base_installer_image:
-        description: "Custom base installer image (e.g. for a patched kernel). Leave empty to use the official Talos installer."
-        required: false
-        default: ""
-        type: string
 
 env:
   REGISTRY: ghcr.io/kommodity-io
@@ -87,12 +82,6 @@ jobs:
 
           set -euo pipefail
 
-          # Optionally use a custom base installer image (e.g. with a patched kernel)
-          BASE_INSTALLER_ARG=""
-          if [[ -n "${{ inputs.base_installer_image }}" ]]; then
-            BASE_INSTALLER_ARG="--base-installer-image ${{ inputs.base_installer_image }}"
-          fi
-
           # Parse extensions into imager args
           EXTENSION_ARGS=""
           if [[ -n "${EXTENSIONS}" ]]; then
@@ -126,7 +115,6 @@ jobs:
               "ghcr.io/siderolabs/imager:${TALOS_VERSION}" \
               installer \
               --arch "${ARCH}" \
-              ${BASE_INSTALLER_ARG} \
               ${EXTENSION_ARGS}
 
             # Load the image and get its ID directly from docker load output
