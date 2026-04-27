@@ -149,13 +149,10 @@ jobs:
           # Custom imager for kernel (e.g. fscrypt-enabled kernel)
           IMAGER_IMAGE="${CUSTOM_IMAGER_IMAGE:-ghcr.io/siderolabs/imager:${TALOS_VERSION}}"
 
-          # Official installer
-          INSTALLER_IMAGE="ghcr.io/siderolabs/installer:${TALOS_VERSION}"
 
           echo "=========================================="
           echo "Building ${PLATFORM} image for Talos ${TALOS_VERSION}..."
           echo "Extensions: ${EXTENSIONS:-none}"
-          echo "Installer: ${INSTALLER_IMAGE}"
           echo "Imager: ${IMAGER_IMAGE}"
           echo "=========================================="
 
@@ -177,7 +174,7 @@ jobs:
             -v "${PWD}/_out":/out \
             -v /dev:/dev \
             --privileged \
-            "${INSTALLER_IMAGE}" \
+            "${IMAGER_IMAGE}" \
             "${PLATFORM}" \
             --arch amd64 \
             ${EXTENSION_ARGS}
