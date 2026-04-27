@@ -6,8 +6,9 @@ on:
     inputs:
       talos_version:
         description: "Talos version (e.g., v1.12.3)"
-        required: false
+        required: true
         type: string
+        default: "v1.12.3"
       extensions:
         description: "Comma-separated list of extension images ('none' for no extensions, empty for defaults)"
         required: false
@@ -191,7 +192,7 @@ jobs:
           [[ -n "$ext" ]] && EXTENSION_ARGS="${EXTENSION_ARGS} --system-extension-image ${ext}"
           done
           fi
-          
+
           mkdir -p _out
 
           # Build image using Talos imager
