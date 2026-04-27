@@ -10,9 +10,10 @@ on:
         type: string
         default: "v1.12.3"
       extensions:
-        description: "Comma-separated list of extension images ('none' for no extensions, empty for defaults)"
+        description: "Comma-separated list of extension images ('none' for no extensions)"
         required: false
         type: string
+        default: "ghcr.io/kommodity-io/kommodity-attestation-extension:latest,ghcr.io/kommodity-io/kommodity-autobootstrap-extension:latest"
       platforms:
         description: "Platforms to build"
         required: false
@@ -34,8 +35,6 @@ on:
 
 env:
   REGISTRY: ghcr.io/kommodity-io
-  DEFAULT_TALOS_VERSION: "v1.12.3"
-  DEFAULT_EXTENSIONS: "ghcr.io/kommodity-io/kommodity-attestation-extension:latest,ghcr.io/kommodity-io/kommodity-autobootstrap-extension:latest"
 
 jobs:
   setup:
@@ -43,32 +42,10 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
-      talos_version: ${{ steps.resolve-inputs.outputs.talos_version }}
-      extensions: ${{ steps.resolve-inputs.outputs.extensions }}
-      push: ${{ steps.resolve-inputs.outputs.push }}
-      custom_imager_image: ${{ steps.resolve-inputs.outputs.custom_imager_image }}
     steps:
-      - name: Resolve inputs with defaults
-        id: resolve-inputs
-        run: |
-          echo "talos_version=${{ inputs.talos_version || env.DEFAULT_TALOS_VERSION }}" >> "$GITHUB_OUTPUT"
-
-          # Handle extensions: 'none' means no extensions, empty means use defaults
-          EXTENSIONS_INPUT="${{ inputs.extensions }}"
-          if [[ "${EXTENSIONS_INPUT}" == "none" ]]; then
-            echo "extensions=" >> "$GITHUB_OUTPUT"
-          elif [[ -z "${EXTENSIONS_INPUT}" ]]; then
-            echo "extensions=${DEFAULT_EXTENSIONS}" >> "$GITHUB_OUTPUT"
-          else
-            echo "extensions=${EXTENSIONS_INPUT}" >> "$GITHUB_OUTPUT"
-          fi
-
-          echo "push=${{ inputs.push == '' && 'true' || inputs.push }}" >> "$GITHUB_OUTPUT"
-          echo "custom_imager_image=${{ inputs.custom_imager_image || '' }}" >> "$GITHUB_OUTPUT"
-
       - name: Validate talos_version
         env:
-          TALOS_VERSION: ${{ steps.resolve-inputs.outputs.talos_version }}
+          TALOS_VERSION: ${{ inputs.talos_version }}
         run: |
           if [[ ! "${TALOS_VERSION}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
             echo "::error::Invalid talos_version format. Expected semver (e.g., v1.12.3)"
@@ -78,7 +55,7 @@ jobs:
       - name: Set build matrix
         id: set-matrix
         run: |
-          PLATFORMS="${{ inputs.platforms || 'all' }}"
+          PLATFORMS="${{ inputs.platforms }}"
 
           # Define all available platforms with their configuration
           ALL_PLATFORMS='[
@@ -126,10 +103,10 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJson(needs.setup.outputs.matrix) }}
     env:
-      TALOS_VERSION: ${{ needs.setup.outputs.talos_version }}
-      EXTENSIONS: ${{ needs.setup.outputs.extensions }}
-      PUSH: ${{ needs.setup.outputs.push }}
-      CUSTOM_IMAGER_IMAGE: ${{ needs.setup.outputs.custom_imager_image }}
+      TALOS_VERSION: ${{ inputs.talos_version }}
+      EXTENSIONS: ${{ inputs.extensions }}
+      PUSH: ${{ inputs.push }}
+      CUSTOM_IMAGER_IMAGE: ${{ inputs.custom_imager_image }}
       IMAGE_NAME: ${{ matrix.image_name }}
       PLATFORM: ${{ matrix.platform }}
       IMAGER_OUTPUT: ${{ matrix.imager_output }}
@@ -183,9 +160,9 @@ jobs:
           echo "=========================================="
 
           
-          # Parse extensions into imager args
+          # Parse extensions into imager args ('none' sentinel skips extensions)
           EXTENSION_ARGS=""
-          if [[ -n "${EXTENSIONS}" ]]; then
+          if [[ -n "${EXTENSIONS}" && "${EXTENSIONS}" != "none" ]]; then
           IFS=',' read -ra EXT_ARRAY <<< "${EXTENSIONS}"
           for ext in "${EXT_ARRAY[@]}"; do
           ext=$(echo "$ext" | xargs)
