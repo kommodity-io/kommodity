@@ -1,10 +1,6 @@
 name: Build Talos fscrypt Imager
 
 on:
-  pull_request:
-    paths:
-      - '.github/workflows/build-talos-fscrypt-imager.yml'
-      - 'scripts/build-talos-fscrypt-imager.sh'
   workflow_dispatch:
     inputs:
       talos_version:
@@ -23,6 +19,10 @@ on:
 
 env:
   OUTPUT_REGISTRY: ghcr.io/kommodity-io
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.talos_version || '' }}-${{ inputs.platform || '' }}
+  cancel-in-progress: true
 
 jobs:
   build:
