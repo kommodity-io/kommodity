@@ -21,8 +21,6 @@ func TestTunnelPool_CloseAllStopsIdleTimers(t *testing.T) {
 		Enabled:        true,
 		ListenPort:     0,
 		ProxyNamespace: "talos-cluster-proxy",
-		ProxyLabel:     "app=talos-cluster-proxy",
-		ProxyPort:      50000,
 		IdleTimeout:    50 * time.Millisecond,
 	}
 
@@ -39,8 +37,6 @@ func TestTunnelPool_RemoveTunnelWithNoTunnel(t *testing.T) {
 		Enabled:        true,
 		ListenPort:     0,
 		ProxyNamespace: "talos-cluster-proxy",
-		ProxyLabel:     "app=talos-cluster-proxy",
-		ProxyPort:      50000,
 		IdleTimeout:    50 * time.Millisecond,
 	}
 
@@ -57,8 +53,6 @@ func TestTunnel_OnIdleCallback(t *testing.T) {
 		Enabled:        true,
 		ListenPort:     0,
 		ProxyNamespace: "talos-cluster-proxy",
-		ProxyLabel:     "app=talos-cluster-proxy",
-		ProxyPort:      50000,
 	}
 
 	idleChan := make(chan struct{}, 1)
@@ -105,8 +99,6 @@ func TestTunnelPool_ConcurrentGetOrCreateTunnel_DoesNotBlock(t *testing.T) {
 		Enabled:        true,
 		ListenPort:     0,
 		ProxyNamespace: "kube-system",
-		ProxyLabel:     "app=talos-cluster-proxy",
-		ProxyPort:      50000,
 		IdleTimeout:    50 * time.Millisecond,
 	}
 
@@ -159,8 +151,6 @@ func TestTunnelPool_ConcurrentGetOrCreateTunnel_SameClusterWaits(t *testing.T) {
 		Enabled:        true,
 		ListenPort:     0,
 		ProxyNamespace: "kube-system",
-		ProxyLabel:     "app=talos-cluster-proxy",
-		ProxyPort:      50000,
 		IdleTimeout:    50 * time.Millisecond,
 	}
 
@@ -203,8 +193,6 @@ func TestTunnel_NoOnIdleCallback(t *testing.T) {
 		Enabled:        true,
 		ListenPort:     0,
 		ProxyNamespace: "talos-cluster-proxy",
-		ProxyLabel:     "app=talos-cluster-proxy",
-		ProxyPort:      50000,
 	}
 
 	// Creating a tunnel without OnIdle should not panic on ReleaseConn

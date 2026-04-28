@@ -36,19 +36,19 @@ For non-matching traffic (API server, etc.), the proxy dials directly (passthrou
 
 ## Package Structure
 
-| File                 | Description                                                                                                                                                                                                               |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `proxy.go`           | Main `Proxy` struct. Implements `manager.Runnable` for lifecycle management. Two-phase startup: `Listen()` binds the TCP listener, `Start()` serves HTTP CONNECT requests.                                                |
-| `connect_handler.go` | `ConnectHandler` implementing `http.Handler`. Handles CONNECT requests: CIDR-matching traffic is routed through tunnels, all other traffic passes through directly.                                                       |
-| `env.go`             | `SetProxyEnv` function that configures `HTTPS_PROXY` and `NO_PROXY` environment variables.                                                                                                                                |
-| `reconciler.go`      | Watches `Cluster` resources for the `kommodity.io/node-cidr` annotation. Registers/deregisters cluster CIDRs on change.                                                                                                   |
-| `cidr_registry.go`   | Thread-safe mapping of `*net.IPNet` to cluster name/namespace. Routes connections to the correct tunnel.                                                                                                                  |
-| `tunnel.go`          | Represents a single SPDY port-forward to a `talos-cluster-proxy` pod. Fetches the workload cluster kubeconfig from the `<cluster>-kubeconfig` Secret, discovers the proxy pod by label, and establishes the port-forward. |
-| `tunnel_pool.go`     | Manages tunnels keyed by cluster name with double-checked locking. Creates tunnels on demand, closes idle tunnels after a configurable timeout, and removes stale ones on dial failure.                                   |
-| `tracked_conn.go`    | `trackedConn` wrapper for `net.Conn` that decrements the tunnel's active connection count on close using `sync.Once`.                                                                                                     |
-| `connection.go`      | `bidirectionalCopy` helper: copies data between two connections with half-close propagation.                                                                                                                              |
-| `handshake.go`       | Performs the HTTP CONNECT handshake with the talos-cluster-proxy pod: sends `CONNECT <target> HTTP/1.1` and parses the response status line.                                                                              |
-| `errors.go`          | Sentinel errors for the package.                                                                                                                                                                                          |
+| File                 | Description                                                                                                                                                                                                          |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `proxy.go`           | Main `Proxy` struct. Implements `manager.Runnable` for lifecycle management. Two-phase startup: `Listen()` binds the TCP listener, `Start()` serves HTTP CONNECT requests.                                           |
+| `connect_handler.go` | `ConnectHandler` implementing `http.Handler`. Handles CONNECT requests: CIDR-matching traffic is routed through tunnels, all other traffic passes through directly.                                                  |
+| `env.go`             | `SetProxyEnv` function that configures `HTTPS_PROXY` and `NO_PROXY` environment variables.                                                                                                                           |
+| `reconciler.go`      | Watches `Cluster` resources for the `kommodity.io/node-cidr` annotation. Registers/deregisters cluster CIDRs on change.                                                                                              |
+| `cidr_registry.go`   | Thread-safe mapping of `*net.IPNet` to cluster name/namespace. Routes connections to the correct tunnel.                                                                                                             |
+| `tunnel.go`          | Represents a SPDY port-forward to a `talos-cluster-proxy` pod. Fetches kubeconfig from the `<cluster>-kubeconfig` Secret, resolves the configured Service to a random backing pod, and establishes the port-forward. |
+| `tunnel_pool.go`     | Manages tunnels keyed by cluster name with double-checked locking. Creates tunnels on demand, closes idle tunnels after a configurable timeout, and removes stale ones on dial failure.                              |
+| `tracked_conn.go`    | `trackedConn` wrapper for `net.Conn` that decrements the tunnel's active connection count on close using `sync.Once`.                                                                                                |
+| `connection.go`      | `bidirectionalCopy` helper: copies data between two connections with half-close propagation.                                                                                                                         |
+| `handshake.go`       | Performs the HTTP CONNECT handshake with the talos-cluster-proxy pod: sends `CONNECT <target> HTTP/1.1` and parses the response status line.                                                                         |
+| `errors.go`          | Sentinel errors for the package.                                                                                                                                                                                     |
 
 ## Talos-Proxy CONNECT Protocol
 
@@ -66,7 +66,7 @@ The pod replies with `HTTP/1.1 200 Connection Established\r\n\r\n` on success. A
 
 1. On first connection to a cluster, `TunnelPool.GetOrCreateTunnel` creates a new `Tunnel`
 2. The tunnel fetches the workload cluster kubeconfig from Secret `<cluster-name>-kubeconfig` in the `default` namespace
-3. It discovers a running `talos-cluster-proxy` pod using the configured label selector (default: `app=talos-cluster-proxy`) in the configured namespace (default: `talos-cluster-proxy`)
+3. It fetches the configured Service (default: `talos-cluster-proxy` in namespace `talos-cluster-proxy`), uses its `spec.selector` to list running backing pods, picks one at random, and resolves the Service's `targetPort` (named or numeric) against the pod's container port spec
 4. A SPDY port-forward is established to the pod, with a system-assigned local port
 5. Subsequent connections to the same cluster reuse the cached tunnel
 6. Each connection is wrapped in a `trackedConn` that reference-counts active connections
@@ -77,14 +77,13 @@ The pod replies with `HTTP/1.1 200 Connection Established\r\n\r\n` on success. A
 
 ## Configuration
 
-| Environment Variable                 | Description                                                       | Default                                      |
-| ------------------------------------ | ----------------------------------------------------------------- | -------------------------------------------- |
-| `KOMMODITY_TALOS_PROXY_ENABLED`      | Enable the HTTP CONNECT Talos gRPC proxy                          | `true`                                       |
-| `KOMMODITY_TALOS_PROXY_PORT`         | Local listen port for the proxy                                   | `15050`                                      |
-| `KOMMODITY_TALOS_PROXY_NAMESPACE`    | Namespace where talos-cluster-proxy pods run in workload clusters | `talos-cluster-proxy`                        |
-| `KOMMODITY_TALOS_PROXY_LABEL`        | Label selector to find talos-cluster-proxy pods                   | `app.kubernetes.io/name=talos-cluster-proxy` |
-| `KOMMODITY_TALOS_PROXY_POD_PORT`     | Port on the talos-cluster-proxy pod to forward to                 | `50000`                                      |
-| `KOMMODITY_TALOS_PROXY_IDLE_TIMEOUT` | Idle timeout before closing unused tunnels (e.g., `1m`)           | `1m`                                         |
+| Environment Variable                 | Description                                                            | Default               |
+| ------------------------------------ | ---------------------------------------------------------------------- | --------------------- |
+| `KOMMODITY_TALOS_PROXY_ENABLED`      | Enable the HTTP CONNECT Talos gRPC proxy                               | `true`                |
+| `KOMMODITY_TALOS_PROXY_PORT`         | Local listen port for the proxy                                        | `15050`               |
+| `KOMMODITY_TALOS_PROXY_NAMESPACE`    | Namespace of the talos-cluster-proxy Service in workload clusters      | `talos-cluster-proxy` |
+| `KOMMODITY_TALOS_PROXY_SERVICE_NAME` | Name of the talos-cluster-proxy Service (selector + targetPort source) | `talos-cluster-proxy` |
+| `KOMMODITY_TALOS_PROXY_IDLE_TIMEOUT` | Idle timeout before closing unused tunnels (e.g., `1m`)                | `1m`                  |
 
 ## Requirements
 

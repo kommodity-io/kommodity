@@ -14,11 +14,10 @@ func TestNewTunnel(t *testing.T) {
 	t.Parallel()
 
 	proxyConfig := &config.TalosProxyConfig{
-		Enabled:        true,
-		ListenPort:     15050,
-		ProxyNamespace: "talos-cluster-proxy",
-		ProxyLabel:     "app=talos-cluster-proxy",
-		ProxyPort:      50000,
+		Enabled:          true,
+		ListenPort:       15050,
+		ProxyNamespace:   "talos-cluster-proxy",
+		ProxyServiceName: "talos-cluster-proxy",
 	}
 
 	tunnel := talosproxy.NewTunnel(talosproxy.TunnelDeps{
@@ -35,11 +34,10 @@ func TestTunnel_Close(t *testing.T) {
 	t.Parallel()
 
 	proxyConfig := &config.TalosProxyConfig{
-		Enabled:        true,
-		ListenPort:     15050,
-		ProxyNamespace: "talos-cluster-proxy",
-		ProxyLabel:     "app=talos-cluster-proxy",
-		ProxyPort:      50000,
+		Enabled:          true,
+		ListenPort:       15050,
+		ProxyNamespace:   "talos-cluster-proxy",
+		ProxyServiceName: "talos-cluster-proxy",
 	}
 
 	tunnel := talosproxy.NewTunnel(talosproxy.TunnelDeps{
@@ -63,11 +61,10 @@ func TestTunnel_DialBeforeEstablish(t *testing.T) {
 	t.Parallel()
 
 	proxyConfig := &config.TalosProxyConfig{
-		Enabled:        true,
-		ListenPort:     15050,
-		ProxyNamespace: "talos-cluster-proxy",
-		ProxyLabel:     "app=talos-cluster-proxy",
-		ProxyPort:      50000,
+		Enabled:          true,
+		ListenPort:       15050,
+		ProxyNamespace:   "talos-cluster-proxy",
+		ProxyServiceName: "talos-cluster-proxy",
 	}
 
 	tunnel := talosproxy.NewTunnel(talosproxy.TunnelDeps{
@@ -84,11 +81,10 @@ func TestTunnel_DialAfterClose(t *testing.T) {
 	t.Parallel()
 
 	proxyConfig := &config.TalosProxyConfig{
-		Enabled:        true,
-		ListenPort:     15050,
-		ProxyNamespace: "talos-cluster-proxy",
-		ProxyLabel:     "app=talos-cluster-proxy",
-		ProxyPort:      50000,
+		Enabled:          true,
+		ListenPort:       15050,
+		ProxyNamespace:   "talos-cluster-proxy",
+		ProxyServiceName: "talos-cluster-proxy",
 	}
 
 	tunnel := talosproxy.NewTunnel(talosproxy.TunnelDeps{

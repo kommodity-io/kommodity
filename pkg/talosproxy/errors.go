@@ -16,8 +16,15 @@ var (
 	ErrKubeconfigNotFound = errors.New("kubeconfig secret not found")
 	// ErrProxyPodNotFound is returned when no talos-cluster-proxy pod is found in the workload cluster.
 	ErrProxyPodNotFound = errors.New("talos-cluster-proxy pod not found")
-	// ErrInvalidProxyLabel is returned when the proxy label format is invalid.
-	ErrInvalidProxyLabel = errors.New("invalid proxy label format")
+	// ErrProxyServiceNotFound is returned when the talos-cluster-proxy service cannot be found.
+	ErrProxyServiceNotFound = errors.New("talos-cluster-proxy service not found")
+	// ErrProxyServiceNoSelector is returned when the talos-cluster-proxy service has no pod selector.
+	ErrProxyServiceNoSelector = errors.New("talos-cluster-proxy service has no selector")
+	// ErrProxyServiceNoPorts is returned when the talos-cluster-proxy service has no ports defined.
+	ErrProxyServiceNoPorts = errors.New("talos-cluster-proxy service has no ports")
+	// ErrTargetPortNotResolvable is returned when a service named target port cannot be resolved
+	// to a numeric container port on the selected pod.
+	ErrTargetPortNotResolvable = errors.New("service target port not resolvable on pod")
 	// ErrNoForwardedPorts is returned when no forwarded ports are returned after port-forward setup.
 	ErrNoForwardedPorts = errors.New("no forwarded ports returned")
 	// ErrListenerNotBound is returned when the proxy listener has not been bound yet.
