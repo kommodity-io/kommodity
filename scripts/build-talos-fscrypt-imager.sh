@@ -24,7 +24,7 @@
 #
 # Caller responsibilities (script does NOT do these):
 #   - Install Docker (with buildx) and configure /etc/docker/daemon.json
-#   - Install crane and jq
+#   - Install oras (or crane) and jq
 #   - Copy the built imager from REGISTRY to the final output registry
 #     (script prints the local imager ref to stdout on success)
 
@@ -264,5 +264,5 @@ echo ""
 echo "=========================================="
 echo "Build complete!"
 echo "Local imager ref: ${BUILT_IMAGER}"
-echo "(caller responsible for crane copy → output registry)"
+echo "(caller responsible for oras cp → output registry)"
 echo "=========================================="

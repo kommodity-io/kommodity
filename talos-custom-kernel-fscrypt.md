@@ -67,10 +67,10 @@ runs out of disk/RAM, switch to a larger runner.
 
 ### Local / dedicated VM (alternative)
 
-The script can run on any host with Docker, `git`, `crane`, and `jq`
+The script can run on any host with Docker, `git`, `oras`, and `jq`
 (~32 vCPU, 128 GB RAM recommended). Set up Docker first (with
-`nofile`/`memlock` ulimits in `/etc/docker/daemon.json`), then `docker
-login ghcr.io` so the final crane copy succeeds. The script expects
+`nofile`/`memlock` ulimits in `/etc/docker/daemon.json`), then `oras
+login ghcr.io` so the final `oras cp` succeeds. The script expects
 `siderolabs/pkgs` and `siderolabs/talos` to be cloned ahead of time:
 
 ```bash
@@ -83,9 +83,9 @@ PKGS_DIR=/tmp/pkgs \
 TALOS_DIR=/tmp/talos \
   ./scripts/build-talos-fscrypt-imager.sh v1.12.3
 
-# Script prints the local imager ref. Crane copy to GHCR:
-LOCAL_REF=$(cat /tmp/pkgs/../_out/fscrypt-build/imager-ref.txt)
-crane copy "${LOCAL_REF}" \
+# Script prints the local imager ref. Copy to GHCR:
+LOCAL_REF=$(cat _out/fscrypt-build/imager-ref.txt)
+oras cp --from-plain-http "${LOCAL_REF}" \
   ghcr.io/kommodity-io/kommodity-talos-imager-fscrypt:v1.12.3
 ```
 
@@ -93,7 +93,7 @@ crane copy "${LOCAL_REF}" \
 
 Caller responsibilities (script does NOT do these — workflow / VM owner
 must set up): install Docker + buildx, write `/etc/docker/daemon.json`
-with `nofile` / `memlock` ulimits, install `crane` and `jq`, and copy
+with `nofile` / `memlock` ulimits, install `oras` and `jq`, and copy
 the local imager ref to the final output registry.
 
 | Step | What                                | Make target / Command                                  |
@@ -107,8 +107,8 @@ the local imager ref to the final output registry.
 | 7    | `make imager PUSH=true`             | Imager container with custom kernel (local registry)   |
 
 Script outputs the local imager ref via `${GITHUB_OUTPUT}` (`imager_ref`)
-and `${WORK_DIR}/imager-ref.txt`. The workflow then `crane copy`s that
-ref to `ghcr.io/kommodity-io/kommodity-talos-imager-fscrypt:<version>`.
+and `${WORK_DIR}/imager-ref.txt`. The workflow then `oras cp`s that ref
+to `ghcr.io/kommodity-io/kommodity-talos-imager-fscrypt:<version>`.
 
 Required env vars: `PKGS_DIR`, `TALOS_DIR`.
 Optional: `REGISTRY` (default `127.0.0.1:5005`),
