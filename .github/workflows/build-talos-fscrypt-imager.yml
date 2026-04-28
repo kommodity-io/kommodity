@@ -8,9 +8,9 @@ on:
   workflow_dispatch:
     inputs:
       talos_version:
-        description: "Talos version (e.g., v1.12.3)"
+        description: "Talos version (e.g., v1.12.7)"
         required: true
-        default: "v1.12.3"
+        default: "v1.12.7"
         type: string
       platform:
         description: "Target platform"
@@ -24,11 +24,11 @@ on:
 env:
   OUTPUT_REGISTRY: ghcr.io/kommodity-io
   # Fall back to defaults on pull_request (inputs.* are unset on PR triggers).
-  TALOS_VERSION: ${{ inputs.talos_version || 'v1.12.3' }}
+  TALOS_VERSION: ${{ inputs.talos_version || 'v1.12.7' }}
   PLATFORM: ${{ inputs.platform || 'linux/amd64' }}
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.talos_version || 'v1.12.3' }}-${{ inputs.platform || 'linux/amd64' }}
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.talos_version || 'v1.12.7' }}-${{ inputs.platform || 'linux/amd64' }}
   cancel-in-progress: true
 
 jobs:
@@ -42,7 +42,7 @@ jobs:
       - name: Validate talos_version
         run: |
           if [[ ! "${TALOS_VERSION}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
-            echo "::error::Invalid talos_version. Expected semver (e.g., v1.12.3)"
+            echo "::error::Invalid talos_version. Expected semver (e.g., v1.12.7)"
             exit 1
           fi
 
@@ -80,7 +80,7 @@ jobs:
         id: refs
         run: |
           MINOR="${TALOS_VERSION}"
-          MINOR="${MINOR#v}"        # 1.12.3
+          MINOR="${MINOR#v}"        # 1.12.7
           MINOR="${MINOR%.*}"       # 1.12
           echo "pkgs_branch=release-${MINOR}" >> "$GITHUB_OUTPUT"
 
