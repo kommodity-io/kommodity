@@ -27,7 +27,7 @@ env:
 jobs:
   build:
     name: Build fscrypt imager
-    runs-on: ubuntu-32core # 32 CPUs, 128GB RAM to speed up kernel builds
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
