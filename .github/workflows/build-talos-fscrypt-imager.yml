@@ -1,6 +1,10 @@
 name: Build Talos fscrypt Imager
 
 on:
+  pull_request:
+    paths:
+      - '.github/workflows/build-talos-fscrypt-imager.yml'
+      - 'scripts/build-talos-fscrypt-imager.sh'
   workflow_dispatch:
     inputs:
       talos_version:
@@ -19,9 +23,12 @@ on:
 
 env:
   OUTPUT_REGISTRY: ghcr.io/kommodity-io
+  # Fall back to defaults on pull_request (inputs.* are unset on PR triggers).
+  TALOS_VERSION: ${{ inputs.talos_version || 'v1.12.3' }}
+  PLATFORM: ${{ inputs.platform || 'linux/amd64' }}
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.talos_version || '' }}-${{ inputs.platform || '' }}
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.talos_version || 'v1.12.3' }}-${{ inputs.platform || 'linux/amd64' }}
   cancel-in-progress: true
 
 jobs:
@@ -34,7 +41,7 @@ jobs:
     steps:
       - name: Validate talos_version
         run: |
-          if [[ ! "${{ inputs.talos_version }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
+          if [[ ! "${TALOS_VERSION}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
             echo "::error::Invalid talos_version. Expected semver (e.g., v1.12.3)"
             exit 1
           fi
@@ -72,7 +79,7 @@ jobs:
       - name: Compute pkgs branch
         id: refs
         run: |
-          MINOR="${{ inputs.talos_version }}"
+          MINOR="${TALOS_VERSION}"
           MINOR="${MINOR#v}"        # 1.12.3
           MINOR="${MINOR%.*}"       # 1.12
           echo "pkgs_branch=release-${MINOR}" >> "$GITHUB_OUTPUT"
@@ -91,30 +98,27 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           repository: siderolabs/talos
-          ref: ${{ inputs.talos_version }}
+          ref: ${{ env.TALOS_VERSION }}
           path: _deps/talos
 
       - name: Run build script
         id: build
         env:
-          PLATFORM: ${{ inputs.platform }}
           PKGS_DIR: ${{ github.workspace }}/_deps/pkgs
           TALOS_DIR: ${{ github.workspace }}/_deps/talos
-        run: ./scripts/build-talos-fscrypt-imager.sh "${{ inputs.talos_version }}"
+        run: ./scripts/build-talos-fscrypt-imager.sh "${TALOS_VERSION}"
 
       - name: Push imager to GHCR
         env:
-          IMAGER_IMAGE: ${{ env.OUTPUT_REGISTRY }}/kommodity-talos-imager-fscrypt:${{ inputs.talos_version }}
+          IMAGER_IMAGE: ${{ env.OUTPUT_REGISTRY }}/kommodity-talos-imager-fscrypt:${{ env.TALOS_VERSION }}
           BUILT_IMAGER: ${{ steps.build.outputs.imager_ref }}
         run: crane copy "${BUILT_IMAGER}" "${IMAGER_IMAGE}"
 
       - name: Summary
         if: always()
         env:
-          TALOS_VERSION: ${{ inputs.talos_version }}
-          PLATFORM: ${{ inputs.platform }}
           PKGS_BRANCH: ${{ steps.refs.outputs.pkgs_branch }}
-          IMAGER_IMAGE: ${{ env.OUTPUT_REGISTRY }}/kommodity-talos-imager-fscrypt:${{ inputs.talos_version }}
+          IMAGER_IMAGE: ${{ env.OUTPUT_REGISTRY }}/kommodity-talos-imager-fscrypt:${{ env.TALOS_VERSION }}
         run: |
           {
             echo "## Talos fscrypt Imager Build"
