@@ -91,12 +91,18 @@ jobs:
           path: _deps/talos
 
       - name: Run build script
+        id: build
         env:
-          OUTPUT_REGISTRY: ${{ env.OUTPUT_REGISTRY }}
           PLATFORM: ${{ inputs.platform }}
           PKGS_DIR: ${{ github.workspace }}/_deps/pkgs
           TALOS_DIR: ${{ github.workspace }}/_deps/talos
         run: ./scripts/build-talos-fscrypt-imager.sh "${{ inputs.talos_version }}"
+
+      - name: Push imager to GHCR
+        env:
+          IMAGER_IMAGE: ${{ env.OUTPUT_REGISTRY }}/kommodity-talos-imager-fscrypt:${{ inputs.talos_version }}
+          BUILT_IMAGER: ${{ steps.build.outputs.imager_ref }}
+        run: crane copy "${BUILT_IMAGER}" "${IMAGER_IMAGE}"
 
       - name: Summary
         if: always()

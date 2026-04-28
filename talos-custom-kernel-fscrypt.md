@@ -67,9 +67,11 @@ runs out of disk/RAM, switch to a larger runner.
 
 ### Local / dedicated VM (alternative)
 
-The script can run on any host with Docker and `git` (~32 vCPU, 128 GB RAM
-recommended). It expects `siderolabs/pkgs` and `siderolabs/talos` to be
-cloned ahead of time:
+The script can run on any host with Docker, `git`, `crane`, and `jq`
+(~32 vCPU, 128 GB RAM recommended). Set up Docker first (with
+`nofile`/`memlock` ulimits in `/etc/docker/daemon.json`), then `docker
+login ghcr.io` so the final crane copy succeeds. The script expects
+`siderolabs/pkgs` and `siderolabs/talos` to be cloned ahead of time:
 
 ```bash
 git clone --branch release-1.12 --depth 1 \
@@ -79,35 +81,38 @@ git clone --branch v1.12.3 --depth 1 \
 
 PKGS_DIR=/tmp/pkgs \
 TALOS_DIR=/tmp/talos \
-GITHUB_TOKEN=<YOUR_GHCR_TOKEN> \
   ./scripts/build-talos-fscrypt-imager.sh v1.12.3
-```
 
-The script installs Docker, crane, and jq; logs in to GHCR (using
-`GITHUB_TOKEN` and `GITHUB_ACTOR`); and runs the build.
+# Script prints the local imager ref. Crane copy to GHCR:
+LOCAL_REF=$(cat /tmp/pkgs/../_out/fscrypt-build/imager-ref.txt)
+crane copy "${LOCAL_REF}" \
+  ghcr.io/kommodity-io/kommodity-talos-imager-fscrypt:v1.12.3
+```
 
 ### `scripts/build-talos-fscrypt-imager.sh` — Step by Step
 
 Caller responsibilities (script does NOT do these — workflow / VM owner
 must set up): install Docker + buildx, write `/etc/docker/daemon.json`
-with `nofile` / `memlock` ulimits, `docker login ghcr.io`, install
-`crane` and `jq`.
+with `nofile` / `memlock` ulimits, install `crane` and `jq`, and copy
+the local imager ref to the final output registry.
 
-| Step | What                                | Make target / Command                                           |
-| ---- | ----------------------------------- | --------------------------------------------------------------- |
-| 1    | Start local registry                | `docker run registry:2` on `127.0.0.1:5005`                     |
-| 2    | Patch `kernel/build/config-${ARCH}` | Enables `CONFIG_FS_ENCRYPTION=y`                                |
-| 3    | Create buildx builder               | `docker-container` driver (required by `bldr` mergeop)          |
-| 4    | `make kernel-olddefconfig`          | Resolves Kconfig dependencies                                   |
-| 5    | `make kernel PUSH=true`             | Builds kernel in `pkgs`, pushes to local registry               |
-| 6    | `make kernel initramfs`             | Repackages custom kernel into Talos boot artifacts              |
-| 7    | `make imager PUSH=true`             | **Imager container with custom kernel** (local registry)        |
-| 8    | Crane copy to GHCR                  | `ghcr.io/kommodity-io/kommodity-talos-imager-fscrypt:<version>` |
+| Step | What                                | Make target / Command                                  |
+| ---- | ----------------------------------- | ------------------------------------------------------ |
+| 1    | Start local registry                | `docker run registry:2` on `127.0.0.1:5005`            |
+| 2    | Patch `kernel/build/config-${ARCH}` | Enables `CONFIG_FS_ENCRYPTION=y`                       |
+| 3    | Create buildx builder               | `docker-container` driver (required by `bldr` mergeop) |
+| 4    | `make kernel-olddefconfig`          | Resolves Kconfig dependencies                          |
+| 5    | `make kernel PUSH=true`             | Builds kernel in `pkgs`, pushes to local registry      |
+| 6    | `make kernel initramfs`             | Repackages custom kernel into Talos boot artifacts     |
+| 7    | `make imager PUSH=true`             | Imager container with custom kernel (local registry)   |
 
-Required env vars: `PKGS_DIR`, `TALOS_DIR`, `GITHUB_TOKEN`.
-Optional: `REGISTRY` (default `127.0.0.1:5005`), `OUTPUT_REGISTRY`
-(default `ghcr.io/kommodity-io`), `PLATFORM` (default `linux/amd64`),
-`GITHUB_ACTOR`.
+Script outputs the local imager ref via `${GITHUB_OUTPUT}` (`imager_ref`)
+and `${WORK_DIR}/imager-ref.txt`. The workflow then `crane copy`s that
+ref to `ghcr.io/kommodity-io/kommodity-talos-imager-fscrypt:<version>`.
+
+Required env vars: `PKGS_DIR`, `TALOS_DIR`.
+Optional: `REGISTRY` (default `127.0.0.1:5005`),
+`PLATFORM` (default `linux/amd64`).
 
 ## Building Cloud Images
 

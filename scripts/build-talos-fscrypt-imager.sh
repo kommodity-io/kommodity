@@ -17,16 +17,16 @@
 #   ./scripts/build-talos-fscrypt-image.sh v1.12.3
 #
 # Environment variables:
-#   PKGS_DIR          Path to pre-cloned siderolabs/pkgs checkout (required)
-#   TALOS_DIR         Path to pre-cloned siderolabs/talos checkout (required)
-#   REGISTRY          Build registry for intermediate images (default: 127.0.0.1:5005)
-#   OUTPUT_REGISTRY   Registry for final installer image (default: ghcr.io/kommodity-io)
-#   PLATFORM          Target platform (default: linux/amd64)
+#   PKGS_DIR     Path to pre-cloned siderolabs/pkgs checkout (required)
+#   TALOS_DIR    Path to pre-cloned siderolabs/talos checkout (required)
+#   REGISTRY     Build registry for intermediate images (default: 127.0.0.1:5005)
+#   PLATFORM     Target platform (default: linux/amd64)
 #
 # Caller responsibilities (script does NOT do these):
 #   - Install Docker (with buildx) and configure /etc/docker/daemon.json
-#   - Authenticate to ghcr.io (docker login) for the OUTPUT_REGISTRY
 #   - Install crane and jq
+#   - Copy the built imager from REGISTRY to the final output registry
+#     (script prints the local imager ref to stdout on success)
 
 set -euo pipefail
 
@@ -43,11 +43,8 @@ PKGS_DIR="${PKGS_DIR:?PKGS_DIR must point to a pre-cloned siderolabs/pkgs checko
 TALOS_DIR="${TALOS_DIR:?TALOS_DIR must point to a pre-cloned siderolabs/talos checkout}"
 
 REGISTRY="${REGISTRY:-127.0.0.1:5005}"
-OUTPUT_REGISTRY="${OUTPUT_REGISTRY:-ghcr.io/kommodity-io}"
 PLATFORM="${PLATFORM:-linux/amd64}"
 ARCH="${PLATFORM#linux/}"
-
-IMAGER_IMAGE="${OUTPUT_REGISTRY}/kommodity-talos-imager-fscrypt:${TALOS_VERSION}"
 
 # Kernel config required for fscrypt support.
 # CONFIG_FS_ENCRYPTION is the Kconfig symbol (the internal rename to
@@ -59,7 +56,6 @@ echo "Talos fscrypt kernel builder"
 echo "------------------------------------------"
 echo "Talos version   : ${TALOS_VERSION}"
 echo "Build registry  : ${REGISTRY}"
-echo "Output image    : ${IMAGER_IMAGE}"
 echo "Platform        : ${PLATFORM}"
 echo "=========================================="
 
@@ -239,19 +235,12 @@ echo ">>> Step 7: Build imager → ${REGISTRY}"
   PUSH=true \
   REGISTRY="${REGISTRY}")
 
-# ===========================================================================
-# Phase 3: Tag and push final imager
-# ===========================================================================
-
 # ---------------------------------------------------------------------------
-# Step 8: Push custom imager to output registry
+# Resolve imager tag and emit local ref
 #
-# The imager contains the custom kernel and is needed by the cloud-image
-# workflow to produce disk images with the fscrypt-enabled kernel.
+# The imager Makefile derives the tag from git state. Query the local
+# registry to find what was actually pushed.
 # ---------------------------------------------------------------------------
-echo ""
-echo ">>> Step 8: Push imager → ${IMAGER_IMAGE}"
-
 IMAGER_TAG=""
 if [[ "${REGISTRY}" == 127.0.0.1:* ]]; then
   TAGS_JSON=$(curl -sf "http://${REGISTRY}/v2/siderolabs/imager/tags/list" 2>/dev/null || echo "")
@@ -264,18 +253,16 @@ if [[ -z "${IMAGER_TAG}" || "${IMAGER_TAG}" == "null" ]]; then
 fi
 
 BUILT_IMAGER="${REGISTRY}/siderolabs/imager:${IMAGER_TAG}"
-echo "    Source: ${BUILT_IMAGER}"
 
-if command -v crane &>/dev/null; then
-  crane copy "${BUILT_IMAGER}" "${IMAGER_IMAGE}"
-else
-  docker pull "${BUILT_IMAGER}"
-  docker tag "${BUILT_IMAGER}" "${IMAGER_IMAGE}"
-  docker push "${IMAGER_IMAGE}"
+# Persist ref for caller (workflow / wrapper script).
+if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
+  echo "imager_ref=${BUILT_IMAGER}" >> "${GITHUB_OUTPUT}"
 fi
+echo "${BUILT_IMAGER}" > "${WORK_DIR}/imager-ref.txt"
 
 echo ""
 echo "=========================================="
 echo "Build complete!"
-echo "Imager: ${IMAGER_IMAGE}"
+echo "Local imager ref: ${BUILT_IMAGER}"
+echo "(caller responsible for crane copy → output registry)"
 echo "=========================================="
