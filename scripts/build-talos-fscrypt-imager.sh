@@ -17,14 +17,14 @@
 #   ./scripts/build-talos-fscrypt-image.sh v1.12.3
 #
 # Environment variables:
+#   PKGS_DIR          Path to pre-cloned siderolabs/pkgs checkout (required)
+#   TALOS_DIR         Path to pre-cloned siderolabs/talos checkout (required)
 #   REGISTRY          Build registry for intermediate images (default: 127.0.0.1:5005)
 #   OUTPUT_REGISTRY   Registry for final installer image (default: ghcr.io/kommodity-io)
 #   PLATFORM          Target platform (default: linux/amd64)
-#   SKIP_KERNEL       Set "true" to skip kernel build and reuse previously built kernel
 #
 # Requirements:
 #   - docker + docker buildx
-#   - git
 #   - jq (optional, for registry tag discovery)
 
 set -euo pipefail
@@ -37,26 +37,21 @@ TALOS_VERSION="${1:?Usage: $0 <talos_version> (e.g. v1.12.3)}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 WORK_DIR="${REPO_ROOT}/_out/fscrypt-build"
-PKGS_DIR="${WORK_DIR}/pkgs"
-TALOS_DIR="${WORK_DIR}/talos"
+
+PKGS_DIR="${PKGS_DIR:?PKGS_DIR must point to a pre-cloned siderolabs/pkgs checkout}"
+TALOS_DIR="${TALOS_DIR:?TALOS_DIR must point to a pre-cloned siderolabs/talos checkout}"
 
 REGISTRY="${REGISTRY:-127.0.0.1:5005}"
 OUTPUT_REGISTRY="${OUTPUT_REGISTRY:-ghcr.io/kommodity-io}"
 PLATFORM="${PLATFORM:-linux/amd64}"
 ARCH="${PLATFORM#linux/}"
 
-SKIP_KERNEL="${SKIP_KERNEL:-false}"
-
 IMAGER_IMAGE="${OUTPUT_REGISTRY}/kommodity-talos-imager-fscrypt:${TALOS_VERSION}"
 
-# Kernel configs required for fscrypt support.
+# Kernel config required for fscrypt support.
 # CONFIG_FS_ENCRYPTION is the Kconfig symbol (the internal rename to
 # CONFIG_FS_CRYPTO only affects kernel source, not Kconfig).
-FSCRYPT_CONFIGS=(
-  "CONFIG_FS_ENCRYPTION=y"  # Core fscrypt support (built-in, not module)
-  "CONFIG_CRYPTO_CTS=y"     # Cipher-text stealing (filename encryption)
-  "CONFIG_CRYPTO_HKDF=y"    # HKDF key derivation (must be built-in)
-)
+FSCRYPT_CONFIG="CONFIG_FS_ENCRYPTION=y"
 
 echo "=========================================="
 echo "Talos fscrypt kernel builder"
@@ -65,13 +60,12 @@ echo "Talos version   : ${TALOS_VERSION}"
 echo "Build registry  : ${REGISTRY}"
 echo "Output image    : ${IMAGER_IMAGE}"
 echo "Platform        : ${PLATFORM}"
-echo "Skip kernel     : ${SKIP_KERNEL}"
 echo "=========================================="
 
 mkdir -p "${WORK_DIR}"
 
 # ---------------------------------------------------------------------------
-# Step -1: Setup
+# Step 1: Setup
 # ---------------------------------------------------------------------------
 
 export DEBIAN_FRONTEND=noninteractive
@@ -90,7 +84,7 @@ EOF
 systemctl restart docker
 systemctl enable docker
 
-docker login ghcr.io -u "${GITHUB_ACTOR:-pthuriot-corti}" --password-stdin <<< "${GITHUB_TOKEN}"
+docker login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin <<< "${GITHUB_TOKEN}"
 
 apt install make jq -y
 
@@ -102,13 +96,13 @@ if ! command -v crane &>/dev/null; then
 fi
 
 # ---------------------------------------------------------------------------
-# Step 0: Start local registry if using localhost
+# Step 2: Start local registry if using localhost
 # ---------------------------------------------------------------------------
 if [[ "${REGISTRY}" == 127.0.0.1:* ]]; then
   REGISTRY_PORT="${REGISTRY#*:}"
   if ! curl -sf "http://${REGISTRY}/v2/" &>/dev/null; then
     echo ""
-    echo ">>> Step 0: Starting local registry on port ${REGISTRY_PORT}"
+    echo ">>> Step 2: Starting local registry on port ${REGISTRY_PORT}"
     docker run -d --restart=always \
       -p "${REGISTRY_PORT}:5000" \
       --name talos-build-registry \
@@ -121,94 +115,17 @@ if [[ "${REGISTRY}" == 127.0.0.1:* ]]; then
 fi
 
 # ===========================================================================
-# Phase 0b: Clone talos first to determine correct pkgs version
-# ===========================================================================
-echo ""
-echo ">>> Clone siderolabs/talos @ ${TALOS_VERSION}"
-
-if [[ -d "${TALOS_DIR}/.git" ]]; then
-  echo "    Already cloned — checking out ${TALOS_VERSION}"
-  git -C "${TALOS_DIR}" fetch --tags --quiet
-  git -C "${TALOS_DIR}" checkout "${TALOS_VERSION}" --quiet
-else
-  git clone --branch "${TALOS_VERSION}" --depth 1 \
-    https://github.com/siderolabs/talos.git "${TALOS_DIR}"
-fi
-
-# Extract the pkgs version that this talos release expects.
-# The talos Makefile defines PKGS as the expected pkgs git ref.
-PKGS_REF=$(grep -oP '^\s*PKGS\s*\?=\s*\K\S+' "${TALOS_DIR}/Makefile" || true)
-if [[ -z "${PKGS_REF}" ]]; then
-  # Fallback: use a default derived from the kernel package refs in Makefile
-  PKGS_REF=$(grep -oP 'PKG_KERNEL\s*\?=.*:\K[^\s"]+' "${TALOS_DIR}/Makefile" || true)
-fi
-if [[ -z "${PKGS_REF}" ]]; then
-  # Last resort fallback
-  PKGS_REF="${TALOS_VERSION%.*}.0"
-fi
-echo "    Pkgs ref: ${PKGS_REF}"
-
-# ===========================================================================
 # Phase 1: Build custom kernel (siderolabs/pkgs)
 # ===========================================================================
 
-if [[ "${SKIP_KERNEL}" != "true" ]]; then
-
 # ---------------------------------------------------------------------------
-# Step 1: Clone siderolabs/pkgs at the version talos expects
-# ---------------------------------------------------------------------------
-echo ""
-echo ">>> Step 1: Clone siderolabs/pkgs @ ${PKGS_REF}"
-
-# PKGS_REF may be a tag (v1.12.0) or a git-describe ref (v1.12.0-35-g15d5d78).
-# Parse into usable components.
-if [[ "${PKGS_REF}" =~ -[0-9]+-g([0-9a-f]+)$ ]]; then
-  # Describe-style ref: extract commit hash and release branch
-  PKGS_COMMIT="${BASH_REMATCH[1]}"
-  PKGS_MINOR="${PKGS_REF#v}"       # 1.12.0-35-g15d5d78
-  PKGS_MINOR="${PKGS_MINOR%%-*}"   # 1.12.0
-  PKGS_MINOR="${PKGS_MINOR%.*}"    # 1.12
-  PKGS_BRANCH="release-${PKGS_MINOR}"
-  echo "    Parsed: branch=${PKGS_BRANCH} commit=${PKGS_COMMIT}"
-else
-  # Simple tag/branch ref
-  PKGS_COMMIT=""
-  PKGS_BRANCH="${PKGS_REF}"
-fi
-
-# Remove stale shallow clone if it exists (can't reach other commits)
-if [[ -d "${PKGS_DIR}/.git" ]] && [[ -n "${PKGS_COMMIT}" ]]; then
-  if ! git -C "${PKGS_DIR}" cat-file -e "${PKGS_COMMIT}" 2>/dev/null; then
-    echo "    Removing stale shallow clone (commit ${PKGS_COMMIT} not reachable)"
-    rm -rf "${PKGS_DIR}"
-  fi
-fi
-
-if [[ -d "${PKGS_DIR}/.git" ]]; then
-  echo "    Already cloned — checking out ${PKGS_REF}"
-  git -C "${PKGS_DIR}" fetch --tags --quiet
-  git -C "${PKGS_DIR}" checkout "${PKGS_COMMIT:-${PKGS_REF}}" --quiet
-else
-  if [[ -n "${PKGS_COMMIT}" ]]; then
-    # Need full branch history to reach the specific commit
-    echo "    Cloning ${PKGS_BRANCH} branch (need commit ${PKGS_COMMIT})"
-    git clone --branch "${PKGS_BRANCH}" \
-      https://github.com/siderolabs/pkgs.git "${PKGS_DIR}"
-    git -C "${PKGS_DIR}" checkout "${PKGS_COMMIT}"
-  else
-    git clone --branch "${PKGS_BRANCH}" --depth 1 \
-      https://github.com/siderolabs/pkgs.git "${PKGS_DIR}"
-  fi
-fi
-
-# ---------------------------------------------------------------------------
-# Step 2: Patch kernel config — enable fscrypt + dependencies
+# Step 3: Patch kernel config — enable fscrypt
 #
 # Files modified: kernel/build/config-{amd64,arm64}
 # See: https://github.com/search?q=repo%3Asiderolabs%2Fpkgs+CONFIG_FS_ENCRYPTION&type=code
 # ---------------------------------------------------------------------------
 echo ""
-echo ">>> Step 2: Patch kernel config (config-${ARCH})"
+echo ">>> Step 3: Patch kernel config (config-${ARCH})"
 
 CONFIG_FILE="${PKGS_DIR}/kernel/build/config-${ARCH}"
 if [[ ! -f "${CONFIG_FILE}" ]]; then
@@ -218,19 +135,17 @@ if [[ ! -f "${CONFIG_FILE}" ]]; then
   exit 1
 fi
 
-for kconf in "${FSCRYPT_CONFIGS[@]}"; do
-  key="${kconf%%=*}"
-  # Remove any existing setting (both "# KEY is not set" and "KEY=..." forms)
-  sed -i.bak -e "/^# ${key} is not set/d" -e "/^${key}[= ]/d" "${CONFIG_FILE}"
-  echo "${kconf}" >> "${CONFIG_FILE}"
-done
+FSCRYPT_KEY="${FSCRYPT_CONFIG%%=*}"
+# Remove any existing setting (both "# KEY is not set" and "KEY=..." forms)
+sed -i.bak -e "/^# ${FSCRYPT_KEY} is not set/d" -e "/^${FSCRYPT_KEY}[= ]/d" "${CONFIG_FILE}"
+echo "${FSCRYPT_CONFIG}" >> "${CONFIG_FILE}"
 rm -f "${CONFIG_FILE}.bak"
 
 echo "    Applied:"
-grep -E 'FS_ENCRYPTION|CRYPTO_CTS|CRYPTO_HKDF' "${CONFIG_FILE}" | grep -v '^#' | sed 's/^/      /'
+grep -E 'FS_ENCRYPTION' "${CONFIG_FILE}" | grep -v '^#' | sed 's/^/      /'
 
 # ---------------------------------------------------------------------------
-# Step 2b: Create buildx builder with docker-container driver
+# Step 4: Create buildx builder with docker-container driver
 #
 # The pkgs build uses bldr (BuildKit frontend) which requires the mergeop
 # feature. This is only available with the docker-container driver, not the
@@ -240,7 +155,7 @@ BUILDER_NAME="talos-kernel-builder"
 
 if ! docker buildx inspect "${BUILDER_NAME}" &>/dev/null; then
   echo ""
-  echo ">>> Step 2b: Creating buildx builder: ${BUILDER_NAME}"
+  echo ">>> Step 4: Creating buildx builder: ${BUILDER_NAME}"
 
   # BuildKit config: allow pushing to HTTP (insecure) local registry
   BUILDKIT_CFG="${WORK_DIR}/buildkitd.toml"
@@ -258,37 +173,35 @@ TOML
     --config "${BUILDKIT_CFG}"
 else
   echo ""
-  echo ">>> Step 2b: Using existing buildx builder: ${BUILDER_NAME}"
+  echo ">>> Step 4: Using existing buildx builder: ${BUILDER_NAME}"
   docker buildx use "${BUILDER_NAME}"
 fi
 
 # ---------------------------------------------------------------------------
-# Step 3: Resolve config dependencies via olddefconfig
+# Step 5: Resolve config dependencies via olddefconfig
 #
 # Without this, options with unmet dependencies are silently dropped.
 # ---------------------------------------------------------------------------
 echo ""
-echo ">>> Step 3: kernel-olddefconfig (resolve dependencies)"
+echo ">>> Step 5: kernel-olddefconfig (resolve dependencies)"
 
 (cd "${PKGS_DIR}" && make kernel-olddefconfig)
 
 echo "    Post-olddefconfig verification:"
-grep -E 'FS_ENCRYPTION|CRYPTO_CTS|CRYPTO_HKDF' "${CONFIG_FILE}" | sed 's/^/      /'
+grep -E 'FS_ENCRYPTION' "${CONFIG_FILE}" | sed 's/^/      /'
 
 # ---------------------------------------------------------------------------
-# Step 4: Build custom kernel and push to build registry
+# Step 6: Build custom kernel and push to build registry
 #
 # Creates: ${REGISTRY}/siderolabs/kernel:${TAG}
 # ---------------------------------------------------------------------------
 echo ""
-echo ">>> Step 4: Build custom kernel → ${REGISTRY} (this takes a while)"
+echo ">>> Step 6: Build custom kernel → ${REGISTRY} (this takes a while)"
 
 (cd "${PKGS_DIR}" && make kernel \
   REGISTRY="${REGISTRY}" \
   PUSH=true \
   PLATFORM="${PLATFORM}")
-
-fi  # end SKIP_KERNEL
 
 # ---------------------------------------------------------------------------
 # Determine kernel image reference
@@ -311,7 +224,7 @@ if [[ "${REGISTRY}" == 127.0.0.1:* ]]; then
 fi
 
 if [[ -z "${KERNEL_IMAGE}" ]]; then
-  KERNEL_TAG=$(git -C "${PKGS_DIR}" describe --tag --always 2>/dev/null || echo "${PKGS_REF}")
+  KERNEL_TAG=$(git -C "${PKGS_DIR}" describe --tag --always 2>/dev/null || echo "${TALOS_VERSION}")
   KERNEL_IMAGE="${REGISTRY}/siderolabs/kernel:${KERNEL_TAG}"
 fi
 
@@ -323,66 +236,13 @@ echo "    Kernel image: ${KERNEL_IMAGE}"
 # ===========================================================================
 
 # ---------------------------------------------------------------------------
-# Step 5: Validate hack/modules-amd64.txt against actual kernel contents
-#
-# Remove any module from the list that doesn't exist in the kernel image.
-# Causes: configs changed from =m to =y (built-in), or configs disabled
-# by olddefconfig, or modules not present at this pkgs commit.
-# ---------------------------------------------------------------------------
-MODULES_FILE="${TALOS_DIR}/hack/modules-${ARCH}.txt"
-if [[ -f "${MODULES_FILE}" ]]; then
-  echo ""
-  echo ">>> Step 5: Validate modules list against kernel image"
-
-  # Extract module tree from kernel image
-  KERNEL_MOD_CHECK="${WORK_DIR}/kernel-modules-check"
-  rm -rf "${KERNEL_MOD_CHECK}"
-  mkdir -p "${KERNEL_MOD_CHECK}"
-
-  docker pull "${KERNEL_IMAGE}"
-  CID=$(docker create "${KERNEL_IMAGE}" /bin/true)
-  docker cp "${CID}:/usr/lib/modules" "${KERNEL_MOD_CHECK}/" 2>/dev/null || true
-  docker rm "${CID}" &>/dev/null || true
-
-  KERNEL_VERSION=$(ls "${KERNEL_MOD_CHECK}/modules/" 2>/dev/null | head -1)
-  KERNEL_MOD_DIR="${KERNEL_MOD_CHECK}/modules/${KERNEL_VERSION}"
-
-  if [[ -d "${KERNEL_MOD_DIR}" ]]; then
-    echo "    Kernel version: ${KERNEL_VERSION}"
-    echo "    Module dir: ${KERNEL_MOD_DIR}"
-
-    # Filter: keep only modules that exist in the kernel image
-    TMP_MODULES=$(mktemp)
-    REMOVED=0
-    while IFS= read -r mod_path; do
-      # Skip empty lines and comments
-      [[ -z "${mod_path}" || "${mod_path}" =~ ^[[:space:]]*# ]] && continue
-      if [[ -f "${KERNEL_MOD_DIR}/${mod_path}" ]]; then
-        echo "${mod_path}" >> "${TMP_MODULES}"
-      else
-        echo "    Removing: ${mod_path}"
-        ((REMOVED++)) || true
-      fi
-    done < "${MODULES_FILE}"
-    mv "${TMP_MODULES}" "${MODULES_FILE}"
-
-    echo "    Removed ${REMOVED} unavailable modules, $(wc -l < "${MODULES_FILE}") remaining"
-  else
-    echo "    WARNING: Could not extract modules from kernel image, skipping validation"
-    echo "    Contents: $(ls "${KERNEL_MOD_CHECK}/" 2>/dev/null)"
-  fi
-
-  rm -rf "${KERNEL_MOD_CHECK}"
-fi
-
-# ---------------------------------------------------------------------------
-# Step 6: Build kernel + initramfs with custom kernel
+# Step 7: Build kernel + initramfs with custom kernel
 #
 # This repackages our custom kernel into Talos boot artifacts.
 # Output: _out/vmlinuz-${ARCH} and _out/initramfs-${ARCH}.xz
 # ---------------------------------------------------------------------------
 echo ""
-echo ">>> Step 6: Build kernel + initramfs"
+echo ">>> Step 7: Build kernel + initramfs"
 
 (cd "${TALOS_DIR}" && make kernel initramfs \
   PKG_KERNEL="${KERNEL_IMAGE}" \
@@ -392,7 +252,7 @@ echo "    Output:"
 ls -lh "${TALOS_DIR}/_out/vmlinuz-${ARCH}" "${TALOS_DIR}/_out/initramfs-${ARCH}.xz" 2>/dev/null | sed 's/^/      /'
 
 # ---------------------------------------------------------------------------
-# Step 7: Build imager with custom kernel
+# Step 8: Build imager with custom kernel
 #
 # The imager is a container that generates Talos boot assets (ISO,
 # disk images). The kernel is bundled into the imager at
@@ -400,7 +260,7 @@ ls -lh "${TALOS_DIR}/_out/vmlinuz-${ARCH}" "${TALOS_DIR}/_out/initramfs-${ARCH}.
 # custom kernel.
 # ---------------------------------------------------------------------------
 echo ""
-echo ">>> Step 7: Build imager → ${REGISTRY}"
+echo ">>> Step 8: Build imager → ${REGISTRY}"
 
 (cd "${TALOS_DIR}" && make imager \
   PKG_KERNEL="${KERNEL_IMAGE}" \
@@ -414,13 +274,13 @@ echo ">>> Step 7: Build imager → ${REGISTRY}"
 # ===========================================================================
 
 # ---------------------------------------------------------------------------
-# Step 8: Push custom imager to output registry
+# Step 9: Push custom imager to output registry
 #
-# The imager contains the custom kernel and is needed by the Scaleway image
+# The imager contains the custom kernel and is needed by the cloud-image
 # workflow to produce disk images with the fscrypt-enabled kernel.
 # ---------------------------------------------------------------------------
 echo ""
-echo ">>> Step 8: Push imager → ${IMAGER_IMAGE}"
+echo ">>> Step 9: Push imager → ${IMAGER_IMAGE}"
 
 IMAGER_TAG=""
 if [[ "${REGISTRY}" == 127.0.0.1:* ]]; then

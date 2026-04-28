@@ -1,0 +1,110 @@
+name: Build Talos fscrypt Imager
+
+on:
+  workflow_dispatch:
+    inputs:
+      talos_version:
+        description: "Talos version (e.g., v1.12.3)"
+        required: true
+        default: "v1.12.3"
+        type: string
+      platform:
+        description: "Target platform"
+        required: false
+        default: "linux/amd64"
+        type: choice
+        options:
+          - linux/amd64
+          - linux/arm64
+
+env:
+  OUTPUT_REGISTRY: ghcr.io/kommodity-io
+
+jobs:
+  build:
+    name: Build fscrypt imager
+    runs-on: ubuntu-32core # 32 CPUs, 128GB RAM to speed up kernel builds
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Validate talos_version
+        run: |
+          if [[ ! "${{ inputs.talos_version }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
+            echo "::error::Invalid talos_version. Expected semver (e.g., v1.12.3)"
+            exit 1
+          fi
+
+      - name: Free disk space
+        run: |
+          sudo swapoff -a || true
+          sudo rm -f /swapfile || true
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /opt/hostedtoolcache/CodeQL >/dev/null 2>&1 || true
+          sudo docker system prune -af || true
+
+      - name: Compute pkgs branch
+        id: refs
+        run: |
+          MINOR="${{ inputs.talos_version }}"
+          MINOR="${MINOR#v}"        # 1.12.3
+          MINOR="${MINOR%.*}"       # 1.12
+          echo "pkgs_branch=release-${MINOR}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout kommodity
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Checkout siderolabs/pkgs
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: siderolabs/pkgs
+          ref: ${{ steps.refs.outputs.pkgs_branch }}
+          path: _deps/pkgs
+
+      - name: Checkout siderolabs/talos
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: siderolabs/talos
+          ref: ${{ inputs.talos_version }}
+          path: _deps/talos
+
+      - name: Run build script
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_ACTOR: ${{ github.actor }}
+          OUTPUT_REGISTRY: ${{ env.OUTPUT_REGISTRY }}
+          PLATFORM: ${{ inputs.platform }}
+          PKGS_DIR: ${{ github.workspace }}/_deps/pkgs
+          TALOS_DIR: ${{ github.workspace }}/_deps/talos
+        run: |
+          sudo --preserve-env=GITHUB_TOKEN,GITHUB_ACTOR,OUTPUT_REGISTRY,PLATFORM,PKGS_DIR,TALOS_DIR \
+            ./scripts/build-talos-fscrypt-imager.sh "${{ inputs.talos_version }}"
+
+      - name: Summary
+        if: always()
+        env:
+          TALOS_VERSION: ${{ inputs.talos_version }}
+          PLATFORM: ${{ inputs.platform }}
+          PKGS_BRANCH: ${{ steps.refs.outputs.pkgs_branch }}
+          IMAGER_IMAGE: ${{ env.OUTPUT_REGISTRY }}/kommodity-talos-imager-fscrypt:${{ inputs.talos_version }}
+        run: |
+          {
+            echo "## Talos fscrypt Imager Build"
+            echo ""
+            echo "| Setting | Value |"
+            echo "|---------|-------|"
+            echo "| Talos Version | \`${TALOS_VERSION}\` |"
+            echo "| Platform | \`${PLATFORM}\` |"
+            echo "| Pkgs branch | \`${PKGS_BRANCH}\` |"
+            echo "| Job status | \`${{ job.status }}\` |"
+            echo ""
+            echo "### Published Image"
+            echo "\`\`\`"
+            echo "${IMAGER_IMAGE}"
+            echo "\`\`\`"
+            echo ""
+            echo "### Usage"
+            echo "\`\`\`yaml"
+            echo "talos:"
+            echo "  imagerImage: ${IMAGER_IMAGE}"
+            echo "\`\`\`"
+          } >> "$GITHUB_STEP_SUMMARY"
