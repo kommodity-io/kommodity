@@ -23,9 +23,10 @@
 #   OUTPUT_REGISTRY   Registry for final installer image (default: ghcr.io/kommodity-io)
 #   PLATFORM          Target platform (default: linux/amd64)
 #
-# Requirements:
-#   - docker + docker buildx
-#   - jq (optional, for registry tag discovery)
+# Caller responsibilities (script does NOT do these):
+#   - Install Docker (with buildx) and configure /etc/docker/daemon.json
+#   - Authenticate to ghcr.io (docker login) for the OUTPUT_REGISTRY
+#   - Install crane and jq
 
 set -euo pipefail
 
@@ -65,44 +66,13 @@ echo "=========================================="
 mkdir -p "${WORK_DIR}"
 
 # ---------------------------------------------------------------------------
-# Step 1: Setup
-# ---------------------------------------------------------------------------
-
-export DEBIAN_FRONTEND=noninteractive
-curl -fsSL https://get.docker.com | sh
-
-cat > /etc/docker/daemon.json << 'EOF'
-{
-  "storage-driver": "overlay2",
-  "default-ulimits": {
-    "nofile":  {"name": "nofile",  "soft": 1048576, "hard": 1048576},
-    "memlock": {"name": "memlock", "soft": -1,      "hard": -1}
-  }
-}
-EOF
-
-systemctl restart docker
-systemctl enable docker
-
-docker login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin <<< "${GITHUB_TOKEN}"
-
-apt install make jq -y
-
-# Install crane (for pushing OCI images)
-if ! command -v crane &>/dev/null; then
-  CRANE_VERSION="0.20.3"
-  curl -sL "https://github.com/google/go-containerregistry/releases/download/v${CRANE_VERSION}/go-containerregistry_Linux_x86_64.tar.gz" \
-    | tar -xz -C /usr/local/bin crane
-fi
-
-# ---------------------------------------------------------------------------
-# Step 2: Start local registry if using localhost
+# Step 1: Start local registry if using localhost
 # ---------------------------------------------------------------------------
 if [[ "${REGISTRY}" == 127.0.0.1:* ]]; then
   REGISTRY_PORT="${REGISTRY#*:}"
   if ! curl -sf "http://${REGISTRY}/v2/" &>/dev/null; then
     echo ""
-    echo ">>> Step 2: Starting local registry on port ${REGISTRY_PORT}"
+    echo ">>> Step 1: Starting local registry on port ${REGISTRY_PORT}"
     docker run -d --restart=always \
       -p "${REGISTRY_PORT}:5000" \
       --name talos-build-registry \
@@ -119,13 +89,13 @@ fi
 # ===========================================================================
 
 # ---------------------------------------------------------------------------
-# Step 3: Patch kernel config — enable fscrypt
+# Step 2: Patch kernel config — enable fscrypt
 #
 # Files modified: kernel/build/config-{amd64,arm64}
 # See: https://github.com/search?q=repo%3Asiderolabs%2Fpkgs+CONFIG_FS_ENCRYPTION&type=code
 # ---------------------------------------------------------------------------
 echo ""
-echo ">>> Step 3: Patch kernel config (config-${ARCH})"
+echo ">>> Step 2: Patch kernel config (config-${ARCH})"
 
 CONFIG_FILE="${PKGS_DIR}/kernel/build/config-${ARCH}"
 if [[ ! -f "${CONFIG_FILE}" ]]; then
@@ -145,7 +115,7 @@ echo "    Applied:"
 grep -E 'FS_ENCRYPTION' "${CONFIG_FILE}" | grep -v '^#' | sed 's/^/      /'
 
 # ---------------------------------------------------------------------------
-# Step 4: Create buildx builder with docker-container driver
+# Step 3: Create buildx builder with docker-container driver
 #
 # The pkgs build uses bldr (BuildKit frontend) which requires the mergeop
 # feature. This is only available with the docker-container driver, not the
@@ -155,7 +125,7 @@ BUILDER_NAME="talos-kernel-builder"
 
 if ! docker buildx inspect "${BUILDER_NAME}" &>/dev/null; then
   echo ""
-  echo ">>> Step 4: Creating buildx builder: ${BUILDER_NAME}"
+  echo ">>> Step 3: Creating buildx builder: ${BUILDER_NAME}"
 
   # BuildKit config: allow pushing to HTTP (insecure) local registry
   BUILDKIT_CFG="${WORK_DIR}/buildkitd.toml"
@@ -173,17 +143,17 @@ TOML
     --config "${BUILDKIT_CFG}"
 else
   echo ""
-  echo ">>> Step 4: Using existing buildx builder: ${BUILDER_NAME}"
+  echo ">>> Step 3: Using existing buildx builder: ${BUILDER_NAME}"
   docker buildx use "${BUILDER_NAME}"
 fi
 
 # ---------------------------------------------------------------------------
-# Step 5: Resolve config dependencies via olddefconfig
+# Step 4: Resolve config dependencies via olddefconfig
 #
 # Without this, options with unmet dependencies are silently dropped.
 # ---------------------------------------------------------------------------
 echo ""
-echo ">>> Step 5: kernel-olddefconfig (resolve dependencies)"
+echo ">>> Step 4: kernel-olddefconfig (resolve dependencies)"
 
 (cd "${PKGS_DIR}" && make kernel-olddefconfig)
 
@@ -191,12 +161,12 @@ echo "    Post-olddefconfig verification:"
 grep -E 'FS_ENCRYPTION' "${CONFIG_FILE}" | sed 's/^/      /'
 
 # ---------------------------------------------------------------------------
-# Step 6: Build custom kernel and push to build registry
+# Step 5: Build custom kernel and push to build registry
 #
 # Creates: ${REGISTRY}/siderolabs/kernel:${TAG}
 # ---------------------------------------------------------------------------
 echo ""
-echo ">>> Step 6: Build custom kernel → ${REGISTRY} (this takes a while)"
+echo ">>> Step 5: Build custom kernel → ${REGISTRY} (this takes a while)"
 
 (cd "${PKGS_DIR}" && make kernel \
   REGISTRY="${REGISTRY}" \
@@ -236,13 +206,13 @@ echo "    Kernel image: ${KERNEL_IMAGE}"
 # ===========================================================================
 
 # ---------------------------------------------------------------------------
-# Step 7: Build kernel + initramfs with custom kernel
+# Step 6: Build kernel + initramfs with custom kernel
 #
 # This repackages our custom kernel into Talos boot artifacts.
 # Output: _out/vmlinuz-${ARCH} and _out/initramfs-${ARCH}.xz
 # ---------------------------------------------------------------------------
 echo ""
-echo ">>> Step 7: Build kernel + initramfs"
+echo ">>> Step 6: Build kernel + initramfs"
 
 (cd "${TALOS_DIR}" && make kernel initramfs \
   PKG_KERNEL="${KERNEL_IMAGE}" \
@@ -252,7 +222,7 @@ echo "    Output:"
 ls -lh "${TALOS_DIR}/_out/vmlinuz-${ARCH}" "${TALOS_DIR}/_out/initramfs-${ARCH}.xz" 2>/dev/null | sed 's/^/      /'
 
 # ---------------------------------------------------------------------------
-# Step 8: Build imager with custom kernel
+# Step 7: Build imager with custom kernel
 #
 # The imager is a container that generates Talos boot assets (ISO,
 # disk images). The kernel is bundled into the imager at
@@ -260,7 +230,7 @@ ls -lh "${TALOS_DIR}/_out/vmlinuz-${ARCH}" "${TALOS_DIR}/_out/initramfs-${ARCH}.
 # custom kernel.
 # ---------------------------------------------------------------------------
 echo ""
-echo ">>> Step 8: Build imager → ${REGISTRY}"
+echo ">>> Step 7: Build imager → ${REGISTRY}"
 
 (cd "${TALOS_DIR}" && make imager \
   PKG_KERNEL="${KERNEL_IMAGE}" \
@@ -274,13 +244,13 @@ echo ">>> Step 8: Build imager → ${REGISTRY}"
 # ===========================================================================
 
 # ---------------------------------------------------------------------------
-# Step 9: Push custom imager to output registry
+# Step 8: Push custom imager to output registry
 #
 # The imager contains the custom kernel and is needed by the cloud-image
 # workflow to produce disk images with the fscrypt-enabled kernel.
 # ---------------------------------------------------------------------------
 echo ""
-echo ">>> Step 9: Push imager → ${IMAGER_IMAGE}"
+echo ">>> Step 8: Push imager → ${IMAGER_IMAGE}"
 
 IMAGER_TAG=""
 if [[ "${REGISTRY}" == 127.0.0.1:* ]]; then

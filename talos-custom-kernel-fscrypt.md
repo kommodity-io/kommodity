@@ -88,17 +88,21 @@ The script installs Docker, crane, and jq; logs in to GHCR (using
 
 ### `scripts/build-talos-fscrypt-imager.sh` — Step by Step
 
+Caller responsibilities (script does NOT do these — workflow / VM owner
+must set up): install Docker + buildx, write `/etc/docker/daemon.json`
+with `nofile` / `memlock` ulimits, `docker login ghcr.io`, install
+`crane` and `jq`.
+
 | Step | What                                | Make target / Command                                           |
 | ---- | ----------------------------------- | --------------------------------------------------------------- |
-| 1    | Setup                               | Installs Docker, crane, jq; logs into GHCR via `GITHUB_TOKEN`   |
-| 2    | Start local registry                | `docker run registry:2` on `127.0.0.1:5005`                     |
-| 3    | Patch `kernel/build/config-${ARCH}` | Enables `CONFIG_FS_ENCRYPTION=y`                                |
-| 4    | Create buildx builder               | `docker-container` driver (required by `bldr` mergeop)          |
-| 5    | `make kernel-olddefconfig`          | Resolves Kconfig dependencies                                   |
-| 6    | `make kernel PUSH=true`             | Builds kernel in `pkgs`, pushes to local registry               |
-| 7    | `make kernel initramfs`             | Repackages custom kernel into Talos boot artifacts              |
-| 8    | `make imager PUSH=true`             | **Imager container with custom kernel** (local registry)        |
-| 9    | Crane copy to GHCR                  | `ghcr.io/kommodity-io/kommodity-talos-imager-fscrypt:<version>` |
+| 1    | Start local registry                | `docker run registry:2` on `127.0.0.1:5005`                     |
+| 2    | Patch `kernel/build/config-${ARCH}` | Enables `CONFIG_FS_ENCRYPTION=y`                                |
+| 3    | Create buildx builder               | `docker-container` driver (required by `bldr` mergeop)          |
+| 4    | `make kernel-olddefconfig`          | Resolves Kconfig dependencies                                   |
+| 5    | `make kernel PUSH=true`             | Builds kernel in `pkgs`, pushes to local registry               |
+| 6    | `make kernel initramfs`             | Repackages custom kernel into Talos boot artifacts              |
+| 7    | `make imager PUSH=true`             | **Imager container with custom kernel** (local registry)        |
+| 8    | Crane copy to GHCR                  | `ghcr.io/kommodity-io/kommodity-talos-imager-fscrypt:<version>` |
 
 Required env vars: `PKGS_DIR`, `TALOS_DIR`, `GITHUB_TOKEN`.
 Optional: `REGISTRY` (default `127.0.0.1:5005`), `OUTPUT_REGISTRY`

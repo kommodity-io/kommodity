@@ -10,7 +10,7 @@ on:
         type: string
       platform:
         description: "Target platform"
-        required: false
+        required: true
         default: "linux/amd64"
         type: choice
         options:
@@ -42,6 +42,29 @@ jobs:
           sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /opt/hostedtoolcache/CodeQL >/dev/null 2>&1 || true
           sudo docker system prune -af || true
 
+      - name: Configure Docker daemon
+        run: |
+          sudo tee /etc/docker/daemon.json > /dev/null << 'EOF'
+          {
+            "storage-driver": "overlay2",
+            "default-ulimits": {
+              "nofile":  {"name": "nofile",  "soft": 1048576, "hard": 1048576},
+              "memlock": {"name": "memlock", "soft": -1,      "hard": -1}
+            }
+          }
+          EOF
+          sudo systemctl restart docker
+
+      - name: Log in to GHCR
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install crane
+        uses: imjasonh/setup-crane@31b88efe9de28ae0ffa220711af4b60be9435f6e # v0.4
+
       - name: Compute pkgs branch
         id: refs
         run: |
@@ -69,15 +92,11 @@ jobs:
 
       - name: Run build script
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_ACTOR: ${{ github.actor }}
           OUTPUT_REGISTRY: ${{ env.OUTPUT_REGISTRY }}
           PLATFORM: ${{ inputs.platform }}
           PKGS_DIR: ${{ github.workspace }}/_deps/pkgs
           TALOS_DIR: ${{ github.workspace }}/_deps/talos
-        run: |
-          sudo --preserve-env=GITHUB_TOKEN,GITHUB_ACTOR,OUTPUT_REGISTRY,PLATFORM,PKGS_DIR,TALOS_DIR \
-            ./scripts/build-talos-fscrypt-imager.sh "${{ inputs.talos_version }}"
+        run: ./scripts/build-talos-fscrypt-imager.sh "${{ inputs.talos_version }}"
 
       - name: Summary
         if: always()
