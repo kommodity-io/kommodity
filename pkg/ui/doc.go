@@ -6,5 +6,5 @@
 // @version     0.1.0
 // @description API endpoints for Kommodity UI.
 // @schemes     https
-// @BasePath    /api
+// @BasePath    /
 package ui

@@ -9,7 +9,7 @@
         "contact": {},
         "version": "0.1.0"
     },
-    "basePath": "/api",
+    "basePath": "/",
     "paths": {
         "/api/cluster/{clusterName}/health": {
             "get": {

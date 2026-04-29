@@ -1,4 +1,4 @@
-basePath: /api
+basePath: /
 definitions:
   api.ClusterHealthResponse:
     properties:

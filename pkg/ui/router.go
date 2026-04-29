@@ -170,8 +170,6 @@ func (r *Router) handleApp(writer http.ResponseWriter, req *http.Request) {
 // @Router   /api/info [get]
 //
 // handleInfo returns basic system information such as version.
-//
-// handleInfo returns system information as JSON.
 func (r *Router) handleInfo(writer http.ResponseWriter, _ *http.Request) {
 	info := map[string]string{
 		"version": getKommodityVersion(),
