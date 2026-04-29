@@ -161,6 +161,16 @@ func (r *Router) handleApp(writer http.ResponseWriter, req *http.Request) {
 	}
 }
 
+// handleInfo godoc
+// @Summary  Obtain Kommodity system information
+// @Tags     UI, Info
+// @Success  200  {object}  map[string]string
+// @Failure  500  {object}  string   "If there is a server error"
+// @Produce  json
+// @Router   /api/info [get]
+//
+// handleInfo returns basic system information such as version.
+//
 // handleInfo returns system information as JSON.
 func (r *Router) handleInfo(writer http.ResponseWriter, _ *http.Request) {
 	info := map[string]string{
