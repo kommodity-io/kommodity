@@ -2,6 +2,7 @@ package ui
 
 import (
 	"embed"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"html/template"
@@ -88,6 +89,7 @@ func (r *Router) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /app/clusters/{clusterName}", r.handleClusterDetail)
 
 	// API routes
+	mux.HandleFunc("GET /api/info", r.handleInfo)
 	mux.HandleFunc("GET /api/cluster/{clusterName}/health", api.GetClusterHealth(r.cfg, r.logger))
 }
 
@@ -156,6 +158,23 @@ func (r *Router) handleApp(writer http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		r.logger.Error("failed to render page", zap.Error(err))
 		http.Error(writer, "Failed to render page", http.StatusInternalServerError)
+	}
+}
+
+// handleInfo returns system information as JSON.
+func (r *Router) handleInfo(writer http.ResponseWriter, _ *http.Request) {
+	info := map[string]string{
+		"version": getKommodityVersion(),
+	}
+
+	writer.Header().Set("Content-Type", "application/json")
+
+	err := json.NewEncoder(writer).Encode(info)
+	if err != nil {
+		r.logger.Error("failed to encode info response", zap.Error(err))
+		http.Error(writer, "Failed to encode response", http.StatusInternalServerError)
+
+		return
 	}
 }
 
