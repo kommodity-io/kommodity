@@ -61,5 +61,5 @@ paths:
       - UI
       - Info
 schemes:
-- http
+- https
 swagger: "2.0"
