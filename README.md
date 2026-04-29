@@ -149,7 +149,7 @@ Kommodity natively supports Kubernetes audit policy format documented here: http
 
 ### Talos Proxy
 
-When Kommodity manages clusters deployed on private networks, the TalosControlPlane reconciler cannot reach Talos nodes on their private IPs (port 50000). The Talos Proxy runs a local HTTP CONNECT proxy that intercepts these outbound gRPC connections and tunnels them through a Kubernetes port-forward to a `talos-cluster-proxy` pod running inside the workload cluster.
+When Kommodity manages clusters deployed on private networks, the TalosControlPlane reconciler cannot reach Talos nodes on their private IPs (port 50000). Kommodity solves this by running a local HTTP CONNECT proxy that intercepts these outbound gRPC connections and tunnels them through a Kubernetes port-forward to a `talos-cluster-proxy` pod running inside the workload cluster.
 
 **How it works:**
 
@@ -158,8 +158,6 @@ When Kommodity manages clusters deployed on private networks, the TalosControlPl
 3. On CONNECT, the proxy looks up the target IP in the CIDR registry and establishes a port-forward tunnel to the `talos-cluster-proxy` pod in the matching workload cluster
 4. Traffic is forwarded bidirectionally — mTLS between Kommodity and the Talos node passes through end-to-end
 5. Non-matching traffic (API server, etc.) passes through directly with minimal overhead
-
-The approach is fully platform-independent — no `NET_ADMIN` capability or nftables is required.
 
 More info in package [documentation](pkg/talosproxy/README.md).
 
