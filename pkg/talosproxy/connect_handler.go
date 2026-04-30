@@ -186,6 +186,11 @@ func (h *ConnectHandler) dialTunnel(
 			h.logger.Debug("Failed to close tunnel connection after CONNECT handshake failure", zap.Error(closeErr))
 		}
 
+		// Inner CONNECT handshake failure usually means the proxy pod is dead or
+		// terminating. Drop the tunnel so the next request rebuilds against a
+		// fresh pod instead of hammering the broken one for the idle-timeout window.
+		h.tunnelPool.RemoveTunnel(entry.ClusterName)
+
 		return nil, fmt.Errorf("failed to establish CONNECT tunnel: %w", err)
 	}
 

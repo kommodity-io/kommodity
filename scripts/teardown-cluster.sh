@@ -12,6 +12,17 @@ KUBECTL="kubectl --context=${KUBE_CONTEXT}"
 HELM="helm --kube-context=${KUBE_CONTEXT}"
 
 echo "🗑️ Tearing down cluster: $CLUSTER_NAME"
+echo "   Context: ${KUBE_CONTEXT}"
+echo "   This will run: ${HELM} uninstall ${CLUSTER_NAME}"
+read -r -p "Proceed with helm uninstall? [y/N] " confirm
+case "${confirm}" in
+  y) ;;
+  *)
+    echo "❌ Aborted by user."
+    exit 1
+    ;;
+esac
+
 ${HELM} uninstall "${CLUSTER_NAME}"
 
 # Wait for machines to be deleted

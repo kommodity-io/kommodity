@@ -24,14 +24,15 @@ func TestSetProxyEnv_SetsVariables(t *testing.T) {
 	assert.Contains(t, os.Getenv("NO_PROXY"), "127.0.0.0/8")
 }
 
-func TestSetProxyEnv_DoesNotOverrideExisting(t *testing.T) {
+func TestSetProxyEnv_ErrorsWhenAlreadySet(t *testing.T) {
 	t.Setenv("HTTPS_PROXY", "http://corporate-proxy:8080")
 	t.Setenv("NO_PROXY", "")
 
 	logger := zap.NewNop()
 
 	err := talosproxy.SetProxyEnv(logger, "127.0.0.1:12345")
-	require.NoError(t, err)
+	require.Error(t, err)
+	require.ErrorIs(t, err, talosproxy.ErrProxyAlreadyConfigured)
 
 	assert.Equal(t, "http://corporate-proxy:8080", os.Getenv("HTTPS_PROXY"))
 }

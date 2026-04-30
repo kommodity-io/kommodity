@@ -20,16 +20,17 @@ const (
 // so that the Talos client's DynamicProxyDialer routes connections through the
 // local HTTP CONNECT proxy.
 //
-// If HTTPS_PROXY is already set (e.g., corporate proxy), a warning is logged
-// and the existing value is NOT overridden.
+// If HTTPS_PROXY is already set (e.g., corporate proxy), an error is returned
+// because routing through a non-Kommodity proxy will silently break Talos
+// connectivity at runtime; failing fast at startup makes this visible.
 func SetProxyEnv(logger *zap.Logger, listenAddr string) error {
 	existing := os.Getenv(envHTTPSProxy)
 	if existing != "" {
-		logger.Warn("HTTPS_PROXY is already set, not overriding — Talos proxy routing may not work",
+		logger.Error("HTTPS_PROXY is already set; refusing to override — Talos proxy routing would not work",
 			zap.String("existingValue", existing),
 			zap.String("desiredValue", listenAddr))
 
-		return nil
+		return fmt.Errorf("%w: existing=%q desired=%q", ErrProxyAlreadyConfigured, existing, listenAddr)
 	}
 
 	proxyURL := "http://" + listenAddr

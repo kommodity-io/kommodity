@@ -74,7 +74,7 @@ func (p *TunnelPool) GetOrCreateTunnel(
 		if exists {
 			p.cancelIdleTimerLocked(clusterName)
 
-			_ = tunnel.Close()
+			p.closeTunnelLogged(clusterName, tunnel)
 
 			delete(p.tunnels, clusterName)
 		}
@@ -125,7 +125,7 @@ func (p *TunnelPool) RemoveTunnel(clusterName string) {
 		return
 	}
 
-	_ = tunnel.Close()
+	p.closeTunnelLogged(clusterName, tunnel)
 
 	delete(p.tunnels, clusterName)
 }
@@ -141,8 +141,8 @@ func (p *TunnelPool) CloseAll() {
 
 	p.idleTimers = make(map[string]*time.Timer)
 
-	for _, tunnel := range p.tunnels {
-		_ = tunnel.Close()
+	for clusterName, tunnel := range p.tunnels {
+		p.closeTunnelLogged(clusterName, tunnel)
 	}
 
 	p.tunnels = make(map[string]*Tunnel)
@@ -209,12 +209,24 @@ func (p *TunnelPool) closeIdleTunnel(clusterName string) {
 		return
 	}
 
-	_ = tunnel.Close()
+	p.closeTunnelLogged(clusterName, tunnel)
 
 	delete(p.tunnels, clusterName)
 
 	p.logger.Info("Closed idle tunnel",
 		zap.String("cluster", clusterName))
+}
+
+// closeTunnelLogged closes a tunnel and logs any error returned by Close.
+// Close is currently always nil-returning, but wrapping here keeps future
+// non-nil returns from being silently swallowed.
+func (p *TunnelPool) closeTunnelLogged(clusterName string, tunnel *Tunnel) {
+	err := tunnel.Close()
+	if err != nil {
+		p.logger.Warn("Failed to close tunnel",
+			zap.String("cluster", clusterName),
+			zap.Error(err))
+	}
 }
 
 // cancelIdleTimerLocked stops and removes the idle timer for the given cluster.

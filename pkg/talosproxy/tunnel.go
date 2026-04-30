@@ -169,14 +169,20 @@ func (t *Tunnel) Close() error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
+	t.markClosedLocked()
+
+	return nil
+}
+
+// markClosedLocked marks the tunnel as closed and signals the port-forward
+// goroutine to exit by closing stopChan. Idempotent. Caller must hold t.mu.
+func (t *Tunnel) markClosedLocked() {
 	if t.closed {
-		return nil
+		return
 	}
 
 	t.closed = true
 	close(t.stopChan)
-
-	return nil
 }
 
 // monitorPortForward watches for the port-forward goroutine to exit and marks
@@ -192,8 +198,15 @@ func (t *Tunnel) monitorPortForward(errChan <-chan error, logger *zap.Logger) {
 		return
 	}
 
-	t.closed = true
-	close(t.stopChan)
+	t.markClosedLocked()
+
+	if err == nil {
+		logger.Info("Port-forward terminated cleanly",
+			zap.String("cluster", t.clusterName),
+			zap.String("pod", t.podName))
+
+		return
+	}
 
 	logger.Warn("Port-forward terminated unexpectedly",
 		zap.String("cluster", t.clusterName),
@@ -384,8 +397,12 @@ func (t *Tunnel) waitForPortForward(
 	case <-forwarder.Ready:
 		// Port-forward is ready
 	case err := <-errChan:
+		t.markClosedLocked()
+
 		return 0, fmt.Errorf("port-forward failed: %w", err)
 	case <-ctx.Done():
+		t.markClosedLocked()
+
 		return 0, fmt.Errorf("context cancelled while waiting for port-forward: %w", ctx.Err())
 	}
 
@@ -395,10 +412,14 @@ func (t *Tunnel) waitForPortForward(
 
 	forwardedPorts, err := forwarder.GetPorts()
 	if err != nil {
+		t.markClosedLocked()
+
 		return 0, fmt.Errorf("failed to get forwarded ports: %w", err)
 	}
 
 	if len(forwardedPorts) == 0 {
+		t.markClosedLocked()
+
 		return 0, ErrNoForwardedPorts
 	}
 

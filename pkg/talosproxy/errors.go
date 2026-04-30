@@ -12,6 +12,8 @@ var (
 	ErrTunnelNotReady = errors.New("tunnel is not ready")
 	// ErrTunnelClosed is returned when the tunnel has been closed.
 	ErrTunnelClosed = errors.New("tunnel is closed")
+	// ErrProxyAlreadyConfigured is returned when HTTPS_PROXY is already set and cannot be overridden.
+	ErrProxyAlreadyConfigured = errors.New("HTTPS_PROXY is already set")
 	// ErrKubeconfigNotFound is returned when the kubeconfig secret for a cluster cannot be found.
 	ErrKubeconfigNotFound = errors.New("kubeconfig secret not found")
 	// ErrProxyPodNotFound is returned when no talos-cluster-proxy pod is found in the workload cluster.
