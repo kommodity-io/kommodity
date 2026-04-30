@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -15,58 +14,14 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-// ClusterHealthResponse godoc
 // ClusterHealthResponse holds the health status of a cluster.
 type ClusterHealthResponse struct {
 	Healthy bool   `json:"healthy"`
 	Reason  string `json:"reason,omitempty"`
 }
 
-// GetClusterHealth godoc
-// @Summary  Checks the health of a cluster by accessing its /livez endpoint.
-// @Tags     UI, Info, Health
-// @Param    clusterName  path  string  true  "Name of the cluster to check health for"
-// @Success  200  {object}  ClusterHealthResponse
-// @Failure  400  {object}  string   "If the cluster name is missing or invalid"
-// @Failure  500  {object}  string   "If there is a server error"
-// @Produce  json
-// @Router   /api/cluster/{clusterName}/health [get]
-//
-// GetClusterHealth returns basic health information for a specific cluster.
-func GetClusterHealth(
-	cfg *config.KommodityConfig,
-	logger *zap.Logger,
-) http.HandlerFunc {
-	return func(writer http.ResponseWriter, request *http.Request) {
-		ctx := request.Context()
-		clusterName := request.PathValue("clusterName")
-
-		if clusterName == "" {
-			http.Error(writer, "Cluster name is required", http.StatusBadRequest)
-
-			return
-		}
-
-		// Get cluster kubeconfig
-		kubeconfigBytes, err := getClusterKubeconfigBytes(ctx, cfg, clusterName)
-		if err != nil {
-			logger.Warn("Failed to get cluster kubeconfig for health check",
-				zap.String("cluster", clusterName),
-				zap.Error(err),
-			)
-			http.Error(writer, "Unable to retrieve cluster configuration", http.StatusInternalServerError)
-
-			return
-		}
-
-		// Check cluster health
-		healthy, reason := checkClusterLivez(ctx, kubeconfigBytes, logger)
-		writeHealthResponse(writer, healthy, reason)
-	}
-}
-
-// getClusterKubeconfigBytes retrieves the raw kubeconfig bytes for a cluster.
-func getClusterKubeconfigBytes(
+// GetClusterKubeconfigBytes retrieves the raw kubeconfig bytes for a cluster.
+func GetClusterKubeconfigBytes(
 	ctx context.Context,
 	cfg *config.KommodityConfig,
 	clusterName string,
@@ -94,8 +49,8 @@ func getClusterKubeconfigBytes(
 	return kubeconfigBytes, nil
 }
 
-// checkClusterLivez checks the /livez endpoint of a cluster.
-func checkClusterLivez(
+// CheckClusterLivez checks the /livez endpoint of a cluster.
+func CheckClusterLivez(
 	ctx context.Context,
 	kubeconfigBytes []byte,
 	logger *zap.Logger,
@@ -196,19 +151,4 @@ func executeLivezCheck(
 	}
 
 	return false, reason
-}
-
-// writeHealthResponse writes a ClusterHealthResponse to the HTTP response.
-func writeHealthResponse(writer http.ResponseWriter, healthy bool, reason string) {
-	response := ClusterHealthResponse{
-		Healthy: healthy,
-		Reason:  reason,
-	}
-
-	writer.Header().Set("Content-Type", "application/json")
-
-	err := json.NewEncoder(writer).Encode(response)
-	if err != nil {
-		http.Error(writer, "Failed to encode response", http.StatusInternalServerError)
-	}
 }
