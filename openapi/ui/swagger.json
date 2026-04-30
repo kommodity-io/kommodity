@@ -123,8 +123,14 @@
                 "chart": {
                     "$ref": "#/definitions/api.ChartInfo"
                 },
+                "kubernetes": {
+                    "$ref": "#/definitions/api.KubernetesInfo"
+                },
                 "name": {
                     "type": "string"
+                },
+                "talos": {
+                    "$ref": "#/definitions/api.TalosInfo"
                 }
             }
         },
@@ -146,6 +152,22 @@
                     "type": "boolean"
                 },
                 "reason": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.KubernetesInfo": {
+            "type": "object",
+            "properties": {
+                "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.TalosInfo": {
+            "type": "object",
+            "properties": {
+                "version": {
                     "type": "string"
                 }
             }

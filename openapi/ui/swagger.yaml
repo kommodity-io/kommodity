@@ -9,8 +9,12 @@ definitions:
     properties:
       chart:
         $ref: '#/definitions/api.ChartInfo'
+      kubernetes:
+        $ref: '#/definitions/api.KubernetesInfo'
       name:
         type: string
+      talos:
+        $ref: '#/definitions/api.TalosInfo'
     type: object
   api.ClusterAPIResponse:
     properties:
@@ -24,6 +28,16 @@ definitions:
       healthy:
         type: boolean
       reason:
+        type: string
+    type: object
+  api.KubernetesInfo:
+    properties:
+      version:
+        type: string
+    type: object
+  api.TalosInfo:
+    properties:
+      version:
         type: string
     type: object
 info:

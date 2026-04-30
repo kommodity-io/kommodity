@@ -5,10 +5,22 @@ type ChartInfo struct {
 	Version string `json:"version"`
 }
 
+// KubernetesInfo represents the Kubernetes information for a cluster.
+type KubernetesInfo struct {
+	Version string `json:"version"`
+}
+
+// TalosInfo represents the Talos information for a cluster.
+type TalosInfo struct {
+	Version string `json:"version"`
+}
+
 // ClusterAPIItem represents a single cluster in the API response.
 type ClusterAPIItem struct {
-	Name  string    `json:"name"`
-	Chart ChartInfo `json:"chart"`
+	Name       string         `json:"name"`
+	Chart      ChartInfo      `json:"chart"`
+	Kubernetes KubernetesInfo `json:"kubernetes"`
+	Talos      TalosInfo      `json:"talos"`
 }
 
 // ClusterAPIResponse represents the response for the clusters API endpoint.
@@ -25,6 +37,12 @@ func TransformClusterInfoToAPI(clusterInfos []ClusterInfo) ClusterAPIResponse {
 			Name: info.Name,
 			Chart: ChartInfo{
 				Version: info.ChartVersion,
+			},
+			Kubernetes: KubernetesInfo{
+				Version: info.KubernetesVersion,
+			},
+			Talos: TalosInfo{
+				Version: info.TalosVersion,
 			},
 		})
 	}
