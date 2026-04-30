@@ -1,5 +1,3 @@
 {{- define "kommodity.talos.proxy.disable" -}}
-- op: add
-  path: /cluster/proxy/disabled
-  value: true
+{"cluster":{"proxy":{"disabled":true}}}
 {{- end}}

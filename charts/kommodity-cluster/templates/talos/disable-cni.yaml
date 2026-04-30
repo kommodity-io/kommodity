@@ -1,6 +1,3 @@
 {{- define "kommodity.talos.cni.disable" -}}
-- op: add
-  path: /cluster/network/cni
-  value:
-    name: none
+{"cluster":{"network":{"cni":{"name":"none"}}}}
 {{- end}}

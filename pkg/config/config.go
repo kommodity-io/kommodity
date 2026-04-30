@@ -43,6 +43,18 @@ const (
 	envKineURI                 = "KOMMODITY_KINE_URI"
 	envInfrastructureProviders = "KOMMODITY_INFRASTRUCTURE_PROVIDERS"
 	envAuditPolicyFilePath     = "KOMMODITY_AUDIT_POLICY_FILE_PATH"
+
+	envTalosProxyEnabled     = "KOMMODITY_TALOS_PROXY_ENABLED"
+	envTalosProxyPort        = "KOMMODITY_TALOS_PROXY_PORT"
+	envTalosProxyNamespace   = "KOMMODITY_TALOS_PROXY_NAMESPACE"
+	envTalosProxyServiceName = "KOMMODITY_TALOS_PROXY_SERVICE_NAME"
+	envTalosProxyIdleTimeout = "KOMMODITY_TALOS_PROXY_IDLE_TIMEOUT"
+
+	defaultTalosProxyEnabled     = true
+	defaultTalosProxyPort        = 15050
+	defaultTalosProxyNamespace   = "talos-cluster-proxy"
+	defaultTalosProxyServiceName = "talos-cluster-proxy"
+	defaultTalosProxyIdleTimeout = 1 * time.Minute
 )
 
 const (
@@ -60,9 +72,19 @@ type KommodityConfig struct {
 	AttestationConfig       *AttestationConfig
 	AuthConfig              *AuthConfig
 	ClientConfig            *ClientConfig
+	TalosProxyConfig        *TalosProxyConfig
 	AuditPolicyFilePath     string
 	DevelopmentMode         bool
 	InfrastructureProviders []Provider
+}
+
+// TalosProxyConfig holds the configuration for the transparent Talos gRPC proxy.
+type TalosProxyConfig struct {
+	Enabled          bool
+	ListenPort       int
+	ProxyNamespace   string
+	ProxyServiceName string
+	IdleTimeout      time.Duration
 }
 
 // AuthConfig holds the authentication configuration settings for the Kommodity API server.
@@ -111,6 +133,8 @@ func LoadConfig(ctx context.Context) (*KommodityConfig, error) {
 		return nil, fmt.Errorf("failed to get database URI: %w", err)
 	}
 
+	talosProxyConfig := getTalosProxyConfig(ctx)
+
 	return &KommodityConfig{
 		BaseURL:             baseURL,
 		ServerPort:          serverPort,
@@ -126,6 +150,7 @@ func LoadConfig(ctx context.Context) (*KommodityConfig, error) {
 			AdminGroup: adminGroup,
 		},
 		ClientConfig:            &ClientConfig{},
+		TalosProxyConfig:        talosProxyConfig,
 		DevelopmentMode:         developmentMode,
 		InfrastructureProviders: infrastructureProviders,
 	}, nil
@@ -375,4 +400,119 @@ func getAuditPolicyFilePath(ctx context.Context) string {
 	}
 
 	return policyFilePath
+}
+
+func getTalosProxyConfig(ctx context.Context) *TalosProxyConfig {
+	return &TalosProxyConfig{
+		Enabled:          getTalosProxyEnabled(ctx),
+		ListenPort:       getTalosProxyPort(ctx),
+		ProxyNamespace:   getTalosProxyNamespace(ctx),
+		ProxyServiceName: getTalosProxyServiceName(ctx),
+		IdleTimeout:      getTalosProxyIdleTimeout(ctx),
+	}
+}
+
+func getTalosProxyEnabled(ctx context.Context) bool {
+	logger := logging.FromContext(ctx)
+
+	enabled := os.Getenv(envTalosProxyEnabled)
+	if enabled == "" {
+		logger.Info(configurationNotSpecified,
+			zap.String("envVar", envTalosProxyEnabled),
+			zap.Bool("default", defaultTalosProxyEnabled))
+
+		return defaultTalosProxyEnabled
+	}
+
+	enabledBool, err := strconv.ParseBool(enabled)
+	if err != nil {
+		logger.Info("failed to convert talos proxy enabled to boolean",
+			zap.String("envVar", envTalosProxyEnabled),
+			zap.String("value", enabled),
+			zap.Bool("default", defaultTalosProxyEnabled))
+
+		return defaultTalosProxyEnabled
+	}
+
+	return enabledBool
+}
+
+func getTalosProxyPort(ctx context.Context) int {
+	logger := logging.FromContext(ctx)
+
+	port := os.Getenv(envTalosProxyPort)
+	if port == "" {
+		logger.Info(configurationNotSpecified,
+			zap.String("envVar", envTalosProxyPort),
+			zap.Int("default", defaultTalosProxyPort))
+
+		return defaultTalosProxyPort
+	}
+
+	portInt, err := strconv.Atoi(port)
+	if err != nil {
+		logger.Info("failed to convert talos proxy port to integer",
+			zap.String("envVar", envTalosProxyPort),
+			zap.String("value", port),
+			zap.Int("default", defaultTalosProxyPort))
+
+		return defaultTalosProxyPort
+	}
+
+	return portInt
+}
+
+func getTalosProxyNamespace(ctx context.Context) string {
+	logger := logging.FromContext(ctx)
+
+	namespace := os.Getenv(envTalosProxyNamespace)
+	if namespace == "" {
+		logger.Info(configurationNotSpecified,
+			zap.String("envVar", envTalosProxyNamespace),
+			zap.String("default", defaultTalosProxyNamespace))
+
+		return defaultTalosProxyNamespace
+	}
+
+	return namespace
+}
+
+func getTalosProxyServiceName(ctx context.Context) string {
+	logger := logging.FromContext(ctx)
+
+	name := os.Getenv(envTalosProxyServiceName)
+	if name == "" {
+		logger.Info(configurationNotSpecified,
+			zap.String("envVar", envTalosProxyServiceName),
+			zap.String("default", defaultTalosProxyServiceName))
+
+		return defaultTalosProxyServiceName
+	}
+
+	return name
+}
+
+func getTalosProxyIdleTimeout(ctx context.Context) time.Duration {
+	logger := logging.FromContext(ctx)
+
+	idleTimeout := os.Getenv(envTalosProxyIdleTimeout)
+	if idleTimeout == "" {
+		logger.Info(configurationNotSpecified,
+			zap.String("envVar", envTalosProxyIdleTimeout),
+			zap.String("default", defaultTalosProxyIdleTimeout.String()))
+
+		return defaultTalosProxyIdleTimeout
+	}
+
+	duration, err := time.ParseDuration(idleTimeout)
+	if err != nil {
+		logger.Info("failed to parse talos proxy idle timeout",
+			zap.String("envVar", envTalosProxyIdleTimeout),
+			zap.String("value", idleTimeout),
+			zap.String("default", defaultTalosProxyIdleTimeout.String()))
+
+		return defaultTalosProxyIdleTimeout
+	}
+
+	return duration
 }
