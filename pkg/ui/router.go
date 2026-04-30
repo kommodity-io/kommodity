@@ -86,11 +86,12 @@ func NewRouter(
 // RegisterRoutes registers all UI routes.
 func (r *Router) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /ui", r.handleApp)
-	mux.HandleFunc("GET /app/clusters/{clusterName}", r.handleClusterDetail)
+	mux.HandleFunc("GET /ui/clusters/{clusterName}", r.handleClusterDetail)
 
 	// API routes
 	mux.HandleFunc("GET /api/info", r.handleInfo)
-	mux.HandleFunc("GET /api/cluster/{clusterName}/health", api.GetClusterHealth(r.cfg, r.logger))
+	mux.HandleFunc("GET /api/clusters", r.handleClusters)
+	mux.HandleFunc("GET /api/cluster/{clusterName}/health", r.handleClusterHealth)
 }
 
 // handleApp renders the dashboard page.
@@ -180,6 +181,105 @@ func (r *Router) handleInfo(writer http.ResponseWriter, _ *http.Request) {
 	err := json.NewEncoder(writer).Encode(info)
 	if err != nil {
 		r.logger.Error("failed to encode info response", zap.Error(err))
+		http.Error(writer, "Failed to encode response", http.StatusInternalServerError)
+
+		return
+	}
+}
+
+// handleClusters godoc
+// @Summary  List all clusters with their chart versions
+// @Tags     Clusters
+// @Success  200  {object}  api.ClusterAPIResponse
+// @Failure  500  {object}  string   "If there is a server error"
+// @Produce  json
+// @Router   /api/clusters [get]
+//
+// handleClusters returns a list of all clusters with their chart versions.
+func (r *Router) handleClusters(writer http.ResponseWriter, req *http.Request) {
+	ctx := req.Context()
+
+	client, err := r.getClient()
+	if err != nil {
+		r.logger.Error("failed to get controller-runtime client", zap.Error(err))
+		http.Error(writer, "Failed to initialize Kubernetes client", http.StatusInternalServerError)
+
+		return
+	}
+
+	kubeClient, err := r.getKubeClient()
+	if err != nil {
+		r.logger.Error("failed to get kubernetes client", zap.Error(err))
+		http.Error(writer, "Failed to connect to Kubernetes", http.StatusInternalServerError)
+
+		return
+	}
+
+	clusterInfos, err := api.GetClusterList(ctx, client, kubeClient)
+	if err != nil {
+		r.logger.Error("failed to get cluster list", zap.Error(err))
+		http.Error(writer, "Failed to load cluster list", http.StatusInternalServerError)
+
+		return
+	}
+
+	response := api.TransformClusterInfoToAPI(clusterInfos)
+
+	writer.Header().Set("Content-Type", "application/json")
+
+	err = json.NewEncoder(writer).Encode(response)
+	if err != nil {
+		r.logger.Error("failed to encode clusters response", zap.Error(err))
+		http.Error(writer, "Failed to encode response", http.StatusInternalServerError)
+
+		return
+	}
+}
+
+// handleClusterHealth godoc
+// @Summary  Checks the health of a cluster by accessing its /livez endpoint
+// @Tags     UI, Info, Health
+// @Param    clusterName  path  string  true  "Name of the cluster to check health for"
+// @Success  200  {object}  api.ClusterHealthResponse
+// @Failure  400  {object}  string   "If the cluster name is missing or invalid"
+// @Failure  500  {object}  string   "If there is a server error"
+// @Produce  json
+// @Router   /api/cluster/{clusterName}/health [get]
+//
+// handleClusterHealth returns health information for a specific cluster.
+func (r *Router) handleClusterHealth(writer http.ResponseWriter, req *http.Request) {
+	ctx := req.Context()
+	clusterName := req.PathValue("clusterName")
+
+	if clusterName == "" {
+		http.Error(writer, "Cluster name is required", http.StatusBadRequest)
+
+		return
+	}
+
+	kubeconfigBytes, err := api.GetClusterKubeconfigBytes(ctx, r.cfg, clusterName)
+	if err != nil {
+		r.logger.Warn("failed to get cluster kubeconfig for health check",
+			zap.String("cluster", clusterName),
+			zap.Error(err),
+		)
+		http.Error(writer, "Unable to retrieve cluster configuration", http.StatusInternalServerError)
+
+		return
+	}
+
+	healthy, reason := api.CheckClusterLivez(ctx, kubeconfigBytes, r.logger)
+
+	response := api.ClusterHealthResponse{
+		Healthy: healthy,
+		Reason:  reason,
+	}
+
+	writer.Header().Set("Content-Type", "application/json")
+
+	err = json.NewEncoder(writer).Encode(response)
+	if err != nil {
+		r.logger.Error("failed to encode health response", zap.Error(err))
 		http.Error(writer, "Failed to encode response", http.StatusInternalServerError)
 
 		return

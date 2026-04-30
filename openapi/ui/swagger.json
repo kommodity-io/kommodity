@@ -21,7 +21,7 @@
                     "Info",
                     "Health"
                 ],
-                "summary": "Checks the health of a cluster by accessing its /livez endpoint.",
+                "summary": "Checks the health of a cluster by accessing its /livez endpoint",
                 "parameters": [
                     {
                         "type": "string",
@@ -42,6 +42,31 @@
                         "description": "If the cluster name is missing or invalid",
                         "schema": {
                             "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "If there is a server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/clusters": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Clusters"
+                ],
+                "summary": "List all clusters with their chart versions",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.ClusterAPIResponse"
                         }
                     },
                     "500": {
@@ -84,6 +109,42 @@
         }
     },
     "definitions": {
+        "api.ChartInfo": {
+            "type": "object",
+            "properties": {
+                "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.ClusterAPIItem": {
+            "type": "object",
+            "properties": {
+                "chart": {
+                    "$ref": "#/definitions/api.ChartInfo"
+                },
+                "kubernetes": {
+                    "$ref": "#/definitions/api.KubernetesInfo"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "talos": {
+                    "$ref": "#/definitions/api.TalosInfo"
+                }
+            }
+        },
+        "api.ClusterAPIResponse": {
+            "type": "object",
+            "properties": {
+                "clusters": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.ClusterAPIItem"
+                    }
+                }
+            }
+        },
         "api.ClusterHealthResponse": {
             "type": "object",
             "properties": {
@@ -91,6 +152,22 @@
                     "type": "boolean"
                 },
                 "reason": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.KubernetesInfo": {
+            "type": "object",
+            "properties": {
+                "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.TalosInfo": {
+            "type": "object",
+            "properties": {
+                "version": {
                     "type": "string"
                 }
             }
