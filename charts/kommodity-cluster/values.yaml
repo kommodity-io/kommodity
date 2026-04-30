@@ -308,6 +308,7 @@ kommodity:
 
     #   labels:
     #     my-label: my-value
+    #   # Annotations will also be applied to the MachineDeployment
     #   annotations:
     #     my-annotation: my-annotation-value
     #   taints:

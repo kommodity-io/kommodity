@@ -3,6 +3,15 @@
 {{- $maxReplicas := dig "autoscaling" "maxReplicas" nil $np }}
 {{- $hasMinReplicas := not (kindIs "invalid" $minReplicas) }}
 {{- $hasMaxReplicas := not (kindIs "invalid" $maxReplicas) }}
+{{- if and (or $hasMinReplicas $hasMaxReplicas) (not (and $hasMinReplicas $hasMaxReplicas)) }}
+{{- fail (printf "nodepool %s: both autoscaling.minReplicas and autoscaling.maxReplicas must be set together" $name) }}
+{{- end }}
+{{- $npAnnotations := dig "annotations" (dict) $np }}
+{{- $annotations := deepCopy $npAnnotations }}
+{{- if and $hasMinReplicas $hasMaxReplicas }}
+{{- $_ := set $annotations "cluster.x-k8s.io/cluster-api-autoscaler-node-group-min-size" (printf "%v" $minReplicas) }}
+{{- $_ := set $annotations "cluster.x-k8s.io/cluster-api-autoscaler-node-group-max-size" (printf "%v" $maxReplicas) }}
+{{- end }}
 ---
 apiVersion: cluster.x-k8s.io/v1beta1
 kind: MachineDeployment
@@ -11,13 +20,9 @@ metadata:
   namespace: {{ $.Release.Namespace }}
   labels:
     app.kubernetes.io/managed-by: kommodity
-{{- if or $hasMinReplicas $hasMaxReplicas }}
-{{- if not (and $hasMinReplicas $hasMaxReplicas) }}
-{{- fail (printf "nodepool %s: both autoscaling.minReplicas and autoscaling.maxReplicas must be set together" $name) }}
-{{- end }}
+{{- if gt (len $annotations) 0 }}
   annotations:
-    cluster.x-k8s.io/cluster-api-autoscaler-node-group-min-size: {{ $minReplicas | quote }}
-    cluster.x-k8s.io/cluster-api-autoscaler-node-group-max-size: {{ $maxReplicas | quote }}
+{{ toYaml $annotations | indent 4 }}
 {{- end }}
 spec:
   clusterName: {{ $.Release.Name }}
