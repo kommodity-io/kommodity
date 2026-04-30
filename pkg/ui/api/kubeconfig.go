@@ -180,8 +180,8 @@ func getOIDCConfigFromCluster(
 	}
 
 	// Check if OIDC is configured
-	issuerURL, hasIssuer := extraArgs["oidc-issuer-url"]
-	clientID, hasClientID := extraArgs["oidc-client-id"]
+	issuerURL, hasIssuer := firstExtraArg(extraArgs, "oidc-issuer-url")
+	clientID, hasClientID := firstExtraArg(extraArgs, "oidc-client-id")
 
 	if !hasIssuer || !hasClientID {
 		return nil, ErrOIDCNotConfigured
@@ -192,28 +192,39 @@ func getOIDCConfigFromCluster(
 		ClientID:  clientID,
 	}
 
-	if usernameClaim, ok := extraArgs["oidc-username-claim"]; ok {
+	if usernameClaim, ok := firstExtraArg(extraArgs, "oidc-username-claim"); ok {
 		oidcConfig.UsernameClaim = usernameClaim
 	}
 
-	if groupsClaim, ok := extraArgs["oidc-groups-claim"]; ok {
+	if groupsClaim, ok := firstExtraArg(extraArgs, "oidc-groups-claim"); ok {
 		oidcConfig.GroupsClaim = groupsClaim
 	}
 
 	// Handle extra scopes - they may be comma-separated or multiple entries
-	if extraScope, ok := extraArgs["oidc-extra-scope"]; ok {
-		// Split by comma in case multiple scopes are in one string
-		scopes := strings.Split(extraScope, ",")
-
-		trimmedScopes := make([]string, 0, len(scopes))
-		for _, scope := range scopes {
-			trimmedScopes = append(trimmedScopes, strings.TrimSpace(scope))
+	if extraScopes, ok := extraArgs["oidc-extra-scope"]; ok {
+		trimmedScopes := make([]string, 0, len(extraScopes))
+		for _, entry := range extraScopes {
+			for scope := range strings.SplitSeq(entry, ",") {
+				trimmed := strings.TrimSpace(scope)
+				if trimmed != "" {
+					trimmedScopes = append(trimmedScopes, trimmed)
+				}
+			}
 		}
 
 		oidcConfig.ExtraScopes = trimmedScopes
 	}
 
 	return oidcConfig, nil
+}
+
+func firstExtraArg(extraArgs map[string][]string, key string) (string, bool) {
+	values, ok := extraArgs[key]
+	if !ok || len(values) == 0 || values[0] == "" {
+		return "", false
+	}
+
+	return values[0], true
 }
 
 func getFirstMachineConfig(
