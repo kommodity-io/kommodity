@@ -1,5 +1,24 @@
 basePath: /
 definitions:
+  api.ChartInfo:
+    properties:
+      version:
+        type: string
+    type: object
+  api.ClusterAPIItem:
+    properties:
+      chart:
+        $ref: '#/definitions/api.ChartInfo'
+      name:
+        type: string
+    type: object
+  api.ClusterAPIResponse:
+    properties:
+      clusters:
+        items:
+          $ref: '#/definitions/api.ClusterAPIItem'
+        type: array
+    type: object
   api.ClusterHealthResponse:
     properties:
       healthy:
@@ -36,11 +55,27 @@ paths:
           description: If there is a server error
           schema:
             type: string
-      summary: Checks the health of a cluster by accessing its /livez endpoint.
+      summary: Checks the health of a cluster by accessing its /livez endpoint
       tags:
       - UI
       - Info
       - Health
+  /api/clusters:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.ClusterAPIResponse'
+        "500":
+          description: If there is a server error
+          schema:
+            type: string
+      summary: List all clusters with their chart versions
+      tags:
+      - Clusters
   /api/info:
     get:
       produces:
