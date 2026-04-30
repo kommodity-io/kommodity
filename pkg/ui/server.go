@@ -1,4 +1,3 @@
-// Package ui implements the Kommodity web user interface server.
 package ui
 
 import (

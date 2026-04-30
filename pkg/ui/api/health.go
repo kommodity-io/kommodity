@@ -15,13 +15,24 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
+// ClusterHealthResponse godoc
 // ClusterHealthResponse holds the health status of a cluster.
 type ClusterHealthResponse struct {
 	Healthy bool   `json:"healthy"`
 	Reason  string `json:"reason,omitempty"`
 }
 
-// GetClusterHealth returns an HTTP handler that checks cluster health via the /livez endpoint.
+// GetClusterHealth godoc
+// @Summary  Checks the health of a cluster by accessing its /livez endpoint.
+// @Tags     UI, Info, Health
+// @Param    clusterName  path  string  true  "Name of the cluster to check health for"
+// @Success  200  {object}  ClusterHealthResponse
+// @Failure  400  {object}  string   "If the cluster name is missing or invalid"
+// @Failure  500  {object}  string   "If there is a server error"
+// @Produce  json
+// @Router   /api/cluster/{clusterName}/health [get]
+//
+// GetClusterHealth returns basic health information for a specific cluster.
 func GetClusterHealth(
 	cfg *config.KommodityConfig,
 	logger *zap.Logger,
