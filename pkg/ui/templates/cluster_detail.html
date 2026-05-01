@@ -69,7 +69,9 @@
                                 </button>
                             </td>
                             <td class="py-4">
-                                <span class="font-medium">{{.Name}}</span>
+                                <button type="button" class="deployment-toggle cursor-pointer bg-transparent border-0 p-0 focus:outline-none text-left font-medium" data-deployment="{{.Name}}">
+                                    {{.Name}}
+                                </button>
                             </td>
                             <td class="py-4">
                                 <code class="px-2 py-1 bg-gray-800 rounded text-xs">{{.Phase}}</code>
@@ -102,10 +104,15 @@
                                 <table class="w-full text-xs">
                                     <thead class="text-left border-b border-gray-700">
                                         <tr>
-                                            <th class="py-2 px-6 font-semibold text-gray-500">Machine Name</th>
-                                            <th class="py-2 px-4 font-semibold text-gray-500">Machine Node Name</th>
-                                            <th class="py-2 px-4 font-semibold text-gray-500">Phase</th>
+                                            <th class="py-2 px-6 font-semibold text-gray-500">Name</th>
+                                            <th class="py-2 px-4 font-semibold text-gray-500">Node Name</th>
+                                            <th class="py-2 px-4 font-semibold text-gray-500">
+                                                <button type="button" class="sort-creation-time cursor-pointer bg-transparent border-0 p-0 focus:outline-none hover:text-gray-300 transition-colors" data-deployment="{{.Name}}">
+                                                    Creation Time <span class="sort-indicator">↕</span>
+                                                </button>
+                                            </th>
                                             <th class="py-2 px-4 font-semibold text-gray-500">Kubernetes Version</th>
+                                            <th class="py-2 px-4 font-semibold text-gray-500">Phase</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -113,10 +120,11 @@
                                         <tr class="border-b border-gray-700 last:border-0">
                                             <td class="py-2 px-6">{{.Name}}</td>
                                             <td class="py-2 px-4">{{.NodeName}}</td>
+                                            <td class="py-2 px-4">{{.CreationTime}}</td>
+                                            <td class="py-2 px-4">{{.KubernetesVersion}}</td>
                                             <td class="py-2 px-4">
                                                 <code class="px-2 py-1 bg-gray-700 rounded">{{.Phase}}</code>
                                             </td>
-                                            <td class="py-2 px-4">{{.KubernetesVersion}}</td>
                                         </tr>
                                         {{end}}
                                     </tbody>
@@ -146,12 +154,49 @@ document.querySelectorAll('.deployment-toggle').forEach(function(btn) {
     btn.addEventListener('click', function() {
         const deploymentName = btn.getAttribute('data-deployment');
         const machineRow = document.querySelector('.machine-row[data-deployment="' + deploymentName + '"]');
-        const chevron = btn.querySelector('div');
+        const row = btn.closest('tr');
+        const chevron = row.querySelector('.deployment-toggle div');
 
         if (machineRow) {
             machineRow.classList.toggle('hidden');
-            chevron.classList.toggle('rotate-90');
+            if (chevron) {
+                chevron.classList.toggle('rotate-90');
+            }
         }
+    });
+});
+
+// Sort machine rows by creation time
+document.querySelectorAll('.sort-creation-time').forEach(function(btn) {
+    let sortState = 'none';
+
+    btn.addEventListener('click', function() {
+        const machineRow = btn.closest('tr').parentElement.parentElement.parentElement.parentElement;
+        const tbody = machineRow.querySelector('tbody');
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+        const indicator = btn.querySelector('.sort-indicator');
+
+        if (sortState === 'none' || sortState === 'desc') {
+            sortState = 'asc';
+            indicator.textContent = '↑';
+            rows.sort(function(a, b) {
+                const timeA = a.cells[2].textContent;
+                const timeB = b.cells[2].textContent;
+                return timeA.localeCompare(timeB);
+            });
+        } else {
+            sortState = 'desc';
+            indicator.textContent = '↓';
+            rows.sort(function(a, b) {
+                const timeA = a.cells[2].textContent;
+                const timeB = b.cells[2].textContent;
+                return timeB.localeCompare(timeA);
+            });
+        }
+
+        rows.forEach(function(row) {
+            tbody.appendChild(row);
+        });
     });
 });
 

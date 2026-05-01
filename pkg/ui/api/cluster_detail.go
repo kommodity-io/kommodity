@@ -32,6 +32,7 @@ type MachineDeploymentDetail struct {
 type MachineDetail struct {
 	Name              string
 	NodeName          string
+	CreationTime      string
 	Phase             string
 	KubernetesVersion string
 }
@@ -179,9 +180,12 @@ func getMachinesGroupedByDeployment(
 			phase = UnknownVersion
 		}
 
+		creationTime := machine.CreationTimestamp.Format("2006-01-02 15:04:05")
+
 		detail := MachineDetail{
 			Name:              machine.Name,
 			NodeName:          nodeName,
+			CreationTime:      creationTime,
 			Phase:             phase,
 			KubernetesVersion: kubernetesVersion,
 		}
