@@ -104,27 +104,27 @@
                                 <table class="w-full text-xs">
                                     <thead class="text-left border-b border-gray-700">
                                         <tr>
-                                            <th class="py-2 px-6 font-semibold text-gray-500">Name</th>
+                                            <th class="py-2 px-6 font-semibold text-gray-500">Phase</th>
+                                            <th class="py-2 px-4 font-semibold text-gray-500">Name</th>
                                             <th class="py-2 px-4 font-semibold text-gray-500">Node Name</th>
+                                            <th class="py-2 px-4 font-semibold text-gray-500">Kubernetes Version</th>
                                             <th class="py-2 px-4 font-semibold text-gray-500">
                                                 <button type="button" class="sort-creation-time cursor-pointer bg-transparent border-0 p-0 focus:outline-none hover:text-gray-300 transition-colors" data-deployment="{{.Name}}">
                                                     Creation Time <span class="sort-indicator">↕</span>
                                                 </button>
                                             </th>
-                                            <th class="py-2 px-4 font-semibold text-gray-500">Kubernetes Version</th>
-                                            <th class="py-2 px-4 font-semibold text-gray-500">Phase</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {{range .Machines}}
                                         <tr class="border-b border-gray-700 last:border-0">
-                                            <td class="py-2 px-6">{{.Name}}</td>
-                                            <td class="py-2 px-4">{{.NodeName}}</td>
-                                            <td class="py-2 px-4">{{.CreationTime}}</td>
-                                            <td class="py-2 px-4">{{.KubernetesVersion}}</td>
-                                            <td class="py-2 px-4">
+                                            <td class="py-2 px-6">
                                                 <code class="px-2 py-1 bg-gray-700 rounded">{{.Phase}}</code>
                                             </td>
+                                            <td class="py-2 px-4">{{.Name}}</td>
+                                            <td class="py-2 px-4">{{.NodeName}}</td>
+                                            <td class="py-2 px-4">{{.KubernetesVersion}}</td>
+                                            <td class="py-2 px-4">{{.CreationTime}}</td>
                                         </tr>
                                         {{end}}
                                     </tbody>
@@ -168,7 +168,7 @@ document.querySelectorAll('.deployment-toggle').forEach(function(btn) {
 
 // Sort machine rows by creation time
 document.querySelectorAll('.sort-creation-time').forEach(function(btn) {
-    let sortState = 'none';
+    let sortState = 'asc';
 
     btn.addEventListener('click', function() {
         const machineRow = btn.closest('tr').parentElement.parentElement.parentElement.parentElement;
@@ -176,21 +176,21 @@ document.querySelectorAll('.sort-creation-time').forEach(function(btn) {
         const rows = Array.from(tbody.querySelectorAll('tr'));
         const indicator = btn.querySelector('.sort-indicator');
 
-        if (sortState === 'none' || sortState === 'desc') {
-            sortState = 'asc';
-            indicator.textContent = '↑';
-            rows.sort(function(a, b) {
-                const timeA = a.cells[2].textContent;
-                const timeB = b.cells[2].textContent;
-                return timeA.localeCompare(timeB);
-            });
-        } else {
+        if (sortState === 'asc') {
             sortState = 'desc';
             indicator.textContent = '↓';
             rows.sort(function(a, b) {
-                const timeA = a.cells[2].textContent;
-                const timeB = b.cells[2].textContent;
+                const timeA = a.cells[4].textContent;
+                const timeB = b.cells[4].textContent;
                 return timeB.localeCompare(timeA);
+            });
+        } else {
+            sortState = 'asc';
+            indicator.textContent = '↑';
+            rows.sort(function(a, b) {
+                const timeA = a.cells[4].textContent;
+                const timeB = b.cells[4].textContent;
+                return timeA.localeCompare(timeB);
             });
         }
 
