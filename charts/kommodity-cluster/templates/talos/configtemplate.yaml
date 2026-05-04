@@ -30,7 +30,7 @@ spec:
       {{- end }}
       {{- if $.Values.kommodity.kms.enabled }}
       {{- /* VolumeConfig for KMS disk encryption*/}}
-{{- include "kommodity.talos.volumeEncryption" (dict "endpoint" $.Values.kommodity.kms.endpoint) | nindent 8 }}
+{{- include "kommodity.talos.volumeEncryption" (dict "endpoint" $.Values.kommodity.kms.endpoint) | nindent 6 }}
       {{- end }}
       {{- if $.Values.kommodity.security.enabled }}
       {{- /* ExtensionServiceConfig for kommodity-attestation extension */ -}}
