@@ -140,6 +140,17 @@ tests:
       - failedTemplate:
           errorMessage: "nodepool default: both autoscaling.minReplicas and autoscaling.maxReplicas must be set together"
 
+  - it: should set replicas to 0 when explicitly configured
+    template: templates/provider/capi/machinedeployment.yaml
+    set:
+      kommodity.nodepools.default.replicas: 0
+    asserts:
+      - isKind:
+          of: MachineDeployment
+      - equal:
+          path: spec.replicas
+          value: 0
+
   - it: should fail when replicas is set together with autoscaling
     template: templates/provider/capi/machinedeployment.yaml
     set:
