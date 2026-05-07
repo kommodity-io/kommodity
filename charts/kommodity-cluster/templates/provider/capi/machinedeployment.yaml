@@ -28,11 +28,13 @@ spec:
   clusterName: {{ $.Release.Name }}
   minReadySeconds: 0
   progressDeadlineSeconds: 600
-{{- if and $np.replicas (or $hasMinReplicas $hasMaxReplicas) }}
+{{- $replicas := dig "replicas" nil $np }}
+{{- $hasReplicas := not (kindIs "invalid" $replicas) }}
+{{- if and $hasReplicas (or $hasMinReplicas $hasMaxReplicas) }}
 {{- fail (printf "nodepool %s: replicas cannot be set together with autoscaling.minReplicas or autoscaling.maxReplicas" $name) }}
 {{- end }}
-{{- if $np.replicas }}
-  replicas: {{ $np.replicas }}
+{{- if $hasReplicas }}
+  replicas: {{ $replicas }}
 {{- end }}
   strategy:
     rollingUpdate:
