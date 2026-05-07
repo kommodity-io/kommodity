@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/google/uuid"
 	"github.com/kommodity-io/kommodity/pkg/combinedserver"
@@ -24,9 +25,12 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation"
 	clientgoclientset "k8s.io/client-go/kubernetes"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
+	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	ctrlclint "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -62,6 +66,41 @@ type ServiceServer struct {
 	config *config.KommodityConfig
 }
 
+// ctrlScheme holds the runtime.Scheme used for the controller-runtime client
+// that resolves CAPI Machines. It must include clusterv1 so List(MachineList)
+// can resolve the GVK; the default client-go scheme does not include CAPI.
+//
+//nolint:gochecknoglobals // lazily-initialized package-level scheme cache
+var (
+	ctrlScheme     *runtime.Scheme
+	ctrlSchemeOnce sync.Once
+	errCtrlScheme  error
+)
+
+func getCtrlScheme() (*runtime.Scheme, error) {
+	ctrlSchemeOnce.Do(func() {
+		scheme := runtime.NewScheme()
+
+		err := clientgoscheme.AddToScheme(scheme)
+		if err != nil {
+			errCtrlScheme = fmt.Errorf("failed to add client-go scheme: %w", err)
+
+			return
+		}
+
+		err = clusterv1.AddToScheme(scheme)
+		if err != nil {
+			errCtrlScheme = fmt.Errorf("failed to add cluster-api scheme: %w", err)
+
+			return
+		}
+
+		ctrlScheme = scheme
+	})
+
+	return ctrlScheme, errCtrlScheme
+}
+
 // Seal is a method that encrypts data using the KMS service.
 func (s *ServiceServer) Seal(ctx context.Context, req *kms.Request) (*kms.Response, error) {
 	nodeUUID, clientIP, data, err := parseRequest(ctx, req)
@@ -74,7 +113,12 @@ func (s *ServiceServer) Seal(ctx context.Context, req *kms.Request) (*kms.Respon
 		return nil, fmt.Errorf("failed to create kube client: %w", err)
 	}
 
-	ctrlClient, err := ctrlclint.New(s.config.ClientConfig.LoopbackClientConfig, ctrlclint.Options{})
+	scheme, err := getCtrlScheme()
+	if err != nil {
+		return nil, err
+	}
+
+	ctrlClient, err := ctrlclint.New(s.config.ClientConfig.LoopbackClientConfig, ctrlclint.Options{Scheme: scheme})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create controller client: %w", err)
 	}
