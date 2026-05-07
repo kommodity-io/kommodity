@@ -27,10 +27,10 @@ kommodity:
   global:
     strategicPatches:
       # Required when using a Cloud Controller Manager (https://kubernetes.io/docs/tasks/administer-cluster/running-cloud-controller/#running-cloud-controller-manager)
-      - machine:
-          kubelet:
-            extraArgs:
-              cloud-provider: external
+      machine:
+        kubelet:
+          extraArgs:
+            cloud-provider: external
 
   network:
     ipv4:
