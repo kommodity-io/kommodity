@@ -81,12 +81,12 @@ Any values that should trigger a new Talos config template when changed should b
 {{- $hasPoolPatches := and .poolValues.strategicPatches (gt (len .poolValues.strategicPatches) 0) }}
 {{- $hasGlobalPatches := and .allValues.kommodity.global.strategicPatches (gt (len .allValues.kommodity.global.strategicPatches) 0) }}
 {{- $data := dict -}}
-{{- $patches := list -}}
+{{- $patches := dict -}}
 {{- if $hasGlobalPatches }}
-	{{- $patches = concat $patches .allValues.kommodity.global.strategicPatches -}}
+	{{- $patches = mustMergeOverwrite $patches (deepCopy .allValues.kommodity.global.strategicPatches) -}}
 {{- end }}
 {{- if $hasPoolPatches }}
-	{{- $patches = concat $patches .poolValues.strategicPatches -}}
+	{{- $patches = mustMergeOverwrite $patches (deepCopy .poolValues.strategicPatches) -}}
 {{- end }}
 {{- if gt (len $patches) 0 }}
 	{{- $_ := set $data "strategicPatches" $patches -}}
@@ -181,13 +181,13 @@ to preserve YAML block scalar formatting for multi-line contents.
 {{- if .ccmEnabled -}}
 {{- $_ := mustMergeOverwrite $result (include "kommodity.talos.ccm" (dict "manifest" .ccmManifest) | fromJson) -}}
 {{- end -}}
-{{- /* Merge global user patches */ -}}
-{{- range .globalPatches -}}
-{{- $_ := mustMergeOverwrite $result (deepCopy .) -}}
+{{- /* Merge global user patch (single MachineConfig dict) */ -}}
+{{- if and .globalPatches (gt (len .globalPatches) 0) -}}
+{{- $_ := mustMergeOverwrite $result (deepCopy .globalPatches) -}}
 {{- end -}}
-{{- /* Merge nodepool user patches (override global for same keys) */ -}}
-{{- range .nodepoolPatches -}}
-{{- $_ := mustMergeOverwrite $result (deepCopy .) -}}
+{{- /* Merge nodepool/controlplane user patch on top of global (wins on conflicts) */ -}}
+{{- if and .nodepoolPatches (gt (len .nodepoolPatches) 0) -}}
+{{- $_ := mustMergeOverwrite $result (deepCopy .nodepoolPatches) -}}
 {{- end -}}
 {{- /* Output as YAML block scalar if non-empty */ -}}
 {{- if gt (len (keys $result)) 0 -}}

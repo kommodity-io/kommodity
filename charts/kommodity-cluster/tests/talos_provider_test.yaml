@@ -54,9 +54,9 @@ tests:
     template: templates/talos/configtemplate.yaml
     set:
       kommodity.global.strategicPatches:
-        - machine:
-            env:
-              CHANGED_VAR: changed-value
+        machine:
+          env:
+            CHANGED_VAR: changed-value
     asserts:
       - isKind:
           of: TalosConfigTemplate
@@ -70,9 +70,9 @@ tests:
     template: templates/talos/configtemplate.yaml
     set:
       kommodity.nodepools.default.strategicPatches:
-        - machine:
-            env:
-              NODEPOOL_VAR: nodepool-value
+        machine:
+          env:
+            NODEPOOL_VAR: nodepool-value
     asserts:
       - isKind:
           of: TalosConfigTemplate
@@ -100,13 +100,13 @@ tests:
     template: templates/talos/configtemplate.yaml
     set:
       kommodity.global.strategicPatches:
-        - machine:
-            env:
-              GLOBAL_VAR: global-value
+        machine:
+          env:
+            GLOBAL_VAR: global-value
       kommodity.nodepools.default.strategicPatches:
-        - machine:
-            env:
-              NODEPOOL_VAR: nodepool-value
+        machine:
+          env:
+            NODEPOOL_VAR: nodepool-value
     asserts:
       - isKind:
           of: TalosConfigTemplate
@@ -126,13 +126,13 @@ tests:
     template: templates/talos/configtemplate.yaml
     set:
       kommodity.global.strategicPatches:
-        - machine:
-            env:
-              SHARED_VAR: global-value
+        machine:
+          env:
+            SHARED_VAR: global-value
       kommodity.nodepools.default.strategicPatches:
-        - machine:
-            env:
-              SHARED_VAR: nodepool-value
+        machine:
+          env:
+            SHARED_VAR: nodepool-value
     asserts:
       - isKind:
           of: TalosConfigTemplate
@@ -145,11 +145,35 @@ tests:
           path: spec.template.spec.strategicPatches[0]
           pattern: "SHARED_VAR: global-value"
 
+  - it: should deep-merge global and nodepool patches under disjoint subtrees of machine
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.global.strategicPatches:
+        machine:
+          kubelet:
+            extraArgs:
+              cloud-provider: external
+      kommodity.nodepools.default.strategicPatches:
+        machine:
+          sysctls:
+            net.ipv4.ip_forward: "1"
+    asserts:
+      - isKind:
+          of: TalosConfigTemplate
+      - hasDocuments:
+          count: 1
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[0]
+          pattern: "cloud-provider: external"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[0]
+          pattern: "net.ipv4.ip_forward"
+
   # Taints tests
   - it: should generate kubelet extraArgs and nodeTaints in strategic patch for taints
     template: templates/talos/configtemplate.yaml
     set:
-      kommodity.global.strategicPatches: []
+      kommodity.global.strategicPatches: {}
       kommodity.nodepools.default.taints:
         workload: "gpu:NoSchedule"
     asserts:
@@ -171,7 +195,7 @@ tests:
   - it: should generate nodeLabels and nodeAnnotations in strategic patch
     template: templates/talos/configtemplate.yaml
     set:
-      kommodity.global.strategicPatches: []
+      kommodity.global.strategicPatches: {}
     asserts:
       - isKind:
           of: TalosConfigTemplate
