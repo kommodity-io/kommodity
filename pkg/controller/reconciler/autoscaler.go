@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"embed"
+	"errors"
 	"fmt"
 	"html/template"
 
@@ -73,14 +74,20 @@ func (a *AutoscalerJob) PrepareForApply(ctx context.Context, cfg *config.Kommodi
 		return fmt.Errorf("failed to get Autoscaler kubeconfig secret: %w", err)
 	}
 
-	if len(autoscalerSecret.Data) == 0 {
-		return fmt.Errorf("%w kubeconfig: %s", ErrValueNotFoundInSecret, autoscalerSecret.Name)
+	token := autoscalerSecret.Data["token"]
+	if len(token) == 0 {
+		return fmt.Errorf("%w: %s", ErrTokenNotPopulated, autoscalerSecret.Name)
+	}
+
+	namespace := autoscalerSecret.Data["namespace"]
+	if len(namespace) == 0 {
+		return fmt.Errorf("%w namespace: %s", ErrValueNotFoundInSecret, autoscalerSecret.Name)
 	}
 
 	kubeconfig := &Kubeconfig{
 		BaseURL:   cfg.BaseURL,
-		Token:     string(autoscalerSecret.Data["token"]),
-		Namespace: string(autoscalerSecret.Data["namespace"]),
+		Token:     string(token),
+		Namespace: string(namespace),
 	}
 
 	tpl := template.Must(template.New("kubeconfig.tmpl").
@@ -325,7 +332,7 @@ func (r *AutoscalerReconciler) installAutoscaler(ctx context.Context, clusterNam
 
 	err = autoscalerJob.PrepareForApply(ctx, r.cfg, clusterName)
 	if err != nil {
-		if apierrors.IsNotFound(err) {
+		if apierrors.IsNotFound(err) || errors.Is(err, ErrTokenNotPopulated) {
 			logger.Info("Autoscaler secret not ready yet, requeuing",
 				zap.String("clusterName", clusterName),
 				zap.Duration("requeueAfter", RequeueAfter))

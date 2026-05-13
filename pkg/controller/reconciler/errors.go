@@ -15,4 +15,7 @@ var (
 	ErrSecretMissingLabel = errors.New("secret is missing required label")
 	// ErrClusterNotReady indicates the downstream cluster is not reachable.
 	ErrClusterNotReady = errors.New("downstream cluster not ready")
+	// ErrTokenNotPopulated indicates the service account token secret has not yet been
+	// populated by the TokensController.
+	ErrTokenNotPopulated = errors.New("service account token not yet populated in secret")
 )
