@@ -11,7 +11,32 @@
     },
     "basePath": "/",
     "paths": {
-        "/api/cluster/{clusterName}/health": {
+        "/api/clusters": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Clusters"
+                ],
+                "summary": "List all clusters with their chart versions",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.ClusterAPIResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "If there is a server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/clusters/{clusterName}/health": {
             "get": {
                 "produces": [
                     "application/json"
@@ -53,20 +78,48 @@
                 }
             }
         },
-        "/api/clusters": {
+        "/api/clusters/{clusterName}/kubeconfig": {
             "get": {
                 "produces": [
-                    "application/json"
+                    "application/yaml"
                 ],
                 "tags": [
-                    "Clusters"
+                    "Clusters",
+                    "Kubeconfig"
                 ],
-                "summary": "List all clusters with their chart versions",
+                "summary": "Get kubeconfig for a specific cluster",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Name of the cluster to get kubeconfig for",
+                        "name": "clusterName",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Kubeconfig YAML content",
                         "schema": {
-                            "$ref": "#/definitions/api.ClusterAPIResponse"
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "If the cluster name is missing or invalid",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "403": {
+                        "description": "If OIDC is not configured on the cluster",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "If the cluster is not found",
+                        "schema": {
+                            "type": "string"
                         }
                     },
                     "500": {

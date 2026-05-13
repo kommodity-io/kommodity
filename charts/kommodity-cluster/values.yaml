@@ -240,19 +240,20 @@ kommodity:
   global:
     # Configurations applied to all nodepools and controlplanes in the cluster
     # Using Talos strategic merge patches: https://docs.siderolabs.com/talos/v1.12/configure-your-talos-cluster/system-configuration/patching
-    # Each entry is a partial MachineConfig YAML object that gets deep-merged into the base config
+    # A single partial MachineConfig YAML object that gets deep-merged into the base config.
+    # Controlplane / nodepool strategicPatches are deep-merged on top of global (later wins on conflicts).
     # Example:
     #   strategicPatches:
-    #     - machine:
-    #         kubelet:
-    #           extraArgs:
-    #             cloud-provider: external
-    strategicPatches: []
+    #     machine:
+    #       kubelet:
+    #         extraArgs:
+    #           cloud-provider: external
+    strategicPatches: {}
 
   controlplane:
     # Configurations related to the control plane nodes
     # Using Talos strategic merge patches: https://docs.siderolabs.com/talos/v1.12/configure-your-talos-cluster/system-configuration/patching
-    strategicPatches: []
+    strategicPatches: {}
 
     # Kubernetes version can be overridden here, otherwise the top-level kubernetes.version is used
     # This is especially useful for K8s upgrades, where it is recommended to upgrade the control plane first (https://cluster-api.sigs.k8s.io/tasks/upgrading-clusters#upgrading-using-cluster-api)
@@ -296,7 +297,7 @@ kommodity:
 
     #   # Configurations related the specific nodepool
     #   # Using Talos strategic merge patches: https://docs.siderolabs.com/talos/v1.12/configure-your-talos-cluster/system-configuration/patching
-    #   strategicPatches: []
+    #   strategicPatches: {}
     #   # Kubernetes version can be overridden here, otherwise the top-level kubernetes.version is used
 
     #   kubernetes:

@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"html/template"
+	"sort"
 	"strings"
 
 	"github.com/Masterminds/sprig/v3"
@@ -243,6 +244,10 @@ func getFirstMachineConfig(
 	if len(machineConfigList.Items) == 0 {
 		return nil, fmt.Errorf("%w: %s", ErrNoMachineConfigSecret, clusterName)
 	}
+
+	sort.Slice(machineConfigList.Items, func(i int, j int) bool {
+		return machineConfigList.Items[i].CreationTimestamp.After(machineConfigList.Items[j].CreationTimestamp.Time)
+	})
 
 	var machineConfigData []byte
 

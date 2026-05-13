@@ -91,7 +91,8 @@ func (r *Router) RegisterRoutes(mux *http.ServeMux) {
 	// API routes
 	mux.HandleFunc("GET /api/info", r.handleInfo)
 	mux.HandleFunc("GET /api/clusters", r.handleClusters)
-	mux.HandleFunc("GET /api/cluster/{clusterName}/health", r.handleClusterHealth)
+	mux.HandleFunc("GET /api/clusters/{clusterName}/health", r.handleClusterHealth)
+	mux.HandleFunc("GET /api/clusters/{clusterName}/kubeconfig", r.handleClusterKubeconfig)
 }
 
 // handleApp renders the dashboard page.
@@ -244,7 +245,7 @@ func (r *Router) handleClusters(writer http.ResponseWriter, req *http.Request) {
 // @Failure  400  {object}  string   "If the cluster name is missing or invalid"
 // @Failure  500  {object}  string   "If there is a server error"
 // @Produce  json
-// @Router   /api/cluster/{clusterName}/health [get]
+// @Router   /api/clusters/{clusterName}/health [get]
 //
 // handleClusterHealth returns health information for a specific cluster.
 func (r *Router) handleClusterHealth(writer http.ResponseWriter, req *http.Request) {
@@ -283,6 +284,61 @@ func (r *Router) handleClusterHealth(writer http.ResponseWriter, req *http.Reque
 		http.Error(writer, "Failed to encode response", http.StatusInternalServerError)
 
 		return
+	}
+}
+
+// handleClusterKubeconfig godoc
+// @Summary  Get kubeconfig for a specific cluster
+// @Tags     Clusters, Kubeconfig
+// @Param    clusterName  path  string  true  "Name of the cluster to get kubeconfig for"
+// @Success  200  {string}  string  "Kubeconfig YAML content"
+// @Failure  400  {object}  string   "If the cluster name is missing or invalid"
+// @Failure  403  {object}  string   "If OIDC is not configured on the cluster"
+// @Failure  404  {object}  string   "If the cluster is not found"
+// @Failure  500  {object}  string   "If there is a server error"
+// @Produce  application/yaml
+// @Router   /api/clusters/{clusterName}/kubeconfig [get]
+//
+// handleClusterKubeconfig returns the kubeconfig content for a specific cluster.
+func (r *Router) handleClusterKubeconfig(writer http.ResponseWriter, req *http.Request) {
+	ctx := req.Context()
+	clusterName := req.PathValue("clusterName")
+
+	if clusterName == "" {
+		http.Error(writer, "Cluster name is required", http.StatusBadRequest)
+
+		return
+	}
+
+	kubeconfigContent, err := api.GetClusterKubeconfigContent(ctx, r.cfg, clusterName)
+	if err != nil {
+		if errors.Is(err, api.ErrOIDCNotConfigured) {
+			http.Error(writer, "OIDC is not configured on the cluster", http.StatusForbidden)
+
+			return
+		}
+
+		if errors.Is(err, api.ErrAuthConfigDisabled) {
+			http.Error(writer, "Auth config application is disabled", http.StatusForbidden)
+
+			return
+		}
+
+		r.logger.Warn("failed to get cluster kubeconfig",
+			zap.String("cluster", clusterName),
+			zap.Error(err),
+		)
+		http.Error(writer, "Failed to retrieve kubeconfig", http.StatusInternalServerError)
+
+		return
+	}
+
+	writer.Header().Set("Content-Type", "application/yaml; charset=utf-8")
+
+	//nolint:gosec // kubeconfig is YAML content, not HTML
+	_, err = writer.Write([]byte(kubeconfigContent))
+	if err != nil {
+		r.logger.Error("failed to write kubeconfig response", zap.Error(err))
 	}
 }
 

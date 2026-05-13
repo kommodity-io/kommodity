@@ -81,7 +81,7 @@
 
     // Fetch cluster kubeconfig with error handling
     async function fetchClusterKubeconfig(clusterName) {
-        const response = await fetch('/api/kubeconfig/cluster/' + clusterName);
+        const response = await fetch('/api/clusters/' + clusterName + '/kubeconfig');
 
         if (!response.ok) {
             if (response.status === 404 || response.status === 500) {

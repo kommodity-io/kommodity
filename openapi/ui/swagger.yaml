@@ -46,7 +46,23 @@ info:
   title: Kommodity UI API
   version: 0.1.0
 paths:
-  /api/cluster/{clusterName}/health:
+  /api/clusters:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.ClusterAPIResponse'
+        "500":
+          description: If there is a server error
+          schema:
+            type: string
+      summary: List all clusters with their chart versions
+      tags:
+      - Clusters
+  /api/clusters/{clusterName}/health:
     get:
       parameters:
       - description: Name of the cluster to check health for
@@ -74,22 +90,41 @@ paths:
       - UI
       - Info
       - Health
-  /api/clusters:
+  /api/clusters/{clusterName}/kubeconfig:
     get:
+      parameters:
+      - description: Name of the cluster to get kubeconfig for
+        in: path
+        name: clusterName
+        required: true
+        type: string
       produces:
-      - application/json
+      - application/yaml
       responses:
         "200":
-          description: OK
+          description: Kubeconfig YAML content
           schema:
-            $ref: '#/definitions/api.ClusterAPIResponse'
+            type: string
+        "400":
+          description: If the cluster name is missing or invalid
+          schema:
+            type: string
+        "403":
+          description: If OIDC is not configured on the cluster
+          schema:
+            type: string
+        "404":
+          description: If the cluster is not found
+          schema:
+            type: string
         "500":
           description: If there is a server error
           schema:
             type: string
-      summary: List all clusters with their chart versions
+      summary: Get kubeconfig for a specific cluster
       tags:
       - Clusters
+      - Kubeconfig
   /api/info:
     get:
       produces:
