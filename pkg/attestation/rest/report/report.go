@@ -61,7 +61,15 @@ func PostReport(nonceStore *restutils.NonceStore,
 			return
 		}
 
-		valid, err := nonceStore.Use(request.RemoteAddr, req.Nonce)
+		//nolint:varnamelen // Variable name ip is appropriate for the context.
+		ip, err := net.GetOriginalIPFromRequest(request)
+		if err != nil {
+			http.Error(response, err.Error(), http.StatusBadRequest)
+
+			return
+		}
+
+		valid, err := nonceStore.Use(ip, req.Nonce)
 		if err != nil {
 			http.Error(response, err.Error(), http.StatusBadRequest)
 
