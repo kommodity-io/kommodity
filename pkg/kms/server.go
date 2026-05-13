@@ -9,27 +9,32 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/google/uuid"
 	"github.com/kommodity-io/kommodity/pkg/combinedserver"
 	"github.com/kommodity-io/kommodity/pkg/config"
+	knet "github.com/kommodity-io/kommodity/pkg/net"
 	"github.com/siderolabs/kms-client/api/kms"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
 	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/validation"
 	clientgoclientset "k8s.io/client-go/kubernetes"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
+	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	ctrlclint "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
-	//nolint:gosec // this is just a prefix for KMS secrets
-	secretPrefix     = "talos-kms"
 	keySize          = 32 // 256 bits
 	aadNonceSize     = 32 // 256-bit random nonce for AAD
 	volumePrefixSize = 8  // 8 random bytes → 16 hex chars for volume group prefix
@@ -38,6 +43,12 @@ const (
 	keySuffix       = ".key"
 	nonceSuffix     = ".nonce"
 	luksKeySuffix   = ".luksKey"
+
+	// secretNameFormat builds the cluster-scoped secret name "<cluster>-kms-<nodeUUID>".
+	// Legacy secrets named "talos-kms-<nodeUUID>" are still found via the
+	// node-uuid label, so this name only applies to newly created secrets.
+	//nolint:gosec // this is just a name template for KMS secrets
+	secretNameFormat = "%s-kms-%s"
 )
 
 // volumeKeySet holds the key material for a single volume group.
@@ -55,22 +66,46 @@ type ServiceServer struct {
 	config *config.KommodityConfig
 }
 
+// ctrlScheme holds the runtime.Scheme used for the controller-runtime client
+// that resolves CAPI Machines. It must include clusterv1 so List(MachineList)
+// can resolve the GVK; the default client-go scheme does not include CAPI.
+//
+//nolint:gochecknoglobals // lazily-initialized package-level scheme cache
+var (
+	ctrlScheme     *runtime.Scheme
+	ctrlSchemeOnce sync.Once
+	errCtrlScheme  error
+)
+
+func getCtrlScheme() (*runtime.Scheme, error) {
+	ctrlSchemeOnce.Do(func() {
+		scheme := runtime.NewScheme()
+
+		err := clientgoscheme.AddToScheme(scheme)
+		if err != nil {
+			errCtrlScheme = fmt.Errorf("failed to add client-go scheme: %w", err)
+
+			return
+		}
+
+		err = clusterv1.AddToScheme(scheme)
+		if err != nil {
+			errCtrlScheme = fmt.Errorf("failed to add cluster-api scheme: %w", err)
+
+			return
+		}
+
+		ctrlScheme = scheme
+	})
+
+	return ctrlScheme, errCtrlScheme
+}
+
 // Seal is a method that encrypts data using the KMS service.
 func (s *ServiceServer) Seal(ctx context.Context, req *kms.Request) (*kms.Response, error) {
-	nodeUUID, err := validateNodeUUID(req)
+	nodeUUID, clientIP, data, err := parseRequest(ctx, req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to validate node UUID: %w", err)
-	}
-
-	data := req.GetData()
-	if len(data) == 0 {
-		//nolint:wrapcheck // we want a gRPC status error here
-		return nil, status.Error(codes.InvalidArgument, "data is required")
-	}
-
-	clientIP, err := extractClientIP(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to extract client IP: %w", err)
+		return nil, err
 	}
 
 	kubeClient, err := clientgoclientset.NewForConfig(s.config.ClientConfig.LoopbackClientConfig)
@@ -78,44 +113,24 @@ func (s *ServiceServer) Seal(ctx context.Context, req *kms.Request) (*kms.Respon
 		return nil, fmt.Errorf("failed to create kube client: %w", err)
 	}
 
-	secretName := fmt.Sprintf("%s-%s", secretPrefix, nodeUUID)
-
-	secret, err := getSecretsAPI(kubeClient).Get(ctx, secretName, metav1.GetOptions{})
-	if apierrors.IsNotFound(err) {
-		encryptedData, createErr := createNodeSecret(ctx, kubeClient, nodeUUID, clientIP, data)
-		if createErr != nil {
-			return nil, fmt.Errorf("failed to create node secret: %w", createErr)
-		}
-
-		return &kms.Response{Data: encryptedData}, nil
-	} else if err != nil {
-		return nil, fmt.Errorf("failed to get secret %s: %w", secretName, err)
-	}
-
-	encryptedData, err := addVolumeToSecret(ctx, kubeClient, secret, nodeUUID, clientIP, data)
+	scheme, err := getCtrlScheme()
 	if err != nil {
-		return nil, fmt.Errorf("failed to add volume to secret: %w", err)
+		return nil, err
 	}
 
-	return &kms.Response{Data: encryptedData}, nil
+	ctrlClient, err := ctrlclint.New(s.config.ClientConfig.LoopbackClientConfig, ctrlclint.Options{Scheme: scheme})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create controller client: %w", err)
+	}
+
+	return seal(ctx, kubeClient, &ctrlClient, nodeUUID, clientIP, data)
 }
 
 // Unseal is a method that decrypts data using the KMS service.
 func (s *ServiceServer) Unseal(ctx context.Context, req *kms.Request) (*kms.Response, error) {
-	nodeUUID, err := validateNodeUUID(req)
+	nodeUUID, clientIP, data, err := parseRequest(ctx, req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to validate node UUID: %w", err)
-	}
-
-	data := req.GetData()
-	if len(data) == 0 {
-		//nolint:wrapcheck // we want a gRPC status error here
-		return nil, status.Error(codes.InvalidArgument, "data is required")
-	}
-
-	clientIP, err := extractClientIP(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to extract client IP: %w", err)
+		return nil, err
 	}
 
 	kubeClient, err := clientgoclientset.NewForConfig(s.config.ClientConfig.LoopbackClientConfig)
@@ -123,34 +138,7 @@ func (s *ServiceServer) Unseal(ctx context.Context, req *kms.Request) (*kms.Resp
 		return nil, fmt.Errorf("failed to create kube client: %w", err)
 	}
 
-	secretName := fmt.Sprintf("%s-%s", secretPrefix, nodeUUID)
-
-	secret, err := getSecretsAPI(kubeClient).Get(ctx, secretName, metav1.GetOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to get secret %s: %w", secretName, err)
-	}
-
-	storedIP := string(secret.Data[sealedFromIPKey])
-	if storedIP != clientIP {
-		return nil, status.Errorf(codes.PermissionDenied,
-			"%v: sealed from %q, unseal requested from %q", ErrIPMismatch, storedIP, clientIP)
-	}
-
-	keySets := parseVolumeKeySets(secret.Data)
-	if len(keySets) == 0 {
-		return nil, fmt.Errorf("%w: %s", ErrNoVolumeKeySets, secretName)
-	}
-
-	for _, ks := range keySets {
-		aad := buildAAD(nodeUUID, ks.aadNonce, clientIP)
-
-		decryptedData, decErr := decrypt(ks.encryptionKey, data, aad)
-		if decErr == nil {
-			return &kms.Response{Data: decryptedData}, nil
-		}
-	}
-
-	return nil, fmt.Errorf("%w: secret %s", ErrNoMatchingSecret, secretName)
+	return unseal(ctx, kubeClient, nodeUUID, clientIP, data)
 }
 
 // NewGRPCServerFactory returns an initializer function that initializes the mock KMS service.
@@ -163,9 +151,149 @@ func NewGRPCServerFactory(cfg *config.KommodityConfig) combinedserver.GRPCServer
 	}
 }
 
+func parseRequest(ctx context.Context, req *kms.Request) (string, string, []byte, error) {
+	nodeUUID, err := validateNodeUUID(req)
+	if err != nil {
+		return "", "", nil, fmt.Errorf("failed to validate node UUID: %w", err)
+	}
+
+	data := req.GetData()
+	if len(data) == 0 {
+		//nolint:wrapcheck // we want a gRPC status error here
+		return "", "", nil, status.Error(codes.InvalidArgument, "data is required")
+	}
+
+	clientIP, err := extractClientIP(ctx)
+	if err != nil {
+		return "", "", nil, fmt.Errorf("failed to extract client IP: %w", err)
+	}
+
+	return nodeUUID, clientIP, data, nil
+}
+
+func seal(ctx context.Context,
+	kubeClient clientgoclientset.Interface,
+	ctrlClient *ctrlclint.Client,
+	nodeUUID string,
+	clientIP string,
+	data []byte,
+) (*kms.Response, error) {
+	secret, err := findSecretByNodeUUID(ctx, kubeClient, nodeUUID)
+	if errors.Is(err, ErrSecretNotFound) {
+		clusterName, resolveErr := resolveClusterName(ctx, ctrlClient, clientIP)
+		if resolveErr != nil {
+			return nil, resolveErr
+		}
+
+		encryptedData, createErr := createNodeSecret(ctx, kubeClient, clusterName, nodeUUID, clientIP, data)
+		if createErr != nil {
+			return nil, fmt.Errorf("failed to create node secret: %w", createErr)
+		}
+
+		return &kms.Response{Data: encryptedData}, nil
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	encryptedData, err := addVolumeToSecret(ctx, kubeClient, secret, nodeUUID, clientIP, data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to add volume to secret: %w", err)
+	}
+
+	return &kms.Response{Data: encryptedData}, nil
+}
+
+func unseal(ctx context.Context,
+	kubeClient clientgoclientset.Interface,
+	nodeUUID string,
+	clientIP string,
+	data []byte,
+) (*kms.Response, error) {
+	secret, err := findSecretByNodeUUID(ctx, kubeClient, nodeUUID)
+	if errors.Is(err, ErrSecretNotFound) {
+		return nil, fmt.Errorf("%w: node %s", ErrSecretNotFound, nodeUUID)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	storedIP := string(secret.Data[sealedFromIPKey])
+	if storedIP != clientIP {
+		return nil, status.Errorf(codes.PermissionDenied,
+			"%v: sealed from %q, unseal requested from %q", ErrIPMismatch, storedIP, clientIP)
+	}
+
+	keySets := parseVolumeKeySets(secret.Data)
+	if len(keySets) == 0 {
+		return nil, fmt.Errorf("%w: %s", ErrNoVolumeKeySets, secret.Name)
+	}
+
+	for _, ks := range keySets {
+		aad := buildAAD(nodeUUID, ks.aadNonce, clientIP)
+
+		decryptedData, decErr := decrypt(ks.encryptionKey, data, aad)
+		if decErr == nil {
+			return &kms.Response{Data: decryptedData}, nil
+		}
+	}
+
+	return nil, fmt.Errorf("%w: secret %s", ErrNoMatchingSecret, secret.Name)
+}
+
+// findSecretByNodeUUID returns the unique KMS secret for a node, identified by
+// the talos.dev/node-uuid label. Lookup is label-based rather than name-based
+// so that legacy "talos-kms-<uuid>" secrets and new "<cluster>-kms-<uuid>"
+// secrets are both discoverable.
+func findSecretByNodeUUID(ctx context.Context,
+	kubeClient clientgoclientset.Interface,
+	nodeUUID string,
+) (*corev1.Secret, error) {
+	selector := fmt.Sprintf("%s=%s,%s=%s",
+		config.ManagedByLabel, config.ManagedByValue,
+		config.NodeUUIDLabel, nodeUUID)
+
+	secrets, err := getSecretsAPI(kubeClient).List(ctx, metav1.ListOptions{LabelSelector: selector})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list secrets for node %s: %w", nodeUUID, err)
+	}
+
+	switch len(secrets.Items) {
+	case 0:
+		return nil, ErrSecretNotFound
+	case 1:
+		return &secrets.Items[0], nil
+	default:
+		return nil, fmt.Errorf("%w: node %s matched %d secrets", ErrAmbiguousSecret, nodeUUID, len(secrets.Items))
+	}
+}
+
+// resolveClusterName derives the owning cluster name from the requesting node's
+// IP using the same path the metadata and attestation services rely on.
+func resolveClusterName(ctx context.Context,
+	ctrlClient *ctrlclint.Client,
+	clientIP string,
+) (string, error) {
+	machine, err := knet.FindManagedMachineByIP(ctx, ctrlClient, clientIP)
+	if err != nil {
+		return "", fmt.Errorf("%w: ip %s: %w", ErrClusterNotResolved, clientIP, err)
+	}
+
+	clusterName := machine.Spec.ClusterName
+	if errs := validation.IsDNS1123Label(clusterName); len(errs) > 0 {
+		return "", fmt.Errorf("%w: %q: %s", ErrInvalidClusterName, clusterName, strings.Join(errs, "; "))
+	}
+
+	return clusterName, nil
+}
+
 func createNodeSecret(ctx context.Context,
-	kubeClient *clientgoclientset.Clientset,
-	nodeUUID, peerIP string,
+	kubeClient clientgoclientset.Interface,
+	clusterName string,
+	nodeUUID string,
+	peerIP string,
 	plaintext []byte,
 ) ([]byte, error) {
 	prefix, err := generateVolumePrefix()
@@ -194,12 +322,12 @@ func createNodeSecret(ctx context.Context,
 		return nil, fmt.Errorf("failed to encrypt data: %w", err)
 	}
 
-	secretName := fmt.Sprintf("%s-%s", secretPrefix, nodeUUID)
+	secretName := fmt.Sprintf(secretNameFormat, clusterName, nodeUUID)
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      secretName,
 			Namespace: config.KommodityNamespace,
-			Labels:    config.GetKommodityLabels(nodeUUID, peerIP),
+			Labels:    config.GetKommodityClusterLabels(nodeUUID, peerIP, clusterName),
 		},
 		Type: corev1.SecretTypeOpaque,
 		Data: map[string][]byte{
@@ -219,9 +347,10 @@ func createNodeSecret(ctx context.Context,
 }
 
 func addVolumeToSecret(ctx context.Context,
-	kubeClient *clientgoclientset.Clientset,
+	kubeClient clientgoclientset.Interface,
 	secret *corev1.Secret,
-	nodeUUID, peerIP string,
+	nodeUUID string,
+	peerIP string,
 	plaintext []byte,
 ) ([]byte, error) {
 	storedIP := string(secret.Data[sealedFromIPKey])
@@ -323,7 +452,7 @@ func parseVolumeKeySets(secretData map[string][]byte) []volumeKeySet {
 	return sets
 }
 
-func getSecretsAPI(kubeClient *clientgoclientset.Clientset) v1.SecretInterface {
+func getSecretsAPI(kubeClient clientgoclientset.Interface) v1.SecretInterface {
 	return kubeClient.CoreV1().Secrets(config.KommodityNamespace)
 }
 
