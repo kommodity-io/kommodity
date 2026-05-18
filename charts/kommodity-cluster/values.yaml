@@ -328,7 +328,7 @@ kommodity:
     #       timeout: 300s
 
   # Logging verbosity: debug, info, warn, error (set as LOG_LEVEL env var)
-  logLevel: warn
+  logLevel: info
 
 # Configurations related to Talos
 talos:
