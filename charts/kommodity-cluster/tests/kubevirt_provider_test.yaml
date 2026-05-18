@@ -3,7 +3,7 @@ values:
   - ../values.kubevirt.yaml
 release:
   name: test-cluster
-  namespace: default
+  namespace: test-cluster
 set:
   kommodity.controlplane.talos.version: "controlplane-talos-version"
   kommodity.controlplane.talos.imageName: "controlplane-talos-image"
@@ -52,11 +52,11 @@ tests:
           count: 2
       - matchRegex:
           path: metadata.name
-          pattern: ^test-cluster-controlplane-[a-f0-9]{6}
+          pattern: ^controlplane-[a-f0-9]{6}
         documentIndex: 0
       - matchRegex:
           path: metadata.name
-          pattern: ^test-cluster-worker-default-[a-f0-9]{6}
+          pattern: ^worker-default-[a-f0-9]{6}
         documentIndex: 1
       - equal:
           path: spec.template.spec.virtualMachineTemplate.spec.dataVolumeTemplates[0].spec.source.http.url

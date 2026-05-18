@@ -3,8 +3,8 @@
 apiVersion: cluster.x-k8s.io/v1beta1
 kind: MachineHealthCheck
 metadata:
-  name: {{ $.Release.Name }}-controlplane
-  namespace: {{ $.Release.Namespace }}
+  name: controlplane
+  namespace: {{ $.Release.Name }}
 spec:
   clusterName: {{ $.Release.Name }}
   maxUnhealthy: {{ dig "healthCheck" "maxUnhealthy" "" $.Values.kommodity.controlplane | default "40%" }}
@@ -24,15 +24,15 @@ spec:
 apiVersion: cluster.x-k8s.io/v1beta1
 kind: MachineHealthCheck
 metadata:
-  name: {{ $.Release.Name }}-worker-{{ $name }}
-  namespace: {{ $.Release.Namespace }}
+  name: worker-{{ $name }}
+  namespace: {{ $.Release.Name }}
 spec:
   clusterName: {{ $.Release.Name }}
   maxUnhealthy: {{ dig "healthCheck" "maxUnhealthy" "" $np | default "40%" }}
   nodeStartupTimeout: {{ dig "healthCheck" "nodeStartupTimeout" "" $np | default "10m0s" }}
   selector:
     matchLabels:
-      cluster.x-k8s.io/deployment-name: {{ $.Release.Name }}-worker-{{ $name }}
+      cluster.x-k8s.io/deployment-name: worker-{{ $name }}
   unhealthyConditions:
   {{- if not $np.healthCheck.unhealthyConditions }}
     {{- fail (printf "MachineHealthCheck for nodepool '%s' is enabled but no unhealthyConditions are defined in values" $name) }}

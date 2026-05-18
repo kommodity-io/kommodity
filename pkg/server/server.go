@@ -7,6 +7,7 @@ import (
 
 	"github.com/kommodity-io/kommodity/pkg/config"
 	"github.com/kommodity-io/kommodity/pkg/kine"
+	"github.com/kommodity-io/kommodity/pkg/kms"
 	"github.com/kommodity-io/kommodity/pkg/logging"
 	generatedopenapi "github.com/kommodity-io/kommodity/pkg/openapi"
 	"github.com/kommodity-io/kommodity/pkg/provider"
@@ -44,7 +45,10 @@ const (
 // New creates a new Kubernetes API Server.
 //
 //nolint:cyclop, funlen // Too long or too complex due to many error checks and setup steps, no real complexity here
-func New(ctx context.Context, cfg *config.KommodityConfig) (*aggregatorapiserver.APIAggregator, error) {
+func New(ctx context.Context,
+	cfg *config.KommodityConfig,
+	kmsRouter *kms.Router,
+) (*aggregatorapiserver.APIAggregator, error) {
 	logger := logging.FromContext(ctx)
 
 	logger.Info("Setting up Open API Specs")
@@ -170,6 +174,7 @@ func New(ctx context.Context, cfg *config.KommodityConfig) (*aggregatorapiserver
 		genericServer,
 		crdServer.Informers.Apiextensions().V1().CustomResourceDefinitions(),
 		signingKey,
+		kmsRouter,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup API aggregator server: %w", err)

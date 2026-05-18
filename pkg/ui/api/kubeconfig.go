@@ -121,8 +121,8 @@ func GetClusterKubeconfigContent(
 		return "", fmt.Errorf("failed to load kubeconfig: %w", err)
 	}
 
-	// Fetch OIDC config from cluster
-	oidcConfig, err := getOIDCConfigFromCluster(ctx, clusterName, DefaultNamespace, kubeClient)
+	// Fetch OIDC config from cluster (machine config lives in the cluster's namespace).
+	oidcConfig, err := getOIDCConfigFromCluster(ctx, clusterName, clusterName, kubeClient)
 	if err != nil {
 		return "", fmt.Errorf("failed to get OIDC config: %w", err)
 	}
@@ -140,7 +140,10 @@ func GetClusterKubeconfigContent(
 func getKubeConfig(ctx context.Context, clusterName string, kubeClient *clientgoclientset.Clientset) ([]byte, error) {
 	secretName := clusterName + "-kubeconfig"
 
-	secretAPI := kubeClient.CoreV1().Secrets(config.KommodityNamespace)
+	// CAPI's bootstrap provider creates the kubeconfig secret in the same
+	// namespace as the Cluster CR, which (by Kommodity convention) is named
+	// after the cluster.
+	secretAPI := kubeClient.CoreV1().Secrets(clusterName)
 
 	secret, err := secretAPI.Get(ctx, secretName, metav1.GetOptions{})
 	if err != nil {

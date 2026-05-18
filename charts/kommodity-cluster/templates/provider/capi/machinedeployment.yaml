@@ -16,8 +16,8 @@
 apiVersion: cluster.x-k8s.io/v1beta1
 kind: MachineDeployment
 metadata:
-  name: {{ $.Release.Name }}-worker-{{ $name }}
-  namespace: {{ $.Release.Namespace }}
+  name: worker-{{ $name }}
+  namespace: {{ $.Release.Name }}
   labels:
     app.kubernetes.io/managed-by: kommodity
 {{- if gt (len $annotations) 0 }}
@@ -47,15 +47,15 @@ spec:
     metadata:
       labels:
         cluster.x-k8s.io/cluster-name: {{ $.Release.Name }}
-        cluster.x-k8s.io/deployment-name: {{ $.Release.Name }}-worker-{{ $name }}
+        cluster.x-k8s.io/deployment-name: worker-{{ $name }}
         app.kubernetes.io/managed-by: kommodity
     spec:
       bootstrap:
         configRef:
           apiVersion: bootstrap.cluster.x-k8s.io/v1alpha3
           kind: TalosConfigTemplate
-          name: {{ $.Release.Name }}-worker-{{ $name }}-{{ include "kommodity-cluster.talosConfigHash" (dict "poolValues" $np "allValues" $.Values) }}
-          namespace: {{ $.Release.Namespace }}
+          name: worker-{{ $name }}-{{ include "kommodity-cluster.talosConfigHash" (dict "poolValues" $np "allValues" $.Values) }}
+          namespace: {{ $.Release.Name }}
       clusterName: {{ $.Release.Name }}
       failureDomain: {{ $np.zone }}
       infrastructureRef:
@@ -73,7 +73,7 @@ spec:
         {{- else }}
         {{- fail "infrastructure provider is not supported" -}}
         {{- end }}
-        name: {{ $.Release.Name }}-worker-{{ $name }}-{{ include "kommodity-cluster.machineSpecsHash" (dict "poolValues" $np "allValues" $.Values) }}
-        namespace: {{ $.Release.Namespace }}
+        name: worker-{{ $name }}-{{ include "kommodity-cluster.machineSpecsHash" (dict "poolValues" $np "allValues" $.Values) }}
+        namespace: {{ $.Release.Name }}
       version: {{ default $.Values.kubernetes.version (dig "kubernetes" "version" "" $np) -}}
 {{- end }}

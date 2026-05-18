@@ -13,6 +13,7 @@ import (
 	"github.com/kommodity-io/kommodity/pkg/controller"
 	"github.com/kommodity-io/kommodity/pkg/controller/reconciler"
 	"github.com/kommodity-io/kommodity/pkg/kine"
+	"github.com/kommodity-io/kommodity/pkg/kms"
 	"github.com/kommodity-io/kommodity/pkg/logging"
 	"github.com/kommodity-io/kommodity/pkg/provider"
 	"go.uber.org/zap"
@@ -90,7 +91,8 @@ func newAPIAggregatorServer(cfg *config.KommodityConfig,
 	codecs serializer.CodecFactory,
 	delegationTarget genericapiserver.DelegationTarget,
 	crds apiextensionsinformers.CustomResourceDefinitionInformer,
-	signingKey *rsa.PrivateKey) (*aggregatorapiserver.APIAggregator, error) {
+	signingKey *rsa.PrivateKey,
+	kmsRouter *kms.Router) (*aggregatorapiserver.APIAggregator, error) {
 	config, err := setupAPIAggregatorConfig(cfg, genericServerConfig, codecs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup API aggregator config: %w", err)
@@ -151,7 +153,7 @@ func newAPIAggregatorServer(cfg *config.KommodityConfig,
 	}
 
 	err = aggregatorServer.GenericAPIServer.AddPostStartHook(
-		"start-controller-managers", startControllerManagersHook(cfg, genericServerConfig, providerCache, scheme))
+		"start-controller-managers", startControllerManagersHook(cfg, genericServerConfig, providerCache, scheme, kmsRouter))
 	if err != nil {
 		return nil, fmt.Errorf("failed to add post start hook for starting controller managers: %w", err)
 	}
@@ -276,7 +278,8 @@ func applyCRDsHook(cfg *config.KommodityConfig,
 func startControllerManagersHook(cfg *config.KommodityConfig,
 	genericServerConfig *genericapiserver.RecommendedConfig,
 	providerCache *provider.Cache,
-	scheme *runtime.Scheme) genericapiserver.PostStartHookFunc {
+	scheme *runtime.Scheme,
+	kmsRouter *kms.Router) genericapiserver.PostStartHookFunc {
 	return func(ctx genericapiserver.PostStartHookContext) error {
 		logger := logging.FromContext(ctx)
 
@@ -303,7 +306,7 @@ func startControllerManagersHook(cfg *config.KommodityConfig,
 			},
 		}
 
-		ctlMgr, err := controller.NewAggregatedControllerManager(ctx, cfg, genericServerConfig, scheme, signingKeyDeps)
+		ctlMgr, err := controller.NewAggregatedControllerManager(ctx, cfg, genericServerConfig, scheme, signingKeyDeps, kmsRouter)
 		if err != nil {
 			return fmt.Errorf("failed to create controller manager: %w", err)
 		}

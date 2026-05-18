@@ -3,7 +3,7 @@ values:
   - ../values.scaleway.yaml
 release:
   name: test-cluster
-  namespace: default
+  namespace: test-cluster
 templates:
   - templates/*
 tests:
@@ -26,7 +26,7 @@ tests:
           count: 1
       - equal:
           path: metadata.name
-          value: "test-cluster-worker-default"
+          value: "worker-default"
         documentIndex: 0
       - equal:
           path: spec.template.spec.infrastructureRef.kind
@@ -48,11 +48,11 @@ tests:
           count: 2
       - matchRegex:
           path: metadata.name
-          pattern: ^test-cluster-controlplane-[a-f0-9]{6}$
+          pattern: ^controlplane-[a-f0-9]{6}$
         documentIndex: 0
       - matchRegex:
           path: metadata.name
-          pattern: ^test-cluster-worker-default-[a-f0-9]{6}$
+          pattern: ^worker-default-[a-f0-9]{6}$
         documentIndex: 1
   # Private network tests
   - it: should create a private network and public gateway when ipv4.public is false
@@ -125,11 +125,11 @@ tests:
           count: 2
       - equal:
           path: metadata.name
-          value: "test-cluster-worker-default"
+          value: "worker-default"
         documentIndex: 0
       - equal:
           path: metadata.name
-          value: "test-cluster-worker-gpu"
+          value: "worker-gpu"
         documentIndex: 1
       - equal:
           path: spec.replicas

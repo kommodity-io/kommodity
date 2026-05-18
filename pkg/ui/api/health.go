@@ -32,9 +32,9 @@ func GetClusterKubeconfigBytes(
 		return nil, fmt.Errorf("failed to create kubernetes client: %w", err)
 	}
 
-	// Get kubeconfig secret
+	// Get kubeconfig secret (CAPI creates it in the cluster's namespace).
 	secretName := clusterName + "-kubeconfig"
-	secretAPI := kubeClient.CoreV1().Secrets(config.KommodityNamespace)
+	secretAPI := kubeClient.CoreV1().Secrets(clusterName)
 
 	secret, err := secretAPI.Get(ctx, secretName, metav1.GetOptions{})
 	if err != nil {

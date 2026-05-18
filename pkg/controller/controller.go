@@ -11,6 +11,7 @@ import (
 	"github.com/kommodity-io/kommodity/pkg/config"
 	"github.com/kommodity-io/kommodity/pkg/controller/reconciler"
 	"github.com/kommodity-io/kommodity/pkg/controller/webhook"
+	"github.com/kommodity-io/kommodity/pkg/kms"
 	"github.com/kommodity-io/kommodity/pkg/logging"
 	"github.com/kommodity-io/kommodity/pkg/talosproxy"
 	appsv1 "k8s.io/api/apps/v1"
@@ -39,7 +40,8 @@ func NewAggregatedControllerManager(ctx context.Context,
 	kommodityConfig *config.KommodityConfig,
 	genericServerConfig *genericapiserver.RecommendedConfig,
 	scheme *runtime.Scheme,
-	signingKeyDeps reconciler.SigningKeyDeps) (ctrl.Manager, error) {
+	signingKeyDeps reconciler.SigningKeyDeps,
+	kmsRouter *kms.Router) (ctrl.Manager, error) {
 	logger := zapr.NewLogger(logging.FromContext(ctx))
 	ctrl.SetLogger(logger)
 
@@ -98,7 +100,7 @@ func NewAggregatedControllerManager(ctx context.Context,
 
 	logger.Info("Setting up reconcilers")
 
-	err = reconciler.SetupReconcilers(ctx, kommodityConfig, &manager, clusterCache, controllerOpts, signingKeyDeps)
+	err = reconciler.SetupReconcilers(ctx, kommodityConfig, &manager, clusterCache, controllerOpts, signingKeyDeps, kmsRouter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup reconcilers: %w", err)
 	}

@@ -1,0 +1,119 @@
+suite: per-cluster namespace and stripped resource names
+values:
+  - ../values.scaleway.yaml
+release:
+  name: test-cluster
+  namespace: test-cluster
+templates:
+  - templates/*
+tests:
+  - it: should create the cluster namespace named after the release
+    template: templates/namespace.yaml
+    asserts:
+      - isKind:
+          of: Namespace
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: metadata.name
+          value: "test-cluster"
+      - equal:
+          path: metadata.labels["cluster.x-k8s.io/cluster-name"]
+          value: "test-cluster"
+
+  - it: should put the Cluster CR in the per-cluster namespace
+    template: templates/provider/capi/cluster.yaml
+    asserts:
+      - equal:
+          path: metadata.namespace
+          value: "test-cluster"
+      - equal:
+          path: spec.controlPlaneRef.namespace
+          value: "test-cluster"
+      - equal:
+          path: spec.controlPlaneRef.name
+          value: "controlplane"
+      - equal:
+          path: spec.infrastructureRef.namespace
+          value: "test-cluster"
+
+  - it: should drop the cluster prefix on the TalosControlPlane
+    template: templates/talos/controlplane.yaml
+    asserts:
+      - equal:
+          path: metadata.name
+          value: "controlplane"
+      - equal:
+          path: metadata.namespace
+          value: "test-cluster"
+
+  - it: should drop the cluster prefix on MachineDeployments
+    template: templates/provider/capi/machinedeployment.yaml
+    asserts:
+      - equal:
+          path: metadata.name
+          value: "worker-default"
+      - equal:
+          path: metadata.namespace
+          value: "test-cluster"
+      - equal:
+          path: spec.template.metadata.labels["cluster.x-k8s.io/deployment-name"]
+          value: "worker-default"
+      - equal:
+          path: spec.template.spec.bootstrap.configRef.namespace
+          value: "test-cluster"
+      - equal:
+          path: spec.template.spec.infrastructureRef.namespace
+          value: "test-cluster"
+
+  - it: should drop the cluster prefix on the CCM ConfigMap and put it in the cluster namespace
+    template: templates/cloud-controller-manager-config.yaml
+    asserts:
+      - equal:
+          path: metadata.name
+          value: "scaleway-cloud-controller-manager-config"
+      - equal:
+          path: metadata.namespace
+          value: "test-cluster"
+
+  - it: should drop the cluster prefix on autoscaler resources
+    set:
+      kommodity.clusterAutoscaler.enabled: true
+    template: templates/autoscaler/rbac.yaml
+    asserts:
+      - hasDocuments:
+          count: 4
+      - equal:
+          path: metadata.name
+          value: "cluster-autoscaler"
+        documentIndex: 0
+      - equal:
+          path: metadata.namespace
+          value: "test-cluster"
+        documentIndex: 0
+      - equal:
+          path: metadata.namespace
+          value: "test-cluster"
+        documentIndex: 1
+      - equal:
+          path: metadata.namespace
+          value: "test-cluster"
+        documentIndex: 2
+      - equal:
+          path: metadata.namespace
+          value: "test-cluster"
+        documentIndex: 3
+
+  - it: should keep the attestation-policy ConfigMap in kommodity-system with the cluster prefix
+    set:
+      kommodity.security.enabled: true
+      kommodity.security.attestationPolicy.apparmor.enabled: true
+      kommodity.security.attestationPolicy.apparmor.digest: "sha256:deadbeef"
+    template: templates/attenstation-policy.yaml
+    asserts:
+      - equal:
+          path: metadata.namespace
+          value: "kommodity-system"
+      - equal:
+          path: metadata.name
+          value: "test-cluster-attestation-policy"

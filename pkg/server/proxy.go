@@ -12,15 +12,19 @@ import (
 
 	"github.com/kommodity-io/kommodity/pkg/combinedserver"
 	"github.com/kommodity-io/kommodity/pkg/config"
+	"github.com/kommodity-io/kommodity/pkg/kms"
 	"github.com/kommodity-io/kommodity/pkg/logging"
 	"go.uber.org/zap"
 	"k8s.io/client-go/rest"
 )
 
 // NewHTTPMuxFactory creates a new HTTP mux proxy factory for the API server.
-func NewHTTPMuxFactory(ctx context.Context, cfg *config.KommodityConfig) combinedserver.HTTPMuxFactory {
+func NewHTTPMuxFactory(ctx context.Context,
+	cfg *config.KommodityConfig,
+	kmsRouter *kms.Router,
+) combinedserver.HTTPMuxFactory {
 	return func(mux *http.ServeMux) error {
-		server, err := New(ctx, cfg)
+		server, err := New(ctx, cfg, kmsRouter)
 		if err != nil {
 			return fmt.Errorf("failed to create server: %w", err)
 		}

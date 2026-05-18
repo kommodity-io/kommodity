@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/kommodity-io/kommodity/pkg/config"
+	"github.com/kommodity-io/kommodity/pkg/kms"
 	"github.com/kommodity-io/kommodity/pkg/logging"
 	"go.uber.org/zap"
 	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
@@ -32,7 +33,8 @@ func SetupReconcilers(ctx context.Context,
 	manager *ctrl.Manager,
 	clusterCache clustercache.ClusterCache,
 	controllerOpts controller.Options,
-	signingKeyDeps SigningKeyDeps) error {
+	signingKeyDeps SigningKeyDeps,
+	kmsRouter *kms.Router) error {
 	logger := logging.FromContext(ctx)
 
 	logger.Info("Setting up reconcilers",
@@ -58,7 +60,7 @@ func SetupReconcilers(ctx context.Context,
 		}
 	}
 
-	err = setUpExtraReconcilers(ctx, cfg, manager, controllerOpts, signingKeyDeps)
+	err = setUpExtraReconcilers(ctx, cfg, manager, controllerOpts, signingKeyDeps, kmsRouter)
 	if err != nil {
 		return fmt.Errorf("failed to setup extra reconcilers: %w", err)
 	}
@@ -70,7 +72,8 @@ func setUpExtraReconcilers(ctx context.Context,
 	cfg *config.KommodityConfig,
 	manager *ctrl.Manager,
 	controllerOpts controller.Options,
-	signingKeyDeps SigningKeyDeps) error {
+	signingKeyDeps SigningKeyDeps,
+	kmsRouter *kms.Router) error {
 	err := (&CloudControllerManagerReconciler{
 		Client: (*manager).GetClient(),
 	}).SetupWithManager(ctx, *manager, controllerOpts)
@@ -100,6 +103,16 @@ func setUpExtraReconcilers(ctx context.Context,
 	}).SetupWithManager(ctx, *manager, controllerOpts)
 	if err != nil {
 		return fmt.Errorf("failed to setup SigningKey reconciler: %w", err)
+	}
+
+	if kmsRouter != nil {
+		err = (&KMSClusterReconciler{
+			Client: (*manager).GetClient(),
+			Router: kmsRouter,
+		}).SetupWithManager(ctx, *manager, controllerOpts)
+		if err != nil {
+			return fmt.Errorf("failed to setup KMSCluster reconciler: %w", err)
+		}
 	}
 
 	return nil

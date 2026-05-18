@@ -4,12 +4,15 @@ package kms
 //
 //nolint:gochecknoglobals // test exports
 var (
-	Encrypt            = encrypt
-	Decrypt            = decrypt
-	BuildAAD           = buildAAD
-	ParseVolumeKeySets = parseVolumeKeySets
-	ExtractClientIP    = extractClientIP
-	SanitizeIP         = sanitizeIP
+	Encrypt              = encrypt
+	Decrypt              = decrypt
+	BuildAAD             = buildAAD
+	ParseVolumeKeySets   = parseVolumeKeySets
+	ExtractClientIP      = extractClientIP
+	SanitizeIP           = sanitizeIP
+	Seal                 = seal
+	Unseal               = unseal
+	FindSecretByNodeUUID = findSecretByNodeUUID
 )
 
 const (
@@ -23,4 +26,5 @@ const (
 	NonceSuffix     = nonceSuffix
 	LuksKeySuffix   = luksKeySuffix
 	SealedFromIPKey = sealedFromIPKey
+	AuthorityKey    = authorityKey
 )
