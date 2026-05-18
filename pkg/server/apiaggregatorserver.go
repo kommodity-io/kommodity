@@ -306,7 +306,8 @@ func startControllerManagersHook(cfg *config.KommodityConfig,
 			},
 		}
 
-		ctlMgr, err := controller.NewAggregatedControllerManager(ctx, cfg, genericServerConfig, scheme, signingKeyDeps, kmsRouter)
+		ctlMgr, err := controller.NewAggregatedControllerManager(
+			ctx, cfg, genericServerConfig, scheme, signingKeyDeps, kmsRouter)
 		if err != nil {
 			return fmt.Errorf("failed to create controller manager: %w", err)
 		}

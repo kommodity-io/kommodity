@@ -13,6 +13,7 @@ var (
 	Seal                 = seal
 	Unseal               = unseal
 	FindSecretByNodeUUID = findSecretByNodeUUID
+	ClusterFromContext   = clusterFromContext
 )
 
 const (

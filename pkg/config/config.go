@@ -43,7 +43,6 @@ const (
 	envKineURI                 = "KOMMODITY_KINE_URI"
 	envInfrastructureProviders = "KOMMODITY_INFRASTRUCTURE_PROVIDERS"
 	envAuditPolicyFilePath     = "KOMMODITY_AUDIT_POLICY_FILE_PATH"
-	envKMSDomain               = "KOMMODITY_KMS_DOMAIN"
 
 	envTalosProxyEnabled     = "KOMMODITY_TALOS_PROXY_ENABLED"
 	envTalosProxyPort        = "KOMMODITY_TALOS_PROXY_PORT"
@@ -74,18 +73,9 @@ type KommodityConfig struct {
 	AuthConfig              *AuthConfig
 	ClientConfig            *ClientConfig
 	TalosProxyConfig        *TalosProxyConfig
-	KMSConfig               *KMSConfig
 	AuditPolicyFilePath     string
 	DevelopmentMode         bool
 	InfrastructureProviders []Provider
-}
-
-// KMSConfig holds the configuration for the per-cluster KMS service. Domain
-// is the suffix Talos VMs dial under; the per-cluster hostname has the form
-// "<cluster>.<Domain>" and the cluster name is extracted from the gRPC
-// :authority pseudo-header at request time.
-type KMSConfig struct {
-	Domain string
 }
 
 // TalosProxyConfig holds the configuration for the transparent Talos gRPC proxy.
@@ -161,25 +151,9 @@ func LoadConfig(ctx context.Context) (*KommodityConfig, error) {
 		},
 		ClientConfig:            &ClientConfig{},
 		TalosProxyConfig:        talosProxyConfig,
-		KMSConfig:               getKMSConfig(ctx),
 		DevelopmentMode:         developmentMode,
 		InfrastructureProviders: infrastructureProviders,
 	}, nil
-}
-
-func getKMSConfig(ctx context.Context) *KMSConfig {
-	logger := logging.FromContext(ctx)
-
-	domain := strings.TrimSpace(os.Getenv(envKMSDomain))
-	if domain == "" {
-		logger.Info(configurationNotSpecified,
-			zap.String("envVar", envKMSDomain),
-			zap.String("default", ""))
-
-		return &KMSConfig{}
-	}
-
-	return &KMSConfig{Domain: domain}
 }
 
 func getBaseURL(ctx context.Context) string {

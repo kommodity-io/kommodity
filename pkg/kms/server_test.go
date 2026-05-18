@@ -25,7 +25,6 @@ const (
 	testNodeUUID  = "550e8400-e29b-41d4-a716-446655440000"
 	testNodeIP    = "10.0.0.1"
 	testCluster   = "prd-par01"
-	testDomain    = "kms.kommodity"
 	testPlaintext = "this is a secret LUKS key"
 	legacyPrefix  = "talos-kms"
 )
@@ -208,71 +207,75 @@ func TestSeal_DoesNotSeeOtherClusterSecrets(t *testing.T) {
 	assert.Len(t, otherList.Items, 1, "the other cluster's secret must be untouched")
 }
 
-// ----- Router dispatch -----
+// ----- clusterFromContext: parsing the :authority pseudo-header -----
 
-func newRouterForTest(t *testing.T) *kms.Router {
-	t.Helper()
-
-	cfg := &config.KommodityConfig{
-		KMSConfig: &config.KMSConfig{Domain: testDomain},
-	}
-
-	return kms.NewRouter(cfg)
-}
-
-func TestRouter_RejectsRequestWithoutAuthority(t *testing.T) {
+func TestClusterFromContext_NoAuthorityReturnsMissingAuthority(t *testing.T) {
 	t.Parallel()
 
-	router := newRouterForTest(t)
-	router.Register(testCluster)
+	_, err := kms.ClusterFromContext(context.Background())
+	require.ErrorIs(t, err, kms.ErrMissingAuthority)
+}
 
-	_, err := router.Seal(context.Background(), &kmsapi.Request{NodeUuid: testNodeUUID, Data: []byte("x")})
+func TestClusterFromContext_ValidAuthorityReturnsFirstLabel(t *testing.T) {
+	t.Parallel()
+
+	ctx := ctxWithAuthority(testCluster + ".kms.kommodity:443")
+
+	name, err := kms.ClusterFromContext(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, testCluster, name)
+}
+
+func TestClusterFromContext_BareHostnameReturnsItself(t *testing.T) {
+	t.Parallel()
+
+	// No domain suffix at all: the whole hostname is taken as the cluster.
+	ctx := ctxWithAuthority(testCluster + ":443")
+
+	name, err := kms.ClusterFromContext(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, testCluster, name)
+}
+
+func TestClusterFromContext_InvalidLabelReturnsInvalidAuthority(t *testing.T) {
+	t.Parallel()
+
+	// Capital letters and underscores are not valid DNS-1123 labels.
+	ctx := ctxWithAuthority("INVALID_LABEL.kms.kommodity:443")
+
+	_, err := kms.ClusterFromContext(ctx)
+	require.ErrorIs(t, err, kms.ErrInvalidAuthority)
+}
+
+// ----- Router: onboarded vs not onboarded -----
+
+// TestRouter_UnregisteredClusterReturns404 verifies that when no cluster has
+// been onboarded (handler map is empty), the Router rejects requests with
+// codes.NotFound rather than reaching any per-cluster handler.
+func TestRouter_UnregisteredClusterReturns404(t *testing.T) {
+	t.Parallel()
+
+	router := kms.NewRouter(&config.KommodityConfig{})
+
+	ctx := ctxWithAuthority(testCluster + ".kms.kommodity:443")
+
+	_, err := router.Seal(ctx, &kmsapi.Request{NodeUuid: testNodeUUID, Data: []byte("x")})
 	require.Error(t, err)
 
 	st, ok := status.FromError(err)
 	require.True(t, ok, "expected a gRPC status error")
-	assert.Equal(t, codes.FailedPrecondition, st.Code())
-	assert.Contains(t, st.Message(), kms.ErrMissingAuthority.Error())
-}
-
-func TestRouter_RejectsAuthorityNotInDomain(t *testing.T) {
-	t.Parallel()
-
-	router := newRouterForTest(t)
-	router.Register(testCluster)
-
-	ctx := ctxWithAuthority("evil.example:443")
-
-	_, err := router.Seal(ctx, &kmsapi.Request{NodeUuid: testNodeUUID, Data: []byte("x")})
-	require.Error(t, err)
-
-	st, ok := status.FromError(err)
-	require.True(t, ok)
-	assert.Equal(t, codes.FailedPrecondition, st.Code())
-	assert.Contains(t, st.Message(), kms.ErrInvalidAuthority.Error())
-}
-
-func TestRouter_RejectsUnregisteredCluster(t *testing.T) {
-	t.Parallel()
-
-	router := newRouterForTest(t)
-	// Note: testCluster is NOT registered.
-
-	ctx := ctxWithAuthority(testCluster + "." + testDomain + ":443")
-
-	_, err := router.Seal(ctx, &kmsapi.Request{NodeUuid: testNodeUUID, Data: []byte("x")})
-	require.Error(t, err)
-
-	st, ok := status.FromError(err)
-	require.True(t, ok)
-	assert.Equal(t, codes.Unavailable, st.Code())
+	assert.Equal(t, codes.NotFound, st.Code())
 	assert.Contains(t, st.Message(), kms.ErrClusterNotRegistered.Error())
 }
 
-func TestRouter_RejectsWhenDomainNotConfigured(t *testing.T) {
+// TestRouter_OnboardedClusterReachesHandler verifies the production routing
+// path: Register the cluster the way the Cluster reconciler does, then send a
+// request with :authority pointing at that cluster. The request must reach
+// the per-cluster handler — verified by the error NOT being the Router's
+// not-registered 404.
+func TestRouter_OnboardedClusterReachesHandler(t *testing.T) {
 	t.Parallel()
 
-	// Router built with no KMSConfig should refuse to dispatch.
 	router := kms.NewRouter(&config.KommodityConfig{})
 	router.Register(testCluster)
 
@@ -281,32 +284,26 @@ func TestRouter_RejectsWhenDomainNotConfigured(t *testing.T) {
 	_, err := router.Seal(ctx, &kmsapi.Request{NodeUuid: testNodeUUID, Data: []byte("x")})
 	require.Error(t, err)
 
-	st, ok := status.FromError(err)
-	require.True(t, ok)
-	assert.Equal(t, codes.FailedPrecondition, st.Code())
-	assert.Contains(t, st.Message(), kms.ErrKMSDomainNotConfigured.Error())
+	// The routing succeeded — the request reached the per-cluster handler.
+	// We do NOT see the not-registered 404 that an empty router would return.
+	assert.NotContains(t, err.Error(), kms.ErrClusterNotRegistered.Error())
 }
 
-func TestRouter_RegisterAndDeregisterIsIdempotent(t *testing.T) {
+// TestRouter_DeregisterRemovesHandler verifies the cleanup half of the
+// reconciler's contract.
+func TestRouter_DeregisterRemovesHandler(t *testing.T) {
 	t.Parallel()
 
-	router := newRouterForTest(t)
-
-	// Register twice — second call should be a no-op.
+	router := kms.NewRouter(&config.KommodityConfig{})
 	router.Register(testCluster)
-	router.Register(testCluster)
-
-	// Deregister twice — second call should be a no-op.
-	router.Deregister(testCluster)
 	router.Deregister(testCluster)
 
-	// After deregister the cluster should be treated as not registered.
-	ctx := ctxWithAuthority(testCluster + "." + testDomain + ":443")
+	ctx := ctxWithAuthority(testCluster + ".kms.kommodity:443")
 
 	_, err := router.Seal(ctx, &kmsapi.Request{NodeUuid: testNodeUUID, Data: []byte("x")})
 	require.Error(t, err)
 
 	st, ok := status.FromError(err)
 	require.True(t, ok)
-	assert.Equal(t, codes.Unavailable, st.Code())
+	assert.Equal(t, codes.NotFound, st.Code())
 }

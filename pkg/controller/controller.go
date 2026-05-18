@@ -100,7 +100,8 @@ func NewAggregatedControllerManager(ctx context.Context,
 
 	logger.Info("Setting up reconcilers")
 
-	err = reconciler.SetupReconcilers(ctx, kommodityConfig, &manager, clusterCache, controllerOpts, signingKeyDeps, kmsRouter)
+	err = reconciler.SetupReconcilers(
+		ctx, kommodityConfig, &manager, clusterCache, controllerOpts, signingKeyDeps, kmsRouter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup reconcilers: %w", err)
 	}

@@ -29,10 +29,6 @@ var (
 	// the configured KMS domain or yields an invalid cluster name.
 	ErrInvalidAuthority = errors.New("invalid :authority for KMS domain")
 	// ErrClusterNotRegistered is an error that indicates no per-cluster KMS handler is
-	// registered for the cluster derived from :authority. Callers should retry once
-	// the cluster has been reconciled.
+	// registered for the cluster derived from :authority.
 	ErrClusterNotRegistered = errors.New("no KMS handler registered for cluster")
-	// ErrKMSDomainNotConfigured is an error that indicates the kommodity binary was
-	// started without a KMS domain, so per-cluster routing cannot work.
-	ErrKMSDomainNotConfigured = errors.New("KMS domain is not configured")
 )

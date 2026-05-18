@@ -79,24 +79,14 @@ type Router struct {
 	kms.UnimplementedKMSServiceServer
 
 	config   *config.KommodityConfig
-	domain   string
 	handlers sync.Map // map[string]*ServiceServer
 }
 
-// NewRouter returns a Router configured against the KMS domain from cfg.
-// The Router refuses to route until per-cluster handlers are registered.
+// NewRouter returns a Router with an empty handler map. Until clusters are
+// registered (typically by the Cluster reconciler), all requests will be
+// rejected with codes.NotFound.
 func NewRouter(cfg *config.KommodityConfig) *Router {
-	domain := ""
-	if cfg.KMSConfig != nil {
-		domain = strings.TrimSpace(cfg.KMSConfig.Domain)
-	}
-
-	return &Router{config: cfg, domain: domain}
-}
-
-// Domain returns the configured KMS domain suffix.
-func (r *Router) Domain() string {
-	return r.domain
+	return &Router{config: cfg}
 }
 
 // Register installs a per-cluster handler. Safe to call repeatedly; existing
@@ -131,27 +121,20 @@ func (r *Router) Unseal(ctx context.Context, req *kms.Request) (*kms.Response, e
 }
 
 func (r *Router) dispatch(ctx context.Context) (*ServiceServer, error) {
-	if r.domain == "" {
-		//nolint:wrapcheck // we want a gRPC status error here
-		return nil, status.Error(codes.FailedPrecondition, ErrKMSDomainNotConfigured.Error())
-	}
-
-	clusterName, err := r.clusterFromContext(ctx)
+	clusterName, err := clusterFromContext(ctx)
 	if err != nil {
 		//nolint:wrapcheck // we want a gRPC status error here
 		return nil, status.Error(codes.FailedPrecondition, err.Error())
 	}
 
-	value, ok := r.handlers.Load(clusterName)
-	if !ok {
-		//nolint:wrapcheck // we want a gRPC status error here
-		return nil, status.Errorf(codes.Unavailable,
+	value, found := r.handlers.Load(clusterName)
+	if !found {
+		return nil, status.Errorf(codes.NotFound,
 			"%v: %s", ErrClusterNotRegistered, clusterName)
 	}
 
-	handler, ok := value.(*ServiceServer)
-	if !ok {
-		//nolint:wrapcheck // unreachable: only ServiceServer is stored in the map
+	handler, isHandler := value.(*ServiceServer)
+	if !isHandler {
 		return nil, status.Errorf(codes.Internal,
 			"unexpected handler type for cluster %s", clusterName)
 	}
@@ -159,9 +142,11 @@ func (r *Router) dispatch(ctx context.Context) (*ServiceServer, error) {
 	return handler, nil
 }
 
-// clusterFromContext extracts the cluster name from the gRPC :authority
-// pseudo-header by stripping the configured domain suffix.
-func (r *Router) clusterFromContext(ctx context.Context) (string, error) {
+// clusterFromContext extracts the cluster name from the leftmost DNS label
+// of the gRPC :authority pseudo-header. Talos dials "<cluster>.<suffix>:<port>";
+// the suffix is whatever DNS the operator has set up to point at kommodity,
+// and is not material to routing.
+func clusterFromContext(ctx context.Context) (string, error) {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
 		return "", ErrMissingAuthority
@@ -177,12 +162,7 @@ func (r *Router) clusterFromContext(ctx context.Context) (string, error) {
 		host = host[:idx]
 	}
 
-	suffix := "." + r.domain
-
-	name, ok := strings.CutSuffix(host, suffix)
-	if !ok {
-		return "", fmt.Errorf("%w: host %q not under domain %q", ErrInvalidAuthority, host, r.domain)
-	}
+	name, _, _ := strings.Cut(host, ".")
 
 	errs := validation.IsDNS1123Label(name)
 	if len(errs) > 0 {
