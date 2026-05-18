@@ -66,7 +66,8 @@ jobs:
             # Build dependencies.
             [[ ! -f "$source/charts/$chart/Chart.lock" ]] && helm dependency build "$source/charts/$chart"
 
-            helm template release "$source/charts/$chart" >"$source.yaml"
+            # kommodity-cluster requires release name == install namespace.
+            helm template release "$source/charts/$chart" --namespace release >"$source.yaml"
           }
 
           for chart in "${changed_charts[@]}"; do
@@ -76,7 +77,7 @@ jobs:
             if ! changes="$(diff -u main.yaml pr.yaml)"; then
               {
                 echo "<details>"
-                echo "<summary><code>helm template release charts/$chart</code></summary>"
+                echo "<summary><code>helm template release charts/$chart --namespace release</code></summary>"
                 echo ""
                 echo '```diff'
                 echo "$changes"
