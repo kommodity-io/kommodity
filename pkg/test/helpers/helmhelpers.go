@@ -58,10 +58,12 @@ func installKommodityClusterChart(
 	installer.Namespace = namespace
 	installer.Wait = false
 	// The chart treats .Release.Name as the cluster name AND the install
-	// namespace. CreateNamespace lets Helm provision the namespace before it
-	// writes the release secret; the chart's Namespace template takes
-	// ownership on the subsequent three-way merge.
+	// namespace. CreateNamespace lets Helm provision the namespace before
+	// it writes the release secret; TakeOwnership tells Helm to adopt that
+	// pre-existing namespace when the chart's Namespace template renders
+	// (otherwise the second create would fail with "already exists").
 	installer.CreateNamespace = true
+	installer.TakeOwnership = true
 
 	_, err = installer.Run(chart, values)
 	require.NoError(t, err)
