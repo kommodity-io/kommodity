@@ -14,6 +14,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"net"
 	"strings"
 	"sync"
 
@@ -124,13 +125,13 @@ func (r *Router) dispatch(ctx context.Context) (*ServiceServer, error) {
 	clusterName, err := clusterFromContext(ctx)
 	if err != nil {
 		//nolint:wrapcheck // we want a gRPC status error here
-		return nil, status.Error(codes.FailedPrecondition, err.Error())
+		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
 	value, found := r.handlers.Load(clusterName)
 	if !found {
 		return nil, status.Errorf(codes.NotFound,
-			"%v: %s", ErrClusterNotRegistered, clusterName)
+			"%v: %q", ErrClusterNotRegistered, clusterName)
 	}
 
 	handler, isHandler := value.(*ServiceServer)
@@ -152,34 +153,30 @@ func clusterFromContext(ctx context.Context) (string, error) {
 		return "", ErrMissingAuthority
 	}
 
-	authority := firstNonEmpty(md.Get(authorityKey))
-	if authority == "" {
+	authorities := md.Get(authorityKey)
+	if len(authorities) == 0 || authorities[0] == "" {
 		return "", ErrMissingAuthority
 	}
 
-	host := authority
-	if idx := strings.LastIndex(host, ":"); idx != -1 {
-		host = host[:idx]
+	authority := authorities[0]
+
+	// Strip the port if present. net.SplitHostPort correctly handles IPv6
+	// literals like "[::1]:443"; for bare hostnames (no port) it returns
+	// an error and we fall back to the original string.
+	host, _, splitErr := net.SplitHostPort(authority)
+	if splitErr != nil {
+		host = authority
 	}
 
 	name, _, _ := strings.Cut(host, ".")
 
 	errs := validation.IsDNS1123Label(name)
 	if len(errs) > 0 {
-		return "", fmt.Errorf("%w: %q: %s", ErrInvalidAuthority, name, strings.Join(errs, "; "))
+		return "", fmt.Errorf("%w: %q from authority %q: %s",
+			ErrInvalidAuthority, name, authority, strings.Join(errs, "; "))
 	}
 
 	return name, nil
-}
-
-func firstNonEmpty(values []string) string {
-	for _, v := range values {
-		if v != "" {
-			return v
-		}
-	}
-
-	return ""
 }
 
 // Seal encrypts data using the KMS service for the cluster this handler serves.

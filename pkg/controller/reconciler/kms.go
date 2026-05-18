@@ -12,6 +12,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
 
 // KMSClusterReconciler keeps the KMS Router's per-cluster handler map in sync
@@ -23,18 +24,30 @@ type KMSClusterReconciler struct {
 	Router *kms.Router
 }
 
-// SetupWithManager wires the reconciler to watch CAPI Cluster resources.
-func (r *KMSClusterReconciler) SetupWithManager(_ context.Context,
+// SetupWithManager wires the reconciler to watch CAPI Cluster resources and
+// primes the Router with handlers for all existing Clusters so the gRPC server
+// doesn't return NotFound during the window between startup and the first
+// reconcile cycle.
+func (r *KMSClusterReconciler) SetupWithManager(ctx context.Context,
 	mgr ctrl.Manager, opt controller.Options,
 ) error {
 	builder := ctrl.NewControllerManagedBy(mgr).
 		Named("kommodity-kms-cluster-controller").
 		For(&clusterv1.Cluster{}).
-		WithOptions(opt)
+		WithOptions(opt).
+		// Only requeue when Spec changes; we don't care about Status churn from
+		// machine rollouts. Create and Delete events bypass this predicate, so
+		// onboarding and offboarding still work normally.
+		WithEventFilter(predicate.GenerationChangedPredicate{})
 
 	err := builder.Complete(r)
 	if err != nil {
 		return fmt.Errorf("failed setting up KMSClusterReconciler with a controller manager: %w", err)
+	}
+
+	err = r.primeRouter(ctx, mgr.GetAPIReader())
+	if err != nil {
+		return fmt.Errorf("failed to prime KMS router: %w", err)
 	}
 
 	return nil
@@ -60,6 +73,9 @@ func (r *KMSClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, fmt.Errorf("failed to get Cluster %s: %w", req.String(), err)
 	}
 
+	// Deregister as soon as deletion starts: any in-flight Unseal calls will
+	// 404 briefly, but Talos retries and the cluster's machines are draining
+	// anyway, so no fresh Seal calls are expected during this window.
 	if !cluster.DeletionTimestamp.IsZero() {
 		r.Router.Deregister(cluster.Name)
 		logger.Info("Deregistered KMS handler for cluster being deleted",
@@ -73,4 +89,32 @@ func (r *KMSClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		zap.String("cluster", cluster.Name))
 
 	return ctrl.Result{}, nil
+}
+
+// primeRouter performs a one-shot uncached list of Cluster CRs and registers a
+// handler for each. The manager's cache is not yet started at this point, so we
+// read directly from the API server via the APIReader.
+func (r *KMSClusterReconciler) primeRouter(ctx context.Context, reader client.Reader) error {
+	logger := logging.FromContext(ctx)
+
+	var clusters clusterv1.ClusterList
+
+	err := reader.List(ctx, &clusters)
+	if err != nil {
+		return fmt.Errorf("failed to list clusters: %w", err)
+	}
+
+	for i := range clusters.Items {
+		cluster := &clusters.Items[i]
+		if !cluster.DeletionTimestamp.IsZero() {
+			continue
+		}
+
+		r.Router.Register(cluster.Name)
+	}
+
+	logger.Info("Primed KMS router with existing clusters",
+		zap.Int("count", len(clusters.Items)))
+
+	return nil
 }

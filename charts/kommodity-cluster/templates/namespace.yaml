@@ -1,3 +1,4 @@
+{{- include "kommodity-cluster.releaseNameCheck" . -}}
 {{- /*
 The cluster's namespace. Created as the first resource in the chart so all
 per-cluster resources (Cluster CR, MachineDeployment, KMS Secret, etc.) land

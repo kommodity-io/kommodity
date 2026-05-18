@@ -3,13 +3,16 @@ kommodity:
   provider:
     name: Kubevirt
     secret:
-      # Kubevirt secret example (contains a kubeconfig used to connect to the Kubevirt cluster):
+      # Kubevirt provider credentials (contains a kubeconfig used to connect
+      # to the Kubevirt cluster). The Secret MUST exist in the cluster's
+      # namespace (= the Helm release name) before installing the chart.
+      # Example:
       #
       # apiVersion: v1
       # kind: Secret
       # metadata:
       #   name: kubevirt-credentials
-      #   namespace: <release-namespace>
+      #   namespace: <release-name>      # same as the cluster name
       # data:
       #   kubeconfig: <base64-encoded-kubeconfig>
       # type: Opaque

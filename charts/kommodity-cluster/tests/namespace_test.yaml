@@ -117,3 +117,12 @@ tests:
       - equal:
           path: metadata.name
           value: "test-cluster-attestation-policy"
+
+  - it: should fail to render when release name and install namespace disagree
+    release:
+      name: test-cluster
+      namespace: some-other-namespace
+    template: templates/namespace.yaml
+    asserts:
+      - failedTemplate:
+          errorMessage: 'kommodity-cluster: release name ("test-cluster") must match install namespace ("some-other-namespace"). Use: helm install test-cluster . -n test-cluster --create-namespace'
