@@ -278,7 +278,7 @@ resource "azurerm_container_app" "kommodity-app" {
 
 # Custom domain DNS + managed certificate for the Container App
 locals {
-  custom_domain_name = trimprefix(trimsuffix(var.app_url, ".${var.dns.zone}"), "https://") # e.g. https://kommodity.dev.example.com -> kommodity.dev
+  custom_domain_name = trimsuffix(regex("^(?:https?://)?(.*)$", var.app_url)[0], ".${var.dns.zone}") # e.g. https://kommodity.dev.example.com -> kommodity.dev
 }
 
 data "azurerm_dns_zone" "this" {
@@ -324,18 +324,13 @@ resource "azurerm_management_lock" "txt_lock" {
   notes      = "Locked to prevent accidental deletion"
 }
 
-resource "time_sleep" "wait_for_dns_propagation" {
-  depends_on      = [azurerm_dns_cname_record.kommodity, azurerm_dns_txt_record.verification]
-  create_duration = "60s"
-}
-
 resource "azurerm_container_app_environment_managed_certificate" "this" {
   name                         = trimsuffix(azurerm_dns_cname_record.kommodity.fqdn, ".")
   container_app_environment_id = azurerm_container_app_environment.kommodity-environment.id
   subject_name                 = trimsuffix(azurerm_dns_cname_record.kommodity.fqdn, ".")
   domain_control_validation    = "CNAME"
 
-  depends_on = [time_sleep.wait_for_dns_propagation]
+  depends_on = [azurerm_dns_cname_record.kommodity, azurerm_dns_txt_record.verification]
 }
 
 resource "azurerm_container_app_custom_domain" "this" {

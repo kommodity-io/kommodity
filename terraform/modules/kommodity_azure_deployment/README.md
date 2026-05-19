@@ -39,7 +39,7 @@ The module deploys a **PostgreSQL Flexible Server** in a private subnet with a r
 
 An **Azure Container App** is created to host the Kommodity application. Kommodity is configured with environment variables for authentication, logging, and runtime settings.
 
-The module also manages the **public DNS records** (`CNAME` + `asuid` TXT) needed for `app_url`, binds the custom domain to the Container App, and issues an **Azure Container App Environment Managed Certificate** (validated via CNAME). In `production` environments the DNS records are protected by `CanNotDelete` management locks.
+The module also manages the **public DNS records** (`CNAME` + `asuid` TXT) needed for `app_url`, binds the custom domain to the Container App, and issues an **Azure Container App Environment Managed Certificate** (validated via CNAME). The DNS records are protected by `CanNotDelete` management locks.
 
 The `azurerm.dns` provider alias is required because the DNS zone typically lives in a different subscription than the deployment itself.
 

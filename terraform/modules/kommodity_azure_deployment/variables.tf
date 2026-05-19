@@ -99,8 +99,8 @@ variable "app_url" {
   description = "Custom domain URL for the Kommodity Container App (e.g. https://kommodity.dev.example.com). Must be a subdomain of var.dns.zone."
 
   validation {
-    condition     = startswith(var.app_url, "https://")
-    error_message = "app_url must start with 'https://'."
+    condition     = startswith(var.app_url, "https://") || startswith(var.app_url, "http://")
+    error_message = "app_url must start with 'http://' or 'https://'."
   }
 }
 
@@ -111,4 +111,11 @@ variable "dns" {
     az_resource_group = optional(string, "infrastructure-dns")
   })
   description = "DNS configuration for the custom domain. zone = parent DNS zone name; az_resource_group = resource group hosting the zone."
+  validation {
+    condition = can(regex(
+      "^https?://([A-Za-z0-9-]+\\.)+${replace(var.dns.zone, ".", "\\.")}$",
+      var.app_url
+    ))
+    error_message = "app_url must be an http(s) URL whose host is a non-apex subdomain of var.dns.zone, with no port, path, query, fragment, or trailing slash."
+  }
 }

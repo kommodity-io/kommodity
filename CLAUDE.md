@@ -69,6 +69,7 @@ The goal: make sovereign cloud as routine as any other Kubernetes deployment.
 - `github.com/kommodity-io/kommodity-autobootstrap-extension` - auto-bootstrap extension
 
 ## Making changes
+
 When proposing changes to Kommodity, consider the size of the change. If it's above a certain threshold, it may be best to break it into smaller, more manageable pieces. For example, if you're adding a new feature that requires changes to multiple components, consider submitting separate pull requests for each component rather than one large pull request.
 
 For larger changes, you should first create a PRD (Product Requirements Document) that outlines the proposed change, its rationale, and its impact on the system. The PRD should be approved before any code changes can be made.
@@ -76,19 +77,24 @@ For larger changes, you should first create a PRD (Product Requirements Document
 The PRD phase should use `Plan Mode`.
 
 ## Bootstrap
+
 Before starting working on any task, please install following plugins:
+
 - `claude plugin install gopls-lsp@claude-plugins-official`
 - `claude plugin install code-simplifier@claude-plugins-official`
 - `claude plugin install code-review@claude-plugins-official`
 
 ## During development
+
 Prerequisites for development include:
+
 - Run `make generate`
 - Revert changes in `pkg/openapi/intstr/zz_generated.openapi.go` as its a known bug in the code generator
 
 For every change that compiles using `make build`, you should also run `make lint` to ensure that your code adheres to the project's coding standards, if it does not, you should fix the linting errors before proceeding.
 
 Furthermore, make sure that:
+
 - Use constants in the top of the file, instead of hardcoding values in your code.
 - Use errors.go file to define custom error types and error messages, the errors.go should be located in each sub package.
 - Use the `pkg/config` package to manage configuration settings for your changes.
@@ -121,6 +127,12 @@ For each change you should use the `During development` guide to complete the fi
 This is applicable for the `Implement Mode`.
 
 ## Final review
+
 When the changes builds, lints and tests successfully, please read through the PRD or the initial ask and compare it with the code changes to ensure that the implementation matches the original intent. If there are discrepancies, please address them before the task is considered complete.
 
 This is applicable for the `Implement Mode`.
+
+## Terraform changes
+
+When making changes to the Terraform modules, you should also update the documentation in the module's `README.md`. Run `terraform-docs markdown table --output-file README.md <path-to-module>` to update the input/output variable tables in the documentation.
+Also update related examples, in `terraform/examples`.
