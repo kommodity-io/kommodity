@@ -2,7 +2,7 @@
 
 ## Get started
 
-To use this module, call it as followed in your `main.tf`:
+To use this module, call it as follows in your `main.tf`:
 
 ```tf
 module "kommodity_azure_deployment" {
