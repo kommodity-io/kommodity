@@ -246,7 +246,7 @@ resource "azurerm_container_app" "kommodity-app" {
       }
       env {
         name  = "KOMMODITY_BASE_URL"
-        value = var.kommodity_container.base_url
+        value = var.app_url
       }
       env {
         name  = "KOMMODITY_ADMIN_GROUP"
@@ -274,4 +274,68 @@ resource "azurerm_container_app" "kommodity-app" {
   lifecycle {
     ignore_changes = [workload_profile_name]
   }
+}
+
+# Custom domain DNS + managed certificate for the Container App
+locals {
+  custom_domain_name = trimsuffix(regex("^(?:https?://)?(.*)$", var.app_url)[0], ".${var.dns.zone}") # e.g. https://kommodity.dev.example.com -> kommodity.dev
+}
+
+data "azurerm_dns_zone" "this" {
+  provider            = azurerm.dns
+  name                = var.dns.zone
+  resource_group_name = var.dns.az_resource_group
+}
+
+resource "azurerm_dns_cname_record" "kommodity" {
+  provider            = azurerm.dns
+  name                = local.custom_domain_name
+  zone_name           = data.azurerm_dns_zone.this.name
+  resource_group_name = var.dns.az_resource_group
+  ttl                 = var.dns.ttl
+  record              = azurerm_container_app.kommodity-app.ingress[0].fqdn
+}
+
+resource "azurerm_management_lock" "cname_lock" {
+  provider   = azurerm.dns
+  name       = azurerm_dns_cname_record.kommodity.name
+  scope      = azurerm_dns_cname_record.kommodity.id
+  lock_level = "CanNotDelete"
+  notes      = "Locked to prevent accidental deletion"
+}
+
+resource "azurerm_dns_txt_record" "verification" {
+  provider            = azurerm.dns
+  name                = "asuid.${local.custom_domain_name}"
+  zone_name           = data.azurerm_dns_zone.this.name
+  resource_group_name = var.dns.az_resource_group
+  ttl                 = var.dns.ttl
+
+  record {
+    value = azurerm_container_app.kommodity-app.custom_domain_verification_id
+  }
+}
+
+resource "azurerm_management_lock" "txt_lock" {
+  provider   = azurerm.dns
+  name       = azurerm_dns_txt_record.verification.name
+  scope      = azurerm_dns_txt_record.verification.id
+  lock_level = "CanNotDelete"
+  notes      = "Locked to prevent accidental deletion"
+}
+
+resource "azurerm_container_app_environment_managed_certificate" "this" {
+  name                         = trimsuffix(azurerm_dns_cname_record.kommodity.fqdn, ".")
+  container_app_environment_id = azurerm_container_app_environment.kommodity-environment.id
+  subject_name                 = trimsuffix(azurerm_dns_cname_record.kommodity.fqdn, ".")
+  domain_control_validation    = "CNAME"
+
+  depends_on = [azurerm_dns_cname_record.kommodity, azurerm_dns_txt_record.verification]
+}
+
+resource "azurerm_container_app_custom_domain" "this" {
+  name                                     = trimsuffix(azurerm_dns_cname_record.kommodity.fqdn, ".")
+  container_app_id                         = azurerm_container_app.kommodity-app.id
+  container_app_environment_certificate_id = azurerm_container_app_environment_managed_certificate.this.id
+  certificate_binding_type                 = "SniEnabled"
 }

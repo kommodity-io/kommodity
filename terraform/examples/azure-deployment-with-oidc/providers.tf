@@ -4,7 +4,7 @@ terraform {
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = "~>4.50.0"
+      version = "~>4.69.0"
     }
     random = {
       source  = "hashicorp/random"
@@ -15,5 +15,12 @@ terraform {
 
 provider "azurerm" {
   subscription_id = "my-subscription-ID"
+  features {}
+}
+
+# DNS zone usually lives in a separate "infrastructure" subscription.
+provider "azurerm" {
+  alias           = "dns"
+  subscription_id = "my-dns-subscription-ID"
   features {}
 }

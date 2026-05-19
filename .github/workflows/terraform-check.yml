@@ -36,8 +36,8 @@ jobs:
             echo "🚀 Initializing module..."
             terraform init -backend=false > /dev/null
 
-            echo "✅ Running terraform validate..."
-            terraform validate
+            echo "✅ Running terraform test..."
+            terraform test
 
             cd - > /dev/null
           done
