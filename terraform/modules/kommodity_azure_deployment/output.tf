@@ -12,3 +12,8 @@ output "custom_domain_verification_id" {
   value       = azurerm_container_app.kommodity-app.custom_domain_verification_id
   description = "The Custom Domain Verification ID of the Kommodity Container App"
 }
+
+output "container_app_environment_id" {
+  value       = azurerm_container_app_environment.kommodity-environment.id
+  description = "The ID of the Kommodity Container App Environment"
+}
