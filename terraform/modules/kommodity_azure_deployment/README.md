@@ -82,4 +82,3 @@ No modules.
 | <a name="output_container_app_environment_id"></a> [container\_app\_environment\_id](#output\_container\_app\_environment\_id) | The ID of the Kommodity Container App Environment |
 | <a name="output_container_app_id"></a> [container\_app\_id](#output\_container\_app\_id) | The ID of the Kommodity Container App |
 | <a name="output_custom_domain_verification_id"></a> [custom\_domain\_verification\_id](#output\_custom\_domain\_verification\_id) | The Custom Domain Verification ID of the Kommodity Container App |
-<!-- END_TF_DOCS -->
