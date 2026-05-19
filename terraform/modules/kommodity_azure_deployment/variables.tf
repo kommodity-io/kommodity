@@ -79,7 +79,6 @@ variable "kommodity_container" {
     log_format                      = optional(string, "console")
     log_level                       = optional(string, "info")
     infrastructure_providers        = optional(string, "") # If env var is empty, Kommodity uses default providers
-    base_url                        = optional(string, "")
   })
   description = "Kommodity container configuration"
   default     = {}
@@ -93,4 +92,23 @@ variable "oidc_configuration" {
     username_claim = optional(string, "")
   })
   description = "OIDC configuration"
+}
+
+variable "app_url" {
+  type        = string
+  description = "Custom domain URL for the Kommodity Container App (e.g. https://kommodity.dev.example.com). Must be a subdomain of var.dns.zone."
+
+  validation {
+    condition     = startswith(var.app_url, "https://")
+    error_message = "app_url must start with 'https://'."
+  }
+}
+
+variable "dns" {
+  type = object({
+    zone              = string
+    ttl               = optional(number, 300)
+    az_resource_group = optional(string, "infrastructure-dns")
+  })
+  description = "DNS configuration for the custom domain. zone = parent DNS zone name; az_resource_group = resource group hosting the zone."
 }

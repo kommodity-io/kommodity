@@ -44,13 +44,13 @@ blocks (Cluster API, Talos Linux, Kine, TPM attestation) and ship them as a
 single binary that speaks the Kubernetes API. The same `kubectl` and Helm
 workflows work across Scaleway, Azure, KubeVirt, Docker, and bare metal.
 
-| Without Kommodity                            | With Kommodity                                          |
-| -------------------------------------------- | ------------------------------------------------------- |
-| Learn each cloud's APIs, consoles, and quirks | One Kubernetes-native control plane for every provider  |
-| Trust machines because they're "on the network" | TPM-attested boot — no quote, no secrets                 |
-| Cloud-provider KMS holds the encryption keys | Per-volume LUKS keys live in your database               |
-| Different ops model per environment          | Same GitOps, RBAC, and audit logs everywhere             |
-| Compliance bolted on after deployment        | Encryption, attestation, and audit logging by default    |
+| Without Kommodity                               | With Kommodity                                         |
+| ----------------------------------------------- | ------------------------------------------------------ |
+| Learn each cloud's APIs, consoles, and quirks   | One Kubernetes-native control plane for every provider |
+| Trust machines because they're "on the network" | TPM-attested boot — no quote, no secrets               |
+| Cloud-provider KMS holds the encryption keys    | Per-volume LUKS keys live in your database             |
+| Different ops model per environment             | Same GitOps, RBAC, and audit logs everywhere           |
+| Compliance bolted on after deployment           | Encryption, attestation, and audit logging by default  |
 
 ---
 
@@ -179,24 +179,24 @@ yourself.
 
 **Bundled addons**
 
-| Addon                    | Default                | Install mode    | Namespace             | What it gives you                                                |
-| ------------------------ | ---------------------- | --------------- | --------------------- | ---------------------------------------------------------------- |
-| **Cilium**               | ✅ enabled              | `HelmInstall`   | `kube-system`         | eBPF CNI, kube-proxy replacement, Hubble UI/relay, BGP control plane |
-| **talos-cluster-proxy**  | ✅ enabled              | `HelmInstall`   | `talos-cluster-proxy` | In-cluster gRPC proxy used by Kommodity to reach Talos nodes on private networks |
-| **ArgoCD**               | ⬜️ opt-in              | `KubectlApply`  | `argocd`              | GitOps control plane; install-once-then-adopt by default          |
+| Addon                   | Default    | Install mode   | Namespace             | What it gives you                                                                |
+| ----------------------- | ---------- | -------------- | --------------------- | -------------------------------------------------------------------------------- |
+| **Cilium**              | ✅ enabled | `HelmInstall`  | `kube-system`         | eBPF CNI, kube-proxy replacement, Hubble UI/relay, BGP control plane             |
+| **talos-cluster-proxy** | ✅ enabled | `HelmInstall`  | `talos-cluster-proxy` | In-cluster gRPC proxy used by Kommodity to reach Talos nodes on private networks |
+| **ArgoCD**              | ⬜️ opt-in  | `KubectlApply` | `argocd`              | GitOps control plane; install-once-then-adopt by default                         |
 
 **Lifecycle controls (every addon)**
 
-| Field                             | Purpose                                                                            |
-| --------------------------------- | ---------------------------------------------------------------------------------- |
-| `lifecycle.install.mode`          | `HelmInstall` for chart releases or `KubectlApply` for plain manifests             |
-| `lifecycle.install.condition`     | Skip re-install when a target resource already exists (required for `KubectlApply`)|
-| `lifecycle.upgrade.disable`       | After the initial install, leave the addon untouched — hand ongoing management to ArgoCD/Flux |
-| `namespace`                       | Target namespace (defaults to the addon name)                                       |
-| `chart.{repository,name,version}` | Pinned OCI or HTTPS Helm chart coordinates                                          |
-| `initialExtraValues`              | Values merged into the chart **at first install only** (immutable thereafter)       |
-| `extraEnvs`                       | Extra env vars on the installer job, including `secretKeyRef` for credentials       |
-| `preInstallationScript` / `postInstallationScript` | Shell hooks run around the install for migrations or bootstrap glue |
+| Field                                              | Purpose                                                                                       |
+| -------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `lifecycle.install.mode`                           | `HelmInstall` for chart releases or `KubectlApply` for plain manifests                        |
+| `lifecycle.install.condition`                      | Skip re-install when a target resource already exists (required for `KubectlApply`)           |
+| `lifecycle.upgrade.disable`                        | After the initial install, leave the addon untouched — hand ongoing management to ArgoCD/Flux |
+| `namespace`                                        | Target namespace (defaults to the addon name)                                                 |
+| `chart.{repository,name,version}`                  | Pinned OCI or HTTPS Helm chart coordinates                                                    |
+| `initialExtraValues`                               | Values merged into the chart **at first install only** (immutable thereafter)                 |
+| `extraEnvs`                                        | Extra env vars on the installer job, including `secretKeyRef` for credentials                 |
+| `preInstallationScript` / `postInstallationScript` | Shell hooks run around the install for migrations or bootstrap glue                           |
 
 **Bring your own addon**
 
@@ -218,7 +218,7 @@ kommodity:
         install:
           mode: HelmInstall
         upgrade:
-          disable: true        # hand ongoing reconciliation to GitOps
+          disable: true # hand ongoing reconciliation to GitOps
       chart:
         repository: https://cloudnative-pg.github.io/charts
         name: cloudnative-pg
@@ -383,11 +383,26 @@ Provider-specific examples (Scaleway, Azure, KubeVirt, Docker) live in
 
 The [`kommodity_azure_deployment`](terraform/modules/kommodity_azure_deployment)
 module provisions Kommodity itself on Azure: VNet, PostgreSQL Flexible Server,
-Container App, and Log Analytics.
+Container App, Log Analytics, and a custom-domain HTTPS endpoint backed by an
+Azure-managed certificate.
 
 ```hcl
 module "kommodity_azure_deployment" {
   source = "github.com/kommodity-io/kommodity//terraform/modules/kommodity_azure_deployment?ref=<tag>"
+
+  providers = {
+    azurerm     = azurerm     # workload subscription
+    azurerm.dns = azurerm.dns # subscription hosting the public DNS zone
+    # if the DNS zone lives in the same subscription, use: azurerm.dns = azurerm
+  }
+
+  app_url     = "https://kommodity.dev.example.com"
+  environment = "development"
+
+  dns = {
+    zone              = "example.com"
+    az_resource_group = "infrastructure-dns"
+  }
 
   oidc_configuration = {
     issuer_url  = "https://login.microsoftonline.com/<tenant-id>/v2.0"
