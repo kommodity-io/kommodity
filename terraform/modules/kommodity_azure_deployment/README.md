@@ -57,10 +57,10 @@ The `azurerm.dns` provider alias is required because the DNS zone typically live
 
 | Name | Version |
 | ---- | ------- |
-| <a name="provider_azurerm"></a> [azurerm](#provider\_azurerm) | ~>4.69.0 |
-| <a name="provider_azurerm.dns"></a> [azurerm.dns](#provider\_azurerm.dns) | ~>4.69.0 |
-| <a name="provider_random"></a> [random](#provider\_random) | ~> 3.7 |
-| <a name="provider_time"></a> [time](#provider\_time) | ~> 0.12 |
+| <a name="provider_azurerm"></a> [azurerm](#provider\_azurerm) | 4.69.0 |
+| <a name="provider_azurerm.dns"></a> [azurerm.dns](#provider\_azurerm.dns) | 4.69.0 |
+| <a name="provider_random"></a> [random](#provider\_random) | 3.9.0 |
+| <a name="provider_time"></a> [time](#provider\_time) | 0.14.0 |
 
 ## Modules
 
@@ -100,7 +100,6 @@ No modules.
 | <a name="input_database"></a> [database](#input\_database) | Database configuration | <pre>object({<br/>    storage_tier                  = optional(string, "P4")<br/>    sku_name                      = optional(string, "B_Standard_B1ms")<br/>    storage_mb                    = optional(number, 32768)<br/>    version                       = optional(string, "15")<br/>    public_network_access_enabled = optional(bool, false)<br/>    ha_enabled                    = optional(bool, false)<br/>    storage_georedundant_enabled  = optional(bool, false)<br/>    collation                     = optional(string, "en_US.utf8")<br/>    add_lock                      = optional(bool, false)<br/>  })</pre> | `{}` | no |
 | <a name="input_database_password"></a> [database\_password](#input\_database\_password) | Database password configuration | <pre>object({<br/>    length  = number<br/>    special = bool<br/>  })</pre> | <pre>{<br/>  "length": 16,<br/>  "special": false<br/>}</pre> | no |
 | <a name="input_dns"></a> [dns](#input\_dns) | DNS configuration for the custom domain. zone = parent DNS zone name; az\_resource\_group = resource group hosting the zone. | <pre>object({<br/>    zone              = string<br/>    ttl               = optional(number, 300)<br/>    az_resource_group = optional(string, "infrastructure-dns")<br/>  })</pre> | n/a | yes |
-| <a name="input_environment"></a> [environment](#input\_environment) | Deployment environment (e.g. production). Used to gate management locks on DNS records. | `string` | n/a | yes |
 | <a name="input_kommodity_container"></a> [kommodity\_container](#input\_kommodity\_container) | Kommodity container configuration | <pre>object({<br/>    revision_mode                   = optional(string, "Single")<br/>    image_registry                  = optional(string, "ghcr.io/kommodity-io/kommodity")<br/>    image_version                   = optional(string, "latest")<br/>    port                            = optional(number, 5000)<br/>    cpu                             = optional(number, 0.25)<br/>    memory                          = optional(string, "0.5Gi")<br/>    min_replicas                    = optional(number, 1)<br/>    max_replicas                    = optional(number, 1)<br/>    ssl_mode                        = optional(string, "require")<br/>    insecure_disable_authentication = optional(string, "false")<br/>    development_mode                = optional(string, "false")<br/>    kine_uri                        = optional(string, "unix:///tmp/kine.sock")<br/>    log_format                      = optional(string, "console")<br/>    log_level                       = optional(string, "info")<br/>    infrastructure_providers        = optional(string, "") # If env var is empty, Kommodity uses default providers<br/>  })</pre> | `{}` | no |
 | <a name="input_log_analytics"></a> [log\_analytics](#input\_log\_analytics) | Log Analytics workspace configuration | <pre>object({<br/>    workspace_sku       = optional(string, "PerGB2018")<br/>    workspace_retention = optional(number, 30)<br/>  })</pre> | `{}` | no |
 | <a name="input_oidc_configuration"></a> [oidc\_configuration](#input\_oidc\_configuration) | OIDC configuration | <pre>object({<br/>    issuer_url     = string<br/>    client_id      = string<br/>    admin_group    = string<br/>    username_claim = optional(string, "")<br/>  })</pre> | n/a | yes |
@@ -115,3 +114,4 @@ No modules.
 | <a name="output_container_app_environment_id"></a> [container\_app\_environment\_id](#output\_container\_app\_environment\_id) | The ID of the Kommodity Container App Environment |
 | <a name="output_container_app_id"></a> [container\_app\_id](#output\_container\_app\_id) | The ID of the Kommodity Container App |
 | <a name="output_custom_domain_verification_id"></a> [custom\_domain\_verification\_id](#output\_custom\_domain\_verification\_id) | The Custom Domain Verification ID of the Kommodity Container App |
+<!-- END_TF_DOCS -->
