@@ -19,8 +19,7 @@ module "kommodity_azure_deployment" {
     location = "North Europe"
   }
 
-  app_url     = "https://kommodity.dev.example.com"
-  environment = "development"
+  app_url = "https://kommodity.dev.example.com"
 
   dns = {
     zone              = "example.com"

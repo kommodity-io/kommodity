@@ -386,32 +386,6 @@ module provisions Kommodity itself on Azure: VNet, PostgreSQL Flexible Server,
 Container App, Log Analytics, and a custom-domain HTTPS endpoint backed by an
 Azure-managed certificate.
 
-```hcl
-module "kommodity_azure_deployment" {
-  source = "github.com/kommodity-io/kommodity//terraform/modules/kommodity_azure_deployment?ref=<tag>"
-
-  providers = {
-    azurerm     = azurerm     # workload subscription
-    azurerm.dns = azurerm.dns # subscription hosting the public DNS zone
-    # if the DNS zone lives in the same subscription, use: azurerm.dns = azurerm
-  }
-
-  app_url     = "https://kommodity.dev.example.com"
-  environment = "development"
-
-  dns = {
-    zone              = "example.com"
-    az_resource_group = "infrastructure-dns"
-  }
-
-  oidc_configuration = {
-    issuer_url  = "https://login.microsoftonline.com/<tenant-id>/v2.0"
-    client_id   = "<client-id>"
-    admin_group = "platform-team@yourcompany.com"
-  }
-}
-```
-
 See [`terraform/examples`](terraform/examples) for end-to-end examples.
 
 ### Single Binary

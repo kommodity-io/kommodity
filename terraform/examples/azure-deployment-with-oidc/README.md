@@ -30,4 +30,3 @@ providers = {
 - `app_url` — full HTTPS URL of the custom domain (e.g. `https://kommodity.dev.example.com`); must be a subdomain of `dns.zone`.
 - `dns.zone` — parent DNS zone name (e.g. `example.com`).
 - `dns.az_resource_group` — resource group hosting the DNS zone (defaults to `infrastructure-dns`).
-- `environment` — `production` enables `CanNotDelete` locks on the CNAME and TXT verification records.
