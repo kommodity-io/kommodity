@@ -49,8 +49,8 @@ The `azurerm.dns` provider alias is required because the DNS zone typically live
 | Name | Version |
 | ---- | ------- |
 | <a name="requirement_azurerm"></a> [azurerm](#requirement\_azurerm) | ~>4.69.0 |
-| <a name="requirement_random"></a> [random](#requirement\_random) | ~> 3.7 |
-| <a name="requirement_time"></a> [time](#requirement\_time) | ~> 0.12 |
+| <a name="requirement_random"></a> [random](#requirement\_random) | ~> 3.9 |
+| <a name="requirement_time"></a> [time](#requirement\_time) | ~> 0.14 |
 
 ## Providers
 
