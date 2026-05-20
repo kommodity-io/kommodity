@@ -112,7 +112,7 @@ jobs:
             {
               "platform": "openstack",
               "image_name": "kommodity-talos-openstack",
-              "imager_output": "openstack-amd64.raw.xz",
+              "imager_output": "openstack-amd64.raw.zst",
               "final_extension": "raw.xz",
               "artifact_type": "application/vnd.talos.openstack.image",
               "needs_conversion": "false",
@@ -167,7 +167,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y qemu-utils zstd
+          sudo apt-get install -y qemu-utils zstd xz-utils
 
       - name: Install oras
         run: |
@@ -250,6 +250,11 @@ jobs:
             # Convert raw to final format (e.g., Scaleway raw -> qcow2)
             qemu-img convert -f raw -O "${FINAL_EXTENSION}" "_out/${DECOMPRESSED_FILE}" "${FINAL_FILE}"
             rm -f "_out/${DECOMPRESSED_FILE}"
+          elif [[ "${FINAL_EXTENSION}" == *.xz ]]; then
+            # Recompress with xz (e.g., OpenStack raw.xz)
+            INTERMEDIATE="${FINAL_FILE%.xz}"
+            mv "_out/${DECOMPRESSED_FILE}" "${INTERMEDIATE}"
+            xz -T0 -9e --force "${INTERMEDIATE}"
           else
             # Just rename (e.g., Azure VHD)
             mv "_out/${DECOMPRESSED_FILE}" "${FINAL_FILE}"
