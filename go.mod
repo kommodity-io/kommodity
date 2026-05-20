@@ -49,6 +49,8 @@ require (
 	sigs.k8s.io/yaml v1.6.0
 )
 
+require k8s.io/gengo/v2 v2.0.0-20240911193312-2b36238f13e9 // indirect
+
 require (
 	4d63.com/gocheckcompilerdirectives v1.3.0 // indirect
 	4d63.com/gochecknoglobals v0.2.2 // indirect
