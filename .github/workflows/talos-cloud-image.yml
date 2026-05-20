@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       talos_version:
-        description: "Talos version (e.g., v1.12.3)"
+        description: "Talos version (e.g., v1.13.0)"
         required: false
         type: string
       extensions:
@@ -51,7 +51,7 @@ on:
 env:
   REGISTRY: ghcr.io/kommodity-io
   # Default values for inputs
-  DEFAULT_TALOS_VERSION: "v1.12.3"
+  DEFAULT_TALOS_VERSION: "v1.13.0"
   DEFAULT_EXTENSIONS: "ghcr.io/kommodity-io/kommodity-attestation-extension:${{ inputs.attestation_extension_version }},ghcr.io/kommodity-io/kommodity-autobootstrap-extension:${{ inputs.autobootstrap_extension_version }}"
 
 jobs:
@@ -88,7 +88,7 @@ jobs:
           TALOS_VERSION: ${{ steps.resolve-inputs.outputs.talos_version }}
         run: |
           if [[ ! "${TALOS_VERSION}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
-            echo "::error::Invalid talos_version format. Expected semver (e.g., v1.12.3)"
+            echo "::error::Invalid talos_version format. Expected semver (e.g., v1.13.0)"
             exit 1
           fi
 
