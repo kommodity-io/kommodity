@@ -7,6 +7,7 @@ import (
 	"github.com/kommodity-io/kommodity/pkg/config"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/client-go/rest"
+	ctrl "sigs.k8s.io/controller-runtime"
 )
 
 // This file exposes internal symbols of the controller package to the
@@ -23,15 +24,21 @@ const GCUserAgent = gcUserAgent
 // GCQPSMultiplier re-exports the QPS/Burst multiplier applied by configForGC.
 const GCQPSMultiplier = gcQPSMultiplier
 
-// SetupGarbageCollectorWithConfig invokes setupGarbageCollector with only the
-// config dependency populated. It exists so external tests can exercise the
-// disabled-path early return without constructing a controller-runtime
-// Manager.
-func SetupGarbageCollectorWithConfig(
+// SetupGarbageCollectorWithDeps invokes setupGarbageCollector with the full
+// dependency set so external tests can exercise both the disabled-path
+// early return and the enabled-path validation branches without constructing
+// a real controller-runtime Manager.
+func SetupGarbageCollectorWithDeps(
 	ctx context.Context,
 	gcCfg *config.GarbageCollectorConfig,
+	mgr ctrl.Manager,
+	restConfig *rest.Config,
 ) error {
-	return setupGarbageCollector(ctx, gcDeps{gcConfig: gcCfg})
+	return setupGarbageCollector(ctx, gcDeps{
+		manager:    mgr,
+		restConfig: restConfig,
+		gcConfig:   gcCfg,
+	})
 }
 
 // RunnerForTest wraps a partially-initialized garbageCollectorRunner so

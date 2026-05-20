@@ -2,6 +2,7 @@ package controller_test
 
 import (
 	"context"
+	"errors"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -11,6 +12,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/flowcontrol"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
 // stubResettableMapper is a minimal meta.ResettableRESTMapper that records
@@ -24,6 +27,15 @@ type stubResettableMapper struct {
 
 func (s *stubResettableMapper) Reset() {
 	s.resetCalls.Add(1)
+}
+
+// stubManager is a non-nil ctrl.Manager value whose methods all panic on
+// invocation. Tests use it to satisfy the type check in dependency
+// validation without paying the cost of building a real Manager. The
+// embedded manager.Manager interface is intentionally left as a nil
+// interface; the *stubManager pointer itself is non-nil.
+type stubManager struct {
+	manager.Manager
 }
 
 func TestConfigForGC_DoublesQPSAndBurstWhenSet(t *testing.T) {
@@ -115,21 +127,61 @@ func TestConfigForGC_DoesNotMutateSource(t *testing.T) {
 func TestSetupGarbageCollector_NilConfigIsNoop(t *testing.T) {
 	t.Parallel()
 
-	err := controller.SetupGarbageCollectorWithConfig(context.Background(), nil)
+	err := controller.SetupGarbageCollectorWithDeps(context.Background(), nil, nil, nil)
 	if err != nil {
-		t.Errorf("SetupGarbageCollectorWithConfig with nil config returned error: %v", err)
+		t.Errorf("SetupGarbageCollectorWithDeps with nil config returned error: %v", err)
 	}
 }
 
 func TestSetupGarbageCollector_DisabledIsNoop(t *testing.T) {
 	t.Parallel()
 
-	err := controller.SetupGarbageCollectorWithConfig(
+	err := controller.SetupGarbageCollectorWithDeps(
 		context.Background(),
 		&config.GarbageCollectorConfig{Enabled: false},
+		nil,
+		nil,
 	)
 	if err != nil {
-		t.Errorf("SetupGarbageCollectorWithConfig with disabled config returned error: %v", err)
+		t.Errorf("SetupGarbageCollectorWithDeps with disabled config returned error: %v", err)
+	}
+}
+
+func TestSetupGarbageCollector_EnabledWithNilManagerReturnsError(t *testing.T) {
+	t.Parallel()
+
+	err := controller.SetupGarbageCollectorWithDeps(
+		context.Background(),
+		&config.GarbageCollectorConfig{Enabled: true},
+		nil,
+		&rest.Config{},
+	)
+	if err == nil {
+		t.Fatal("expected error when manager is nil, got nil")
+	}
+
+	if !errors.Is(err, controller.ErrGarbageCollectorMissingDep) {
+		t.Errorf("expected ErrGarbageCollectorMissingDep, got %v", err)
+	}
+}
+
+func TestSetupGarbageCollector_EnabledWithNilRestConfigReturnsError(t *testing.T) {
+	t.Parallel()
+
+	var mgr ctrl.Manager = &stubManager{}
+
+	err := controller.SetupGarbageCollectorWithDeps(
+		context.Background(),
+		&config.GarbageCollectorConfig{Enabled: true},
+		mgr,
+		nil,
+	)
+	if err == nil {
+		t.Fatal("expected error when rest.Config is nil, got nil")
+	}
+
+	if !errors.Is(err, controller.ErrGarbageCollectorMissingDep) {
+		t.Errorf("expected ErrGarbageCollectorMissingDep, got %v", err)
 	}
 }
 

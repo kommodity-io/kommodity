@@ -68,6 +68,14 @@ func setupGarbageCollector(ctx context.Context, deps gcDeps) error {
 		return nil
 	}
 
+	if deps.manager == nil {
+		return fmt.Errorf("%w: controller-runtime Manager is nil", ErrGarbageCollectorMissingDep)
+	}
+
+	if deps.restConfig == nil {
+		return fmt.Errorf("%w: loopback rest.Config is nil", ErrGarbageCollectorMissingDep)
+	}
+
 	logger.Info("Setting up garbage collector",
 		zap.Int("workers", deps.gcConfig.Workers),
 		zap.Duration("syncPeriod", deps.gcConfig.SyncPeriod),
