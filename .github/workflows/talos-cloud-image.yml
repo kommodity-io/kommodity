@@ -22,7 +22,7 @@ on:
           - all
           - scaleway
           - azure
-          - kubevirt
+          - openstack
       push:
         description: "Push image to registry"
         required: false
@@ -43,7 +43,7 @@ on:
         default: "v1.6.0"
         type: string
       qemu_ga_version:
-        description: "Version of qemu-guest-agent extension (required for kubevirt image only)"
+        description: "Version of qemu-guest-agent extension (required for openstack image only)"
         required: true
         default: "10.2.2"
         type: string
@@ -116,11 +116,11 @@ jobs:
               "needs_conversion": "false"
             },
             {
-              "platform": "kubevirt",
-              "image_name": "kommodity-talos-kubevirt",
-              "imager_output": "kubevirt-amd64.raw.xz",
+              "platform": "openstack",
+              "image_name": "kommodity-talos-openstack",
+              "imager_output": "openstack-amd64.raw.xz",
               "final_extension": "raw.xz",
-              "artifact_type": "application/vnd.talos.kubevirt.image",
+              "artifact_type": "application/vnd.talos.openstack.image",
               "needs_conversion": "false",
               "required_extensions": "ghcr.io/siderolabs/qemu-guest-agent-extension:${{ inputs.qemu_ga_version }}"
             }
