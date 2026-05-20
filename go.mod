@@ -470,7 +470,7 @@ require (
 	k8s.io/kms v0.32.6 // indirect
 	k8s.io/kube-controller-manager v0.32.6 // indirect
 	k8s.io/kubectl v0.32.3 // indirect
-	k8s.io/kubelet v0.32.2 // indirect
+	k8s.io/kubelet v0.32.6 // indirect
 	kubevirt.io/controller-lifecycle-operator-sdk/api v0.2.4 // indirect
 	mvdan.cc/gofumpt v0.9.2 // indirect
 	mvdan.cc/unparam v0.0.0-20251027182757-5beb8c8f8f15 // indirect
