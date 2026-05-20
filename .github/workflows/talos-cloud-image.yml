@@ -308,7 +308,7 @@ jobs:
             echo "|---------|-------|"
             echo "| Platform | \`${PLATFORM}\` |"
             echo "| Talos Version | \`${TALOS_VERSION}\` |"
-            echo "| Extensions | \`${EXTENSIONS:-none}\` |"
+            echo "| Extensions | \`${ALL_EXTENSIONS:-none}\` |"
             echo "| Push | \`${PUSH}\` |"
             echo ""
 
