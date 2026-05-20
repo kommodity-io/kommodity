@@ -108,6 +108,15 @@ func NewAggregatedControllerManager(ctx context.Context,
 		return nil, fmt.Errorf("failed to setup Talos proxy: %w", err)
 	}
 
+	err = setupGarbageCollector(ctx, gcDeps{
+		manager:    manager,
+		restConfig: genericServerConfig.LoopbackClientConfig,
+		gcConfig:   kommodityConfig.GarbageCollectorConfig,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to setup garbage collector: %w", err)
+	}
+
 	logger.Info("Controller manager created")
 
 	return manager, nil
