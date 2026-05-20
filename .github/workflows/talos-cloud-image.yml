@@ -28,10 +28,6 @@ on:
         required: false
         default: true
         type: boolean
-      base_installer_image:
-        description: "Custom base installer image (e.g. for a patched kernel). Leave empty to use the official Talos installer."
-        required: false
-        type: string
       attestation_extension_version:
         description: "Version of kommodity-attestation-extension"
         required: true
@@ -63,7 +59,6 @@ jobs:
       talos_version: ${{ steps.resolve-inputs.outputs.talos_version }}
       extensions: ${{ steps.resolve-inputs.outputs.extensions }}
       push: ${{ steps.resolve-inputs.outputs.push }}
-      base_installer_image: ${{ steps.resolve-inputs.outputs.base_installer_image }}
     steps:
       - name: Resolve inputs with defaults
         id: resolve-inputs
@@ -81,7 +76,6 @@ jobs:
           fi
 
           echo "push=${{ inputs.push == '' && 'true' || inputs.push }}" >> "$GITHUB_OUTPUT"
-          echo "base_installer_image=${{ inputs.base_installer_image || '' }}" >> "$GITHUB_OUTPUT"
 
       - name: Validate talos_version
         env:
@@ -122,7 +116,7 @@ jobs:
               "final_extension": "raw.xz",
               "artifact_type": "application/vnd.talos.openstack.image",
               "needs_conversion": "false",
-              "required_extensions": "ghcr.io/siderolabs/qemu-guest-agent-extension:${{ inputs.qemu_ga_version }}"
+              "required_extensions": "ghcr.io/siderolabs/qemu-guest-agent:${{ inputs.qemu_ga_version }}"
             }
           ]'
 
@@ -155,7 +149,6 @@ jobs:
       TALOS_VERSION: ${{ needs.setup.outputs.talos_version }}
       EXTENSIONS: ${{ needs.setup.outputs.extensions }}
       PUSH: ${{ needs.setup.outputs.push }}
-      BASE_INSTALLER_IMAGE: ${{ needs.setup.outputs.base_installer_image }}
       IMAGE_NAME: ${{ matrix.image_name }}
       PLATFORM: ${{ matrix.platform }}
       IMAGER_OUTPUT: ${{ matrix.imager_output }}
@@ -196,12 +189,6 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Optionally use a custom base installer image
-          BASE_INSTALLER_ARG=""
-          if [[ -n "${BASE_INSTALLER_IMAGE}" ]]; then
-            BASE_INSTALLER_ARG="--base-installer-image ${BASE_INSTALLER_IMAGE}"
-          fi
-
           # Merge user-provided extensions with platform-required extensions
           ALL_EXTENSIONS="${EXTENSIONS}"
           if [[ -n "${REQUIRED_EXTENSIONS}" ]]; then
@@ -237,7 +224,6 @@ jobs:
             "ghcr.io/siderolabs/imager:${TALOS_VERSION}" \
             "${PLATFORM}" \
             --arch amd64 \
-            ${BASE_INSTALLER_ARG} \
             ${EXTENSION_ARGS}
 
           echo "=========================================="
