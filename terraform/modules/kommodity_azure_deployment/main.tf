@@ -348,7 +348,7 @@ resource "azurerm_container_app_environment_managed_certificate" "this" {
 resource "azapi_update_resource" "bind_cert" {
   type        = "Microsoft.App/containerApps@2024-03-01"
   resource_id = azurerm_container_app.kommodity-app.id
-  body = jsonencode({
+  body = {
     properties = {
       configuration = {
         ingress = {
@@ -360,6 +360,6 @@ resource "azapi_update_resource" "bind_cert" {
         }
       }
     }
-  })
+  }
   depends_on = [azurerm_container_app_environment_managed_certificate.this]
 }
