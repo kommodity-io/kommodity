@@ -345,6 +345,21 @@ resource "azurerm_container_app_environment_managed_certificate" "this" {
   depends_on = [azurerm_container_app_custom_domain.this]
 }
 
-// A manual step is needed to bind the managed certificate to the custom domain (not supported by Terraform):
-// - Azure Portal -> find Container App -> "Custom domains" section
-// - Select "Add binding" for the custom domain -> choose managed certificate created by Terraform -> "Add"
+resource "azapi_update_resource" "bind_cert" {
+  type        = "Microsoft.App/containerApps@2024-03-01"
+  resource_id = azurerm_container_app.kommodity-app.id
+  body = jsonencode({
+    properties = {
+      configuration = {
+        ingress = {
+          customDomains = [{
+            name          = trimsuffix(azurerm_dns_cname_record.kommodity.fqdn, ".")
+            bindingType   = "SniEnabled"
+            certificateId = azurerm_container_app_environment_managed_certificate.this.id
+          }]
+        }
+      }
+    }
+  })
+  depends_on = [azurerm_container_app_environment_managed_certificate.this]
+}
