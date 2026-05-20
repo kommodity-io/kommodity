@@ -32,11 +32,6 @@ on:
         description: "Custom base installer image (e.g. for a patched kernel). Leave empty to use the official Talos installer."
         required: false
         type: string
-      qemu_ga_version:
-        description: "Version of qemu-guest-agent extension (required for kubevirt image only)"
-        required: true
-        default: "10.2.2"
-        type: string
       attestation_extension_version:
         description: "Version of kommodity-attestation-extension"
         required: true
@@ -46,6 +41,11 @@ on:
         description: "Version of kommodity-autobootstrap-extension"
         required: true
         default: "v1.6.0"
+        type: string
+      qemu_ga_version:
+        description: "Version of qemu-guest-agent extension (required for kubevirt image only)"
+        required: true
+        default: "10.2.2"
         type: string
 
 env:
