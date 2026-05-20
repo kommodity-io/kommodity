@@ -325,9 +325,8 @@ resource "azurerm_management_lock" "txt_lock" {
 }
 
 resource "azurerm_container_app_custom_domain" "this" {
-  name                     = trimsuffix(azurerm_dns_cname_record.kommodity.fqdn, ".")
-  container_app_id         = azurerm_container_app.kommodity-app.id
-  certificate_binding_type = "SniEnabled"
+  name             = trimsuffix(azurerm_dns_cname_record.kommodity.fqdn, ".")
+  container_app_id = azurerm_container_app.kommodity-app.id
 
   depends_on = [azurerm_dns_cname_record.kommodity, azurerm_dns_txt_record.verification]
 
