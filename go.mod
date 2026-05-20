@@ -6,6 +6,8 @@ tool github.com/golangci/golangci-lint/v2/cmd/golangci-lint
 
 replace github.com/google/cel-go => github.com/google/cel-go v0.22.0
 
+replace k8s.io/kube-controller-manager => k8s.io/kube-controller-manager v0.32.6
+
 require (
 	github.com/Masterminds/sprig/v3 v3.3.0
 	github.com/go-logr/logr v1.4.3
@@ -458,14 +460,15 @@ require (
 	gotest.tools/v3 v3.5.2 // indirect
 	honnef.co/go/tools v0.7.0 // indirect
 	k8s.io/cli-runtime v0.32.3 // indirect
-	k8s.io/cloud-provider v0.32.2 // indirect
+	k8s.io/cloud-provider v0.32.6 // indirect
 	k8s.io/cluster-bootstrap v0.32.3 // indirect
-	k8s.io/component-helpers v0.32.3 // indirect
-	k8s.io/controller-manager v0.32.2 // indirect
-	k8s.io/gengo/v2 v2.0.0-20240911193312-2b36238f13e9 // indirect
+	k8s.io/component-helpers v0.32.6 // indirect
+	k8s.io/controller-manager v0.32.6
 	k8s.io/klog/v2 v2.130.1 // indirect
 	k8s.io/kms v0.32.6 // indirect
+	k8s.io/kube-controller-manager v0.32.6 // indirect
 	k8s.io/kubectl v0.32.3 // indirect
+	k8s.io/kubelet v0.32.2 // indirect
 	kubevirt.io/controller-lifecycle-operator-sdk/api v0.2.4 // indirect
 	mvdan.cc/gofumpt v0.9.2 // indirect
 	mvdan.cc/unparam v0.0.0-20251027182757-5beb8c8f8f15 // indirect
