@@ -324,18 +324,24 @@ resource "azurerm_management_lock" "txt_lock" {
   notes      = "Locked to prevent accidental deletion"
 }
 
+resource "azurerm_container_app_custom_domain" "this" {
+  name                     = trimsuffix(azurerm_dns_cname_record.kommodity.fqdn, ".")
+  container_app_id         = azurerm_container_app.kommodity-app.id
+  certificate_binding_type = "SniEnabled"
+
+  depends_on = [azurerm_dns_cname_record.kommodity, azurerm_dns_txt_record.verification]
+
+  lifecycle {
+    // When using an Azure created Managed Certificate these values must be added to ignore_changes to prevent resource recreation.
+    ignore_changes = [certificate_binding_type, container_app_environment_certificate_id]
+  }
+}
+
 resource "azurerm_container_app_environment_managed_certificate" "this" {
   name                         = trimsuffix(azurerm_dns_cname_record.kommodity.fqdn, ".")
   container_app_environment_id = azurerm_container_app_environment.kommodity-environment.id
   subject_name                 = trimsuffix(azurerm_dns_cname_record.kommodity.fqdn, ".")
   domain_control_validation    = "CNAME"
 
-  depends_on = [azurerm_dns_cname_record.kommodity, azurerm_dns_txt_record.verification]
-}
-
-resource "azurerm_container_app_custom_domain" "this" {
-  name                                     = trimsuffix(azurerm_dns_cname_record.kommodity.fqdn, ".")
-  container_app_id                         = azurerm_container_app.kommodity-app.id
-  container_app_environment_certificate_id = azurerm_container_app_environment_managed_certificate.this.id
-  certificate_binding_type                 = "SniEnabled"
+  depends_on = [azurerm_container_app_custom_domain.this]
 }
