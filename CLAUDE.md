@@ -134,5 +134,8 @@ This is applicable for the `Implement Mode`.
 
 ## Terraform changes
 
-When making changes to the Terraform modules, you should also update the documentation in the module's `README.md`. Run `terraform-docs markdown table --output-file README.md <path-to-module>` to update the input/output variable tables in the documentation.
-Also update related examples, in `terraform/examples`.
+After making changes to the Terraform modules, you should:
+
+- Update the documentation with `make terraform-docs`.
+- Run `terraform fmt`, `terraform validate` and `terraform test` in all changed modules.
+- Update related examples in `terraform/examples`.
