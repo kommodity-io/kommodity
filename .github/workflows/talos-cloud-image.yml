@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       talos_version:
-        description: "Talos version (e.g., v1.12.3)"
+        description: "Talos version (e.g., v1.13.0)"
         required: false
         type: string
       extensions:
@@ -22,21 +22,33 @@ on:
           - all
           - scaleway
           - azure
+          - openstack
       push:
         description: "Push image to registry"
         required: false
         default: true
         type: boolean
-      base_installer_image:
-        description: "Custom base installer image (e.g. for a patched kernel). Leave empty to use the official Talos installer."
-        required: false
+      attestation_extension_version:
+        description: "Version of kommodity-attestation-extension"
+        required: true
+        default: "v1.1.1"
+        type: string
+      autobootstrap_extension_version:
+        description: "Version of kommodity-autobootstrap-extension"
+        required: true
+        default: "v1.6.0"
+        type: string
+      qemu_ga_version:
+        description: "Version of qemu-guest-agent extension (required for openstack image only)"
+        required: true
+        default: "10.2.2"
         type: string
 
 env:
   REGISTRY: ghcr.io/kommodity-io
   # Default values for inputs
-  DEFAULT_TALOS_VERSION: "v1.12.3"
-  DEFAULT_EXTENSIONS: "ghcr.io/kommodity-io/kommodity-attestation-extension:latest,ghcr.io/kommodity-io/kommodity-autobootstrap-extension:latest"
+  DEFAULT_TALOS_VERSION: "v1.13.0"
+  DEFAULT_EXTENSIONS: "ghcr.io/kommodity-io/kommodity-attestation-extension:${{ inputs.attestation_extension_version }},ghcr.io/kommodity-io/kommodity-autobootstrap-extension:${{ inputs.autobootstrap_extension_version }}"
 
 jobs:
   setup:
@@ -47,7 +59,6 @@ jobs:
       talos_version: ${{ steps.resolve-inputs.outputs.talos_version }}
       extensions: ${{ steps.resolve-inputs.outputs.extensions }}
       push: ${{ steps.resolve-inputs.outputs.push }}
-      base_installer_image: ${{ steps.resolve-inputs.outputs.base_installer_image }}
     steps:
       - name: Resolve inputs with defaults
         id: resolve-inputs
@@ -65,14 +76,13 @@ jobs:
           fi
 
           echo "push=${{ inputs.push == '' && 'true' || inputs.push }}" >> "$GITHUB_OUTPUT"
-          echo "base_installer_image=${{ inputs.base_installer_image || '' }}" >> "$GITHUB_OUTPUT"
 
       - name: Validate talos_version
         env:
           TALOS_VERSION: ${{ steps.resolve-inputs.outputs.talos_version }}
         run: |
           if [[ ! "${TALOS_VERSION}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
-            echo "::error::Invalid talos_version format. Expected semver (e.g., v1.12.3)"
+            echo "::error::Invalid talos_version format. Expected semver (e.g., v1.13.0)"
             exit 1
           fi
 
@@ -98,6 +108,15 @@ jobs:
               "final_extension": "vhd",
               "artifact_type": "application/vnd.talos.azure.image",
               "needs_conversion": "false"
+            },
+            {
+              "platform": "openstack",
+              "image_name": "kommodity-talos-openstack",
+              "imager_output": "openstack-amd64.raw.zst",
+              "final_extension": "raw.xz",
+              "artifact_type": "application/vnd.talos.openstack.image",
+              "needs_conversion": "false",
+              "required_extensions": "ghcr.io/siderolabs/qemu-guest-agent:${{ inputs.qemu_ga_version }}"
             }
           ]'
 
@@ -130,13 +149,13 @@ jobs:
       TALOS_VERSION: ${{ needs.setup.outputs.talos_version }}
       EXTENSIONS: ${{ needs.setup.outputs.extensions }}
       PUSH: ${{ needs.setup.outputs.push }}
-      BASE_INSTALLER_IMAGE: ${{ needs.setup.outputs.base_installer_image }}
       IMAGE_NAME: ${{ matrix.image_name }}
       PLATFORM: ${{ matrix.platform }}
       IMAGER_OUTPUT: ${{ matrix.imager_output }}
       FINAL_EXTENSION: ${{ matrix.final_extension }}
       ARTIFACT_TYPE: ${{ matrix.artifact_type }}
       NEEDS_CONVERSION: ${{ matrix.needs_conversion }}
+      REQUIRED_EXTENSIONS: ${{ matrix.required_extensions }}
     steps:
       - name: Free disk space
         run: |
@@ -148,7 +167,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y qemu-utils zstd
+          sudo apt-get install -y qemu-utils zstd xz-utils
 
       - name: Install oras
         run: |
@@ -170,16 +189,20 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Optionally use a custom base installer image
-          BASE_INSTALLER_ARG=""
-          if [[ -n "${BASE_INSTALLER_IMAGE}" ]]; then
-            BASE_INSTALLER_ARG="--base-installer-image ${BASE_INSTALLER_IMAGE}"
+          # Merge user-provided extensions with platform-required extensions
+          ALL_EXTENSIONS="${EXTENSIONS}"
+          if [[ -n "${REQUIRED_EXTENSIONS}" ]]; then
+            if [[ -n "${ALL_EXTENSIONS}" ]]; then
+              ALL_EXTENSIONS="${ALL_EXTENSIONS},${REQUIRED_EXTENSIONS}"
+            else
+              ALL_EXTENSIONS="${REQUIRED_EXTENSIONS}"
+            fi
           fi
 
           # Parse extensions into imager args
           EXTENSION_ARGS=""
-          if [[ -n "${EXTENSIONS}" ]]; then
-            IFS=',' read -ra EXT_ARRAY <<< "${EXTENSIONS}"
+          if [[ -n "${ALL_EXTENSIONS}" ]]; then
+            IFS=',' read -ra EXT_ARRAY <<< "${ALL_EXTENSIONS}"
             for ext in "${EXT_ARRAY[@]}"; do
               ext=$(echo "$ext" | xargs)
               [[ -n "$ext" ]] && EXTENSION_ARGS="${EXTENSION_ARGS} --system-extension-image ${ext}"
@@ -188,7 +211,7 @@ jobs:
 
           echo "=========================================="
           echo "Building ${PLATFORM} image for Talos ${TALOS_VERSION}..."
-          echo "Extensions: ${EXTENSIONS:-none}"
+          echo "Extensions: ${ALL_EXTENSIONS:-none}"
           echo "=========================================="
 
           mkdir -p _out
@@ -201,7 +224,6 @@ jobs:
             "ghcr.io/siderolabs/imager:${TALOS_VERSION}" \
             "${PLATFORM}" \
             --arch amd64 \
-            ${BASE_INSTALLER_ARG} \
             ${EXTENSION_ARGS}
 
           echo "=========================================="
@@ -228,6 +250,11 @@ jobs:
             # Convert raw to final format (e.g., Scaleway raw -> qcow2)
             qemu-img convert -f raw -O "${FINAL_EXTENSION}" "_out/${DECOMPRESSED_FILE}" "${FINAL_FILE}"
             rm -f "_out/${DECOMPRESSED_FILE}"
+          elif [[ "${FINAL_EXTENSION}" == *.xz ]]; then
+            # Recompress with xz (e.g., OpenStack raw.xz)
+            INTERMEDIATE="${FINAL_FILE%.xz}"
+            mv "_out/${DECOMPRESSED_FILE}" "${INTERMEDIATE}"
+            xz -T0 -9e --force "${INTERMEDIATE}"
           else
             # Just rename (e.g., Azure VHD)
             mv "_out/${DECOMPRESSED_FILE}" "${FINAL_FILE}"
@@ -281,7 +308,7 @@ jobs:
             echo "|---------|-------|"
             echo "| Platform | \`${PLATFORM}\` |"
             echo "| Talos Version | \`${TALOS_VERSION}\` |"
-            echo "| Extensions | \`${EXTENSIONS:-none}\` |"
+            echo "| Extensions | \`${ALL_EXTENSIONS:-none}\` |"
             echo "| Push | \`${PUSH}\` |"
             echo ""
 
