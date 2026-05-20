@@ -263,8 +263,8 @@ kommodity:
     # Talos version and imageName can be overridden here, otherwise the top-level talos.version and talos.imageName are used
     # This is especially useful for Talos upgrades, where it is recommended to not upgrade all nodes at once (https://docs.siderolabs.com/talos/v1.12/configure-your-talos-cluster/lifecycle-management/upgrading-talos)
     # talos:
-    #   version: v1.12.2
-    #   imageName: talos-base-v1.12.2
+    #   version: v1.13.0
+    #   imageName: talos-base-v1.13.0
 
     # labels:
     #   my-label: my-value
@@ -304,8 +304,8 @@ kommodity:
     #     version: v1.33.4
     #   # Talos version and imageName can be overridden here, otherwise the top-level talos.version and talos.imageName are used
     #   talos:
-    #     version: v1.12.2
-    #     imageName: talos-base-v1.12.2
+    #     version: v1.13.0
+    #     imageName: talos-base-v1.13.0
 
     #   labels:
     #     my-label: my-value
@@ -332,10 +332,10 @@ kommodity:
 
 # Configurations related to Talos
 talos:
-  version: v1.12.2
+  version: v1.13.0
   imageName: my-talos-image
   # installer:
-  #   imageName: kommodity-talos-installer:v1.12.2
+  #   imageName: kommodity-talos-installer:v1.13.0
   #   repository: ghcr.io/kommodity-io
   autoBootstrap:
     # autoBootstrap will be enabled regardless of the enabled value if kommodity.network.ipv4.public is set to false
@@ -358,4 +358,4 @@ talos:
 
 # Configurations related to Kubernetes
 kubernetes:
-  version: v1.34.2
+  version: v1.35.3
