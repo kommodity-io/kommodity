@@ -116,7 +116,8 @@ jobs:
               "final_extension": "raw.xz",
               "artifact_type": "application/vnd.talos.openstack.image",
               "needs_conversion": "false",
-              "required_extensions": "ghcr.io/siderolabs/qemu-guest-agent:${{ inputs.qemu_ga_version }}"
+              "required_extensions": "ghcr.io/siderolabs/qemu-guest-agent:${{ inputs.qemu_ga_version }}",
+              "publish_containerdisk": "true"
             }
           ]'
 
@@ -156,6 +157,7 @@ jobs:
       ARTIFACT_TYPE: ${{ matrix.artifact_type }}
       NEEDS_CONVERSION: ${{ matrix.needs_conversion }}
       REQUIRED_EXTENSIONS: ${{ matrix.required_extensions }}
+      PUBLISH_CONTAINERDISK: ${{ matrix.publish_containerdisk }}
     steps:
       - name: Free disk space
         run: |
@@ -290,6 +292,38 @@ jobs:
 
           echo "Tagged as: ${LATEST_TAG}"
 
+      - name: Build and push KubeVirt containerdisk
+        if: ${{ env.PUSH == 'true' && env.PUBLISH_CONTAINERDISK == 'true' }}
+        run: |
+          set -euo pipefail
+
+          DISK_IMAGE="${{ env.REGISTRY }}/${IMAGE_NAME}-disk:${TALOS_VERSION}"
+          DISK_IMAGE_LATEST="${{ env.REGISTRY }}/${IMAGE_NAME}-disk:latest"
+          OUTPUT_FILE="${IMAGE_NAME}-${TALOS_VERSION}.${FINAL_EXTENSION}"
+
+          echo "=========================================="
+          echo "Building KubeVirt containerdisk: ${DISK_IMAGE}"
+          echo "=========================================="
+
+          mkdir -p _disk
+          cp "_out/${OUTPUT_FILE}" "_disk/${OUTPUT_FILE}"
+
+          # COPY (not ADD) so xz stays compressed; CDI decompresses on import.
+          cat > _disk/Dockerfile <<EOF
+          FROM scratch
+          COPY ${OUTPUT_FILE} /disk/
+          EOF
+
+          docker buildx build \
+            --platform linux/amd64 \
+            --push \
+            -t "${DISK_IMAGE}" \
+            -t "${DISK_IMAGE_LATEST}" \
+            _disk/
+
+          echo "Pushed containerdisk: ${DISK_IMAGE}"
+          echo "Tagged as: ${DISK_IMAGE_LATEST}"
+
       - name: Upload artifact
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
         with:
@@ -337,6 +371,14 @@ jobs:
               echo "   scw block snapshot create name=${IMAGE_NAME}-${TALOS_VERSION} volume-type=b_ssd bucket=your-bucket key=${IMAGE_NAME}-${TALOS_VERSION}.qcow2"
               echo "   scw instance image create name=${IMAGE_NAME}-${TALOS_VERSION} arch=x86_64 snapshot-id=<snapshot-id>"
               echo "   \`\`\`"
+            elif [[ "${PLATFORM}" == "openstack" ]]; then
+              echo "### Use with KubeVirt / CDI"
+              echo "Containerdisk image (DataVolume \`source.registry\`):"
+              echo "\`\`\`yaml"
+              echo "source:"
+              echo "  registry:"
+              echo "    url: \"docker://${{ env.REGISTRY }}/${IMAGE_NAME}-disk:${TALOS_VERSION}\""
+              echo "\`\`\`"
             elif [[ "${PLATFORM}" == "azure" ]]; then
               echo "### Upload to Azure"
               echo "To use this image in Azure:"
