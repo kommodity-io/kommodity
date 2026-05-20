@@ -268,7 +268,7 @@ jobs:
           ls -la _out/
 
       - name: Push to registry
-        if: ${{ env.PUSH == 'true' }}
+        if: ${{ env.PUSH == 'true' && env.PUBLISH_CONTAINERDISK != 'true' }}
         run: |
           set -euo pipefail
 
@@ -297,8 +297,8 @@ jobs:
         run: |
           set -euo pipefail
 
-          DISK_IMAGE="${{ env.REGISTRY }}/${IMAGE_NAME}-disk:${TALOS_VERSION}"
-          DISK_IMAGE_LATEST="${{ env.REGISTRY }}/${IMAGE_NAME}-disk:latest"
+          DISK_IMAGE="${{ env.REGISTRY }}/${IMAGE_NAME}:${TALOS_VERSION}"
+          DISK_IMAGE_LATEST="${{ env.REGISTRY }}/${IMAGE_NAME}:latest"
           OUTPUT_FILE="${IMAGE_NAME}-${TALOS_VERSION}.${FINAL_EXTENSION}"
 
           echo "=========================================="
@@ -377,7 +377,7 @@ jobs:
               echo "\`\`\`yaml"
               echo "source:"
               echo "  registry:"
-              echo "    url: \"docker://${{ env.REGISTRY }}/${IMAGE_NAME}-disk:${TALOS_VERSION}\""
+              echo "    url: \"docker://${{ env.REGISTRY }}/${IMAGE_NAME}:${TALOS_VERSION}\""
               echo "\`\`\`"
             elif [[ "${PLATFORM}" == "azure" ]]; then
               echo "### Upload to Azure"
