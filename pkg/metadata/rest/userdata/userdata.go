@@ -144,7 +144,9 @@ func fetchMachineConfig(ctx context.Context, cfg *config.KommodityConfig,
 	}
 
 	secretName := *machine.Spec.Bootstrap.DataSecretName
-	secretAPI := kubeClient.CoreV1().Secrets(config.KommodityNamespace)
+	// CAPI's bootstrap controller creates the data Secret in the Machine's
+	// namespace, which (by Kommodity convention) is the cluster namespace.
+	secretAPI := kubeClient.CoreV1().Secrets(machine.Namespace)
 
 	secret, err := secretAPI.Get(ctx, secretName, metav1.GetOptions{})
 	if err != nil {

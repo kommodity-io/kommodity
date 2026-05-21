@@ -49,8 +49,13 @@ type Kubeconfig struct {
 }
 
 const (
-	// AutoscalerConfigMapSuffix is the suffix for the ConfigMap that triggers the Autoscaler installation.
-	AutoscalerConfigMapSuffix = "-cluster-autoscaler-config"
+	// AutoscalerConfigMapName is the name of the ConfigMap that triggers the Autoscaler installation.
+	// Cluster isolation is provided by the namespace (= cluster name), not the name.
+	AutoscalerConfigMapName = "cluster-autoscaler-config"
+	// AutoscalerSecretName is the SA token secret created for the autoscaler.
+	AutoscalerSecretName = "cluster-autoscaler"
+	// AutoscalerExtraValuesSecretName is the chart-rendered extra-values Secret.
+	AutoscalerExtraValuesSecretName = "cluster-autoscaler-extra-values"
 
 	// autoscalerDeploymentName is the name of the Deployment created by the cluster-autoscaler Helm chart.
 	autoscalerDeploymentName = "cluster-autoscaler"
@@ -67,8 +72,8 @@ func (a *AutoscalerJob) PrepareForApply(ctx context.Context, cfg *config.Kommodi
 	var autoscalerSecret corev1.Secret
 
 	err := a.Get(ctx, client.ObjectKey{
-		Name:      clusterName + "-cluster-autoscaler",
-		Namespace: "default",
+		Name:      AutoscalerSecretName,
+		Namespace: clusterName,
 	}, &autoscalerSecret)
 	if err != nil {
 		return fmt.Errorf("failed to get Autoscaler kubeconfig secret: %w", err)
@@ -183,8 +188,8 @@ func (a *AutoscalerJob) applySecret(ctx context.Context, clusterName string) err
 	var yamlSecret corev1.Secret
 
 	err := a.Get(ctx, client.ObjectKey{
-		Name:      clusterName + "-cluster-autoscaler-extra-values",
-		Namespace: "default",
+		Name:      AutoscalerExtraValuesSecretName,
+		Namespace: clusterName,
 	}, &yamlSecret)
 	if apierrors.IsNotFound(err) {
 		a.config.HasExtraValues = false

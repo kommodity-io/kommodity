@@ -1,4 +1,17 @@
 {{/*
+Fail the render if the Helm release name and install namespace disagree. The
+chart treats .Release.Name as the cluster name AND the target namespace for
+every per-cluster resource it renders. If those drift, resources end up in a
+different namespace than the one Helm believes owns the release, leaking on
+uninstall. Invoked from at least one always-rendered template.
+*/}}
+{{- define "kommodity-cluster.releaseNameCheck" -}}
+{{- if ne .Release.Name .Release.Namespace -}}
+{{- fail (printf "kommodity-cluster: release name (%q) must match install namespace (%q). Use: helm install %s . -n %s --create-namespace" .Release.Name .Release.Namespace .Release.Name .Release.Name) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Return the Talos version, defaulting to .Chart.AppVersion if .Values.talos.version is not set or empty.
 Usage: {{ include "kommodity.talosVersion" . }}
 */}}

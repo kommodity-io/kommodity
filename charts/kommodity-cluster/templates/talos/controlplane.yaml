@@ -60,8 +60,8 @@ This preserves proper YAML block scalar formatting for multi-line contents.
 apiVersion: controlplane.cluster.x-k8s.io/v1alpha3
 kind: TalosControlPlane
 metadata:
-  name: {{ $.Release.Name }}-controlplane
-  namespace: {{ $.Release.Namespace }}
+  name: controlplane
+  namespace: {{ $.Release.Name }}
   labels:
     app.kubernetes.io/managed-by: kommodity
 spec:
@@ -90,8 +90,8 @@ spec:
     {{- else }}
     {{- fail "infrastructure provider is not supported" -}}
     {{- end }}
-    name: {{ .Release.Name }}-controlplane-{{ include "kommodity-cluster.machineSpecsHash" (dict "poolValues" .Values.kommodity.controlplane "allValues" .Values) }}
-    namespace: {{ $.Release.Namespace }}
+    name: controlplane-{{ include "kommodity-cluster.machineSpecsHash" (dict "poolValues" .Values.kommodity.controlplane "allValues" .Values) }}
+    namespace: {{ $.Release.Name }}
   controlPlaneConfig:
     controlplane:
       generateType: controlplane

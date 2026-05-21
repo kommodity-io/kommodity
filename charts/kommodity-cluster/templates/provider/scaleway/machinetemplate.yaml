@@ -3,8 +3,8 @@
 apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
 kind: ScalewayMachineTemplate
 metadata:
-  name: {{ .Release.Name }}-controlplane-{{ include "kommodity-cluster.machineSpecsHash" (dict "poolValues" .Values.kommodity.controlplane "allValues" .Values) }}
-  namespace: {{ .Release.Namespace }}
+  name: controlplane-{{ include "kommodity-cluster.machineSpecsHash" (dict "poolValues" .Values.kommodity.controlplane "allValues" .Values) }}
+  namespace: {{ .Release.Name }}
   labels:
     app.kubernetes.io/managed-by: kommodity
 spec:
@@ -24,8 +24,8 @@ spec:
 apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
 kind: ScalewayMachineTemplate
 metadata:
-  name: {{ $.Release.Name }}-worker-{{ $name }}-{{ include "kommodity-cluster.machineSpecsHash" (dict "poolValues" $np "allValues" $.Values) }}
-  namespace: {{ $.Release.Namespace }}
+  name: worker-{{ $name }}-{{ include "kommodity-cluster.machineSpecsHash" (dict "poolValues" $np "allValues" $.Values) }}
+  namespace: {{ $.Release.Name }}
   labels:
     app.kubernetes.io/managed-by: kommodity
 spec:

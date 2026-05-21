@@ -3,7 +3,7 @@ values:
   - ../values.scaleway.yaml
 release:
   name: test-cluster
-  namespace: default
+  namespace: test-cluster
 set:
   kommodity.kms.endpoint: "https://kms.example.com"
 templates:
@@ -19,7 +19,7 @@ tests:
           count: 1
       - equal:
           path: metadata.name
-          value: "test-cluster-controlplane"
+          value: "controlplane"
       - equal:
           path: spec.infrastructureTemplate.kind
           value: ScalewayMachineTemplate
@@ -34,7 +34,7 @@ tests:
           count: 1
       - matchRegex:
           path: metadata.name
-          pattern: ^test-cluster-worker-default-[a-f0-9]{6}$
+          pattern: ^worker-default-[a-f0-9]{6}$
 
   # Hash change tests
   - it: should update the TalosConfigTemplate name when kms config is changed
@@ -48,7 +48,7 @@ tests:
           count: 1
       - matchRegex:
           path: metadata.name
-          pattern: ^test-cluster-worker-default-[a-f0-9]{6}$
+          pattern: ^worker-default-[a-f0-9]{6}$
 
   - it: should update the TalosConfigTemplate name when global strategic patches are changed
     template: templates/talos/configtemplate.yaml
@@ -64,7 +64,7 @@ tests:
           count: 1
       - matchRegex:
           path: metadata.name
-          pattern: ^test-cluster-worker-default-[a-f0-9]{6}$
+          pattern: ^worker-default-[a-f0-9]{6}$
 
   - it: should update the TalosConfigTemplate name when nodepool strategic patches are changed
     template: templates/talos/configtemplate.yaml
@@ -80,7 +80,7 @@ tests:
           count: 1
       - matchRegex:
           path: metadata.name
-          pattern: ^test-cluster-worker-default-[a-f0-9]{6}$
+          pattern: ^worker-default-[a-f0-9]{6}$
 
   - it: should update the TalosConfigTemplate name when Talos version is changed
     template: templates/talos/configtemplate.yaml
@@ -93,7 +93,7 @@ tests:
           count: 1
       - matchRegex:
           path: metadata.name
-          pattern: ^test-cluster-worker-default-[a-f0-9]{6}$
+          pattern: ^worker-default-[a-f0-9]{6}$
 
   # Strategic patch merging tests
   - it: should merge global and nodepool strategic patches
@@ -120,7 +120,7 @@ tests:
           pattern: "NODEPOOL_VAR: nodepool-value"
       - matchRegex:
           path: spec.template.spec.strategicPatches[0]
-          pattern: "LOG_LEVEL: warn"
+          pattern: "LOG_LEVEL: info"
 
   - it: should let nodepool patches override global patches for same key
     template: templates/talos/configtemplate.yaml
@@ -183,7 +183,7 @@ tests:
           count: 1
       - matchRegex:
           path: metadata.name
-          pattern: ^test-cluster-worker-default-[a-f0-9]{6}$
+          pattern: ^worker-default-[a-f0-9]{6}$
       - matchRegex:
           path: spec.template.spec.strategicPatches[0]
           pattern: "register-with-taints: workload=gpu:NoSchedule"

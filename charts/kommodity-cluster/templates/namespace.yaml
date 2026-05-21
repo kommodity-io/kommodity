@@ -1,0 +1,14 @@
+{{- include "kommodity-cluster.releaseNameCheck" . -}}
+{{- /*
+The cluster's namespace. Created as the first resource in the chart so all
+per-cluster resources (Cluster CR, MachineDeployment, KMS Secret, etc.) land
+in a namespace named after the release (= cluster name). Helm's built-in
+install order ensures Namespace resources are applied before any other kind.
+*/ -}}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    app.kubernetes.io/managed-by: kommodity
+    cluster.x-k8s.io/cluster-name: {{ .Release.Name }}

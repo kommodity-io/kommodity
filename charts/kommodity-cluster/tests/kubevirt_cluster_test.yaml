@@ -3,7 +3,7 @@ values:
   - ../values.kubevirt.yaml
 release:
   name: test-cluster
-  namespace: default
+  namespace: test-cluster
 set:
   kommodity.controlplane.talos.version: "controlplane-talos-version"
   kommodity.controlplane.talos.imageName: "controlplane-talos-image"
@@ -60,7 +60,7 @@ tests:
           of: TalosConfigTemplate
       - matchRegex:
           path: metadata.name
-          pattern: ".*-worker-.*"
+          pattern: "^worker-.*"
       - equal:
           path: spec.template.spec.talosVersion
           value: "global-talos-version"

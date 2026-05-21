@@ -1,0 +1,26 @@
+Cluster "{{ .Release.Name }}" has been installed.
+
+All per-cluster resources live in the namespace named after this release:
+
+    kubectl get all -n {{ .Release.Name }}
+    kubectl get cluster,machinedeployment,kubeadmcontrolplane,machine -n {{ .Release.Name }}
+
+The KMS endpoint Talos VMs dial is:
+
+    {{ .Values.kommodity.kms.endpoint | default "(set kommodity.kms.endpoint when enabling kms)" }}
+
+Per-cluster credentials (e.g. {{- with .Values.kommodity.provider.secret }} {{ .name | default "<provider-secret>" }}{{- else }} <provider-secret>{{- end }})
+must be created by you in the "{{ .Release.Name }}" namespace before nodes can come up.
+
+--- Uninstall ---
+
+`helm uninstall {{ .Release.Name }} -n {{ .Release.Name }}` will delete the
+"{{ .Release.Name }}" Namespace and EVERYTHING inside it, including:
+
+  - CAPI-owned secrets (kubeconfig, bootstrap data, talos config)
+  - KMS Secrets (`talos-kms-<uuid>`) — disk-encryption keys for every node
+  - Provider credentials Secret if you created it in this namespace
+  - Anything else you placed in the namespace manually
+
+If you need to keep any of those, copy them to another namespace before
+uninstalling.

@@ -3,7 +3,7 @@ values:
   - ../values.scaleway.yaml
 release:
   name: test-cluster
-  namespace: default
+  namespace: test-cluster
 templates:
   - templates/*
 tests:
@@ -20,7 +20,7 @@ tests:
           value: "TalosControlPlane"
       - equal:
           path: spec.controlPlaneRef.name
-          value: "test-cluster-controlplane"
+          value: "controlplane"
 
   # MachineDeployment tests
   - it: should make sure MachineDeployment references the correct TalosConfigTemplate
@@ -35,7 +35,7 @@ tests:
           value: "TalosConfigTemplate"
       - matchRegex:
           path: spec.template.spec.bootstrap.configRef.name
-          pattern: ^test-cluster-worker-default-[a-f0-9]{6}$
+          pattern: ^worker-default-[a-f0-9]{6}$
 
   # Talos proxy CIDR annotation tests
   - it: should add node-cidr annotation when private network with nodeCIDR

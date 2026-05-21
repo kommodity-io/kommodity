@@ -29,7 +29,6 @@ const (
 	//nolint:gosec // This is not a credential, it's a secret name suffix.
 	kubeconfigSecretSuffix = "-kubeconfig"
 	kubeconfigSecretKey    = "value"
-	kubeconfigNamespace    = "default"
 	// loopbackAddress is the loopback IP address used for local proxy connections.
 	loopbackAddress = "127.0.0.1"
 	// runningPodFieldSelector filters pod listings to only include running pods.
@@ -218,9 +217,12 @@ func (t *Tunnel) fetchRESTConfig(ctx context.Context, kubeClient client.Client) 
 	secret := &corev1.Secret{}
 	secretName := t.clusterName + kubeconfigSecretSuffix
 
+	// CAPI's bootstrap provider creates the kubeconfig secret in the same
+	// namespace as the Cluster CR, which (by Kommodity convention) is named
+	// after the cluster.
 	err := kubeClient.Get(ctx, client.ObjectKey{
 		Name:      secretName,
-		Namespace: kubeconfigNamespace,
+		Namespace: t.clusterName,
 	}, secret)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get kubeconfig secret %s: %w", secretName, err)

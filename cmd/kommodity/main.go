@@ -71,6 +71,8 @@ func main() {
 		<-kineReadyChan
 		logger.Info("Kine server started successfully")
 
+		kmsFactory, kmsRouter := kms.NewGRPCServerFactory(cfg)
+
 		server, err := combinedserver.New(combinedserver.ServerConfig{
 			Port:          cfg.ServerPort,
 			APIServerPort: cfg.APIServerPort,
@@ -78,9 +80,9 @@ func main() {
 				uiserver.NewHTTPMuxFactory(rootCtx, cfg),
 				attestationserver.NewHTTPMuxFactory(cfg),
 				metadataserver.NewHTTPMuxFactory(cfg),
-				k8sserver.NewHTTPMuxFactory(rootCtx, cfg),
+				k8sserver.NewHTTPMuxFactory(rootCtx, cfg, kmsRouter),
 			},
-			GRPCFactory: kms.NewGRPCServerFactory(cfg),
+			GRPCFactory: kmsFactory,
 		})
 		if err != nil {
 			logger.Error("Failed to create combined server", zap.Error(err))

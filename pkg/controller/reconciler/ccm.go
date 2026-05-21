@@ -26,7 +26,7 @@ func (c *cloudControllerManagerConfig) copySecret(ctx context.Context, downstrea
 
 	err := c.Get(ctx, client.ObjectKey{
 		Name:      c.SecretName,
-		Namespace: "default",
+		Namespace: c.ClusterName,
 	}, providerSecret)
 	if err != nil {
 		return fmt.Errorf("failed to get provider secret %s: %w", c.SecretName, err)

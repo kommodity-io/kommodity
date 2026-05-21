@@ -26,6 +26,8 @@ type DownstreamClientConfig struct {
 }
 
 // FetchKubeConfigFromSecret retrieves the kubeconfig from a Kubernetes Secret.
+// CAPI's bootstrap provider creates the kubeconfig secret in the Cluster CR's
+// namespace, which (by Kommodity convention) is the same as the cluster name.
 func (c *DownstreamClientConfig) FetchKubeConfigFromSecret(ctx context.Context) ([]byte, error) {
 	kubeConfigSecret := &corev1.Secret{}
 
@@ -33,7 +35,7 @@ func (c *DownstreamClientConfig) FetchKubeConfigFromSecret(ctx context.Context) 
 
 	err := c.Get(ctx, client.ObjectKey{
 		Name:      kubeConfigSecretName,
-		Namespace: "default",
+		Namespace: c.ClusterName,
 	}, kubeConfigSecret)
 	if err != nil {
 		logging.FromContext(ctx).Error("Failed to get kubeconfig secret",

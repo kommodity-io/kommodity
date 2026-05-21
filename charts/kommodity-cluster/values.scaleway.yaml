@@ -3,13 +3,15 @@ kommodity:
   provider:
     name: Scaleway
     secret:
-      # Scaleway secret example:
+      # Scaleway provider credentials. The Secret MUST exist in the cluster's
+      # namespace (= the Helm release name) before installing the chart.
+      # Example:
       #
       # apiVersion: v1
       # kind: Secret
       # metadata:
       #   name: scaleway-secret
-      #   namespace: default
+      #   namespace: <release-name>      # same as the cluster name
       # data:
       #   SCW_ACCESS_KEY: <YOUR_BASE64_ENCODED_ACCESS_KEY>
       #   SCW_SECRET_KEY: <YOUR_BASE64_ENCODED_SECRET_KEY>

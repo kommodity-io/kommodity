@@ -104,7 +104,13 @@ func TestCreateScalewayCluster(t *testing.T) {
 		clusterName = defaultClusterName
 	}
 
-	_, err = client.CoreV1().Secrets("default").Create(ctx, &corev1.Secret{
+	// Install Scaleway cluster helm chart in Kommodity. The chart creates the
+	// per-cluster namespace as its first resource, so we install first and
+	// then create the provider credentials Secret in the new namespace.
+	scalewayDefaultZone := helpers.InstallKommodityClusterChartScaleway(t, env,
+		clusterName, clusterName, scalewayProjectID)
+
+	_, err = client.CoreV1().Secrets(clusterName).Create(ctx, &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "scaleway-secret",
 		},
@@ -118,12 +124,8 @@ func TestCreateScalewayCluster(t *testing.T) {
 	}, metav1.CreateOptions{})
 	require.NoError(t, err)
 
-	// Install Scaleway cluster helm chart in Kommodity
-	scalewayDefaultZone := helpers.InstallKommodityClusterChartScaleway(t, env,
-		clusterName, "default", scalewayProjectID)
-
 	// Check that CAPI resources are created in Kommodity
-	err = helpers.WaitForK8sResourceCreation(env.KommodityCfg, "default", "worker",
+	err = helpers.WaitForK8sResourceCreation(env.KommodityCfg, clusterName, "worker",
 		"cluster.x-k8s.io", "v1beta1", "machines", "", "", 2*time.Minute, 1)
 	require.NoError(t, err)
 
@@ -134,14 +136,14 @@ func TestCreateScalewayCluster(t *testing.T) {
 
 	// Uninstall cluster chart
 	log.Println("Uninstalling kommodity-cluster helm chart...")
-	helpers.UninstallKommodityClusterChart(t, env, clusterName, "default")
+	helpers.UninstallKommodityClusterChart(t, env, clusterName, clusterName)
 
 	// Check that Scaleway resources are deleted
 	err = helpers.WaitForScalewayServersDeletion(clusterName, scalewayAccessKey,
 		scalewaySecretKey, scalewayDefaultRegion, scalewayDefaultZone, scalewayProjectID, 3*time.Minute)
 	require.NoError(t, err)
 
-	err = helpers.WaitForK8sResourceDeletion(env.KommodityCfg, "default", clusterName,
+	err = helpers.WaitForK8sResourceDeletion(env.KommodityCfg, clusterName, clusterName,
 		"cluster.x-k8s.io", "v1beta1", "clusters", "", "", 2*time.Minute)
 	require.NoError(t, err)
 }
@@ -168,8 +170,13 @@ func TestCreateKubevirtCluster(t *testing.T) {
 
 	ctx := context.Background()
 
-	// Create kubevirt-credentials secret in Kommodity with the container-accessible kubeconfig
-	_, err = client.CoreV1().Secrets("default").Create(ctx, &corev1.Secret{
+	// Install kommodity-cluster chart with KubeVirt values. The chart creates
+	// the per-cluster namespace as its first resource, so we install first
+	// and then create the provider credentials Secret in the new namespace.
+	helpers.InstallKommodityClusterChartKubevirt(t, env,
+		clusterName, clusterName, helpers.InfraClusterNamespace)
+
+	_, err = client.CoreV1().Secrets(clusterName).Create(ctx, &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "kubevirt-credentials",
 		},
@@ -182,12 +189,8 @@ func TestCreateKubevirtCluster(t *testing.T) {
 
 	log.Printf("Created kubevirt-credentials secret in Kommodity")
 
-	// Install kommodity-cluster chart with KubeVirt values
-	helpers.InstallKommodityClusterChartKubevirt(t, env,
-		clusterName, "default", helpers.InfraClusterNamespace)
-
 	// Wait for CAPI resources to be created in Kommodity
-	err = helpers.WaitForK8sResourceCreation(env.KommodityCfg, "default", "worker",
+	err = helpers.WaitForK8sResourceCreation(env.KommodityCfg, clusterName, "worker",
 		machineGroup, machineVersion, machineResource, "", "", 3*time.Minute, 1)
 	require.NoError(t, err)
 
@@ -201,7 +204,7 @@ func TestCreateKubevirtCluster(t *testing.T) {
 
 	// Uninstall cluster chart
 	log.Println("Uninstalling kommodity-cluster helm chart (KubeVirt)...")
-	helpers.UninstallKommodityClusterChart(t, env, clusterName, "default")
+	helpers.UninstallKommodityClusterChart(t, env, clusterName, clusterName)
 
 	// Note: VM and CAPI resource cleanup verification is intentionally skipped.
 	// In emulation mode, VMs never boot, causing CAPI to aggressively create

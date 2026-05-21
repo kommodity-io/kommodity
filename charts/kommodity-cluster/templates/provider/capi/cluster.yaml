@@ -2,7 +2,7 @@ apiVersion: cluster.x-k8s.io/v1beta1
 kind: Cluster
 metadata:
   name: {{ .Release.Name }}
-  namespace: {{ .Release.Namespace }}
+  namespace: {{ .Release.Name }}
   labels:
     app.kubernetes.io/managed-by: kommodity
   {{- if and .Values.kommodity.network.ipv4.enabled (not (default false .Values.kommodity.network.ipv4.public)) .Values.kommodity.network.ipv4.nodeCIDR }}
@@ -24,8 +24,8 @@ spec:
   controlPlaneRef:
     apiVersion: controlplane.cluster.x-k8s.io/v1alpha3
     kind: TalosControlPlane
-    name: {{ .Release.Name }}-controlplane
-    namespace: {{ .Release.Namespace }}
+    name: controlplane
+    namespace: {{ .Release.Name }}
   infrastructureRef:
     {{- if not .Values.kommodity.provider.name }}
     {{- fail "kommodity.provider.name must be set in values.yaml" -}}
@@ -42,4 +42,4 @@ spec:
     {{- fail "infrastructure provider is not supported" -}}
     {{- end }}
     name: {{ .Release.Name }}
-    namespace: {{ .Release.Namespace }}
+    namespace: {{ .Release.Name }}
