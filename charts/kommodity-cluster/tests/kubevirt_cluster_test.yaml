@@ -101,7 +101,7 @@ tests:
       - hasDocuments:
           count: 2
       - equal:
-          path: spec.template.spec.virtualMachineTemplate.spec.dataVolumeTemplates[0].spec.source.http.url
+          path: spec.template.spec.virtualMachineTemplate.spec.dataVolumeTemplates[0].spec.source.registry.url
           value: "controlplane-talos-image"
         documentIndex: 0
       - equal:
