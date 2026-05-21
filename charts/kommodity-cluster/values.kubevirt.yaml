@@ -36,6 +36,7 @@ kommodity:
 
   network:
     cluster:
+      # interfaceType: masquerade # Valid values listed in https://kubevirt.io/user-guide/network/interfaces_and_networks/#interfaces (default: masquerade)
       podCIDR:
         - 10.245.0.0/16 # Needs to be different from the Kubevirt cluster pod CIDR (usually 10.244.0.0/16)
 

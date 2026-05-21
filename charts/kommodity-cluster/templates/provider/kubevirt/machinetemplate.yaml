@@ -1,4 +1,5 @@
 {{- if eq .Values.kommodity.provider.name "Kubevirt" }}
+{{- $ifType := dig "network" "cluster" "interfaceType" "masquerade" .Values.kommodity }}
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
 kind: KubevirtMachineTemplate
@@ -47,7 +48,7 @@ spec:
                 devices:
                   interfaces:
                     - name: default
-                      bridge: {}
+                      {{ $ifType }}: {}
                   networkInterfaceMultiqueue: true
                   disks:
                     - disk:
@@ -108,7 +109,7 @@ spec:
                 devices:
                   interfaces:
                     - name: default
-                      bridge: {}
+                      {{ $ifType }}: {}
                   {{- if $np.gpus }}
                   gpus:
                   {{- range $name, $gpu := $np.gpus }}
