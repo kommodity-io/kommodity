@@ -1,5 +1,6 @@
 {{- if eq .Values.kommodity.provider.name "Kubevirt" }}
 {{- $ifType := dig "network" "cluster" "interfaceType" "bridge" .Values.kommodity }}
+{{- $defaultStorageClass := dig "provider" "config" "storageClassName" "" .Values.kommodity -}}
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
 kind: KubevirtMachineTemplate
@@ -41,6 +42,13 @@ spec:
           runStrategy: Always
           template:
             spec:
+              {{- with (dig "network" "cluster" "dns" "dnsPolicy" "" $.Values.kommodity) }}
+              dnsPolicy: {{ . }}
+              {{- end }}
+              {{- with (dig "network" "cluster" "dns" "dnsConfig" "" $.Values.kommodity) }}
+              dnsConfig:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
               networks:
                 - name: default
                   pod: {}
@@ -96,12 +104,38 @@ spec:
                 source:
                   registry:
                     url: {{ default $.Values.talos.imageName (dig "talos" "imageName" "" $np) }}
-          instancetype: 
+            {{- range $idx, $vol := $np.additionalVolumes }}
+            {{- $volStorageClass := default $defaultStorageClass (dig "storageClassName" "" $vol) }}
+            - metadata:
+                name: additional-volume-{{ $idx }}
+                namespace: {{ $.Values.kommodity.provider.config.infraClusterNamespace }}
+              spec:
+                pvc:
+                  resources:
+                    requests:
+                      storage: {{ $vol.size }}Gi
+                  accessModes:
+                    - ReadWriteOnce
+                  {{- if $volStorageClass }}
+                  storageClassName: {{ $volStorageClass }}
+                  {{- end }}
+                  volumeMode: Filesystem
+                source:
+                  blank: {}
+            {{- end }}
+          instancetype:
             name: {{ $np.sku }}
             kind: VirtualMachineClusterInstancetype
           runStrategy: Always
           template:
             spec:
+              {{- with (dig "network" "cluster" "dns" "dnsPolicy" "" $.Values.kommodity) }}
+              dnsPolicy: {{ . }}
+              {{- end }}
+              {{- with (dig "network" "cluster" "dns" "dnsConfig" "" $.Values.kommodity) }}
+              dnsConfig:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
               networks:
                 - name: default
                   pod: {}
@@ -122,10 +156,20 @@ spec:
                     - disk:
                         bus: virtio
                       name: dv-volume
+                    {{- range $idx, $vol := $np.additionalVolumes }}
+                    - disk:
+                        bus: virtio
+                      name: additional-volume-{{ $idx }}
+                    {{- end }}
               evictionStrategy: External
               volumes:
                 - dataVolume:
                     name: boot-volume
                   name: dv-volume
+                {{- range $idx, $vol := $np.additionalVolumes }}
+                - dataVolume:
+                    name: additional-volume-{{ $idx }}
+                  name: additional-volume-{{ $idx }}
+                {{- end }}
 {{- end }}
 {{- end }}
