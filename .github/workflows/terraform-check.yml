@@ -41,3 +41,21 @@ jobs:
 
             cd - > /dev/null
           done
+
+      - name: Install terraform-docs
+        run: |
+          set -euo pipefail
+          VERSION=v0.24.0
+          curl -sSLo /tmp/terraform-docs.tar.gz "https://terraform-docs.io/dl/${VERSION}/terraform-docs-${VERSION}-linux-amd64.tar.gz"
+          tar -xzf /tmp/terraform-docs.tar.gz -C /tmp terraform-docs
+          sudo install -m 0755 /tmp/terraform-docs /usr/local/bin/terraform-docs
+          terraform-docs --version
+
+      - name: Verify terraform-docs are up to date
+        run: |
+          set -euo pipefail
+          make terraform-docs
+          if ! git diff --exit-code -- terraform/modules/*/README.md; then
+            echo "::error::terraform-docs output is out of date. Run 'make terraform-docs' and commit the changes."
+            exit 1
+          fi

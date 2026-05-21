@@ -152,3 +152,10 @@ run-kubevirt-integration-test: ## Runs KubeVirt integration tests (requires Dock
 .PHONY: run-helm-unit-tests
 run-helm-unit-tests:
 	helm unittest charts/*
+
+.PHONY: terraform-docs
+terraform-docs: ## Regenerate README.md for all Terraform modules.
+	@for module in terraform/modules/*/; do \
+		echo "Generating docs for $$module"; \
+		terraform-docs markdown table --output-file README.md $$module; \
+	done
