@@ -67,11 +67,11 @@ tests:
           value: "global-talos-image"
         documentIndex: 1
       - equal:
-          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.domain.devices.interfaces[0].masquerade
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.domain.devices.interfaces[0].bridge
           value: {}
         documentIndex: 0
       - equal:
-          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.domain.devices.interfaces[0].masquerade
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.domain.devices.interfaces[0].bridge
           value: {}
         documentIndex: 1
   - it: should set the interface type from network.cluster.interfaceType
