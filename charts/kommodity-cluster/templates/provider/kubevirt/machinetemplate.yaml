@@ -30,8 +30,9 @@ spec:
                   {{- if hasKey .Values.kommodity.provider.config "storageClassName" }}
                   storageClassName: {{ .Values.kommodity.provider.config.storageClassName }}
                   {{- end }}
+                  volumeMode: Filesystem
                 source:
-                  http:
+                  registry:
                     url: {{ default $.Values.talos.imageName (dig "talos" "imageName" "" .Values.kommodity.controlplane) }}
           instancetype:
             name: {{ .Values.kommodity.controlplane.sku }}
@@ -90,8 +91,9 @@ spec:
                   {{- if hasKey $.Values.kommodity.provider.config "storageClassName" }}
                   storageClassName: {{ $.Values.kommodity.provider.config.storageClassName }}
                   {{- end }}
+                  volumeMode: Filesystem
                 source:
-                  http:
+                  registry:
                     url: {{ default $.Values.talos.imageName (dig "talos" "imageName" "" $np) }}
           instancetype: 
             name: {{ $np.sku }}

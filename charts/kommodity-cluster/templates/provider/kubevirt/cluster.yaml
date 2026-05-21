@@ -13,8 +13,12 @@ spec:
   controlPlaneServiceTemplate:
     metadata:
       namespace: {{ .Values.kommodity.provider.config.infraClusterNamespace }}
+      {{- with (dig "provider" "config" "controlPlaneServiceTemplate" "annotations" dict .Values.kommodity) }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
     spec:
-      type: LoadBalancer
+      type: {{ dig "provider" "config" "controlPlaneServiceTemplate" "spec" "type" "LoadBalancer" .Values.kommodity }}
   {{- if dig "provider" "config" "controlPlaneEndpoint" "" .Values.kommodity }}
   controlPlaneEndpoint:
     host: {{ .Values.kommodity.provider.config.controlPlaneEndpoint.host }}

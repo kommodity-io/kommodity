@@ -21,6 +21,14 @@ kommodity:
       # Specify a storageClassName if needed
       # storageClassName: my-storage-class
 
+      # Specify a controlPlaneServiceTemplate if needed
+      # Defaults: no annotations, spec.type=LoadBalancer
+      # controlPlaneServiceTemplate:
+      #   annotations:
+      #     my-annotation: my-value
+      #   spec:
+      #     type: LoadBalancer # Valid values are ExternalName, ClusterIP, NodePort, and LoadBalancer.
+
       # Specify a controlPlaneEndpoint if needed
       # controlPlaneEndpoint:
       #   host: my-host-ip
@@ -52,4 +60,4 @@ kommodity:
       #     deviceName: "nvidia.com/AD102GL_L40S" # resource name representing the device
 
 talos:
-  imageName: https://factory.talos.dev/image/ce4c980550dd2ab1b17bbf2b08801c7eb59418eafe8f279833297925d67c7515/v1.13.0/openstack-amd64.raw.xz # OpenStack image with 'siderolabs/qemu-guest-agent' extension
+  imageName: docker://ghcr.io/kommodity-io/kommodity-talos-openstack:v1.13.0 # OpenStack image with 'siderolabs/qemu-guest-agent' extension
