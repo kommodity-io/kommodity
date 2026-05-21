@@ -1,5 +1,5 @@
 {{- if eq .Values.kommodity.provider.name "Kubevirt" }}
-{{- $ifType := dig "network" "cluster" "interfaceType" "masquerade" .Values.kommodity }}
+{{- $ifType := dig "network" "cluster" "interfaceType" "bridge" .Values.kommodity }}
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
 kind: KubevirtMachineTemplate
