@@ -113,9 +113,9 @@ jobs:
               "platform": "openstack",
               "image_name": "kommodity-talos-openstack",
               "imager_output": "openstack-amd64.raw.zst",
-              "final_extension": "raw.xz",
+              "final_extension": "qcow2",
               "artifact_type": "application/vnd.talos.openstack.image",
-              "needs_conversion": "false",
+              "needs_conversion": "true",
               "required_extensions": "ghcr.io/siderolabs/qemu-guest-agent:${{ inputs.qemu_ga_version }}",
               "publish_containerdisk": "true"
             }
@@ -252,11 +252,6 @@ jobs:
             # Convert raw to final format (e.g., Scaleway raw -> qcow2)
             qemu-img convert -f raw -O "${FINAL_EXTENSION}" "_out/${DECOMPRESSED_FILE}" "${FINAL_FILE}"
             rm -f "_out/${DECOMPRESSED_FILE}"
-          elif [[ "${FINAL_EXTENSION}" == *.xz ]]; then
-            # Recompress with xz (e.g., OpenStack raw.xz)
-            INTERMEDIATE="${FINAL_FILE%.xz}"
-            mv "_out/${DECOMPRESSED_FILE}" "${INTERMEDIATE}"
-            xz -T0 -9e --force "${INTERMEDIATE}"
           else
             # Just rename (e.g., Azure VHD)
             mv "_out/${DECOMPRESSED_FILE}" "${FINAL_FILE}"
@@ -308,7 +303,6 @@ jobs:
           mkdir -p _disk
           cp "_out/${OUTPUT_FILE}" "_disk/${OUTPUT_FILE}"
 
-          # COPY (not ADD) so xz stays compressed; CDI decompresses on import.
           cat > _disk/Dockerfile <<EOF
           FROM scratch
           COPY ${OUTPUT_FILE} /disk/
