@@ -1,3 +1,8 @@
+{{- $tcp := index .Values.kommodity.addons "talos-cluster-proxy" }}
+{{- if and $tcp $tcp.enabled .Values.kommodity.network.ipv4.enabled (not (default false .Values.kommodity.network.ipv4.public)) (not .Values.kommodity.network.ipv4.nodeCIDR) }}
+{{- fail "kommodity.network.ipv4.nodeCIDR must be set when the talos-cluster-proxy addon is enabled on a private IPv4 network (proxy uses it to identify valid Talos node targets)" }}
+{{- end }}
+---
 apiVersion: cluster.x-k8s.io/v1beta1
 kind: Cluster
 metadata:

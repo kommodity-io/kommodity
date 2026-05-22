@@ -66,6 +66,71 @@ tests:
       - notExists:
           path: metadata.annotations["kommodity.io/node-cidr"]
 
+  # nodeCIDR required when talos-cluster-proxy enabled on private IPv4
+  # Use Kubevirt provider to bypass Scaleway template's own nodeCIDR requirement.
+  - it: should fail when talos-cluster-proxy enabled on private network without nodeCIDR
+    template: templates/provider/capi/cluster.yaml
+    values:
+      - ../values.kubevirt.yaml
+    set:
+      kommodity.network.ipv4.enabled: true
+      kommodity.network.ipv4.public: false
+      kommodity.network.ipv4.nodeCIDR: null
+      kommodity.addons:
+        talos-cluster-proxy:
+          enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "kommodity.network.ipv4.nodeCIDR must be set when the talos-cluster-proxy addon is enabled on a private IPv4 network (proxy uses it to identify valid Talos node targets)"
+
+  - it: should succeed when talos-cluster-proxy enabled on private network with nodeCIDR set
+    template: templates/provider/capi/cluster.yaml
+    values:
+      - ../values.kubevirt.yaml
+    set:
+      kommodity.network.ipv4.enabled: true
+      kommodity.network.ipv4.public: false
+      kommodity.network.ipv4.nodeCIDR: "10.200.0.0/20"
+      kommodity.addons:
+        talos-cluster-proxy:
+          enabled: true
+    asserts:
+      - isKind:
+          of: Cluster
+      - equal:
+          path: metadata.annotations["kommodity.io/node-cidr"]
+          value: "10.200.0.0/20"
+
+  - it: should not fail when talos-cluster-proxy enabled on public network without nodeCIDR
+    template: templates/provider/capi/cluster.yaml
+    values:
+      - ../values.kubevirt.yaml
+    set:
+      kommodity.network.ipv4.enabled: true
+      kommodity.network.ipv4.public: true
+      kommodity.network.ipv4.nodeCIDR: null
+      kommodity.addons:
+        talos-cluster-proxy:
+          enabled: true
+    asserts:
+      - isKind:
+          of: Cluster
+
+  - it: should not fail when talos-cluster-proxy disabled without nodeCIDR
+    template: templates/provider/capi/cluster.yaml
+    values:
+      - ../values.kubevirt.yaml
+    set:
+      kommodity.network.ipv4.enabled: true
+      kommodity.network.ipv4.public: false
+      kommodity.network.ipv4.nodeCIDR: null
+      kommodity.addons:
+        talos-cluster-proxy:
+          enabled: false
+    asserts:
+      - isKind:
+          of: Cluster
+
   # Autoscaling annotation tests
   - it: should set autoscaler annotations when both minReplicas and maxReplicas are set
     template: templates/provider/capi/machinedeployment.yaml

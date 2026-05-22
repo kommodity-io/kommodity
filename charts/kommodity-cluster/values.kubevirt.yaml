@@ -21,19 +21,46 @@ kommodity:
       # Specify a storageClassName if needed
       # storageClassName: my-storage-class
 
+      # Specify a controlPlaneServiceTemplate if needed
+      # Defaults: no annotations, spec.type=LoadBalancer
+      # controlPlaneServiceTemplate:
+      #   annotations:
+      #     my-annotation: my-value
+      #   spec:
+      #     type: LoadBalancer # Valid values are ExternalName, ClusterIP, NodePort, and LoadBalancer.
+
       # Specify a controlPlaneEndpoint if needed
       # controlPlaneEndpoint:
       #   host: my-host-ip
       #   port: 6443
 
   network:
+    ipv4:
+      nodeCIDR: <REPLACE-ME> # Range for Kubevirt VM pods (needs to be adjusted).
     cluster:
+      # interfaceType: bridge # Valid values listed in https://kubevirt.io/user-guide/network/interfaces_and_networks/#interfaces (default: bridge)
       podCIDR:
         - 10.245.0.0/16 # Needs to be different from the Kubevirt cluster pod CIDR (usually 10.244.0.0/16)
+      # DNS for the VMs. Virt-launcher pod's resolv.conf is advertised to the
+      # VM via Kubevirt's internal DHCP. dnsPolicy options:
+      #   - ClusterFirst (k8s default): uses Kubevirt cluster's kube-dns ClusterIP.
+      #       Wrong cluster's DNS, and may be unreachable from VM-sourced traffic
+      #       (e.g. Cilium kube-proxy-replacement on the Kubevirt host).
+      #   - Default: inherits Kubevirt host node's /etc/resolv.conf. Often broken
+      #       because modern hosts use link-local (169.254.x.x) or loopback
+      #       (127.0.0.53) resolvers that aren't routable from the VM netns.
+      #   - None + dnsConfig.nameservers: explicit servers. Most reliable.
+      #       Override for your environment (corporate resolver, cloud DNS, etc.).
+      dns:
+        dnsPolicy: None # Valid values are 'ClusterFirstWithHostNet', 'ClusterFirst', 'Default' or 'None'
+        dnsConfig:
+          nameservers: ["1.1.1.1", "8.8.8.8"] # Cloudflare + Google. Override as needed.
 
   controlplane:
     replicas: 2
-    sku: s1.medium
+    # Default set of instance types: https://github.com/kubevirt/common-instancetypes#series. Custom instance types can also be created.
+    # It is recommend to run nodes on dedicated CPU cores (so CX, N, RT, and D series).
+    sku: d1.xlarge
     os:
       disk:
         size: 20
@@ -41,10 +68,13 @@ kommodity:
   nodepools:
     default:
       replicas: 1
-      sku: s1.medium
+      sku: d1.xlarge
       os:
         disk:
           size: 20
+      additionalVolumes:
+        - size: 10 # size in GB
+      #     storageClassName: fast-ssd # optional, defaults to provider.config.storageClassName if set
 
       # Optional: specify GPU resources
       # gpus:
@@ -52,4 +82,4 @@ kommodity:
       #     deviceName: "nvidia.com/AD102GL_L40S" # resource name representing the device
 
 talos:
-  imageName: https://factory.talos.dev/image/ce4c980550dd2ab1b17bbf2b08801c7eb59418eafe8f279833297925d67c7515/v1.13.0/openstack-amd64.raw.xz # OpenStack image with 'siderolabs/qemu-guest-agent' extension
+  imageName: docker://ghcr.io/kommodity-io/kommodity-talos-openstack:v1.13.0 # OpenStack image with 'siderolabs/qemu-guest-agent' extension + Kommodity extensions

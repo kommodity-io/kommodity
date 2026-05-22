@@ -59,10 +59,134 @@ tests:
           pattern: ^test-cluster-worker-default-[a-f0-9]{6}
         documentIndex: 1
       - equal:
-          path: spec.template.spec.virtualMachineTemplate.spec.dataVolumeTemplates[0].spec.source.http.url
+          path: spec.template.spec.virtualMachineTemplate.spec.dataVolumeTemplates[0].spec.source.registry.url
           value: "controlplane-talos-image"
         documentIndex: 0
       - equal:
-          path: spec.template.spec.virtualMachineTemplate.spec.dataVolumeTemplates[0].spec.source.http.url
+          path: spec.template.spec.virtualMachineTemplate.spec.dataVolumeTemplates[0].spec.source.registry.url
           value: "global-talos-image"
+        documentIndex: 1
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.domain.devices.interfaces[0].bridge
+          value: {}
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.domain.devices.interfaces[0].bridge
+          value: {}
+        documentIndex: 1
+  - it: should render additionalVolumes on worker nodepool
+    template: templates/provider/kubevirt/machinetemplate.yaml
+    set:
+      kommodity.provider.config.storageClassName: ceph-block
+      kommodity.nodepools.default.additionalVolumes:
+        - size: 50
+        - size: 100
+          storageClassName: fast-ssd
+    asserts:
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.dataVolumeTemplates[1].metadata.name
+          value: additional-volume-0
+        documentIndex: 1
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.dataVolumeTemplates[1].spec.pvc.resources.requests.storage
+          value: 50Gi
+        documentIndex: 1
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.dataVolumeTemplates[1].spec.pvc.storageClassName
+          value: ceph-block
+        documentIndex: 1
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.dataVolumeTemplates[1].spec.source.blank
+          value: {}
+        documentIndex: 1
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.dataVolumeTemplates[2].metadata.name
+          value: additional-volume-1
+        documentIndex: 1
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.dataVolumeTemplates[2].spec.pvc.resources.requests.storage
+          value: 100Gi
+        documentIndex: 1
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.dataVolumeTemplates[2].spec.pvc.storageClassName
+          value: fast-ssd
+        documentIndex: 1
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.domain.devices.disks[1].name
+          value: additional-volume-0
+        documentIndex: 1
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.domain.devices.disks[2].name
+          value: additional-volume-1
+        documentIndex: 1
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.volumes[1].dataVolume.name
+          value: additional-volume-0
+        documentIndex: 1
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.volumes[2].dataVolume.name
+          value: additional-volume-1
+        documentIndex: 1
+  - it: should set the interface type from network.cluster.interfaceType
+    template: templates/provider/kubevirt/machinetemplate.yaml
+    set:
+      kommodity.network.cluster.interfaceType: bridge
+    asserts:
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.domain.devices.interfaces[0].bridge
+          value: {}
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.domain.devices.interfaces[0].bridge
+          value: {}
+        documentIndex: 1
+      - isNull:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.domain.devices.interfaces[0].masquerade
+        documentIndex: 0
+  - it: should not render dnsPolicy or dnsConfig when network.cluster.dns is unset
+    template: templates/provider/kubevirt/machinetemplate.yaml
+    set:
+      kommodity.network.cluster.dns.dnsPolicy: ""
+      kommodity.network.cluster.dns.dnsConfig: null
+    asserts:
+      - isNull:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.dnsPolicy
+        documentIndex: 0
+      - isNull:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.dnsConfig
+        documentIndex: 0
+      - isNull:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.dnsPolicy
+        documentIndex: 1
+      - isNull:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.dnsConfig
+        documentIndex: 1
+  - it: should render dnsPolicy and dnsConfig when network.cluster.dns is set
+    template: templates/provider/kubevirt/machinetemplate.yaml
+    set:
+      kommodity.network.cluster.dns.dnsPolicy: None
+      kommodity.network.cluster.dns.dnsConfig:
+        nameservers:
+          - 1.1.1.1
+          - 8.8.8.8
+    asserts:
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.dnsPolicy
+          value: None
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.dnsConfig.nameservers[0]
+          value: 1.1.1.1
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.dnsConfig.nameservers[1]
+          value: 8.8.8.8
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.dnsPolicy
+          value: None
+        documentIndex: 1
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.dnsConfig.nameservers[0]
+          value: 1.1.1.1
         documentIndex: 1
