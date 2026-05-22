@@ -58,6 +58,8 @@ kommodity:
 
   controlplane:
     replicas: 2
+    # Default set of instance types: https://github.com/kubevirt/common-instancetypes#series. Custom instance types can also be created.
+    # It is recommend to run nodes on dedicated CPU cores (so CX, N, RT, and D series).
     sku: d1.xlarge
     os:
       disk:
@@ -70,10 +72,9 @@ kommodity:
       os:
         disk:
           size: 20
-      # Optional: extra data disks attached to each VM (provisioned as blank DataVolumes)
-      # additionalVolumes:
-      #   - size: 10 # size in GB
-      #     storageClassName: fast-ssd # optional, defaults to provider.config.storageClassName
+      additionalVolumes:
+        - size: 10 # size in GB
+      #     storageClassName: fast-ssd # optional, defaults to provider.config.storageClassName if set
 
       # Optional: specify GPU resources
       # gpus:
