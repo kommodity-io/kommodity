@@ -52,7 +52,7 @@ kommodity:
       #   - None + dnsConfig.nameservers: explicit servers. Most reliable.
       #       Override for your environment (corporate resolver, cloud DNS, etc.).
       dns:
-        dnsPolicy: None
+        dnsPolicy: None # Valid values are 'ClusterFirstWithHostNet', 'ClusterFirst', 'Default' or 'None'
         dnsConfig:
           nameservers: ["1.1.1.1", "8.8.8.8"] # Cloudflare + Google. Override as needed.
 
