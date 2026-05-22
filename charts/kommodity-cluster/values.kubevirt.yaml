@@ -82,4 +82,4 @@ kommodity:
       #     deviceName: "nvidia.com/AD102GL_L40S" # resource name representing the device
 
 talos:
-  imageName: docker://ghcr.io/kommodity-io/kommodity-talos-openstack:v1.13.0 # OpenStack image with 'siderolabs/qemu-guest-agent' extension
+  imageName: docker://ghcr.io/kommodity-io/kommodity-talos-openstack:v1.13.0 # OpenStack image with 'siderolabs/qemu-guest-agent' extension + Kommodity extensions
