@@ -34,7 +34,7 @@ kommodity:
       # - create a private network and attach the nodes to it (Scaleway only)
       # - create a public gateway and attach it to the private network (Scaleway only)
       public: false
-    nodeCIDR: <REPLACE-ME> # CIDR range for nodes, required if ipv4.public is false.
+      nodeCIDR: <REPLACE-ME> # CIDR range for nodes, required if public is false.
     cluster:
       podCIDR:
         - 100.64.0.0/11
