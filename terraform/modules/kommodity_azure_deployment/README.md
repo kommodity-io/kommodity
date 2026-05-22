@@ -48,6 +48,7 @@ The `azurerm.dns` provider alias is required because the DNS zone typically live
 
 | Name | Version |
 | ---- | ------- |
+| <a name="requirement_azapi"></a> [azapi](#requirement\_azapi) | ~> 2.9 |
 | <a name="requirement_azurerm"></a> [azurerm](#requirement\_azurerm) | ~>4.69.0 |
 | <a name="requirement_random"></a> [random](#requirement\_random) | ~> 3.9 |
 | <a name="requirement_time"></a> [time](#requirement\_time) | ~> 0.14 |
@@ -56,10 +57,10 @@ The `azurerm.dns` provider alias is required because the DNS zone typically live
 
 | Name | Version |
 | ---- | ------- |
+| <a name="provider_azapi"></a> [azapi](#provider\_azapi) | 2.9.0 |
 | <a name="provider_azurerm"></a> [azurerm](#provider\_azurerm) | 4.69.0 |
 | <a name="provider_azurerm.dns"></a> [azurerm.dns](#provider\_azurerm.dns) | 4.69.0 |
 | <a name="provider_random"></a> [random](#provider\_random) | 3.9.0 |
-| <a name="provider_time"></a> [time](#provider\_time) | 0.14.0 |
 
 ## Modules
 
@@ -69,6 +70,7 @@ No modules.
 
 | Name | Type |
 | ---- | ---- |
+| [azapi_update_resource.bind_cert](https://registry.terraform.io/providers/azure/azapi/latest/docs/resources/update_resource) | resource |
 | [azurerm_container_app.kommodity-app](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/container_app) | resource |
 | [azurerm_container_app_custom_domain.this](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/container_app_custom_domain) | resource |
 | [azurerm_container_app_environment.kommodity-environment](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/container_app_environment) | resource |
@@ -88,7 +90,6 @@ No modules.
 | [azurerm_subnet.kommodity-db-sn](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/subnet) | resource |
 | [azurerm_virtual_network.kommodity-vn](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/virtual_network) | resource |
 | [random_password.database-password](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/password) | resource |
-| [time_sleep.wait_for_dns_propagation](https://registry.terraform.io/providers/hashicorp/time/latest/docs/resources/sleep) | resource |
 | [azurerm_dns_zone.this](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/data-sources/dns_zone) | data source |
 
 ## Inputs

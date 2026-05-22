@@ -6,6 +6,11 @@ terraform {
       configuration_aliases = [azurerm, azurerm.dns]
     }
 
+    azapi = {
+      source  = "azure/azapi"
+      version = "~> 2.9"
+    }
+
     random = {
       source  = "hashicorp/random"
       version = "~> 3.9"
