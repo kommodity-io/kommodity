@@ -19,18 +19,22 @@ package openapi
 //go:generate go run k8s.io/kube-openapi/cmd/openapi-gen --output-dir=./rbac --output-pkg=github.com/kommodity-io/kommodity/pkg/openapi/rbac --output-file=zz_generated.openapi.go --logtostderr k8s.io/api/rbac/v1
 //go:generate go run k8s.io/kube-openapi/cmd/openapi-gen --output-dir=./audit --output-pkg=github.com/kommodity-io/kommodity/pkg/openapi/audit --output-file=zz_generated.openapi.go --logtostderr k8s.io/apiserver/pkg/apis/audit/v1
 //go:generate go run k8s.io/kube-openapi/cmd/openapi-gen --output-dir=./storage --output-pkg=github.com/kommodity-io/kommodity/pkg/openapi/storage --output-file=zz_generated.openapi.go --logtostderr k8s.io/api/storage/v1
+//go:generate go run k8s.io/kube-openapi/cmd/openapi-gen --output-dir=./apps --output-pkg=github.com/kommodity-io/kommodity/pkg/openapi/apps --output-file=zz_generated.openapi.go --logtostderr k8s.io/api/apps/v1
+//go:generate go run k8s.io/kube-openapi/cmd/openapi-gen --output-dir=./resource --output-pkg=github.com/kommodity-io/kommodity/pkg/openapi/resource --output-file=zz_generated.openapi.go --logtostderr k8s.io/apimachinery/pkg/api/resource
 
 import (
 	"fmt"
 
 	"github.com/kommodity-io/kommodity/pkg/openapi/admissionregistration"
 	"github.com/kommodity-io/kommodity/pkg/openapi/apiextensions"
+	"github.com/kommodity-io/kommodity/pkg/openapi/apps"
 	"github.com/kommodity-io/kommodity/pkg/openapi/audit"
 	"github.com/kommodity-io/kommodity/pkg/openapi/authorization"
 	"github.com/kommodity-io/kommodity/pkg/openapi/core"
 	"github.com/kommodity-io/kommodity/pkg/openapi/intstr"
 	"github.com/kommodity-io/kommodity/pkg/openapi/meta"
 	"github.com/kommodity-io/kommodity/pkg/openapi/rbac"
+	"github.com/kommodity-io/kommodity/pkg/openapi/resource"
 	"github.com/kommodity-io/kommodity/pkg/openapi/storage"
 	"github.com/kommodity-io/kommodity/pkg/openapi/runtime"
 	"github.com/kommodity-io/kommodity/pkg/openapi/version"
@@ -79,6 +83,8 @@ func (o *Spec) GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]co
 		"rbac":                  rbac.GetOpenAPIDefinitions(ref),
 		"audit":                 audit.GetOpenAPIDefinitions(ref),
 		"storage":               storage.GetOpenAPIDefinitions(ref),
+		"apps":                  apps.GetOpenAPIDefinitions(ref),
+		"resource":              resource.GetOpenAPIDefinitions(ref),
 	}
 
 	openAPIDefinition := make(map[string]common.OpenAPIDefinition)

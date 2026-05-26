@@ -11,6 +11,7 @@ import (
 	generatedopenapi "github.com/kommodity-io/kommodity/pkg/openapi"
 	"github.com/kommodity-io/kommodity/pkg/provider"
 	"github.com/kommodity-io/kommodity/pkg/storage/configmaps"
+	"github.com/kommodity-io/kommodity/pkg/storage/deployments"
 	"github.com/kommodity-io/kommodity/pkg/storage/endpoints"
 	"github.com/kommodity-io/kommodity/pkg/storage/events"
 	"github.com/kommodity-io/kommodity/pkg/storage/namespaces"
@@ -22,6 +23,7 @@ import (
 	"github.com/kommodity-io/kommodity/pkg/storage/webhookconfigurations"
 	"go.uber.org/zap"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
+	appsv1 "k8s.io/api/apps/v1"
 	authorizationapiv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -144,6 +146,15 @@ func New(ctx context.Context, cfg *config.KommodityConfig) (*aggregatorapiserver
 	err = genericServer.InstallAPIGroup(admissionRegistrationAPI)
 	if err != nil {
 		return nil, fmt.Errorf("failed to install admissionregistration API group into the generic API server: %w", err)
+	}
+
+	logger.Info("Installing apps API group")
+
+	appsAPI := setupAppsAPIGroupInfo(scheme, codecs)
+
+	err = genericServer.InstallAPIGroup(appsAPI)
+	if err != nil {
+		return nil, fmt.Errorf("failed to install apps API group into the generic API server: %w", err)
 	}
 
 	logger.Info("Creating new API aggregator server")
@@ -320,6 +331,26 @@ func setupRBACAPIGroupInfo(cfg *config.KommodityConfig,
 	}
 
 	return &apiGroupInfo, nil
+}
+
+// setupAppsAPIGroupInfo installs a stub apps/v1 API group serving an empty
+// Deployment list. See pkg/storage/deployments for the rationale.
+func setupAppsAPIGroupInfo(
+	scheme *runtime.Scheme,
+	codecs serializer.CodecFactory,
+) *genericapiserver.APIGroupInfo {
+	apiGroupInfo := genericapiserver.NewDefaultAPIGroupInfo(
+		appsv1.GroupName,
+		scheme,
+		runtime.NewParameterCodec(scheme),
+		codecs,
+	)
+
+	apiGroupInfo.VersionedResourcesStorageMap["v1"] = map[string]rest.Storage{
+		"deployments": deployments.NewREST(),
+	}
+
+	return &apiGroupInfo
 }
 
 func setupAdmissionRegistrationAPIGroupInfo(cfg *config.KommodityConfig,
