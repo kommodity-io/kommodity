@@ -273,7 +273,7 @@ func (pc *Cache) loadCRDCache(ctx context.Context, cfg *config.KommodityConfig) 
 				return fmt.Errorf("failed to decode CRD: %w", err)
 			}
 
-			stripNonStorageServedVersions(obj)
+			stripDeprecatedVersions(obj)
 
 			pc.loadCRDInScheme(group, obj)
 
@@ -285,12 +285,8 @@ func (pc *Cache) loadCRDCache(ctx context.Context, cfg *config.KommodityConfig) 
 	return nil
 }
 
-// stripNonStorageServedVersions keeps only the storage version in spec.versions.
-// Non-storage served versions trigger per-version watch cachers that call the
-// conversion webhook for Go types Kommodity does not register (e.g. CAPI
-// v1alpha3/v1alpha4 removed upstream). No alpha objects are stored since the
-// storage version is v1beta1, so dropping them is safe.
-func stripNonStorageServedVersions(obj *unstructured.Unstructured) {
+// stripDeprecatedVersions keeps only the non-deprecated versions in spec.versions.
+func stripDeprecatedVersions(obj *unstructured.Unstructured) {
 	versions, found, _ := unstructured.NestedSlice(obj.Object, "spec", "versions")
 	if !found {
 		return
@@ -304,7 +300,7 @@ func stripNonStorageServedVersions(obj *unstructured.Unstructured) {
 			continue
 		}
 
-		if storage, _ := version["storage"].(bool); storage {
+		if deprecated, _ := version["deprecated"].(bool); !deprecated {
 			out = append(out, version)
 		}
 	}
