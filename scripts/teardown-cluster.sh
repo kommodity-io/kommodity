@@ -23,7 +23,7 @@ case "${confirm}" in
     ;;
 esac
 
-${HELM} uninstall "${CLUSTER_NAME}"
+${HELM} uninstall --ignore-not-found "${CLUSTER_NAME}"
 
 # Wait for machines to be deleted
 echo "⏳ Waiting for machines to be deleted..."
@@ -36,6 +36,13 @@ while true; do
   sleep 5
 done
 echo "✅ All machines deleted."
+
+# Remove finalizer on KubevirtCluster if present
+if ${KUBECTL} get kubevirtcluster "${CLUSTER_NAME}" >/dev/null 2>&1; then
+  echo "🧹 Removing finalizers from KubevirtCluster/${CLUSTER_NAME}..."
+  ${KUBECTL} patch kubevirtcluster "${CLUSTER_NAME}" \
+    --type=merge -p '{"metadata":{"finalizers":[]}}'
+fi
 
 # Wait for Cluster object to be deleted
 CLUSTER_DELETE_TIMEOUT="${CLUSTER_DELETE_TIMEOUT:-600s}"
