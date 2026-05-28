@@ -53,7 +53,9 @@ func (k KubevirtInfra) Overrides() map[string]any {
 			"port": k.ControlPlaneEndpointPort,
 		},
 		"kommodity.controlplane.replicas":      int64(1),
+		"kommodity.controlplane.sku":           instanceTypeSKU,
 		"kommodity.nodepools.default.replicas": int64(1),
+		"kommodity.nodepools.default.sku":      instanceTypeSKU,
 	}
 }
 
