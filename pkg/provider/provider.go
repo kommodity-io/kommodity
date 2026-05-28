@@ -273,7 +273,10 @@ func (pc *Cache) loadCRDCache(ctx context.Context, cfg *config.KommodityConfig) 
 				return fmt.Errorf("failed to decode CRD: %w", err)
 			}
 
-			stripDeprecatedVersions(obj)
+			err = stripDeprecatedVersions(ctx, obj)
+			if err != nil {
+				return fmt.Errorf("failed to strip deprecated versions: %w", err)
+			}
 
 			pc.loadCRDInScheme(group, obj)
 
@@ -286,13 +289,16 @@ func (pc *Cache) loadCRDCache(ctx context.Context, cfg *config.KommodityConfig) 
 }
 
 // stripDeprecatedVersions keeps only the non-deprecated versions in spec.versions.
-func stripDeprecatedVersions(obj *unstructured.Unstructured) {
+func stripDeprecatedVersions(ctx context.Context, obj *unstructured.Unstructured) error {
+	logger := logging.FromContext(ctx)
+
 	versions, found, _ := unstructured.NestedSlice(obj.Object, "spec", "versions")
 	if !found {
-		return
+		return nil
 	}
 
 	out := make([]any, 0, len(versions))
+	dropped := make([]string, 0)
 
 	for _, v := range versions {
 		version, ok := v.(map[string]any)
@@ -300,16 +306,34 @@ func stripDeprecatedVersions(obj *unstructured.Unstructured) {
 			continue
 		}
 
-		if deprecated, _ := version["deprecated"].(bool); !deprecated {
-			out = append(out, version)
+		if deprecated, _ := version["deprecated"].(bool); deprecated {
+			name, _ := version["name"].(string)
+			dropped = append(dropped, name)
+
+			continue
 		}
+
+		out = append(out, version)
+	}
+
+	if len(dropped) == 0 {
+		return nil
 	}
 
 	if len(out) == 0 {
-		return
+		return nil
 	}
 
-	_ = unstructured.SetNestedSlice(obj.Object, out, "spec", "versions")
+	logger.Info("Stripped deprecated CRD versions",
+		zap.String("crd", obj.GetName()),
+		zap.Strings("versions", dropped))
+
+	err := unstructured.SetNestedSlice(obj.Object, out, "spec", "versions")
+	if err != nil {
+		return fmt.Errorf("failed to set spec.versions on %s: %w", obj.GetName(), err)
+	}
+
+	return nil
 }
 
 func (pc *Cache) loadCRDInScheme(group string, obj *unstructured.Unstructured) {
