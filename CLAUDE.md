@@ -136,6 +136,7 @@ This is applicable for the `Implement Mode`.
 
 After making changes to the Terraform modules, you should:
 
-- Update the documentation with `make terraform-docs`.
+- Run `terraform init -upgrade` in each changed module
 - Run `terraform fmt`, `terraform validate` and `terraform test` in all changed modules.
+- Update the documentation with `make terraform-docs`.
 - Update related examples in `terraform/examples`.

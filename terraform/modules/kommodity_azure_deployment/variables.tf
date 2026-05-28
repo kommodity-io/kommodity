@@ -79,6 +79,7 @@ variable "kommodity_container" {
     log_format                      = optional(string, "console")
     log_level                       = optional(string, "info")
     infrastructure_providers        = optional(string, "") # If env var is empty, Kommodity uses default providers
+    garbage_collector_enabled       = optional(string, "true")
   })
   description = "Kommodity container configuration"
   default     = {}
