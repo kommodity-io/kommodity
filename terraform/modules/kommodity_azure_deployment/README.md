@@ -57,7 +57,7 @@ The `azurerm.dns` provider alias is required because the DNS zone typically live
 
 | Name | Version |
 | ---- | ------- |
-| <a name="provider_azapi"></a> [azapi](#provider\_azapi) | 2.9.0 |
+| <a name="provider_azapi"></a> [azapi](#provider\_azapi) | 2.10.0 |
 | <a name="provider_azurerm"></a> [azurerm](#provider\_azurerm) | 4.69.0 |
 | <a name="provider_azurerm.dns"></a> [azurerm.dns](#provider\_azurerm.dns) | 4.69.0 |
 | <a name="provider_random"></a> [random](#provider\_random) | 3.9.0 |
