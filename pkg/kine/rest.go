@@ -6,6 +6,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	genericregistry "k8s.io/apiserver/pkg/registry/generic"
+	"k8s.io/apiserver/pkg/registry/generic/registry"
 	"k8s.io/apiserver/pkg/server/options"
 	"k8s.io/apiserver/pkg/storage/storagebackend"
 )
@@ -33,7 +34,7 @@ func (g *RESTOptionsGetter) GetRESTOptions(resource schema.GroupResource,
 		StorageConfig:           g.StorageConfig.ForResource(resource),
 		DeleteCollectionWorkers: 1,
 		EnableGarbageCollection: true,
-		Decorator:               genericregistry.UndecoratedStorage,
+		Decorator:               registry.StorageWithCacher(),
 		ResourcePrefix:          resource.Resource,
 	}, nil
 }
