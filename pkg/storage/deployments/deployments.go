@@ -70,7 +70,10 @@ func (*REST) Destroy() {}
 
 // List always returns an empty DeploymentList.
 func (*REST) List(_ context.Context, _ *metainternalversion.ListOptions) (runtime.Object, error) {
-	return &appsv1.DeploymentList{ListMeta: metav1.ListMeta{}}, nil
+	return &appsv1.DeploymentList{
+		ListMeta: metav1.ListMeta{ResourceVersion: "0"},
+		Items:    []appsv1.Deployment{},
+	}, nil
 }
 
 // ConvertToTable converts the result to a table form.
