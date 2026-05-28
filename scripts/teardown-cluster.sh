@@ -37,10 +37,21 @@ while true; do
 done
 echo "✅ All machines deleted."
 
-# Remove finalizers on KubevirtCluster if present (ignore if already gone)
+# Remove finalizers on KubevirtCluster if present.
+# Tolerate NotFound only; rethrow any other error.
 echo "🧹 Removing finalizers from KubevirtCluster/${CLUSTER_NAME} (if present)..."
-${KUBECTL} patch kubevirtcluster "${CLUSTER_NAME}" \
-  --type=merge -p '{"metadata":{"finalizers":[]}}' --ignore-not-found
+patch_out=$(${KUBECTL} patch kubevirtcluster "${CLUSTER_NAME}" \
+  --type=merge -p '{"metadata":{"finalizers":[]}}' 2>&1) && patch_rc=0 || patch_rc=$?
+if [ "$patch_rc" -ne 0 ]; then
+  if echo "$patch_out" | grep -qi 'not found'; then
+    echo "   KubevirtCluster/${CLUSTER_NAME} not present, skipping."
+  else
+    echo "$patch_out" >&2
+    exit "$patch_rc"
+  fi
+else
+  echo "$patch_out"
+fi
 
 # Wait for Cluster object to be deleted
 CLUSTER_DELETE_TIMEOUT="${CLUSTER_DELETE_TIMEOUT:-600s}"
