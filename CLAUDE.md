@@ -139,3 +139,4 @@ After making changes to the Terraform modules, you should:
 - Update the documentation with `make terraform-docs`.
 - Run `terraform fmt`, `terraform validate` and `terraform test` in all changed modules.
 - Update related examples in `terraform/examples`.
+- Before committing, run `terraform init -upgrade` in each changed module so the provider versions written into the README by `make terraform-docs` match the latest releases CI will resolve. Stale local `.terraform.lock.hcl` pins cause the `Verify terraform-docs are up to date` job to fail with a provider-version diff.
