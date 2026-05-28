@@ -13,7 +13,7 @@ HELM="helm --kube-context=${KUBE_CONTEXT}"
 
 echo "🗑️ Tearing down cluster: $CLUSTER_NAME"
 echo "   Context: ${KUBE_CONTEXT}"
-echo "   This will run: ${HELM} uninstall ${CLUSTER_NAME}"
+echo "   This will run: ${HELM} uninstall --ignore-not-found ${CLUSTER_NAME}"
 read -r -p "Proceed with helm uninstall? [y/N] " confirm
 case "${confirm}" in
   y) ;;
@@ -37,12 +37,10 @@ while true; do
 done
 echo "✅ All machines deleted."
 
-# Remove finalizer on KubevirtCluster if present
-if ${KUBECTL} get kubevirtcluster "${CLUSTER_NAME}" >/dev/null 2>&1; then
-  echo "🧹 Removing finalizers from KubevirtCluster/${CLUSTER_NAME}..."
-  ${KUBECTL} patch kubevirtcluster "${CLUSTER_NAME}" \
-    --type=merge -p '{"metadata":{"finalizers":[]}}'
-fi
+# Remove finalizers on KubevirtCluster if present (ignore if already gone)
+echo "🧹 Removing finalizers from KubevirtCluster/${CLUSTER_NAME} (if present)..."
+${KUBECTL} patch kubevirtcluster "${CLUSTER_NAME}" \
+  --type=merge -p '{"metadata":{"finalizers":[]}}' --ignore-not-found
 
 # Wait for Cluster object to be deleted
 CLUSTER_DELETE_TIMEOUT="${CLUSTER_DELETE_TIMEOUT:-600s}"
