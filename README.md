@@ -399,26 +399,30 @@ connection. Drop it on any host, point it at a database, and run.
 
 Kommodity is configured via environment variables.
 
-| Variable                                    | Description                                                       | Default                 |
-| ------------------------------------------- | ----------------------------------------------------------------- | ----------------------- |
-| `KOMMODITY_PORT`                            | Port for the Kommodity server                                     | `5000`                  |
-| `KOMMODITY_BASE_URL`                        | Base URL for the Kommodity server                                 | `http://localhost:5000` |
-| `KOMMODITY_DB_URI`                          | PostgreSQL connection URI                                         | (none)                  |
-| `KOMMODITY_DEVELOPMENT_MODE`                | Enable development mode                                           | `false`                 |
-| `KOMMODITY_INSECURE_DISABLE_AUTHENTICATION` | Disable authentication for local development                      | `false`                 |
-| `KOMMODITY_ADMIN_GROUP`                     | Group name granted cluster-admin equivalence                      | (none)                  |
-| `KOMMODITY_OIDC_ISSUER_URL`                 | OIDC issuer URL                                                   | (none)                  |
-| `KOMMODITY_OIDC_CLIENT_ID`                  | OIDC client ID                                                    | (none)                  |
-| `KOMMODITY_OIDC_USERNAME_CLAIM`             | OIDC claim used for the username                                  | `email`                 |
-| `KOMMODITY_OIDC_GROUPS_CLAIM`               | OIDC claim used for groups                                        | `groups`                |
-| `KOMMODITY_INFRASTRUCTURE_PROVIDERS`        | Comma-separated providers to enable                               | all                     |
-| `KOMMODITY_ATTESTATION_NONCE_TTL`           | TTL for attestation nonces (e.g. `5m`, `1h`)                      | `5m`                    |
-| `KOMMODITY_AUDIT_POLICY_FILE_PATH`          | Path to a Kubernetes audit policy file                            | (none)                  |
-| `KOMMODITY_TALOS_PROXY_ENABLED`             | Enable the HTTP CONNECT Talos gRPC proxy                          | `true`                  |
-| `KOMMODITY_TALOS_PROXY_PORT`                | Local listen port for the proxy                                   | `15050`                 |
-| `KOMMODITY_TALOS_PROXY_NAMESPACE`           | Namespace of the talos-cluster-proxy service in workload clusters | `talos-cluster-proxy`   |
-| `KOMMODITY_TALOS_PROXY_SERVICE_NAME`        | Name of the talos-cluster-proxy service                           | `talos-cluster-proxy`   |
-| `KOMMODITY_TALOS_PROXY_IDLE_TIMEOUT`        | Idle timeout before unused tunnels are closed                     | `1m`                    |
+| Variable                                           | Description                                                       | Default                 |
+| -------------------------------------------------- | ----------------------------------------------------------------- | ----------------------- |
+| `KOMMODITY_PORT`                                   | Port for the Kommodity server                                     | `5000`                  |
+| `KOMMODITY_BASE_URL`                               | Base URL for the Kommodity server                                 | `http://localhost:5000` |
+| `KOMMODITY_DB_URI`                                 | PostgreSQL connection URI                                         | (none)                  |
+| `KOMMODITY_DEVELOPMENT_MODE`                       | Enable development mode                                           | `false`                 |
+| `KOMMODITY_INSECURE_DISABLE_AUTHENTICATION`        | Disable authentication for local development                      | `false`                 |
+| `KOMMODITY_ADMIN_GROUP`                            | Group name granted cluster-admin equivalence                      | (none)                  |
+| `KOMMODITY_OIDC_ISSUER_URL`                        | OIDC issuer URL                                                   | (none)                  |
+| `KOMMODITY_OIDC_CLIENT_ID`                         | OIDC client ID                                                    | (none)                  |
+| `KOMMODITY_OIDC_USERNAME_CLAIM`                    | OIDC claim used for the username                                  | `email`                 |
+| `KOMMODITY_OIDC_GROUPS_CLAIM`                      | OIDC claim used for groups                                        | `groups`                |
+| `KOMMODITY_INFRASTRUCTURE_PROVIDERS`               | Comma-separated providers to enable                               | all                     |
+| `KOMMODITY_ATTESTATION_NONCE_TTL`                  | TTL for attestation nonces (e.g. `5m`, `1h`)                      | `5m`                    |
+| `KOMMODITY_AUDIT_POLICY_FILE_PATH`                 | Path to a Kubernetes audit policy file                            | (none)                  |
+| `KOMMODITY_TALOS_PROXY_ENABLED`                    | Enable the HTTP CONNECT Talos gRPC proxy                          | `true`                  |
+| `KOMMODITY_TALOS_PROXY_PORT`                       | Local listen port for the proxy                                   | `15050`                 |
+| `KOMMODITY_TALOS_PROXY_NAMESPACE`                  | Namespace of the talos-cluster-proxy service in workload clusters | `talos-cluster-proxy`   |
+| `KOMMODITY_TALOS_PROXY_SERVICE_NAME`               | Name of the talos-cluster-proxy service                           | `talos-cluster-proxy`   |
+| `KOMMODITY_TALOS_PROXY_IDLE_TIMEOUT`               | Idle timeout before unused tunnels are closed                     | `1m`                    |
+| `KOMMODITY_GARBAGE_COLLECTOR_ENABLED`              | Enable the embedded garbage collector                             | `false`                 |
+| `KOMMODITY_GARBAGE_COLLECTOR_WORKERS`              | Number of garbage collector workers                               | `5`                     |
+| `KOMMODITY_GARBAGE_COLLECTOR_SYNC_PERIOD`          | Resync period for the garbage collector                           | `30s`                   |
+| `KOMMODITY_GARBAGE_COLLECTOR_INITIAL_SYNC_TIMEOUT` | Timeout waiting for initial informer sync                         | `60s`                   |
 
 Provider settings are managed in
 [`pkg/provider/providers.yaml`](pkg/provider/providers.yaml): name, repository,

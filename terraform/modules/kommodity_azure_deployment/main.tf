@@ -256,6 +256,10 @@ resource "azurerm_container_app" "kommodity-app" {
         name  = "KOMMODITY_INFRASTRUCTURE_PROVIDERS"
         value = var.kommodity_container.infrastructure_providers
       }
+      env {
+        name  = "KOMMODITY_GARBAGE_COLLECTOR_ENABLED"
+        value = var.kommodity_container.garbage_collector_enabled
+      }
 
       liveness_probe {
         transport = "HTTP"
