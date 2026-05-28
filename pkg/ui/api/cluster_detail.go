@@ -125,10 +125,12 @@ func getMachineDeployments(
 			phase = UnknownVersion
 		}
 
+		replicas := deployment.Status.Replicas
+
 		detail := MachineDeploymentDetail{
 			Name:     deployment.Name,
 			Phase:    phase,
-			Replicas: deployment.Spec.Replicas,
+			Replicas: &replicas,
 			MinSize:  minSize,
 			MaxSize:  maxSize,
 			Machines: machines,
