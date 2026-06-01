@@ -273,12 +273,63 @@ func (pc *Cache) loadCRDCache(ctx context.Context, cfg *config.KommodityConfig) 
 				return fmt.Errorf("failed to decode CRD: %w", err)
 			}
 
+			err = stripDeprecatedVersions(ctx, obj)
+			if err != nil {
+				return fmt.Errorf("failed to strip deprecated versions: %w", err)
+			}
+
 			pc.loadCRDInScheme(group, obj)
 
 			pc.providerCRDs[group] = append(pc.providerCRDs[group], *obj)
 			logger.Info("Cached CRD", zap.String("group", group))
 		}
 	}
+
+	return nil
+}
+
+// stripDeprecatedVersions keeps only the non-deprecated versions in spec.versions.
+func stripDeprecatedVersions(ctx context.Context, obj *unstructured.Unstructured) error {
+	logger := logging.FromContext(ctx)
+
+	// Decode into typed CRD so version fields are compiler-checked.
+	var crd apiextensionsv1.CustomResourceDefinition
+
+	err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object, &crd)
+	if err != nil {
+		return fmt.Errorf("failed to convert CRD %s: %w", obj.GetName(), err)
+	}
+
+	dropped := make([]string, 0)
+
+	// Partition versions: keep non-deprecated, record dropped names for logging.
+	kept := slices.DeleteFunc(crd.Spec.Versions, func(v apiextensionsv1.CustomResourceDefinitionVersion) bool {
+		if !v.Deprecated {
+			return false
+		}
+
+		dropped = append(dropped, v.Name)
+
+		return true
+	})
+
+	// Skip when nothing changed, or when every version is deprecated (avoid producing an invalid CRD).
+	if len(dropped) == 0 || len(kept) == 0 {
+		return nil
+	}
+
+	logger.Info("Stripped deprecated CRD versions",
+		zap.String("crd", obj.GetName()),
+		zap.Strings("versions", dropped))
+
+	crd.Spec.Versions = kept
+
+	updated, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&crd)
+	if err != nil {
+		return fmt.Errorf("failed to convert CRD %s back to unstructured: %w", obj.GetName(), err)
+	}
+
+	obj.Object = updated
 
 	return nil
 }
