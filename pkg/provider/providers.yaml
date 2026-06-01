@@ -72,6 +72,12 @@ providers:
       - AzureASOManagedControlPlaneTemplate
       - AzureASOManagedMachinePool
       - AzureASOManagedMachinePoolTemplate
+      - AzureManagedCluster
+      - AzureManagedClusterTemplate
+      - AzureManagedControlPlane
+      - AzureManagedControlPlaneTemplate
+      - AzureManagedMachinePool
+      - AzureManagedMachinePoolTemplate
       - BastionHost
       - FleetsMember
       - ManagedCluster
