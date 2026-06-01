@@ -129,7 +129,16 @@ func (secretStrategy) NamespaceScoped() bool {
 }
 
 // PrepareForCreate sets defaults for new objects.
-func (secretStrategy) PrepareForCreate(_ context.Context, _ runtime.Object) {}
+func (secretStrategy) PrepareForCreate(_ context.Context, obj runtime.Object) {
+	secret, ok := obj.(*corev1.Secret)
+	if !ok {
+		log.Printf("expected *corev1.Secret, got %T", obj)
+
+		return
+	}
+
+	mergeStringDataIntoData(secret)
+}
 
 // WarningsOnCreate returns warnings for create operations.
 func (secretStrategy) WarningsOnCreate(_ context.Context, obj runtime.Object) []string {
@@ -175,6 +184,28 @@ func (secretStrategy) PrepareForUpdate(_ context.Context, obj, old runtime.Objec
 	if len(newSecret.Type) == 0 {
 		newSecret.Type = oldSecret.Type
 	}
+
+	mergeStringDataIntoData(newSecret)
+}
+
+// mergeStringDataIntoData folds Secret.StringData into Secret.Data (StringData
+// overwrites Data on key collision) and clears StringData. Stock kube-apiserver
+// achieves this via the v1→internal conversion; since the embedded apiserver
+// stores corev1.Secret directly, the merge has to happen explicitly here.
+func mergeStringDataIntoData(secret *corev1.Secret) {
+	if len(secret.StringData) == 0 {
+		return
+	}
+
+	if secret.Data == nil {
+		secret.Data = make(map[string][]byte, len(secret.StringData))
+	}
+
+	for k, v := range secret.StringData {
+		secret.Data[k] = []byte(v)
+	}
+
+	secret.StringData = nil
 }
 
 // WarningsOnUpdate returns warnings for update operations.
