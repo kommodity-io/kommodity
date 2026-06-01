@@ -43,6 +43,10 @@ on:
         required: true
         default: "10.2.2"
         type: string
+      extra_kernel_args:
+        description: "Extra kernel args passed to imager (space-separated, e.g. 'console=ttyS0 net.ifnames=0')"
+        required: false
+        type: string
 
 env:
   REGISTRY: ghcr.io/kommodity-io
@@ -59,6 +63,7 @@ jobs:
       talos_version: ${{ steps.resolve-inputs.outputs.talos_version }}
       extensions: ${{ steps.resolve-inputs.outputs.extensions }}
       push: ${{ steps.resolve-inputs.outputs.push }}
+      extra_kernel_args: ${{ steps.resolve-inputs.outputs.extra_kernel_args }}
     steps:
       - name: Resolve inputs with defaults
         id: resolve-inputs
@@ -76,6 +81,12 @@ jobs:
           fi
 
           echo "push=${{ inputs.push == '' && 'true' || inputs.push }}" >> "$GITHUB_OUTPUT"
+
+          {
+            echo "extra_kernel_args<<EOF"
+            echo "${{ inputs.extra_kernel_args }}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Validate talos_version
         env:
@@ -158,6 +169,7 @@ jobs:
       NEEDS_CONVERSION: ${{ matrix.needs_conversion }}
       REQUIRED_EXTENSIONS: ${{ matrix.required_extensions }}
       PUBLISH_CONTAINERDISK: ${{ matrix.publish_containerdisk }}
+      EXTRA_KERNEL_ARGS: ${{ needs.setup.outputs.extra_kernel_args }}
     steps:
       - name: Free disk space
         run: |
@@ -215,10 +227,22 @@ jobs:
             done
           fi
 
+          # Parse extra kernel args (space-separated) into repeatable --extra-kernel-arg flags
+          KERNEL_ARGS=""
+          if [[ -n "${EXTRA_KERNEL_ARGS}" ]]; then
+            read -ra KARG_ARRAY <<< "${EXTRA_KERNEL_ARGS}"
+            for karg in "${KARG_ARRAY[@]}"; do
+              [[ -n "$karg" ]] && KERNEL_ARGS="${KERNEL_ARGS} --extra-kernel-arg ${karg}"
+            done
+          fi
+
           echo "=========================================="
           echo "Building ${PLATFORM} image for Talos ${TALOS_VERSION}..."
           echo "Extensions: ${ALL_EXTENSIONS:-none}"
+          echo "Extra kernel args: ${EXTRA_KERNEL_ARGS:-none}"
           echo "=========================================="
+
+          echo "ALL_EXTENSIONS=${ALL_EXTENSIONS}" >> "$GITHUB_ENV"
 
           mkdir -p _out
 
@@ -230,7 +254,8 @@ jobs:
             "ghcr.io/siderolabs/imager:${TALOS_VERSION}" \
             "${PLATFORM}" \
             --arch amd64 \
-            ${EXTENSION_ARGS}
+            ${EXTENSION_ARGS} \
+            ${KERNEL_ARGS}
 
           echo "=========================================="
           echo "Build complete."
@@ -341,6 +366,7 @@ jobs:
             echo "| Platform | \`${PLATFORM}\` |"
             echo "| Talos Version | \`${TALOS_VERSION}\` |"
             echo "| Extensions | \`${ALL_EXTENSIONS:-none}\` |"
+            echo "| Extra kernel args | \`${EXTRA_KERNEL_ARGS:-none}\` |"
             echo "| Push | \`${PUSH}\` |"
             echo ""
 
