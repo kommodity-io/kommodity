@@ -47,6 +47,10 @@ on:
         description: "Extra kernel args passed to imager (space-separated, e.g. 'console=ttyS0 net.ifnames=0')"
         required: false
         type: string
+      image_name_override:
+        description: "Override image name (replaces default 'kommodity-talos-<platform>'). Single platform builds only."
+        required: false
+        type: string
 
 env:
   REGISTRY: ghcr.io/kommodity-io
@@ -142,6 +146,14 @@ jobs:
             ')
           fi
 
+          # Reject image_name_override when building multiple platforms (collision)
+          OVERRIDE="${{ inputs.image_name_override }}"
+          COUNT=$(echo "${MATRIX}" | jq 'length')
+          if [[ -n "${OVERRIDE}" && "${COUNT}" -gt 1 ]]; then
+            echo "::error::image_name_override requires a single platform (got ${COUNT})"
+            exit 1
+          fi
+
           echo "matrix={\"include\":${MATRIX}}" >> "$GITHUB_OUTPUT"
           echo "Building for platforms: $(echo "${MATRIX}" | jq -r '.[].platform' | tr '\n' ' ')"
 
@@ -161,7 +173,7 @@ jobs:
       TALOS_VERSION: ${{ needs.setup.outputs.talos_version }}
       EXTENSIONS: ${{ needs.setup.outputs.extensions }}
       PUSH: ${{ needs.setup.outputs.push }}
-      IMAGE_NAME: ${{ matrix.image_name }}
+      IMAGE_NAME: ${{ inputs.image_name_override != '' && inputs.image_name_override || matrix.image_name }}
       PLATFORM: ${{ matrix.platform }}
       IMAGER_OUTPUT: ${{ matrix.imager_output }}
       FINAL_EXTENSION: ${{ matrix.final_extension }}
