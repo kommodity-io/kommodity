@@ -292,35 +292,29 @@ func (pc *Cache) loadCRDCache(ctx context.Context, cfg *config.KommodityConfig) 
 func stripDeprecatedVersions(ctx context.Context, obj *unstructured.Unstructured) error {
 	logger := logging.FromContext(ctx)
 
-	versions, found, _ := unstructured.NestedSlice(obj.Object, "spec", "versions")
-	if !found {
-		return nil
+	// Decode into typed CRD so version fields are compiler-checked.
+	var crd apiextensionsv1.CustomResourceDefinition
+
+	err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object, &crd)
+	if err != nil {
+		return fmt.Errorf("failed to convert CRD %s: %w", obj.GetName(), err)
 	}
 
-	out := make([]any, 0, len(versions))
 	dropped := make([]string, 0)
 
-	for _, v := range versions {
-		version, ok := v.(map[string]any)
-		if !ok {
-			continue
+	// Partition versions: keep non-deprecated, record dropped names for logging.
+	kept := slices.DeleteFunc(crd.Spec.Versions, func(v apiextensionsv1.CustomResourceDefinitionVersion) bool {
+		if !v.Deprecated {
+			return false
 		}
 
-		if deprecated, _ := version["deprecated"].(bool); deprecated {
-			name, _ := version["name"].(string)
-			dropped = append(dropped, name)
+		dropped = append(dropped, v.Name)
 
-			continue
-		}
+		return true
+	})
 
-		out = append(out, version)
-	}
-
-	if len(dropped) == 0 {
-		return nil
-	}
-
-	if len(out) == 0 {
+	// Skip when nothing changed, or when every version is deprecated (avoid producing an invalid CRD).
+	if len(dropped) == 0 || len(kept) == 0 {
 		return nil
 	}
 
@@ -328,10 +322,14 @@ func stripDeprecatedVersions(ctx context.Context, obj *unstructured.Unstructured
 		zap.String("crd", obj.GetName()),
 		zap.Strings("versions", dropped))
 
-	err := unstructured.SetNestedSlice(obj.Object, out, "spec", "versions")
+	crd.Spec.Versions = kept
+
+	updated, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&crd)
 	if err != nil {
-		return fmt.Errorf("failed to set spec.versions on %s: %w", obj.GetName(), err)
+		return fmt.Errorf("failed to convert CRD %s back to unstructured: %w", obj.GetName(), err)
 	}
+
+	obj.Object = updated
 
 	return nil
 }
