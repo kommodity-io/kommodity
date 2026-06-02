@@ -23,6 +23,9 @@ metadata:
   {{- $_ := set $annotations "kommodity.io/ccm-downstream-secret-name" "scaleway-secret" }}
   {{- end }}
   {{- end }}
+  {{- if .Values.kommodity.clusterAutoscaler.enabled }}
+  {{- $_ := set $annotations "kommodity.io/autoscaler-sa-secret-name" (printf "%s-cluster-autoscaler" .Release.Name) }}
+  {{- end }}
   {{- if $annotations }}
   annotations:
     {{- range $k, $v := $annotations }}
