@@ -8,7 +8,7 @@
       "labels" (list (dict "cluster.x-k8s.io/cluster-name" .Release.Name))
     )
     "cloudProvider" "clusterapi"
-    "clusterAPIMode" "incluster-kubeconfig"
+    "clusterAPIMode" "kubeconfig-incluster"
     "extraArgs" (dict
       "node-group-auto-discovery" (printf "clusterapi:clusterName=%s,cluster.x-k8s.io/cluster-name=%s" .Release.Name .Release.Name)
     )
