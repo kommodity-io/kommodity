@@ -16,6 +16,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/yaml"
 )
 
@@ -59,6 +61,10 @@ func (r *CCMCRSReconciler) SetupWithManager(ctx context.Context,
 	builder := ctrl.NewControllerManagedBy(mgr).
 		Named("kommodity-ccm-crs-controller").
 		For(&clusterv1.Cluster{}).
+		Watches(
+			&corev1.Secret{},
+			handler.EnqueueRequestsFromMapFunc(r.clustersForSourceSecret),
+		).
 		WithOptions(opt).
 		WithEventFilter(predicates.ResourceNotPaused(
 			mgr.GetScheme(),
@@ -125,6 +131,42 @@ func (r *CCMCRSReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		zap.String("cluster", req.String()))
 
 	return ctrl.Result{}, nil
+}
+
+// clustersForSourceSecret returns reconcile requests for every Cluster in the
+// Secret's namespace whose `kommodity.io/ccm-secret-name` annotation references
+// the changed Secret. Lets credential rotation flow through to the CRS payload.
+func (r *CCMCRSReconciler) clustersForSourceSecret(ctx context.Context, obj client.Object) []reconcile.Request {
+	secret, ok := obj.(*corev1.Secret)
+	if !ok {
+		return nil
+	}
+
+	clusters := &clusterv1.ClusterList{}
+
+	err := r.List(ctx, clusters, client.InNamespace(secret.Namespace))
+	if err != nil {
+		logging.FromContext(ctx).Error("Failed to list Clusters for Secret watch",
+			zap.String("secret", secret.Namespace+"/"+secret.Name),
+			zap.Error(err))
+
+		return nil
+	}
+
+	requests := make([]reconcile.Request, 0, len(clusters.Items))
+
+	for i := range clusters.Items {
+		cluster := &clusters.Items[i]
+		if cluster.Annotations[AnnotationCCMSecretName] != secret.Name {
+			continue
+		}
+
+		requests = append(requests, reconcile.Request{
+			NamespacedName: client.ObjectKeyFromObject(cluster),
+		})
+	}
+
+	return requests
 }
 
 func resolveCCMAnnotations(cluster *clusterv1.Cluster) (string, string, bool, error) {
