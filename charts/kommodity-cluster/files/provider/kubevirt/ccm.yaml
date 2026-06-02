@@ -1,14 +1,7 @@
-{{/*
-Cloud-controller-manager manifests for the Kubevirt provider, applied to the
-workload cluster via ClusterResourceSet. All resources land in kube-system.
-
-Source: github.com/kubevirt/cloud-provider-kubevirt @ v0.6.0
-        (37201f6ce1da7d03fa5322885cb1b6991c673d56)
-Composed from config/{manager,rbac}/*.yaml with namespace overrides to
-kube-system and the downstream kubeconfig Secret renamed to
-kubevirt-cloud-controller-manager.
-*/}}
-{{- define "kommodity.ccm.manifest.Kubevirt" -}}
+# Source: github.com/kubevirt/cloud-provider-kubevirt @ v0.6.0 (37201f6ce1da7d03fa5322885cb1b6991c673d56)
+# Composed from config/{manager,rbac}/*.yaml with namespace overrides to kube-system
+# and downstream kubeconfig Secret renamed to kubevirt-cloud-controller-manager.
+# Placed in files/ so that it can be rendered as a single manifest by the ClusterResourceSet.
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -180,4 +173,3 @@ spec:
             items:
               - key: kubeconfig
                 path: value
-{{- end -}}
