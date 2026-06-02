@@ -1,6 +1,6 @@
 {{- if .Values.kommodity.provider.cloudControllerManager.enabled }}
 {{- $provider := lower .Values.kommodity.provider.name }}
-{{- $manifestPath := printf "files/provider/%s/ccm.yaml" $provider }}
+{{- $manifestPath := printf "files/%s-ccm.yaml" $provider }}
 {{- $manifest := .Files.Get $manifestPath }}
 {{- if not $manifest }}
 {{- fail (printf "Cloud Controller Manager is enabled but no manifest is shipped for provider %q (looked for %s)" .Values.kommodity.provider.name $manifestPath) }}

@@ -1,0 +1,169 @@
+suite: test creation of resources for Cloud Controller Manager
+release:
+  name: test-cluster
+  namespace: default
+templates:
+  - templates/ccm-crs.yaml
+tests:
+  - it: should not render any CCM resource when cloudControllerManager is disabled
+    template: templates/ccm-crs.yaml
+    values:
+      - ../values.kubevirt.yaml
+    set:
+      kommodity.network.ipv4.nodeCIDR: "10.200.0.0/20"
+      kommodity.provider.cloudControllerManager.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render ConfigMap and ClusterResourceSet for Kubevirt
+    template: templates/ccm-crs.yaml
+    values:
+      - ../values.kubevirt.yaml
+    set:
+      kommodity.network.ipv4.nodeCIDR: "10.200.0.0/20"
+    asserts:
+      - hasDocuments:
+          count: 2
+      - containsDocument:
+          kind: ConfigMap
+          apiVersion: v1
+          name: test-cluster-ccm-manifests
+          namespace: default
+        documentIndex: 0
+      - containsDocument:
+          kind: ClusterResourceSet
+          apiVersion: addons.cluster.x-k8s.io/v1beta1
+          name: test-cluster-ccm
+          namespace: default
+        documentIndex: 1
+
+  - it: should render ConfigMap and ClusterResourceSet for Scaleway
+    template: templates/ccm-crs.yaml
+    values:
+      - ../values.scaleway.yaml
+    asserts:
+      - hasDocuments:
+          count: 2
+      - containsDocument:
+          kind: ConfigMap
+          apiVersion: v1
+          name: test-cluster-ccm-manifests
+          namespace: default
+        documentIndex: 0
+      - containsDocument:
+          kind: ClusterResourceSet
+          apiVersion: addons.cluster.x-k8s.io/v1beta1
+          name: test-cluster-ccm
+          namespace: default
+        documentIndex: 1
+
+  - it: should label the ConfigMap with the cluster name
+    template: templates/ccm-crs.yaml
+    values:
+      - ../values.kubevirt.yaml
+    set:
+      kommodity.network.ipv4.nodeCIDR: "10.200.0.0/20"
+    documentSelector:
+      path: kind
+      value: ConfigMap
+    asserts:
+      - equal:
+          path: metadata.labels["cluster.x-k8s.io/cluster-name"]
+          value: test-cluster
+      - equal:
+          path: metadata.labels["app.kubernetes.io/managed-by"]
+          value: kommodity
+
+  - it: should set CRS strategy to Reconcile and select by cluster-name label
+    template: templates/ccm-crs.yaml
+    values:
+      - ../values.kubevirt.yaml
+    set:
+      kommodity.network.ipv4.nodeCIDR: "10.200.0.0/20"
+    documentSelector:
+      path: kind
+      value: ClusterResourceSet
+    asserts:
+      - equal:
+          path: spec.strategy
+          value: Reconcile
+      - equal:
+          path: spec.clusterSelector.matchLabels["cluster.x-k8s.io/cluster-name"]
+          value: test-cluster
+
+  - it: should reference ConfigMap and Secret as CRS resources
+    template: templates/ccm-crs.yaml
+    values:
+      - ../values.kubevirt.yaml
+    set:
+      kommodity.network.ipv4.nodeCIDR: "10.200.0.0/20"
+    documentSelector:
+      path: kind
+      value: ClusterResourceSet
+    asserts:
+      - contains:
+          path: spec.resources
+          content:
+            kind: ConfigMap
+            name: test-cluster-ccm-manifests
+      - contains:
+          path: spec.resources
+          content:
+            kind: Secret
+            name: test-cluster-ccm-secret
+
+  - it: should embed the Kubevirt CCM image from values
+    template: templates/ccm-crs.yaml
+    values:
+      - ../values.kubevirt.yaml
+    set:
+      kommodity.network.ipv4.nodeCIDR: "10.200.0.0/20"
+      kommodity.provider.cloudControllerManager.image.repository: quay.io/kubevirt/kubevirt-cloud-controller-manager
+      kommodity.provider.cloudControllerManager.image.tag: v9.9.9
+    documentSelector:
+      path: kind
+      value: ConfigMap
+    asserts:
+      - matchRegex:
+          path: data["ccm.yaml"]
+          pattern: "image: quay.io/kubevirt/kubevirt-cloud-controller-manager:v9.9.9"
+
+  - it: should embed the Scaleway CCM image from values
+    template: templates/ccm-crs.yaml
+    values:
+      - ../values.scaleway.yaml
+    set:
+      kommodity.provider.cloudControllerManager.image.repository: scaleway/scaleway-cloud-controller-manager
+      kommodity.provider.cloudControllerManager.image.tag: v9.9.9
+    documentSelector:
+      path: kind
+      value: ConfigMap
+    asserts:
+      - matchRegex:
+          path: data["ccm.yaml"]
+          pattern: "image: scaleway/scaleway-cloud-controller-manager:v9.9.9"
+
+  - it: should embed the Kubevirt cloud-config namespace from values
+    template: templates/ccm-crs.yaml
+    values:
+      - ../values.kubevirt.yaml
+    set:
+      kommodity.network.ipv4.nodeCIDR: "10.200.0.0/20"
+      kommodity.provider.config.infraClusterNamespace: my-infra-ns
+    documentSelector:
+      path: kind
+      value: ConfigMap
+    asserts:
+      - matchRegex:
+          path: data["ccm.yaml"]
+          pattern: "namespace: my-infra-ns"
+
+  - it: should fail when CCM is enabled for a provider with no vendored manifest
+    template: templates/ccm-crs.yaml
+    set:
+      kommodity.provider.name: Docker
+      kommodity.provider.cloudControllerManager.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: 'Cloud Controller Manager is enabled but no manifest is shipped for provider "Docker" (looked for files/docker-ccm.yaml)'
