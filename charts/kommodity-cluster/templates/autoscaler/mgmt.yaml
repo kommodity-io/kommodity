@@ -1,16 +1,24 @@
 {{- if .Values.kommodity.clusterAutoscaler.enabled }}
+---
+# ServiceAccount whose token the downstream cluster-autoscaler uses to talk
+# back to the management cluster's CAPI API.
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: {{ .Release.Name }}-cluster-autoscaler
+  namespace: {{ .Release.Namespace }}
   labels:
     app.kubernetes.io/managed-by: kommodity
     cluster.x-k8s.io/cluster-name: {{ .Release.Name }}
 ---
+# Static token Secret bound to the SA above. Populated by the
+# service-account-token-controller. Read by the autoscaler-CRS reconciler to
+# build the kubeconfig delivered downstream.
 apiVersion: v1
 kind: Secret
 metadata:
   name: {{ .Release.Name }}-cluster-autoscaler
+  namespace: {{ .Release.Namespace }}
   labels:
     app.kubernetes.io/managed-by: kommodity
     cluster.x-k8s.io/cluster-name: {{ .Release.Name }}
@@ -19,24 +27,10 @@ metadata:
 type: kubernetes.io/service-account-token
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: {{ .Release.Name }}-cluster-autoscaler
-  labels:
-    app.kubernetes.io/managed-by: kommodity
-    cluster.x-k8s.io/cluster-name: {{ .Release.Name }}
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: Role
-  name: {{ .Release.Name }}-cluster-autoscaler
-subjects:
-  - kind: ServiceAccount
-    name: {{ .Release.Name }}-cluster-autoscaler
----
-apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: {{ .Release.Name }}-cluster-autoscaler
+  namespace: {{ .Release.Namespace }}
   labels:
     app.kubernetes.io/managed-by: kommodity
     cluster.x-k8s.io/cluster-name: {{ .Release.Name }}
@@ -51,4 +45,21 @@ rules:
       - machinepools
       - machinepools/scale
     verbs: ["get", "list", "watch", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ .Release.Name }}-cluster-autoscaler
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: kommodity
+    cluster.x-k8s.io/cluster-name: {{ .Release.Name }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ .Release.Name }}-cluster-autoscaler
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Release.Name }}-cluster-autoscaler
+    namespace: {{ .Release.Namespace }}
 {{- end }}
