@@ -177,10 +177,6 @@ to preserve YAML block scalar formatting for multi-line contents.
 {{- if .disableProxy -}}
 {{- $_ := mustMergeOverwrite $result (include "kommodity.talos.proxy.disable" . | fromJson) -}}
 {{- end -}}
-{{- /* Cloud Controller Manager (controlplane only) */ -}}
-{{- if .ccmEnabled -}}
-{{- $_ := mustMergeOverwrite $result (include "kommodity.talos.ccm" (dict "manifest" .ccmManifest) | fromJson) -}}
-{{- end -}}
 {{- /* Merge global user patch (single MachineConfig dict) */ -}}
 {{- if and .globalPatches (gt (len .globalPatches) 0) -}}
 {{- $_ := mustMergeOverwrite $result (deepCopy .globalPatches) -}}

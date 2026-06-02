@@ -1,0 +1,35 @@
+{{- if .Values.kommodity.provider.cloudControllerManager.enabled }}
+{{- $manifestPartial := printf "kommodity.ccm.manifest.%s" .Values.kommodity.provider.name }}
+{{- $manifest := include $manifestPartial . }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-ccm-manifests
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: kommodity
+    cluster.x-k8s.io/cluster-name: {{ .Release.Name }}
+data:
+  ccm.yaml: |
+{{ $manifest | indent 4 }}
+---
+apiVersion: addons.cluster.x-k8s.io/v1beta1
+kind: ClusterResourceSet
+metadata:
+  name: {{ .Release.Name }}-ccm
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: kommodity
+    cluster.x-k8s.io/cluster-name: {{ .Release.Name }}
+spec:
+  strategy: Reconcile
+  clusterSelector:
+    matchLabels:
+      cluster.x-k8s.io/cluster-name: {{ .Release.Name }}
+  resources:
+    - kind: ConfigMap
+      name: {{ .Release.Name }}-ccm-manifests
+    - kind: Secret
+      name: {{ .Release.Name }}-ccm-secret
+{{- end }}

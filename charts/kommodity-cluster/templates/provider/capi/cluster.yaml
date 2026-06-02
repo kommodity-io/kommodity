@@ -10,9 +10,24 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     app.kubernetes.io/managed-by: kommodity
+    cluster.x-k8s.io/cluster-name: {{ .Release.Name }}
+  {{- $annotations := dict }}
   {{- if and .Values.kommodity.network.ipv4.enabled (not (default false .Values.kommodity.network.ipv4.public)) .Values.kommodity.network.ipv4.nodeCIDR }}
+  {{- $_ := set $annotations "kommodity.io/node-cidr" .Values.kommodity.network.ipv4.nodeCIDR }}
+  {{- end }}
+  {{- if .Values.kommodity.provider.cloudControllerManager.enabled }}
+  {{- $_ := set $annotations "kommodity.io/ccm-secret-name" .Values.kommodity.provider.secret.name }}
+  {{- if eq .Values.kommodity.provider.name "Kubevirt" }}
+  {{- $_ := set $annotations "kommodity.io/ccm-downstream-secret-name" "kubevirt-cloud-controller-manager" }}
+  {{- else if eq .Values.kommodity.provider.name "Scaleway" }}
+  {{- $_ := set $annotations "kommodity.io/ccm-downstream-secret-name" "scaleway-secret" }}
+  {{- end }}
+  {{- end }}
+  {{- if $annotations }}
   annotations:
-    kommodity.io/node-cidr: {{ .Values.kommodity.network.ipv4.nodeCIDR }}
+    {{- range $k, $v := $annotations }}
+    {{ $k }}: {{ $v | quote }}
+    {{- end }}
   {{- end }}
 spec:
   clusterNetwork:

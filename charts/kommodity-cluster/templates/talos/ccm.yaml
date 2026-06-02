@@ -1,4 +1,0 @@
-{{- define "kommodity.talos.ccm" -}}
-{{- $manifests := list .manifest -}}
-{{- dict "cluster" (dict "externalCloudProvider" (dict "enabled" true "manifests" $manifests)) | toJson -}}
-{{- end}}

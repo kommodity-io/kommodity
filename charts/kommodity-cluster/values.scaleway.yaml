@@ -22,7 +22,9 @@ kommodity:
 
     cloudControllerManager:
       enabled: true
-      manifest: https://raw.githubusercontent.com/scaleway/scaleway-cloud-controller-manager/master/examples/k8s-scaleway-ccm-latest.yml
+      image:
+        repository: scaleway/scaleway-cloud-controller-manager
+        tag: v0.35.3
 
   global:
     strategicPatches:
