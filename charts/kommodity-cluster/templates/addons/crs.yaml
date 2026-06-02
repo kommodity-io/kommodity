@@ -1,0 +1,80 @@
+{{- /*
+Each enabled addon ships to the workload cluster as a ClusterResourceSet
+whose payload Secret holds every manifest (namespace, extra-values,
+optional addon body, installer Job + RBAC) base64-encoded under distinct
+`data` keys. A Secret is used (not a ConfigMap) because extra-values may
+carry sensitive Helm values; CRS treats both identically for delivery.
+*/}}
+{{- $root := . -}}
+{{- range $name, $addon := .Values.kommodity.addons }}
+{{- if $addon.enabled }}
+{{- $addonNamespace := default $name $addon.namespace }}
+{{- $resourceName := printf "%s-addon-%s" $root.Release.Name $name }}
+{{- $payload := dict }}
+
+{{- if $addon.namespace }}
+  {{- $ns := include "kommodity.addon.namespace" (dict "namespace" $addon.namespace) }}
+  {{- $_ := set $payload (printf "%s-namespace.yaml" $name) ($ns | b64enc) }}
+{{- end }}
+
+{{- if $addon.initialExtraValues }}
+  {{- $extraValues := include "kommodity.addon.extra-values" (dict
+        "name"               $name
+        "namespace"          $addonNamespace
+        "initialExtraValues" $addon.initialExtraValues
+      ) }}
+  {{- $_ := set $payload (printf "%s-extra-values.yaml" $name) ($extraValues | b64enc) }}
+{{- end }}
+
+{{- /* Addon body: literal `manifest` value wins, otherwise look up a chart-local
+       partial named `kommodity.addon.<name>` (e.g. from a sibling _<name>.tpl). */ -}}
+{{- $body := "" }}
+{{- if $addon.manifest }}
+  {{- $body = tpl $addon.manifest $root }}
+{{- else }}
+  {{- $partial := printf "kommodity.addon.%s" $name }}
+  {{- if hasKey $root.Template $partial }}
+    {{- $body = include $partial $root }}
+  {{- end }}
+{{- end }}
+{{- if $body }}
+  {{- $_ := set $payload (printf "%s-manifest.yaml" $name) ($body | b64enc) }}
+{{- end }}
+
+{{- $installer := include "kommodity.addon.installer" (dict "name" $name "addon" $addon) }}
+{{- $_ := set $payload (printf "%s-installer.yaml" $name) ($installer | b64enc) }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $resourceName }}
+  namespace: {{ $root.Release.Namespace }}
+  labels:
+    cluster.x-k8s.io/cluster-name: {{ $root.Release.Name }}
+    app.kubernetes.io/managed-by: kommodity
+    kommodity.io/addon-name: {{ $name }}
+type: addons.cluster.x-k8s.io/resource-set
+data:
+{{- range $k, $v := $payload }}
+  {{ $k }}: {{ $v }}
+{{- end }}
+---
+apiVersion: addons.cluster.x-k8s.io/v1beta1
+kind: ClusterResourceSet
+metadata:
+  name: {{ $resourceName }}
+  namespace: {{ $root.Release.Namespace }}
+  labels:
+    cluster.x-k8s.io/cluster-name: {{ $root.Release.Name }}
+    app.kubernetes.io/managed-by: kommodity
+    kommodity.io/addon-name: {{ $name }}
+spec:
+  strategy: Reconcile
+  clusterSelector:
+    matchLabels:
+      cluster.x-k8s.io/cluster-name: {{ $root.Release.Name }}
+  resources:
+    - kind: Secret
+      name: {{ $resourceName }}
+{{- end }}
+{{- end }}
