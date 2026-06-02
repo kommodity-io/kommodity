@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/go-logr/zapr"
 	"github.com/kommodity-io/kommodity/pkg/logging"
 	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
@@ -11,6 +12,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	addonsv1 "sigs.k8s.io/cluster-api/api/addons/v1beta1"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	"sigs.k8s.io/cluster-api/util/predicates"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -57,7 +59,11 @@ func (r *CCMCRSReconciler) SetupWithManager(ctx context.Context,
 	builder := ctrl.NewControllerManagedBy(mgr).
 		Named("kommodity-ccm-crs-controller").
 		For(&clusterv1.Cluster{}).
-		WithOptions(opt)
+		WithOptions(opt).
+		WithEventFilter(predicates.ResourceNotPaused(
+			mgr.GetScheme(),
+			zapr.NewLogger(logging.FromContext(ctx)),
+		))
 
 	err := builder.Complete(r)
 	if err != nil {
