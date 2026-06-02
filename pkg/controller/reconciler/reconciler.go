@@ -92,13 +92,6 @@ func setUpExtraReconcilers(ctx context.Context,
 		return fmt.Errorf("failed to setup Autoscaler CRS reconciler: %w", err)
 	}
 
-	err = (&ExtraSecretsManagerReconciler{
-		Client: (*manager).GetClient(),
-	}).SetupWithManager(ctx, *manager, controllerOpts)
-	if err != nil {
-		return fmt.Errorf("failed to setup ExtraSecretsManager reconciler: %w", err)
-	}
-
 	if azureProviderEnabled(cfg) {
 		err = (&AzureCredentialMaterializer{
 			Client: (*manager).GetClient(),
