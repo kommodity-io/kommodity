@@ -29,6 +29,13 @@ metadata:
 spec:
   backoffLimit: 10
   ttlSecondsAfterFinished: 3600
+  # manualSelector + explicit selector are required so CAPI's CRS Reconcile
+  # strategy can re-apply this Job without tripping the immutable
+  # spec.selector validation.
+  manualSelector: true
+  selector:
+    matchLabels:
+      app.kubernetes.io/app: {{ $addonFullName }}-install
   template:
     metadata:
       labels:
