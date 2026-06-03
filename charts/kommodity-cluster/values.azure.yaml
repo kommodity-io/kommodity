@@ -1,0 +1,225 @@
+---
+# Example of values to create a cluster in Azure.
+kommodity:
+  provider:
+    name: Azure
+    secret:
+      # Azure credentials secret for Cloud Controller Manager.
+      # This secret must exist in the Kommodity management cluster BEFORE deploying the chart.
+      # The CCM CRS reconciler reads this secret and delivers it into the workload cluster's
+      # kube-system namespace as "azure-cloud-provider" via a ClusterResourceSet payload Secret.
+      #
+      # Create the secret in the management cluster:
+      #
+      # apiVersion: v1
+      # kind: Secret
+      # metadata:
+      #   name: azure-cloud-provider
+      #   namespace: <release-namespace>
+      # stringData:
+      #   cloud-config: |
+      #     {
+      #       "tenantId": "<YOUR_TENANT_ID>",
+      #       "subscriptionId": "<YOUR_SUBSCRIPTION_ID>",
+      #       "resourceGroup": "<YOUR_WORKLOAD_RESOURCE_GROUP>",
+      #       "location": "westeurope",
+      #       "useManagedIdentityExtension": false,
+      #       "aadClientId": "<YOUR_CLIENT_ID>",
+      #       "aadClientSecret": "<YOUR_CLIENT_SECRET>",
+      #       "loadBalancerSku": "standard",
+      #       "vmType": "standard",
+      #       "useInstanceMetadata": true,
+      #       "securityGroupName": "<CLUSTER>-node-nsg",
+      #       "securityGroupResourceGroup": "<NSG_RESOURCE_GROUP>",
+      #       "vnetName": "<YOUR_VNET_NAME>",
+      #       "vnetResourceGroup": "<VNET_RESOURCE_GROUP>",
+      #       "subnetName": "<CLUSTER>-node-subnet",
+      #       "routeTableName": "<CLUSTER>-node-routetable",
+      #       "cloudProviderBackoff": true,
+      #       "cloudProviderBackoffRetries": 6,
+      #       "cloudProviderRateLimit": true,
+      #       "cloudProviderRateLimitQPS": 3.0,
+      #       "cloudProviderRateLimitBucket": 10
+      #     }
+      name: azure-cloud-provider
+    identity:
+      # AzureClusterIdentity resource name for authentication.
+      # Create this resource in the management cluster before deploying:
+      #
+      # apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+      # kind: AzureClusterIdentity
+      # metadata:
+      #   name: azure-cluster-identity
+      #   namespace: default
+      # spec:
+      #   type: ServicePrincipal
+      #   tenantID: <YOUR_TENANT_ID>
+      #   clientID: <YOUR_CLIENT_ID>
+      #   clientSecret:
+      #     name: azure-cluster-identity-secret
+      #     namespace: default
+      #   allowedNamespaces: {}
+      name: azure-cluster-identity
+    config:
+      subscriptionID: <YOUR_SUBSCRIPTION_ID>
+      resourceGroup: <YOUR_RESOURCE_GROUP>
+      location: westeurope
+
+    cloudControllerManager:
+      enabled: true
+      # Every image and resource block below is overridable (e.g. to pull from a
+      # private registry mirror or tune requests/limits). Each defaults to the value shown.
+      #
+      # cloud-controller-manager Deployment image + resources:
+      image:
+        repository: mcr.microsoft.com/oss/kubernetes/azure-cloud-controller-manager
+        tag: v1.34.3
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          cpu: 4
+          memory: 2Gi
+      # initContainer image that waits for the cloud-config Secret before CCM starts:
+      initImage:
+        repository: registry.k8s.io/kubectl
+        tag: v1.34.2
+      # cloud-node-manager DaemonSet (Linux + Windows) image + resources:
+      nodeManager:
+        image:
+          repository: mcr.microsoft.com/oss/kubernetes/azure-cloud-node-manager
+          tag: v1.34.3
+        resources:
+          requests:
+            cpu: 50m
+            memory: 50Mi
+          limits:
+            cpu: 2
+            memory: 512Mi
+
+  global:
+    strategicPatches:
+      # Required when using a Cloud Controller Manager (https://kubernetes.io/docs/tasks/administer-cluster/running-cloud-controller/#running-cloud-controller-manager)
+      machine:
+        kubelet:
+          extraArgs:
+            cloud-provider: external
+      # Enable anonymous authentication on kube-apiserver.
+      # CAPZ hardcodes an HTTPS GET /readyz probe on the apiserver LB (not configurable via the
+      # AzureCluster spec). Talos defaults --anonymous-auth=false, so /readyz returns HTTP 401 to
+      # the anonymous probe, causing the Azure LB to mark all backends unhealthy and silently drop
+      # apiserver traffic. Kubernetes' built-in system:public-info-viewer ClusterRoleBinding grants
+      # system:unauthenticated read access to /livez, /readyz, /healthz, and /version only —
+      # no resource data is exposed.
+      cluster:
+        apiServer:
+          extraArgs:
+            anonymous-auth: "true"
+
+  network:
+    ipv4:
+      enabled: true
+      # public: false → fully-private cluster (default)
+      #   The chart emits apiServerLB.type: Internal so CAPZ creates an internal
+      #   load balancer (no PublicIP attached).  Node VMs reach the internet for
+      #   egress-only via a NAT gateway on the node subnet; no inbound path exists
+      #   except through a VPN, VNet peering, or Azure Bastion.
+      #   The management cluster must be reachable from inside the VNet (peered,
+      #   VPN-connected, or running in Azure itself) for CAPZ controllers to work.
+      #   nodeCIDR is required when public: false.
+      #
+      # public: true → public cluster
+      #   The chart emits apiServerLB.type: Public.  CAPZ creates a PublicIP for
+      #   the apiserver load balancer; control-plane nodes are internet-reachable
+      #   on port 6443 (and the additional Talos API port 50000 via an LB rule).
+      #
+      # In both modes the chart emits additionalAPIServerLBPorts with the Talos
+      # API port (50000) so talosctl traffic is round-robined across the CP pool
+      # via a single LB rule rather than a per-VM InboundNAT rule.
+      public: false
+      # Setting nodeCIDR is required when public is false
+      # Azure VNets support CIDR ranges between /8 and /29
+      nodeCIDR: 10.200.0.0/16
+      # vnet:
+      #   # Optional: Use an existing VNet instead of creating a new one.
+      #   # When omitted, the chart creates <cluster>-vnet with 10.0.0.0/8.
+      #   # When set, all three NSG and RouteTable ASO CRs are emitted via networkresources.yaml
+      #   # (CAPZ skips creating them in BYO-VNet mode, so they must pre-exist).
+      #   name: my-existing-vnet
+      #   resourceGroup: my-vnet-resource-group
+      # subnet:
+      #   # Optional: Override the single-subnet path (for BYO-subnet scenarios).
+      #   # When omitted, the chart creates a controlplane and a node subnet.
+      #   name: my-subnet
+      #   cidrBlock: 10.200.0.0/24
+
+  controlplane:
+    replicas: 1
+    # Azure VM size - see https://docs.microsoft.com/en-us/azure/virtual-machines/sizes
+    sku: Standard_D2s_v3
+    os:
+      disk:
+        size: 30
+        # Azure disk types: Standard_LRS, Premium_LRS, StandardSSD_LRS, UltraSSD_LRS
+        type: Premium_LRS
+    healthCheck:
+      enabled: true
+      unhealthyConditions:
+        - type: Ready
+          status: Unknown
+          timeout: 300s
+        - type: Ready
+          status: "False"
+          timeout: 300s
+
+  nodepools:
+    default:
+      replicas: 1
+      # Azure VM size - see https://docs.microsoft.com/en-us/azure/virtual-machines/sizes
+      # For GPU workloads, use NC-series (e.g., Standard_NC6s_v3)
+      sku: Standard_D2s_v3
+      # Azure availability zone (string: "1", "2", or "3")
+      zone: "1"
+      os:
+        disk:
+          size: 30
+          # Azure disk types: Standard_LRS, Premium_LRS, StandardSSD_LRS, UltraSSD_LRS
+          type: Premium_LRS
+      # dataDisks:
+      #   # Optional: Additional data disks for the node
+      #   - nameSuffix: data
+      #     diskSizeGB: 100
+      #     lun: 0
+      #     storageAccountType: Premium_LRS
+      #     cachingType: ReadWrite
+      labels:
+        my-label: my-value
+      annotations:
+        my-annotation: my-annotation-value
+      healthCheck:
+        enabled: true
+        unhealthyConditions:
+          - type: Ready
+            status: Unknown
+            timeout: 300s
+          - type: Ready
+            status: "False"
+            timeout: 300s
+
+talos:
+  # Follow this documentation to generate a Talos image for Azure:
+  # https://docs.siderolabs.com/talos/v1.13/platform-specific-installations/cloud-platforms/azure
+  #
+  # Use one of:
+  #   id: <MANAGED_IMAGE_ARM_ID>           # managed image (e.g. /subscriptions/.../images/talos-v1.13.0)
+  #   computeGallery:                       # shared image gallery
+  #     gallery: myGallery
+  #     name: talos-v1.13.0
+  #     version: 1.0.0
+  #   marketplace:                          # Azure Marketplace image (requires accepting terms)
+  #     publisher: siderolabs
+  #     offer: talos
+  #     sku: talos
+  #     version: 1.13.0
+  id: /subscriptions/<YOUR_SUBSCRIPTION_ID>/resourceGroups/<YOUR_RESOURCE_GROUP>/providers/Microsoft.Compute/images/kommodity-talos-azure-v1.13.0

@@ -87,6 +87,9 @@ spec:
     {{- else if eq $.Values.kommodity.provider.name "Kubevirt" }}
     apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
     kind: KubevirtMachineTemplate
+    {{- else if eq $.Values.kommodity.provider.name "Azure" }}
+    apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+    kind: AzureMachineTemplate
     {{- else }}
     {{- fail "infrastructure provider is not supported" -}}
     {{- end }}

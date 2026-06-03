@@ -21,6 +21,8 @@ metadata:
   {{- $_ := set $annotations "kommodity.io/ccm-downstream-secret-name" "kubevirt-cloud-controller-manager" }}
   {{- else if eq .Values.kommodity.provider.name "Scaleway" }}
   {{- $_ := set $annotations "kommodity.io/ccm-downstream-secret-name" "scaleway-secret" }}
+  {{- else if eq .Values.kommodity.provider.name "Azure" }}
+  {{- $_ := set $annotations "kommodity.io/ccm-downstream-secret-name" "azure-cloud-provider" }}
   {{- end }}
   {{- end }}
   {{- if $annotations }}
@@ -58,6 +60,9 @@ spec:
     {{- else if eq .Values.kommodity.provider.name "Kubevirt" }}
     apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
     kind: KubevirtCluster
+    {{- else if eq .Values.kommodity.provider.name "Azure" }}
+    apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+    kind: AzureCluster
     {{- else }}
     {{- fail "infrastructure provider is not supported" -}}
     {{- end }}

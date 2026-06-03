@@ -1,0 +1,195 @@
+---
+suite: test Azure network resources (NSG + RouteTable) for private BYO-VNet clusters
+values:
+  - ../values.azure.yaml
+release:
+  name: test-cluster
+  namespace: default
+templates:
+  - templates/provider/azure/networkresources.yaml
+tests:
+  - it: should not render for public mode (no BYO VNet)
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should not render for public mode even with BYO VNet set
+    set:
+      kommodity.network.ipv4.public: true
+      kommodity.network.ipv4.vnet.name: my-vnet
+      kommodity.network.ipv4.vnet.resourceGroup: my-vnet-rg
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should not render for private mode without BYO VNet
+    set:
+      kommodity.network.ipv4.public: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should not render for non-Azure providers
+    set:
+      kommodity.provider.name: Scaleway
+      kommodity.network.ipv4.public: false
+      kommodity.network.ipv4.vnet.name: my-vnet
+      kommodity.network.ipv4.vnet.resourceGroup: my-vnet-rg
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render 5 documents for private BYO-VNet mode
+    set:
+      kommodity.network.ipv4.public: false
+      kommodity.network.ipv4.vnet.name: my-vnet
+      kommodity.network.ipv4.vnet.resourceGroup: my-vnet-rg
+    asserts:
+      - hasDocuments:
+          count: 5
+
+  - it: should render controlplane NSG with correct fields for private BYO-VNet
+    set:
+      kommodity.network.ipv4.public: false
+      kommodity.network.ipv4.vnet.name: my-vnet
+      kommodity.network.ipv4.vnet.resourceGroup: my-vnet-rg
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: NetworkSecurityGroup
+      - equal:
+          path: apiVersion
+          value: network.azure.com/v1api20240301
+      - equal:
+          path: metadata.name
+          value: test-cluster-controlplane-nsg
+      - equal:
+          path: metadata.namespace
+          value: default
+      - equal:
+          path: metadata.annotations["serviceoperator.azure.com/credential-from"]
+          value: test-cluster-aso-secret
+      # Must NOT carry resource-policy:keep — these ASO CRs are chart-owned and
+      # helm uninstall must delete them so ASO removes the Azure NSG/RouteTable.
+      - notExists:
+          path: metadata.annotations["helm.sh/resource-policy"]
+      - equal:
+          path: spec.azureName
+          value: test-cluster-controlplane-nsg
+      - equal:
+          path: spec.location
+          value: westeurope
+      - equal:
+          path: spec.owner.name
+          value: my-vnet-rg
+
+  - it: should render allow-talos-api security rule for private BYO-VNet
+    set:
+      kommodity.network.ipv4.public: false
+      kommodity.network.ipv4.vnet.name: my-vnet
+      kommodity.network.ipv4.vnet.resourceGroup: my-vnet-rg
+    documentIndex: 1
+    asserts:
+      - isKind:
+          of: NetworkSecurityGroupsSecurityRule
+      - equal:
+          path: metadata.name
+          value: test-cluster-controlplane-nsg-allow-talos-api
+      - equal:
+          path: spec.azureName
+          value: allow-talos-api-from-vnet
+      - equal:
+          path: spec.owner.name
+          value: test-cluster-controlplane-nsg
+      - equal:
+          path: spec.priority
+          value: 200
+      - equal:
+          path: spec.protocol
+          value: Tcp
+      - equal:
+          path: spec.direction
+          value: Inbound
+      - equal:
+          path: spec.access
+          value: Allow
+      - equal:
+          path: spec.sourceAddressPrefix
+          value: VirtualNetwork
+      - equal:
+          path: spec.destinationPortRange
+          value: "50000"
+
+  # No allow-ssh rule: Talos runs no sshd. The doc count (5, not 6) and the
+  # allow-apiserver rule now sitting at documentIndex 2 (previously 3) together
+  # prove the SSH rule is gone.
+  - it: should render allow-apiserver security rule for private BYO-VNet
+    set:
+      kommodity.network.ipv4.public: false
+      kommodity.network.ipv4.vnet.name: my-vnet
+      kommodity.network.ipv4.vnet.resourceGroup: my-vnet-rg
+    documentIndex: 2
+    asserts:
+      - isKind:
+          of: NetworkSecurityGroupsSecurityRule
+      - equal:
+          path: spec.azureName
+          value: allow-apiserver
+      - equal:
+          path: spec.priority
+          value: 2201
+      - equal:
+          path: spec.destinationPortRange
+          value: "6443"
+      - equal:
+          path: spec.sourceAddressPrefix
+          value: VirtualNetwork
+
+  - it: should render node NSG with correct fields for private BYO-VNet
+    set:
+      kommodity.network.ipv4.public: false
+      kommodity.network.ipv4.vnet.name: my-vnet
+      kommodity.network.ipv4.vnet.resourceGroup: my-vnet-rg
+    documentIndex: 3
+    asserts:
+      - isKind:
+          of: NetworkSecurityGroup
+      - equal:
+          path: metadata.name
+          value: test-cluster-node-nsg
+      - equal:
+          path: spec.azureName
+          value: test-cluster-node-nsg
+      - equal:
+          path: spec.owner.name
+          value: my-vnet-rg
+
+  - it: should render RouteTable with correct fields for private BYO-VNet
+    set:
+      kommodity.network.ipv4.public: false
+      kommodity.network.ipv4.vnet.name: my-vnet
+      kommodity.network.ipv4.vnet.resourceGroup: my-vnet-rg
+    documentIndex: 4
+    asserts:
+      - isKind:
+          of: RouteTable
+      - equal:
+          path: apiVersion
+          value: network.azure.com/v1api20240301
+      - equal:
+          path: metadata.name
+          value: test-cluster-node-routetable
+      - equal:
+          path: metadata.annotations["serviceoperator.azure.com/credential-from"]
+          value: test-cluster-aso-secret
+      - notExists:
+          path: metadata.annotations["helm.sh/resource-policy"]
+      - equal:
+          path: spec.azureName
+          value: test-cluster-node-routetable
+      - equal:
+          path: spec.location
+          value: westeurope
+      - equal:
+          path: spec.owner.name
+          value: my-vnet-rg

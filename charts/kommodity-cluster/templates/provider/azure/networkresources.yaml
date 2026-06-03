@@ -1,0 +1,127 @@
+{{- /*
+  networkresources.yaml — ASO NetworkSecurityGroup, NetworkSecurityGroupsSecurityRule, and RouteTable
+  CRs for private-mode BYO-VNet Azure clusters.
+
+  CAPZ hard-skips creating NSGs and route tables when the VNet is BYO/unmanaged
+  (azure/services/securitygroups/securitygroups.go and routetables/routetables.go — "Skipping …
+  in custom VNet mode").  It still generates ARM IDs for them in the VNet's resource group and
+  expects them to pre-exist.  These templates create the three resources via ASO so that no manual
+  pre-creation step is required.
+
+  Gating: only emitted when
+    1. provider is Azure
+    2. private mode (network.ipv4.public == false)
+    3. BYO VNet (network.ipv4.vnet.name AND network.ipv4.vnet.resourceGroup are set)
+
+  NOTE: these CRs deliberately do NOT carry helm.sh/resource-policy: keep.
+  Unlike AzureCluster (whose deletion is orchestrated by CAPI, so Helm must
+  not delete it directly), these ASO CRs are owned by this chart. They use the
+  default ASO reconcile-policy (manage), so `helm uninstall` deletes the CR and
+  ASO then deletes the underlying Azure NSG/RouteTable. Adding `keep` would
+  orphan both the CRs and the Azure resources, and a subsequent install would
+  collide with the stale objects (stale ownerReference UID → ASO status desync).
+*/}}
+{{- $isAzure := eq .Values.kommodity.provider.name "Azure" }}
+{{- $isPrivate := not (dig "ipv4" "public" false .Values.kommodity.network) }}
+{{- $vnetName := dig "ipv4" "vnet" "name" "" .Values.kommodity.network }}
+{{- $vnetRG := dig "ipv4" "vnet" "resourceGroup" "" .Values.kommodity.network }}
+{{- $isBYOVnet := and (ne $vnetName "") (ne $vnetRG "") }}
+{{- if and $isAzure $isPrivate $isBYOVnet }}
+{{- $cpNSGName := printf "%s-controlplane-nsg" .Release.Name }}
+{{- $nodeNSGName := printf "%s-node-nsg" .Release.Name }}
+{{- $rtName := printf "%s-node-routetable" .Release.Name }}
+{{- $asoSecret := printf "%s-aso-secret" .Release.Name }}
+{{- $location := required "missing required location in kommodity.provider.config for Azure" (dig "config" "location" "" .Values.kommodity.provider) }}
+---
+apiVersion: network.azure.com/v1api20240301
+kind: NetworkSecurityGroup
+metadata:
+  name: {{ $cpNSGName }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    serviceoperator.azure.com/credential-from: {{ $asoSecret }}
+spec:
+  azureName: {{ $cpNSGName }}
+  location: {{ $location }}
+  owner:
+    name: {{ $vnetRG }}
+---
+apiVersion: network.azure.com/v1api20240301
+kind: NetworkSecurityGroupsSecurityRule
+metadata:
+  name: {{ $cpNSGName }}-allow-talos-api
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    serviceoperator.azure.com/credential-from: {{ $asoSecret }}
+spec:
+  azureName: allow-talos-api-from-vnet
+  owner:
+    name: {{ $cpNSGName }}
+  description: "Allow Talos API (port 50000) from within the VNet"
+  protocol: Tcp
+  direction: Inbound
+  priority: 200
+  access: Allow
+  sourceAddressPrefix: VirtualNetwork
+  sourcePortRange: "*"
+  destinationAddressPrefix: "*"
+  destinationPortRange: "50000"
+---
+{{- /*
+  No SSH rule: Talos Linux runs no sshd (management is exclusively via the
+  Talos API on :50000). A port-22 Allow would expose nothing and only widen
+  the audited surface, so it is intentionally omitted. CAPZ's default NSG
+  includes one because stock CAPZ assumes a conventional Linux node; in
+  BYO-VNet mode this chart owns the NSG and leaves it out.
+*/}}
+apiVersion: network.azure.com/v1api20240301
+kind: NetworkSecurityGroupsSecurityRule
+metadata:
+  name: {{ $cpNSGName }}-allow-apiserver
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    serviceoperator.azure.com/credential-from: {{ $asoSecret }}
+spec:
+  azureName: allow-apiserver
+  owner:
+    name: {{ $cpNSGName }}
+  description: "Allow kube-apiserver from within the VNet (internal LB only)"
+  protocol: Tcp
+  direction: Inbound
+  priority: 2201
+  access: Allow
+  # Scoped to VirtualNetwork: the apiserver is reached only via the internal
+  # LB from inside the VNet. There is no public path (VMs have no public IPs,
+  # the LB has no public frontend), so a wildcard source would only widen the
+  # audited surface.
+  sourceAddressPrefix: VirtualNetwork
+  sourcePortRange: "*"
+  destinationAddressPrefix: "*"
+  destinationPortRange: "6443"
+---
+apiVersion: network.azure.com/v1api20240301
+kind: NetworkSecurityGroup
+metadata:
+  name: {{ $nodeNSGName }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    serviceoperator.azure.com/credential-from: {{ $asoSecret }}
+spec:
+  azureName: {{ $nodeNSGName }}
+  location: {{ $location }}
+  owner:
+    name: {{ $vnetRG }}
+---
+apiVersion: network.azure.com/v1api20240301
+kind: RouteTable
+metadata:
+  name: {{ $rtName }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    serviceoperator.azure.com/credential-from: {{ $asoSecret }}
+spec:
+  azureName: {{ $rtName }}
+  location: {{ $location }}
+  owner:
+    name: {{ $vnetRG }}
+{{- end }}
