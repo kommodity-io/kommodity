@@ -55,7 +55,7 @@ const (
 	defaultTalosProxyNamespace                = "talos-cluster-proxy"
 	defaultTalosProxyServiceName              = "talos-cluster-proxy"
 	defaultTalosProxyIdleTimeout              = 1 * time.Minute
-	defaultGarbageCollectorEnabled            = false
+	defaultGarbageCollectorEnabled            = true
 	defaultGarbageCollectorWorkers            = 5
 	defaultGarbageCollectorSyncPeriod         = 30 * time.Second
 	defaultGarbageCollectorInitialSyncTimeout = 60 * time.Second
