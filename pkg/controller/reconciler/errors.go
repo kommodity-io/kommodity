@@ -18,4 +18,6 @@ var (
 	// ErrTokenNotPopulated indicates the service account token secret has not yet been
 	// populated by the TokensController.
 	ErrTokenNotPopulated = errors.New("service account token not yet populated in secret")
+	// ErrClusterMissingAnnotation is returned when a required annotation is missing from a Cluster.
+	ErrClusterMissingAnnotation = errors.New("cluster is missing required annotation")
 )

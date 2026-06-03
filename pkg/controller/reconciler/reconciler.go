@@ -71,11 +71,11 @@ func setUpExtraReconcilers(ctx context.Context,
 	manager *ctrl.Manager,
 	controllerOpts controller.Options,
 	signingKeyDeps SigningKeyDeps) error {
-	err := (&CloudControllerManagerReconciler{
+	err := (&CCMCRSReconciler{
 		Client: (*manager).GetClient(),
 	}).SetupWithManager(ctx, *manager, controllerOpts)
 	if err != nil {
-		return fmt.Errorf("failed to setup CloudControllerManager reconciler: %w", err)
+		return fmt.Errorf("failed to setup CCM CRS reconciler: %w", err)
 	}
 
 	err = (&AutoscalerReconciler{
