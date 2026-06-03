@@ -20,6 +20,54 @@ rules:
       - nodes
     verbs:
       - get
+      - list
+      - watch
+      - update
+      - patch
+  - apiGroups:
+      - ""
+    resources:
+      - nodes/status
+    verbs:
+      - patch
+      - update
+  - apiGroups:
+      - ""
+    resources:
+      - services
+    verbs:
+      - get
+      - list
+      - watch
+      - update
+      - patch
+  - apiGroups:
+      - ""
+    resources:
+      - services/status
+    verbs:
+      - patch
+      - update
+  - apiGroups:
+      - ""
+    resources:
+      - serviceaccounts
+    verbs:
+      - create
+  - apiGroups:
+      - ""
+    resources:
+      - serviceaccounts/token
+    verbs:
+      - create
+  - apiGroups:
+      - ""
+    resources:
+      - events
+    verbs:
+      - create
+      - patch
+      - update
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -77,6 +125,22 @@ rules:
       - nodes
     verbs:
       - get
+  - apiGroups:
+      - coordination.k8s.io
+    resources:
+      - leases
+    verbs:
+      - get
+      - create
+      - update
+  - apiGroups:
+      - ""
+    resources:
+      - events
+    verbs:
+      - create
+      - patch
+      - update
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -114,6 +178,7 @@ metadata:
 data:
   cloud-config: |
     namespace: {{ .Values.kommodity.provider.config.infraClusterNamespace }}
+    kubeconfig: /etc/kubernetes/kubeconfig/value
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -150,7 +215,7 @@ spec:
           args:
             - --cloud-provider=kubevirt
             - --cloud-config=/etc/cloud/cloud-config
-            - --kubeconfig=/etc/kubernetes/kubeconfig/value
+            - --cluster-name={{ .Release.Name }}
           securityContext:
             privileged: true
           resources:
