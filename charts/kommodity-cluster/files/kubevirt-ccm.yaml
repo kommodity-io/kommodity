@@ -114,6 +114,7 @@ metadata:
 data:
   cloud-config: |
     namespace: {{ .Values.kommodity.provider.config.infraClusterNamespace }}
+    kubeconfig: /etc/kubernetes/kubeconfig/value
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -150,7 +151,6 @@ spec:
           args:
             - --cloud-provider=kubevirt
             - --cloud-config=/etc/cloud/cloud-config
-            - --kubeconfig=/etc/kubernetes/kubeconfig/value
           securityContext:
             privileged: true
           resources:
