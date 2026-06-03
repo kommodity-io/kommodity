@@ -419,7 +419,7 @@ Kommodity is configured via environment variables.
 | `KOMMODITY_TALOS_PROXY_NAMESPACE`                  | Namespace of the talos-cluster-proxy service in workload clusters | `talos-cluster-proxy`   |
 | `KOMMODITY_TALOS_PROXY_SERVICE_NAME`               | Name of the talos-cluster-proxy service                           | `talos-cluster-proxy`   |
 | `KOMMODITY_TALOS_PROXY_IDLE_TIMEOUT`               | Idle timeout before unused tunnels are closed                     | `1m`                    |
-| `KOMMODITY_GARBAGE_COLLECTOR_ENABLED`              | Enable the embedded garbage collector                             | `false`                 |
+| `KOMMODITY_GARBAGE_COLLECTOR_ENABLED`              | Enable the embedded garbage collector                             | `true`                  |
 | `KOMMODITY_GARBAGE_COLLECTOR_WORKERS`              | Number of garbage collector workers                               | `5`                     |
 | `KOMMODITY_GARBAGE_COLLECTOR_SYNC_PERIOD`          | Resync period for the garbage collector                           | `30s`                   |
 | `KOMMODITY_GARBAGE_COLLECTOR_INITIAL_SYNC_TIMEOUT` | Timeout waiting for initial informer sync                         | `60s`                   |
