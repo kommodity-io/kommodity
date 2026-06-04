@@ -45,6 +45,7 @@ import (
 	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
 	apiregistration "k8s.io/kube-aggregator/pkg/apis/apiregistration"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
+	coreapiv1 "k8s.io/kubernetes/pkg/apis/core/v1"
 )
 
 const (
@@ -78,6 +79,7 @@ func enhanceScheme(scheme *runtime.Scheme) error {
 		{"metav1.AddMetaToScheme", metav1.AddMetaToScheme},
 		{"rbacv1.AddToScheme", rbacv1.AddToScheme},
 		{"storagev1.AddToScheme", storageapiv1.AddToScheme},
+		{"coreapiv1.RegisterConversions", coreapiv1.RegisterConversions},
 	}
 
 	for _, add := range addFuncs {
