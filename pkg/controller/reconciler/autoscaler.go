@@ -20,6 +20,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/predicates"
 	ctrl "sigs.k8s.io/controller-runtime"
 	ctrlbuilder "sigs.k8s.io/controller-runtime/pkg/builder"
@@ -472,11 +473,16 @@ func (r *AutoscalerReconciler) installAutoscaler(ctx context.Context, clusterNam
 // configMapForAutoscalerTokenSecret maps an SA-token Secret event to a reconcile
 // request for the autoscaler ConfigMap belonging to the same Cluster. The map
 // uses the secret's `cluster.x-k8s.io/cluster-name` label plus the well-known
-// secret-name suffix to identify the owning Cluster.
+// secret-name suffix to identify the owning Cluster, then verifies the target
+// ConfigMap carries this controller's watch-filter label before enqueueing —
+// this preserves the label-based scoping enforced on the primary ConfigMap
+// watch.
 func (r *AutoscalerReconciler) configMapForAutoscalerTokenSecret(
-	_ context.Context,
+	ctx context.Context,
 	obj client.Object,
 ) []reconcile.Request {
+	logger := logging.FromContext(ctx)
+
 	secret, success := obj.(*corev1.Secret)
 	if !success {
 		return nil
@@ -491,12 +497,29 @@ func (r *AutoscalerReconciler) configMapForAutoscalerTokenSecret(
 		return nil
 	}
 
-	return []reconcile.Request{{
-		NamespacedName: types.NamespacedName{
-			Namespace: secret.Namespace,
-			Name:      clusterName + AutoscalerConfigMapSuffix,
-		},
-	}}
+	configMapKey := types.NamespacedName{
+		Namespace: secret.Namespace,
+		Name:      clusterName + AutoscalerConfigMapSuffix,
+	}
+
+	configMap := &corev1.ConfigMap{}
+
+	err := r.Get(ctx, configMapKey, configMap)
+	if err != nil {
+		if !apierrors.IsNotFound(err) {
+			logger.Error("Failed to get autoscaler ConfigMap for token-secret mapping",
+				zap.String("configmap", configMapKey.String()),
+				zap.Error(err))
+		}
+
+		return nil
+	}
+
+	if configMap.Labels[clusterv1.WatchLabel] != autoscalerControllerName {
+		return nil
+	}
+
+	return []reconcile.Request{{NamespacedName: configMapKey}}
 }
 
 // autoscalerTokenSecretPredicate filters Secret events to service-account-token
