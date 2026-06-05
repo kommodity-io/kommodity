@@ -8,16 +8,14 @@ import (
 	"github.com/kommodity-io/kommodity/pkg/logging"
 	"sigs.k8s.io/cluster-api-provider-azure/azure"
 	"sigs.k8s.io/cluster-api-provider-azure/controllers"
-	capz_capi_controller "sigs.k8s.io/cluster-api-provider-azure/exp/controllers"
 	capz_reconciler "sigs.k8s.io/cluster-api-provider-azure/util/reconciler"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 )
 
 const (
-	azureClusterRecorderName     = "azurecluster-controller"
-	azureMachineRecorderName     = "azuremachine-controller"
-	azureMachinePoolRecorderName = "azuremachinepool-controller"
+	azureClusterRecorderName = "azurecluster-controller"
+	azureMachineRecorderName = "azuremachine-controller"
 )
 
 type azureModule struct{}
@@ -57,12 +55,13 @@ func setupAzure(ctx context.Context, manager ctrl.Manager, opt controller.Option
 		return fmt.Errorf("failed to setup AzureMachine controller: %w", err)
 	}
 
-	logger.Info("Setting up AzureMachinePool controller")
-
-	err = setupAzureMachinePoolWithManager(ctx, manager, opt, credCache, timeouts)
-	if err != nil {
-		return fmt.Errorf("failed to setup AzureMachinePool controller: %w", err)
-	}
+	// The AzureMachinePool controller is intentionally NOT registered. It is only
+	// needed for MachinePool-based (e.g. AKS) topologies, which Kommodity does not
+	// support — clusters use MachineDeployment -> AzureMachine. The upstream
+	// AzureMachinePool reconciler additionally watches AzureManagedControlPlane,
+	// whose CRD is excluded from the embedded provider set (see providers.yaml
+	// deny_list). Registering it would block on a cache sync for that missing CRD
+	// and prevent the controller manager (and its webhook server) from starting.
 
 	return nil
 }
@@ -108,29 +107,6 @@ func setupAzureMachineWithManager(
 	).SetupWithManager(ctx, manager, controllers.Options{Options: opt})
 	if err != nil {
 		return fmt.Errorf("failed to setup azure machine: %w", err)
-	}
-
-	return nil
-}
-
-func setupAzureMachinePoolWithManager(
-	ctx context.Context,
-	manager ctrl.Manager,
-	opt controller.Options,
-	credCache azure.CredentialCache,
-	timeouts capz_reconciler.Timeouts,
-) error {
-	recorder := manager.GetEventRecorderFor(azureMachinePoolRecorderName)
-
-	err := capz_capi_controller.NewAzureMachinePoolReconciler(
-		manager.GetClient(),
-		recorder,
-		timeouts,
-		"",
-		credCache,
-	).SetupWithManager(ctx, manager, controllers.Options{Options: opt})
-	if err != nil {
-		return fmt.Errorf("failed to setup azure machine pool: %w", err)
 	}
 
 	return nil
