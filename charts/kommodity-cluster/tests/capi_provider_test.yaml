@@ -88,6 +88,7 @@ tests:
     values:
       - ../values.kubevirt.yaml
     set:
+      kommodity.nodepools.default.sku: null
       kommodity.network.ipv4.enabled: true
       kommodity.network.ipv4.public: false
       kommodity.network.ipv4.nodeCIDR: "10.200.0.0/20"
@@ -106,6 +107,7 @@ tests:
     values:
       - ../values.kubevirt.yaml
     set:
+      kommodity.nodepools.default.sku: null
       kommodity.network.ipv4.enabled: true
       kommodity.network.ipv4.public: true
       kommodity.network.ipv4.nodeCIDR: null
@@ -121,6 +123,7 @@ tests:
     values:
       - ../values.kubevirt.yaml
     set:
+      kommodity.nodepools.default.sku: null
       kommodity.network.ipv4.enabled: true
       kommodity.network.ipv4.public: false
       kommodity.network.ipv4.nodeCIDR: null

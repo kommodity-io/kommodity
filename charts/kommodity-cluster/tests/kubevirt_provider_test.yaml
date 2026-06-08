@@ -74,6 +74,106 @@ tests:
           path: spec.template.spec.virtualMachineTemplate.spec.template.spec.domain.devices.interfaces[0].bridge
           value: {}
         documentIndex: 1
+  - it: should render instancetype for controlplane and resources for nodepool (default values)
+    template: templates/provider/kubevirt/machinetemplate.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.instancetype.name
+          value: d1.xlarge
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.instancetype.kind
+          value: VirtualMachineClusterInstancetype
+        documentIndex: 0
+      - isNull:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.domain.resources
+        documentIndex: 0
+      - isNull:
+          path: spec.template.spec.virtualMachineTemplate.spec.instancetype
+        documentIndex: 1
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.domain.resources.requests.cpu
+          value: "4000m"
+        documentIndex: 1
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.domain.resources.requests.memory
+          value: "16Gi"
+        documentIndex: 1
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.domain.resources.limits.cpu
+          value: "4000m"
+        documentIndex: 1
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.domain.resources.limits.memory
+          value: "16Gi"
+        documentIndex: 1
+  - it: should allow nodepool to use sku instead of resources
+    template: templates/provider/kubevirt/machinetemplate.yaml
+    set:
+      kommodity.nodepools.default.sku: cx1.large
+      kommodity.nodepools.default.resources: null
+    asserts:
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.instancetype.name
+          value: cx1.large
+        documentIndex: 1
+      - isNull:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.domain.resources
+        documentIndex: 1
+  - it: should allow controlplane to use resources instead of sku
+    template: templates/provider/kubevirt/machinetemplate.yaml
+    set:
+      kommodity.controlplane.sku: null
+      kommodity.controlplane.resources:
+        requests:
+          cpu: "2"
+          memory: "8Gi"
+        limits:
+          cpu: "2"
+          memory: "8Gi"
+    asserts:
+      - isNull:
+          path: spec.template.spec.virtualMachineTemplate.spec.instancetype
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.domain.resources.requests.cpu
+          value: "2"
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.domain.resources.limits.memory
+          value: "8Gi"
+        documentIndex: 0
+  - it: should fail when both sku and resources set on controlplane
+    template: templates/provider/kubevirt/machinetemplate.yaml
+    set:
+      kommodity.controlplane.resources:
+        requests:
+          cpu: "2"
+          memory: "8Gi"
+    asserts:
+      - failedTemplate:
+          errorMessage: "kommodity.controlplane: 'sku' and 'resources' are mutually exclusive; set exactly one"
+  - it: should fail when neither sku nor resources set on controlplane
+    template: templates/provider/kubevirt/machinetemplate.yaml
+    set:
+      kommodity.controlplane.sku: null
+    asserts:
+      - failedTemplate:
+          errorMessage: "kommodity.controlplane: one of 'sku' or 'resources' must be set"
+  - it: should fail when both sku and resources set on nodepool
+    template: templates/provider/kubevirt/machinetemplate.yaml
+    set:
+      kommodity.nodepools.default.sku: d1.xlarge
+    asserts:
+      - failedTemplate:
+          errorMessage: "kommodity.nodepools.default: 'sku' and 'resources' are mutually exclusive; set exactly one"
+  - it: should fail when neither sku nor resources set on nodepool
+    template: templates/provider/kubevirt/machinetemplate.yaml
+    set:
+      kommodity.nodepools.default.resources: null
+    asserts:
+      - failedTemplate:
+          errorMessage: "kommodity.nodepools.default: one of 'sku' or 'resources' must be set"
   - it: should render additionalVolumes on worker nodepool
     template: templates/provider/kubevirt/machinetemplate.yaml
     set:
