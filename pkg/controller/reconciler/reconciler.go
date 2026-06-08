@@ -52,6 +52,7 @@ func SetupReconcilers(ctx context.Context,
 			Manager:      *manager,
 			ClusterCache: clusterCache,
 			Options:      controllerOpts,
+			Config:       cfg,
 		})
 		if err != nil {
 			return fmt.Errorf("failed to setup reconciler for provider %s: %w", string(provider), err)

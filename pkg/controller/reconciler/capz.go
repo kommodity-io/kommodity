@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/kommodity-io/kommodity/pkg/config"
+	"github.com/kommodity-io/kommodity/pkg/controller/reconciler/azurearm"
 	"github.com/kommodity-io/kommodity/pkg/logging"
 	"sigs.k8s.io/cluster-api-provider-azure/azure"
 	"sigs.k8s.io/cluster-api-provider-azure/controllers"
@@ -32,10 +33,15 @@ func (m *azureModule) Name() config.Provider {
 
 // Setup sets up the Azure CAPI controllers.
 func (m *azureModule) Setup(ctx context.Context, deps SetupDeps) error {
-	return setupAzure(ctx, deps.Manager, deps.Options)
+	return setupAzure(ctx, deps.Manager, deps.Options, deps.Config)
 }
 
-func setupAzure(ctx context.Context, manager ctrl.Manager, opt controller.Options) error {
+func setupAzure(
+	ctx context.Context,
+	manager ctrl.Manager,
+	opt controller.Options,
+	cfg *config.KommodityConfig,
+) error {
 	logger := logging.FromContext(ctx)
 
 	credCache := azure.NewCredentialCache()
@@ -62,6 +68,16 @@ func setupAzure(ctx context.Context, manager ctrl.Manager, opt controller.Option
 	// whose CRD is excluded from the embedded provider set (see providers.yaml
 	// deny_list). Registering it would block on a cache sync for that missing CRD
 	// and prevent the controller manager (and its webhook server) from starting.
+
+	var azureCfg *config.AzureConfig
+	if cfg != nil {
+		azureCfg = cfg.AzureConfig
+	}
+
+	err = azurearm.SetupReconcilers(ctx, manager, opt, azureCfg)
+	if err != nil {
+		return fmt.Errorf("failed to setup embedded Azure ARM reconciler: %w", err)
+	}
 
 	return nil
 }

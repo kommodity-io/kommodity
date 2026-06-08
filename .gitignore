@@ -37,3 +37,8 @@ azure-mvp-resources.md
 values.local-mvp.yaml
 values.private-mvp.yaml
 .gitignore.local
+
+# local dev: postgres port override to avoid host port clashes
+compose.override.yml
+
+azure-sbx-cluster-resources.md
