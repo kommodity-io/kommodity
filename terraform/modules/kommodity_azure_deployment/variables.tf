@@ -80,7 +80,6 @@ variable "kommodity_container" {
     log_level                       = optional(string, "info")
     infrastructure_providers        = optional(string, "") # If env var is empty, Kommodity uses default providers
     garbage_collector_enabled       = optional(string, "true")
-    azure_embedded_arm_reconciler   = optional(string, "true")
     azure_default_credential_secret = optional(string, "")
   })
   description = "Kommodity container configuration"

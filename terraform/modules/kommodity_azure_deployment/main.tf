@@ -260,10 +260,6 @@ resource "azurerm_container_app" "kommodity-app" {
         name  = "KOMMODITY_GARBAGE_COLLECTOR_ENABLED"
         value = var.kommodity_container.garbage_collector_enabled
       }
-      env {
-        name  = "KOMMODITY_AZURE_EMBEDDED_ARM_RECONCILER"
-        value = var.kommodity_container.azure_embedded_arm_reconciler
-      }
       dynamic "env" {
         for_each = var.kommodity_container.azure_default_credential_secret != "" ? [var.kommodity_container.azure_default_credential_secret] : []
         content {

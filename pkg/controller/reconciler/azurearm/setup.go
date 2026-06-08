@@ -18,8 +18,7 @@ import (
 )
 
 // SetupReconcilers registers one generic ARM reconciler per managed Azure
-// resource kind against the provided manager. It is a no-op unless the embedded
-// ARM reconciler is enabled in the Azure configuration.
+// resource kind against the provided manager.
 func SetupReconcilers(
 	ctx context.Context,
 	mgr ctrl.Manager,
@@ -27,12 +26,6 @@ func SetupReconcilers(
 	azureCfg *config.AzureConfig,
 ) error {
 	logger := logging.FromContext(ctx)
-
-	if azureCfg == nil || !azureCfg.EmbeddedARMReconcilerEnabled {
-		logger.Info("Embedded Azure ARM reconciler is disabled; skipping setup")
-
-		return nil
-	}
 
 	resources := managedResources()
 

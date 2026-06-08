@@ -41,7 +41,6 @@ const (
 	envTalosProxyNamespace                = "KOMMODITY_TALOS_PROXY_NAMESPACE"
 	envTalosProxyServiceName              = "KOMMODITY_TALOS_PROXY_SERVICE_NAME"
 	envTalosProxyIdleTimeout              = "KOMMODITY_TALOS_PROXY_IDLE_TIMEOUT"
-	envAzureEmbeddedARMReconciler         = "KOMMODITY_AZURE_EMBEDDED_ARM_RECONCILER"
 	//nolint:gosec // G101: env var name, not a credential
 	envAzureDefaultCredentialSecret = "KOMMODITY_AZURE_DEFAULT_CREDENTIAL_SECRET"
 
@@ -62,7 +61,6 @@ const (
 	defaultGarbageCollectorWorkers            = 5
 	defaultGarbageCollectorSyncPeriod         = 30 * time.Second
 	defaultGarbageCollectorInitialSyncTimeout = 60 * time.Second
-	defaultAzureEmbeddedARMReconciler         = true
 	defaultAzureDefaultCredentialSecret       = ""
 )
 
@@ -91,10 +89,6 @@ type KommodityConfig struct {
 
 // AzureConfig holds configuration for the embedded Azure integration.
 type AzureConfig struct {
-	// EmbeddedARMReconcilerEnabled enables the in-process Azure ARM reconciler
-	// that materializes ASO custom resources directly into Azure, replacing the
-	// external Azure Service Operator sidecar.
-	EmbeddedARMReconcilerEnabled bool
 	// DefaultCredentialSecret is the fallback Secret name used to resolve Azure
 	// credentials when a custom resource carries no
 	// "serviceoperator.azure.com/credential-from" annotation.
@@ -194,34 +188,8 @@ func LoadConfig(ctx context.Context) (*KommodityConfig, error) {
 
 func getAzureConfig(ctx context.Context) *AzureConfig {
 	return &AzureConfig{
-		EmbeddedARMReconcilerEnabled: getAzureEmbeddedARMReconcilerEnabled(ctx),
-		DefaultCredentialSecret:      getAzureDefaultCredentialSecret(ctx),
+		DefaultCredentialSecret: getAzureDefaultCredentialSecret(ctx),
 	}
-}
-
-func getAzureEmbeddedARMReconcilerEnabled(ctx context.Context) bool {
-	logger := logging.FromContext(ctx)
-
-	enabled := os.Getenv(envAzureEmbeddedARMReconciler)
-	if enabled == "" {
-		logger.Info(configurationNotSpecified,
-			zap.String("envVar", envAzureEmbeddedARMReconciler),
-			zap.Bool("default", defaultAzureEmbeddedARMReconciler))
-
-		return defaultAzureEmbeddedARMReconciler
-	}
-
-	enabledBool, err := strconv.ParseBool(enabled)
-	if err != nil {
-		logger.Info("failed to convert azure embedded ARM reconciler flag to boolean",
-			zap.String("envVar", envAzureEmbeddedARMReconciler),
-			zap.String("value", enabled),
-			zap.Bool("default", defaultAzureEmbeddedARMReconciler))
-
-		return defaultAzureEmbeddedARMReconciler
-	}
-
-	return enabledBool
 }
 
 func getAzureDefaultCredentialSecret(ctx context.Context) string {
