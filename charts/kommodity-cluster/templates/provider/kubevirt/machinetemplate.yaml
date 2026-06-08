@@ -1,6 +1,14 @@
 {{- if eq .Values.kommodity.provider.name "Kubevirt" }}
 {{- $ifType := dig "network" "cluster" "interfaceType" "bridge" .Values.kommodity }}
 {{- $defaultStorageClass := dig "provider" "config" "storageClassName" "" .Values.kommodity -}}
+{{- $cpSku := dig "sku" "" .Values.kommodity.controlplane -}}
+{{- $cpResources := dig "resources" "" .Values.kommodity.controlplane -}}
+{{- if and $cpSku $cpResources -}}
+{{- fail "kommodity.controlplane: 'sku' and 'resources' are mutually exclusive; set exactly one" -}}
+{{- end -}}
+{{- if not (or $cpSku $cpResources) -}}
+{{- fail "kommodity.controlplane: one of 'sku' or 'resources' must be set" -}}
+{{- end -}}
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
 kind: KubevirtMachineTemplate
@@ -36,9 +44,11 @@ spec:
                 source:
                   registry:
                     url: {{ default $.Values.talos.imageName (dig "talos" "imageName" "" .Values.kommodity.controlplane) }}
+          {{- if $cpSku }}
           instancetype:
-            name: {{ .Values.kommodity.controlplane.sku }}
+            name: {{ $cpSku }}
             kind: VirtualMachineClusterInstancetype
+          {{- end }}
           runStrategy: Always
           template:
             spec:
@@ -53,6 +63,10 @@ spec:
                 - name: default
                   pod: {}
               domain:
+                {{- if $cpResources }}
+                resources:
+                  {{- toYaml $cpResources | nindent 18 }}
+                {{- end }}
                 devices:
                   interfaces:
                     - name: default
@@ -69,6 +83,14 @@ spec:
                   name: dv-volume
 
 {{- range $name, $np := .Values.kommodity.nodepools }}
+{{- $npSku := dig "sku" "" $np -}}
+{{- $npResources := dig "resources" "" $np -}}
+{{- if and $npSku $npResources -}}
+{{- fail (printf "kommodity.nodepools.%s: 'sku' and 'resources' are mutually exclusive; set exactly one" $name) -}}
+{{- end -}}
+{{- if not (or $npSku $npResources) -}}
+{{- fail (printf "kommodity.nodepools.%s: one of 'sku' or 'resources' must be set" $name) -}}
+{{- end }}
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
 kind: KubevirtMachineTemplate
@@ -123,9 +145,11 @@ spec:
                 source:
                   blank: {}
             {{- end }}
+          {{- if $npSku }}
           instancetype:
-            name: {{ $np.sku }}
+            name: {{ $npSku }}
             kind: VirtualMachineClusterInstancetype
+          {{- end }}
           runStrategy: Always
           template:
             spec:
@@ -140,6 +164,10 @@ spec:
                 - name: default
                   pod: {}
               domain:
+                {{- if $npResources }}
+                resources:
+                  {{- toYaml $npResources | nindent 18 }}
+                {{- end }}
                 devices:
                   interfaces:
                     - name: default
