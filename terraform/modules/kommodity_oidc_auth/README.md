@@ -29,7 +29,7 @@ It also creates a corresponding Service Principal (Enterprise Application) for t
 
 | Name | Version |
 | ---- | ------- |
-| <a name="provider_azuread"></a> [azuread](#provider\_azuread) | 2.53.1 |
+| <a name="provider_azuread"></a> [azuread](#provider\_azuread) | ~> 2.50 |
 
 ## Modules
 
