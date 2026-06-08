@@ -73,9 +73,19 @@ kommodity:
 
   controlplane:
     replicas: 2
-    # Default set of instance types: https://github.com/kubevirt/common-instancetypes#series. Custom instance types can also be created.
-    # It is recommend to run nodes on dedicated CPU cores (so CX, N, RT, and D series).
+    # Exactly one of 'sku' or 'resources' must be set per pool (mutually exclusive).
+    # - sku: references a Kubevirt VirtualMachineClusterInstancetype.
+    #   Default set: https://github.com/kubevirt/common-instancetypes#series.
+    #   Custom instance types can also be created. Prefer dedicated CPU series (CX, N, RT, D).
+    # - resources: standard k8s ResourceRequirements injected as spec.domain.resources.
     sku: d1.xlarge
+    # resources:
+    #   requests:
+    #     cpu: "4000m"
+    #     memory: "16Gi"
+    #   limits:
+    #     cpu: "4000m"
+    #     memory: "16Gi"
     os:
       disk:
         size: 20
@@ -83,7 +93,15 @@ kommodity:
   nodepools:
     default:
       replicas: 1
+      # Exactly one of 'sku' or 'resources' must be set (mutually exclusive).
       sku: d1.xlarge
+      # resources:
+      #   requests:
+      #     cpu: "4000m"
+      #     memory: "16Gi"
+      #   limits:
+      #     cpu: "4000m"
+      #     memory: "16Gi"
       os:
         disk:
           size: 20
