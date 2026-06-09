@@ -116,10 +116,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	if !policy.AllowsModify() {
-		logger.Info("Reconcile policy does not allow modification; skipping Azure mutation",
+		logger.Info("Reconcile policy does not allow modification; reflecting Azure state only",
 			zap.String("policy", string(policy)))
 
-		return ctrl.Result{}, nil
+		return r.reconcileReadOnly(ctx, obj)
 	}
 
 	result, normalErr := r.reconcileNormal(ctx, obj)
@@ -222,6 +222,62 @@ func (r *Reconciler) reconcileNormal(
 	}
 
 	return r.reconcileExisting(ctx, obj, creds, armID, apiVersion, getResp.body)
+}
+
+// reconcileReadOnly implements the skip-policy path: resolve credentials, GET the
+// resource from ARM, and populate the status/resource-id annotation. Does not PUT
+// or DELETE the Azure resource. This is required for resources CAPZ marks with
+// reconcile-policy: skip (e.g. all ResourceGroup CRs) so that the ARM resource ID
+// annotation is set and dependent resources can resolve their owner ARM IDs.
+func (r *Reconciler) reconcileReadOnly(ctx context.Context, obj genruntime.ARMMetaObject) (ctrl.Result, error) {
+	logger := logging.FromContext(ctx)
+
+	creds, err := r.creds.resolve(ctx, obj)
+	if err != nil {
+		if isTransientCredentialError(err) {
+			logger.Info("Azure credentials not ready; requeueing", zap.Error(err))
+
+			return r.requeueReconciling(ctx, obj)
+		}
+
+		return ctrl.Result{}, fmt.Errorf("resolving credentials: %w", err)
+	}
+
+	armID, err := r.armIDFor(ctx, r.Client, obj, creds.subscriptionID)
+	if err != nil {
+		if errors.Is(err, ErrARMIDUnresolvable) {
+			logger.Info("ARM ID not yet resolvable; requeueing", zap.Error(err))
+
+			return r.requeueReconciling(ctx, obj)
+		}
+
+		return ctrl.Result{}, fmt.Errorf("resolving ARM ID: %w", err)
+	}
+
+	getResp, err := creds.armClient.get(ctx, armID, obj.GetAPIVersion())
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("getting resource %s: %w", armID, err)
+	}
+
+	if getResp.statusCode == http.StatusTooManyRequests {
+		logger.Info("ARM rate limited on GET; requeueing",
+			zap.Duration("retryAfter", getResp.retryAfter))
+
+		return ctrl.Result{RequeueAfter: getResp.retryAfter}, nil
+	}
+
+	if getResp.statusCode == http.StatusNotFound {
+		setNotFound(obj)
+
+		err = r.Status().Update(ctx, obj)
+		if err != nil {
+			return ctrl.Result{}, fmt.Errorf("updating not-found status: %w", err)
+		}
+
+		return ctrl.Result{RequeueAfter: driftRequeueInterval}, nil
+	}
+
+	return r.reconcileSucceeded(ctx, obj, armID, getResp.body)
 }
 
 // reconcileExisting evaluates an existing Azure resource's provisioning state and
