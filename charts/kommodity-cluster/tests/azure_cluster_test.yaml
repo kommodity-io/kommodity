@@ -179,12 +179,10 @@ tests:
       - equal:
           path: spec.networkSpec.subnets[1].natGateway.ip.name
           value: pip-test-cluster-node-natgw-1
-      - equal:
-          path: spec.networkSpec.additionalAPIServerLBPorts[0].name
-          value: talos-api
-      - equal:
-          path: spec.networkSpec.additionalAPIServerLBPorts[0].port
-          value: 50000
+      # Talos API (50000) is never exposed on the apiServerLB; it is reached via
+      # the talos-cluster-proxy tunnel over the private network.
+      - notExists:
+          path: spec.networkSpec.additionalAPIServerLBPorts
 
   - it: should include apiServerLB and vnet and subnet defaults when public cluster is configured
     set:
@@ -234,12 +232,9 @@ tests:
       - equal:
           path: spec.networkSpec.subnets[1].natGateway.ip.name
           value: pip-test-cluster-node-natgw-1
-      - equal:
-          path: spec.networkSpec.additionalAPIServerLBPorts[0].name
-          value: talos-api
-      - equal:
-          path: spec.networkSpec.additionalAPIServerLBPorts[0].port
-          value: 50000
+      # Talos API (50000) is never exposed on the apiServerLB, even in public mode.
+      - notExists:
+          path: spec.networkSpec.additionalAPIServerLBPorts
 
   - it: should include networkSpec with vnet when configured
     set:

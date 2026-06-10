@@ -100,11 +100,12 @@ kommodity:
 
   global:
     strategicPatches:
-      # Required when using a Cloud Controller Manager (https://kubernetes.io/docs/tasks/administer-cluster/running-cloud-controller/#running-cloud-controller-manager)
-      machine:
-        kubelet:
-          extraArgs:
-            cloud-provider: external
+      # NOTE: kubelet --cloud-provider=external is no longer set here — the chart
+      # auto-injects it whenever kommodity.provider.cloudControllerManager.enabled
+      # is true (see _helpers.tpl "mergedStrategicPatch"). Omitting it previously
+      # left nodes without a providerID, which broke CAPI NodeRef linking and
+      # wedged control-plane rollouts, so it must never be optional.
+      #
       # Enable anonymous authentication on kube-apiserver.
       # CAPZ hardcodes an HTTPS GET /readyz probe on the apiserver LB (not configurable via the
       # AzureCluster spec). Talos defaults --anonymous-auth=false, so /readyz returns HTTP 401 to
@@ -120,27 +121,34 @@ kommodity:
   network:
     ipv4:
       enabled: true
+      # The `public` flag controls the apiServerLB type ONLY. Node VMs never
+      # receive public IPs in either mode — matching the Scaleway model, the
+      # general network stays private and only the Kubernetes API (6443) is
+      # exposed via a cloud load balancer. The Talos API (50000) is never put on
+      # the LB; Kommodity reaches it over the private network through the
+      # talos-cluster-proxy tunnel (port-forwarded through the K8s API LB to the
+      # in-cluster proxy pod, which dials the node's private IP:50000).
+      #
       # public: false → fully-private cluster (default)
       #   The chart emits apiServerLB.type: Internal so CAPZ creates an internal
-      #   load balancer (no PublicIP attached).  Node VMs reach the internet for
+      #   load balancer (no PublicIP attached). Node VMs reach the internet for
       #   egress-only via a NAT gateway on the node subnet; no inbound path exists
       #   except through a VPN, VNet peering, or Azure Bastion.
       #   The management cluster must be reachable from inside the VNet (peered,
       #   VPN-connected, or running in Azure itself) for CAPZ controllers to work.
-      #   nodeCIDR is required when public: false.
       #
-      # public: true → public cluster
-      #   The chart emits apiServerLB.type: Public.  CAPZ creates a PublicIP for
-      #   the apiserver load balancer; control-plane nodes are internet-reachable
-      #   on port 6443 (and the additional Talos API port 50000 via an LB rule).
-      #
-      # In both modes the chart emits additionalAPIServerLBPorts with the Talos
-      # API port (50000) so talosctl traffic is round-robined across the CP pool
-      # via a single LB rule rather than a per-VM InboundNAT rule.
+      # public: true → public Kubernetes API
+      #   The chart emits apiServerLB.type: Public. CAPZ creates a PublicIP for
+      #   the apiserver load balancer so the K8s API (6443) is internet-reachable.
+      #   Node VMs remain private; the management cluster reaches the Talos API
+      #   via the talos-cluster-proxy tunnel through the public K8s API LB.
       public: false
-      # Setting nodeCIDR is required when public is false
-      # Azure VNets support CIDR ranges between /8 and /29
-      nodeCIDR: 10.200.0.0/16
+      # nodeCIDR is ALWAYS required on Azure: node VMs are private in both modes,
+      # so the talos-cluster-proxy needs this range to identify which node IPs to
+      # route through the tunnel. It must cover the control-plane (10.0.0.0/16)
+      # and node (10.1.0.0/16) subnets the chart creates, hence the VNet supernet.
+      # Azure VNets support CIDR ranges between /8 and /29.
+      nodeCIDR: 10.0.0.0/8
       # vnet:
       #   # Optional: Use an existing VNet instead of creating a new one.
       #   # When omitted, the chart creates <cluster>-vnet with 10.0.0.0/8.

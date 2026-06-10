@@ -10,8 +10,10 @@
 
   Gating: only emitted when
     1. provider is Azure
-    2. private mode (network.ipv4.public == false)
-    3. BYO VNet (network.ipv4.vnet.name AND network.ipv4.vnet.resourceGroup are set)
+    2. BYO VNet (network.ipv4.vnet.name AND network.ipv4.vnet.resourceGroup are set)
+
+  CAPZ skips NSG/RouteTable creation in BYO-VNet mode for ALL clusters (public and
+  private), so these chart-managed ASO CRs are needed in both modes.
 
   NOTE: these CRs deliberately do NOT carry helm.sh/resource-policy: keep.
   Unlike AzureCluster (whose deletion is orchestrated by CAPI, so Helm must
@@ -22,11 +24,11 @@
   collide with the stale objects (stale ownerReference UID → ASO status desync).
 */}}
 {{- $isAzure := eq .Values.kommodity.provider.name "Azure" }}
-{{- $isPrivate := not (dig "ipv4" "public" false .Values.kommodity.network) }}
+{{- $isPublic := dig "ipv4" "public" false .Values.kommodity.network }}
 {{- $vnetName := dig "ipv4" "vnet" "name" "" .Values.kommodity.network }}
 {{- $vnetRG := dig "ipv4" "vnet" "resourceGroup" "" .Values.kommodity.network }}
 {{- $isBYOVnet := and (ne $vnetName "") (ne $vnetRG "") }}
-{{- if and $isAzure $isPrivate $isBYOVnet }}
+{{- if and $isAzure $isBYOVnet }}
 {{- $cpNSGName := printf "%s-controlplane-nsg" .Release.Name }}
 {{- $nodeNSGName := printf "%s-node-nsg" .Release.Name }}
 {{- $rtName := printf "%s-node-routetable" .Release.Name }}
@@ -85,16 +87,30 @@ spec:
   azureName: allow-apiserver
   owner:
     name: {{ $cpNSGName }}
+  {{- if $isPublic }}
+  description: "Allow kube-apiserver (6443) from the internet via the public LB"
+  {{- else }}
   description: "Allow kube-apiserver from within the VNet (internal LB only)"
+  {{- end }}
   protocol: Tcp
   direction: Inbound
   priority: 2201
   access: Allow
-  # Scoped to VirtualNetwork: the apiserver is reached only via the internal
-  # LB from inside the VNet. There is no public path (VMs have no public IPs,
-  # the LB has no public frontend), so a wildcard source would only widen the
-  # audited surface.
+  {{- if $isPublic }}
+  # Public mode: the apiServerLB has a public frontend, so the K8s API (6443)
+  # must be reachable from the internet through the LB. A public LB forwards
+  # inbound traffic with the original client source IP, so a VirtualNetwork-only
+  # rule would drop all internet clients (including Kommodity reaching it from
+  # outside the VNet). The apiserver enforces TLS + RBAC; anonymous-auth only
+  # exposes /livez,/readyz,/healthz,/version. Node VMs still have no public IPs
+  # and the Talos API (50000) is never exposed here — only the K8s API is public.
+  sourceAddressPrefix: Internet
+  {{- else }}
+  # Private mode: the apiserver is reached only via the internal LB from inside
+  # the VNet. There is no public path (the LB has no public frontend), so a
+  # wildcard source would only widen the audited surface.
   sourceAddressPrefix: VirtualNetwork
+  {{- end }}
   sourcePortRange: "*"
   destinationAddressPrefix: "*"
   destinationPortRange: "6443"

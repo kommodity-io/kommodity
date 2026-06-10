@@ -56,22 +56,22 @@ spec:
   {{- $hasSubnet := dig "ipv4" "subnet" "" .Values.kommodity.network }}
   networkSpec:
     {{- /*
-      additionalAPIServerLBPorts — emit for both public and private modes so
-      that Talos API (port 50000) is round-robined across the CP pool via a
-      single LB rule rather than a manually-managed InboundNAT rule on one VM.
+      Talos API (port 50000) is deliberately NOT exposed on the apiServerLB.
+      Matching the Scaleway model, only the Kubernetes API (6443) is reachable
+      through the load balancer.  Node VMs have no public IPs in either mode;
+      the `public` flag controls the apiServerLB type only.
 
-      CAPZ creates one LB rule per entry; the health probe is shared with the
-      apiserver (HTTPS /readyz on port 6443).
+      Kommodity's TalosControlPlane reconciler reaches the Talos API over the
+      private network via the talos-cluster-proxy tunnel: it port-forwards
+      through the K8s API LB (6443) to the in-cluster proxy pod, which dials the
+      node's private IP on 50000.  This requires the kommodity.io/node-cidr
+      annotation on the Cluster (see provider/capi/cluster.yaml) so the proxy
+      routes node IPs through the tunnel rather than direct-dialing them.
 
-      Risk Q-B: during initial bootstrap the apiserver is not yet running, so
-      the /readyz probe fails and CAPZ marks all backends unhealthy — meaning
-      port 50000 will also be unreachable until the first CP node is healthy.
-      Validate with a live private-cluster bootstrap before relying on this for
-      `talosctl bootstrap`.
+      Exposing 50000 on the public LB would put the Talos management API on the
+      internet — not how Scaleway does it and a needless widening of the audited
+      surface — so no additionalAPIServerLBPorts entry is emitted.
     */}}
-    additionalAPIServerLBPorts:
-      - name: talos-api
-        port: 50000
     {{- /*
       VNet — populate defaults matching what the CAPZ mutating webhook would
       apply (azurecluster_default.go setVnetDefaults).

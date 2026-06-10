@@ -1,6 +1,16 @@
 {{- $tcp := index .Values.kommodity.addons "talos-cluster-proxy" }}
-{{- if and $tcp $tcp.enabled .Values.kommodity.network.ipv4.enabled (not (default false .Values.kommodity.network.ipv4.public)) (not .Values.kommodity.network.ipv4.nodeCIDR) }}
-{{- fail "kommodity.network.ipv4.nodeCIDR must be set when the talos-cluster-proxy addon is enabled on a private IPv4 network (proxy uses it to identify valid Talos node targets)" }}
+{{- /*
+  Node VMs are "private" (no public IP, Talos API reachable only via the
+  talos-cluster-proxy tunnel) when the network is not public — and ALWAYS on
+  Azure, where the `public` flag controls the apiServerLB type only and node
+  VMs never receive public IPs.  Whenever nodes are private and the proxy addon
+  is enabled, kommodity.io/node-cidr must be set so the proxy can identify which
+  IPs to route through the tunnel instead of direct-dialing them.
+*/}}
+{{- $isAzure := eq .Values.kommodity.provider.name "Azure" }}
+{{- $nodesPrivate := or (not (default false .Values.kommodity.network.ipv4.public)) $isAzure }}
+{{- if and $tcp $tcp.enabled .Values.kommodity.network.ipv4.enabled $nodesPrivate (not .Values.kommodity.network.ipv4.nodeCIDR) }}
+{{- fail "kommodity.network.ipv4.nodeCIDR must be set when the talos-cluster-proxy addon is enabled and node VMs are private (always on Azure; private IPv4 networks elsewhere). The proxy uses it to identify valid Talos node targets." }}
 {{- end }}
 ---
 apiVersion: cluster.x-k8s.io/v1beta1
@@ -12,7 +22,7 @@ metadata:
     app.kubernetes.io/managed-by: kommodity
     cluster.x-k8s.io/cluster-name: {{ .Release.Name }}
   {{- $annotations := dict }}
-  {{- if and .Values.kommodity.network.ipv4.enabled (not (default false .Values.kommodity.network.ipv4.public)) .Values.kommodity.network.ipv4.nodeCIDR }}
+  {{- if and .Values.kommodity.network.ipv4.enabled $nodesPrivate .Values.kommodity.network.ipv4.nodeCIDR }}
   {{- $_ := set $annotations "kommodity.io/node-cidr" .Values.kommodity.network.ipv4.nodeCIDR }}
   {{- end }}
   {{- if .Values.kommodity.provider.cloudControllerManager.enabled }}

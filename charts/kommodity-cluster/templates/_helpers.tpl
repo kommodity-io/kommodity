@@ -94,6 +94,9 @@ Any values that should trigger a new Talos config template when changed should b
 {{- $talosVersion := default .allValues.talos.version (dig "talos" "version" "" .poolValues) -}}
 {{- $_ := set $data "talosVersion" $talosVersion -}}
 
+{{- /* CCM enabled drives auto-injection of kubelet --cloud-provider=external
+       (see mergedStrategicPatch); include it so toggling CCM rolls the nodes. */ -}}
+{{- $_ := set $data "ccmEnabled" (dig "provider" "cloudControllerManager" "enabled" false .allValues.kommodity) -}}
 {{- $_ := set $data "kmsEnabled" .allValues.kommodity.kms.enabled -}}
 {{- if .allValues.kommodity.kms.enabled -}}
 	{{- with .allValues.kommodity.kms.endpoint -}}
@@ -159,6 +162,22 @@ to preserve YAML block scalar formatting for multi-line contents.
 {{- if and .oidc .oidc.enabled -}}
 {{- $oidcExtraArgs := include "kommodity.talos.oidc.extraArgs" (dict "oidc" .oidc) | fromJson -}}
 {{- $_ := mustMergeOverwrite $result (dict "cluster" (dict "apiServer" (dict "extraArgs" $oidcExtraArgs))) -}}
+{{- end -}}
+{{- /*
+  Cloud Controller Manager → kubelet --cloud-provider=external.
+
+  When a CCM is enabled the kubelet MUST run with --cloud-provider=external so
+  the node registers with the node.cloudprovider.kubernetes.io/uninitialized
+  taint and defers spec.providerID assignment to the CCM. Without it the node
+  comes up with NO providerID; CAPI links Machine→Node by matching providerID,
+  so Machine.status.nodeRef is never set, and CACPPT's control-plane scale-down
+  refuses to remove any machine while one lacks a NodeRef — wedging every
+  subsequent rollout. Auto-injected here (not left to global.strategicPatches)
+  so it can never be omitted by mistake. An explicit user patch for
+  cloud-provider still wins, as user patches are merged on top below.
+*/ -}}
+{{- if .ccmEnabled -}}
+{{- $_ := mustMergeOverwrite $result (dict "machine" (dict "kubelet" (dict "extraArgs" (dict "cloud-provider" "external")))) -}}
 {{- end -}}
 {{- /* Add installer image */ -}}
 {{- if .installer -}}

@@ -368,7 +368,10 @@ resolves inside the VNet only. To run `kubectl`/`helm`/`talosctl` from a develop
 VNet connectivity — VPN, VNet peering, Azure Bastion SSH forwarding, or running the management
 plane inside Azure. The cluster itself comes up healthy without it (auto-bootstrap + inline CCM
 Secret), but the Kommodity TalosControlPlane reconciler will log `bootstrap failed, retrying` until
-it can reach `<internal-LB-IP>:50000`. This resolves automatically once VNet connectivity exists.
+it can reach the Talos API. The Talos API (50000) is never exposed on the load balancer; Kommodity
+reaches it over the private network via the talos-cluster-proxy tunnel (port-forwarded through the
+API server LB on 6443 to the in-cluster proxy pod, which dials the node's private IP). This resolves
+automatically once VNet connectivity to the API server LB exists.
 
 Application workloads expose ingress via `type=LoadBalancer` Services (which CCM provisions as
 public Azure LBs by default). To get an internal LB for a Service, add:
@@ -391,10 +394,15 @@ kommodity:
       public: true
 ```
 
-The chart emits `apiServerLB.type: Public`; CAPZ creates a public IP for the API server LB.
-Control-plane nodes are internet-reachable on port 6443 and port 50000 (Talos API, via an LB rule).
+The chart emits `apiServerLB.type: Public`; CAPZ creates a public IP for the API server LB, so the
+**Kubernetes API (6443) is internet-reachable**. Node VMs still have no public IPs — the `public`
+flag controls the apiServerLB type only. The **Talos API (50000) is never exposed on the LB**;
+Kommodity reaches it over the private network via the talos-cluster-proxy tunnel (which rides the
+public API server LB on 6443). For BYO-VNet public clusters the chart's `allow-apiserver` NSG rule
+permits 6443 from the internet (private clusters scope it to `VirtualNetwork`). `nodeCIDR` is
+required in both modes on Azure so the proxy knows which node IPs to tunnel to.
 
-### 6.5 BYO-VNet (private clusters only)
+### 6.5 BYO-VNet (public or private)
 
 To land the cluster in an existing VNet, set:
 
@@ -402,17 +410,20 @@ To land the cluster in an existing VNet, set:
 kommodity:
   network:
     ipv4:
-      public: false
+      public: false   # or true — BYO-VNet works in both modes
       vnet:
         name: my-existing-vnet
         resourceGroup: my-vnet-resource-group
 ```
 
-In BYO-VNet mode CAPZ skips creating NSGs and route tables (it marks them as "custom VNet mode"
-and expects the resources to pre-exist). The chart handles this automatically: it emits
-`NetworkSecurityGroup`, `NetworkSecurityGroupsSecurityRule`, and `RouteTable` ASO CRs so no manual
-pre-creation is required. These CRs are created in the VNet's resource group and managed by the
-ASO sidecar. `helm uninstall` deletes them, and ASO deletes the corresponding Azure resources.
+In BYO-VNet mode CAPZ skips creating NSGs and route tables for **all** clusters (public and
+private — it marks them as "custom VNet mode" and expects the resources to pre-exist). The chart
+handles this automatically: it emits `NetworkSecurityGroup`, `NetworkSecurityGroupsSecurityRule`,
+and `RouteTable` ASO CRs so no manual pre-creation is required. The `allow-apiserver` rule's source
+is `Internet` in public mode (the public LB needs internet access to 6443) and `VirtualNetwork` in
+private mode. These CRs are created in the VNet's resource group and reconciled to Azure by
+Kommodity's embedded ARM reconciler. `helm uninstall` deletes them, and the underlying Azure
+resources are removed.
 
 ---
 
@@ -425,8 +436,8 @@ The following are handled by the chart — you do **not** need to do these by ha
 | Anonymous auth on kube-apiserver | Talos configPatch applied for Azure (required for CAPZ's HTTPS /readyz LB health probe — see §8) |
 | Internal LB for private clusters | `apiServerLB.type: Internal` in `AzureCluster` |
 | NAT gateway on CP + node subnets | Both subnets reference the same `<release>-node-natgw-1` |
-| NSG + route table for BYO-VNet | ASO `NetworkSecurityGroup` / `RouteTable` CRs (BYO-VNet + private mode only) |
-| Talos API via LB (port 50000) | `additionalAPIServerLBPorts: [{name: talos-api, port: 50000}]` on both LB types |
+| NSG + route table for BYO-VNet | ASO `NetworkSecurityGroup` / `RouteTable` CRs (all BYO-VNet clusters; `allow-apiserver` source is `Internet` in public mode, `VirtualNetwork` in private) |
+| Talos API access (port 50000) | Reached via the talos-cluster-proxy tunnel (never exposed on the LB); requires the `kommodity.io/node-cidr` annotation, set whenever node VMs are private (always on Azure) |
 | CCM Secret delivery at bootstrap | `cloudConfig` → Talos `inlineManifest` → `azure-cloud-provider` Secret in workload `kube-system` |
 | VM extension suppression | `disableExtensionOperations: true` on all AzureMachineTemplates (Talos has no Azure Linux agent) |
 | Auto-bootstrap | Talos auto-bootstrap extension self-initializes the CP on private clusters without management→workload connectivity |
@@ -480,18 +491,30 @@ kubectl --kubeconfig kommodity.yaml get secret my-cluster-kubeconfig \
 
 ---
 
-## 10. Talos API LB rule (port 50000)
+## 10. Talos API access (port 50000) via the proxy tunnel
 
-The chart emits `additionalAPIServerLBPorts: [{name: talos-api, port: 50000}]` in both public and
-private modes. CAPZ creates an LB rule so `talosctl` traffic is round-robined across the CP pool
-rather than relying on a manually-managed InboundNAT rule pointing at a single VM. The health probe
-for this rule is shared with the API server (HTTPS GET `/readyz` on port 6443 — enabled by the
-anonymous-auth patch in §8).
+The Talos API is **never exposed on the Azure load balancer** — matching the Scaleway model, only
+the Kubernetes API (6443) is reachable through the LB, and node VMs have no public IPs in any mode.
+The chart therefore emits **no** `additionalAPIServerLBPorts` entry.
 
-**Note for bootstrapping**: during initial cluster bring-up the kube-apiserver is not yet running,
-so the `/readyz` probe returns a connection error and Azure marks all backends unhealthy. Port 50000
-on the LB may therefore be unreachable during the first few minutes. On private clusters
-auto-bootstrap handles this without `talosctl bootstrap` needing to be issued through the LB.
+Instead, Kommodity reaches the Talos API over the private network via the **talos-cluster-proxy**:
+
+1. The chart sets the `kommodity.io/node-cidr` annotation on the `Cluster` whenever node VMs are
+   private (always on Azure — see §6.4). Kommodity's in-process proxy registers this CIDR.
+2. When the TalosControlPlane reconciler dials a node IP that falls within a registered CIDR, the
+   proxy routes the connection through a tunnel instead of direct-dialing: it port-forwards through
+   the **K8s API LB (6443)** to the in-cluster `talos-cluster-proxy` pod, which dials the node's
+   private `IP:50000`.
+
+Putting the Talos management API on a public LB would expose it to the internet — not how Scaleway
+does it and a needless widening of the audited surface.
+
+**Bootstrapping**: the Talos auto-bootstrap extension self-initializes the control plane (etcd peers
+over the private network intra-VNet), so no `talosctl bootstrap` call through the management plane is
+needed. The proxy tunnel becomes usable once the workload K8s API is up and its LB health probe
+passes — which requires the anonymous-auth patch (§8) so `/readyz` returns 200. The
+TalosControlPlane reconciler logs `bootstrap failed, retrying` until then, but the nodes come up
+healthy regardless.
 
 ---
 

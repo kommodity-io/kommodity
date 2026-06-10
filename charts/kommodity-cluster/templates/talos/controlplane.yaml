@@ -119,6 +119,7 @@ spec:
         "logLevel" $.Values.kommodity.logLevel
         "disableCNI" $.Values.talos.disableCNI
         "disableProxy" $.Values.talos.disableKubeProxy
+        "ccmEnabled" (dig "provider" "cloudControllerManager" "enabled" false $.Values.kommodity)
       ) | trim -}}
       {{- $hasInlineManifests := $anyAddonEnabled }}
       {{- $needsStrategicPatches := or (not (empty $mergedPatch)) $hasInlineManifests $.Values.kommodity.kms.enabled (not $.Values.kommodity.network.ipv4.public) $.Values.talos.autoBootstrap.enabled $.Values.kommodity.security.enabled }}

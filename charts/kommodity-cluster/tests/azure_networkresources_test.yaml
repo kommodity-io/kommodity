@@ -13,14 +13,17 @@ tests:
       - hasDocuments:
           count: 0
 
-  - it: should not render for public mode even with BYO VNet set
+  # CAPZ skips NSG/RouteTable creation for ALL BYO-VNet clusters (public and
+  # private), so the chart must emit these ASO CRs in both modes. Subnets
+  # reference NSGs by ARM ID and an ARM PUT fails if the NSG does not exist.
+  - it: should render for public mode when BYO VNet is set
     set:
       kommodity.network.ipv4.public: true
       kommodity.network.ipv4.vnet.name: my-vnet
       kommodity.network.ipv4.vnet.resourceGroup: my-vnet-rg
     asserts:
       - hasDocuments:
-          count: 0
+          count: 5
 
   - it: should not render for private mode without BYO VNet
     set:
@@ -144,6 +147,23 @@ tests:
       - equal:
           path: spec.sourceAddressPrefix
           value: VirtualNetwork
+
+  # Public mode: the apiServerLB has a public frontend, so the allow-apiserver
+  # rule must permit 6443 from the internet (a public LB preserves the client
+  # source IP, so a VirtualNetwork-only rule would drop all internet clients).
+  - it: should allow apiserver from Internet for public BYO-VNet
+    set:
+      kommodity.network.ipv4.public: true
+      kommodity.network.ipv4.vnet.name: my-vnet
+      kommodity.network.ipv4.vnet.resourceGroup: my-vnet-rg
+    documentIndex: 2
+    asserts:
+      - equal:
+          path: spec.azureName
+          value: allow-apiserver
+      - equal:
+          path: spec.sourceAddressPrefix
+          value: Internet
 
   - it: should render node NSG with correct fields for private BYO-VNet
     set:

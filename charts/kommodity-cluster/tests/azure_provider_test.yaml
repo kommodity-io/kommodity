@@ -410,10 +410,22 @@ tests:
           path: spec.controlPlaneConfig.controlplane.strategicPatches[0]
           pattern: "anonymous-auth"
 
-  - it: should include cloud-provider=external in strategicPatches via global.strategicPatches
+  # cloud-provider=external is auto-injected by the chart whenever the CCM is
+  # enabled (not via global.strategicPatches), so an operator can never omit it
+  # and orphan nodes (no providerID → no NodeRef → wedged rollout).
+  - it: should auto-inject cloud-provider=external when CCM is enabled
     template: templates/talos/controlplane.yaml
     asserts:
       - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[0]
+          pattern: "cloud-provider: external"
+
+  - it: should NOT inject cloud-provider=external when CCM is disabled
+    template: templates/talos/controlplane.yaml
+    set:
+      kommodity.provider.cloudControllerManager.enabled: false
+    asserts:
+      - notMatchRegex:
           path: spec.controlPlaneConfig.controlplane.strategicPatches[0]
           pattern: "cloud-provider: external"
 

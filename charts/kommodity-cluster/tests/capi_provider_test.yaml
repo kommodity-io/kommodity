@@ -81,7 +81,7 @@ tests:
           enabled: true
     asserts:
       - failedTemplate:
-          errorMessage: "kommodity.network.ipv4.nodeCIDR must be set when the talos-cluster-proxy addon is enabled on a private IPv4 network (proxy uses it to identify valid Talos node targets)"
+          errorMessage: "kommodity.network.ipv4.nodeCIDR must be set when the talos-cluster-proxy addon is enabled and node VMs are private (always on Azure; private IPv4 networks elsewhere). The proxy uses it to identify valid Talos node targets."
 
   - it: should succeed when talos-cluster-proxy enabled on private network with nodeCIDR set
     template: templates/provider/capi/cluster.yaml
@@ -130,6 +130,37 @@ tests:
     asserts:
       - isKind:
           of: Cluster
+
+  # Azure: node VMs are always private (the `public` flag controls the
+  # apiServerLB type only), so node-cidr is required and emitted even when
+  # public: true — the Talos API is reached via the talos-cluster-proxy tunnel.
+  - it: should add node-cidr annotation for Azure public cluster with nodeCIDR
+    template: templates/provider/capi/cluster.yaml
+    values:
+      - ../values.azure.yaml
+    set:
+      kommodity.network.ipv4.enabled: true
+      kommodity.network.ipv4.public: true
+      kommodity.network.ipv4.nodeCIDR: "10.0.0.0/8"
+    asserts:
+      - equal:
+          path: metadata.annotations["kommodity.io/node-cidr"]
+          value: "10.0.0.0/8"
+
+  - it: should fail for Azure public cluster when talos-cluster-proxy enabled without nodeCIDR
+    template: templates/provider/capi/cluster.yaml
+    values:
+      - ../values.azure.yaml
+    set:
+      kommodity.network.ipv4.enabled: true
+      kommodity.network.ipv4.public: true
+      kommodity.network.ipv4.nodeCIDR: null
+      kommodity.addons:
+        talos-cluster-proxy:
+          enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "kommodity.network.ipv4.nodeCIDR must be set when the talos-cluster-proxy addon is enabled and node VMs are private (always on Azure; private IPv4 networks elsewhere). The proxy uses it to identify valid Talos node targets."
 
   # Autoscaling annotation tests
   - it: should set autoscaler annotations when both minReplicas and maxReplicas are set
