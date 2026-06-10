@@ -61,25 +61,29 @@ func (o *oidcKubeConfig) renderToString(templateFS embed.FS, templateName string
 
 const kommodityKubeconfigFile = "kommodity.yaml"
 
+func readDevKubeconfig(developmentMode bool) (string, error) {
+	if !developmentMode {
+		return "", nil
+	}
+
+	content, err := os.ReadFile(kommodityKubeconfigFile)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return "", nil
+		}
+
+		return "", fmt.Errorf("failed to read %s: %w", kommodityKubeconfigFile, err)
+	}
+
+	return string(content), nil
+}
+
 // GetKommodityKubeConfig returns the Kommodity kubeconfig as a string.
 // In development mode without OIDC, falls back to reading kommodity.yaml from the
 // working directory. Returns an empty string if neither is available.
 func GetKommodityKubeConfig(cfg *config.KommodityConfig) (string, error) {
 	if cfg.AuthConfig.OIDCConfig == nil {
-		if cfg.DevelopmentMode {
-			content, err := os.ReadFile(kommodityKubeconfigFile)
-			if err != nil {
-				if errors.Is(err, os.ErrNotExist) {
-					return "", nil
-				}
-
-				return "", fmt.Errorf("failed to read %s: %w", kommodityKubeconfigFile, err)
-			}
-
-			return string(content), nil
-		}
-
-		return "", nil
+		return readDevKubeconfig(cfg.DevelopmentMode)
 	}
 
 	var buf bytes.Buffer
