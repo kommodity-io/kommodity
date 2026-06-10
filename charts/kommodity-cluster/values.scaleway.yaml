@@ -41,6 +41,8 @@ kommodity:
       # Setting nodeCIDR is required when public is false
       # Scaleway Private Networks require a prefix between /20 and /29
       nodeCIDR: 10.200.0.0/20
+    # publicGateway is required when private networking is used (public: false),
+    # as it provides the egress path for nodes that have no public IP.
     publicGateway:
       enabled: true
     #   # Optional: Commercial offer type (default: VPC-GW-S)
