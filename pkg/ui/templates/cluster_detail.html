@@ -1,8 +1,8 @@
 {{define "content"}}
 <div data-page-title="Cluster: {{.Cluster.Name}}">
-    <div id="results">
+    <div id="results" class="grid gap-4">
         <!-- Hero Header -->
-        <div class="mb-8 flex items-center gap-4">
+        <div class="flex items-center gap-4">
             <div class="flex flex-col items-center">
                 <a href="/ui" class="mb-2 cursor-pointer hover:opacity-80 transition-opacity">
                     <img src="/ui/public/kommodity-logo.svg" alt="Kommodity Logo" class="h-16 w-16 object-contain" />
@@ -20,12 +20,12 @@
         </div>
 
         <!-- Kubeconfig Section -->
-        {{template "kubeconfig_section.html" .KubeconfigSection}}
+        <div>{{template "kubeconfig_section.html" .KubeconfigSection}}</div>
 
         <!-- Cluster Metrics Cards -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             <!-- Health Indicator Card -->
-            <div class="rounded-lg border border-gray-800 bg-gray-900 p-6 animate-fade-in">
+            <div class="rounded-sm border border-gray-800 bg-gray-900 p-6">
                 <button type="button" class="health-indicator cursor-help border-0 bg-transparent p-0 m-0 focus:outline-none w-full text-left" data-cluster="{{.ClusterName}}" aria-label="Cluster health status">
                     <div class="health-icon text-3xl font-bold text-gray-500 mb-2">●</div>
                     <div class="health-status text-sm text-gray-400">Unknown</div>
@@ -34,7 +34,7 @@
 
             <!-- Other Metrics -->
             {{range $index, $metric := .ClusterMetrics}}
-            <div class="rounded-lg border border-gray-800 bg-gray-900 p-6 animate-fade-in" style="animation-delay: {{mul (add $index 1) 100}}ms;">
+            <div class="rounded-sm border border-gray-800 bg-gray-900 p-6">
                 <div class="text-3xl font-bold text-accent mb-2">{{$metric.Value}}</div>
                 <div class="text-sm text-gray-400">{{$metric.Label}}</div>
             </div>
@@ -42,7 +42,7 @@
         </div>
 
         <!-- Machine Deployments Table -->
-        <div class="rounded-lg border border-gray-800 bg-gray-900 p-6 animate-fade-in">
+        <div class="rounded-sm border border-gray-800 bg-gray-900 p-6">
             <h2 class="text-xl font-semibold mb-4">Machine Deployments</h2>
 
             {{if .Cluster.MachineDeployments}}
