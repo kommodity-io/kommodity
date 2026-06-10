@@ -47,6 +47,10 @@ on:
         description: "Extra kernel args passed to imager (space-separated, e.g. 'console=ttyS0 net.ifnames=0')"
         required: false
         type: string
+      image_name:
+        description: "Override image name (defaults to per-platform name, e.g. kommodity-talos-scaleway)"
+        required: false
+        type: string
 
 env:
   REGISTRY: ghcr.io/kommodity-io
@@ -161,7 +165,7 @@ jobs:
       TALOS_VERSION: ${{ needs.setup.outputs.talos_version }}
       EXTENSIONS: ${{ needs.setup.outputs.extensions }}
       PUSH: ${{ needs.setup.outputs.push }}
-      IMAGE_NAME: ${{ matrix.image_name }}
+      IMAGE_NAME: ${{ inputs.image_name || matrix.image_name }}
       PLATFORM: ${{ matrix.platform }}
       IMAGER_OUTPUT: ${{ matrix.imager_output }}
       FINAL_EXTENSION: ${{ matrix.final_extension }}
