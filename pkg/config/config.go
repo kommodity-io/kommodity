@@ -20,6 +20,7 @@ import (
 const (
 	envBaseURL                            = "KOMMODITY_BASE_URL"
 	envServerPort                         = "KOMMODITY_PORT"
+	envAPIServerPort                      = "KOMMODITY_API_SERVER_PORT"
 	envAdminGroup                         = "KOMMODITY_ADMIN_GROUP"
 	envDisableAuth                        = "KOMMODITY_INSECURE_DISABLE_AUTHENTICATION"
 	envOIDCIssuerURL                      = "KOMMODITY_OIDC_ISSUER_URL"
@@ -166,7 +167,7 @@ func LoadConfig(ctx context.Context) (*KommodityConfig, error) {
 	return &KommodityConfig{
 		BaseURL:             baseURL,
 		ServerPort:          serverPort,
-		APIServerPort:       defaultAPIServerPort,
+		APIServerPort:       getAPIServerPort(ctx),
 		WebhookPort:         ctrlwebhook.DefaultPort,
 		DBURI:               dbURI,
 		KineURI:             kineURI,
@@ -245,6 +246,27 @@ func getServerPort(ctx context.Context) int {
 	}
 
 	return serverPortInt
+}
+
+func getAPIServerPort(ctx context.Context) int {
+	logger := logging.FromContext(ctx)
+
+	apiServerPort := os.Getenv(envAPIServerPort)
+	if apiServerPort == "" {
+		return defaultAPIServerPort
+	}
+
+	apiServerPortInt, err := strconv.Atoi(apiServerPort)
+	if err != nil {
+		logger.Info("failed to convert API server port to integer",
+			zap.String("envVar", envAPIServerPort),
+			zap.String("value", apiServerPort),
+			zap.Int("default", defaultAPIServerPort))
+
+		return defaultAPIServerPort
+	}
+
+	return apiServerPortInt
 }
 
 func getApplyAuth(ctx context.Context) bool {
