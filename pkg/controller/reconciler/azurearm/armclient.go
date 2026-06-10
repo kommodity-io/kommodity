@@ -36,6 +36,15 @@ type armResponse struct {
 	retryAfter time.Duration
 }
 
+// armRequester is the minimal ARM-by-ID surface the reconciler depends on. It is
+// satisfied by *armClient and allows the reconcile loop to be unit-tested with a
+// fake implementation.
+type armRequester interface {
+	get(ctx context.Context, armID string, apiVersion string) (*armResponse, error)
+	put(ctx context.Context, armID string, apiVersion string, body any) (*armResponse, error)
+	delete(ctx context.Context, armID string, apiVersion string) (*armResponse, error)
+}
+
 // armClient is a thin generic ARM-by-ID client built on the public azure-sdk-for-go
 // pipeline. It mirrors the behaviour of ASO's internal genericarmclient (which we
 // cannot import) for the create/get/delete operations the reconciler needs.

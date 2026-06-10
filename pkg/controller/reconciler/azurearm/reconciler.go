@@ -34,6 +34,11 @@ const (
 	// re-PUTs the resource so spec drift is caught without a full diff.
 	armSpecHashAnnotation = "kommodity.io/arm-spec-hash"
 
+	// deletionStartedAnnotation records (RFC3339) when the reconciler first
+	// observed an outstanding Azure deletion for a resource. It backs the
+	// deletion grace period so teardown is never wedged indefinitely.
+	deletionStartedAnnotation = "kommodity.io/azurearm-delete-started-at"
+
 	// reconcilingRequeueInterval is how often we poll an in-flight ARM operation.
 	reconcilingRequeueInterval = 15 * time.Second
 	// driftRequeueInterval is the cadence for re-checking a converged resource.
@@ -53,6 +58,10 @@ type Reconciler struct {
 	newObj         func() genruntime.ARMMetaObject
 	armIDFor       armIDFunc
 	creds          *credentialProvider
+
+	// deletionGracePeriod bounds how long we wait for Azure to remove a managed
+	// resource before releasing the finalizer anyway. Non-positive disables it.
+	deletionGracePeriod time.Duration
 }
 
 // SetupWithManager registers this reconciler for its kind with the manager.
@@ -106,7 +115,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return result, deleteErr
 	}
 
-	requeue, finalizerErr := r.ensureFinalizers(ctx, obj, logger)
+	requeue, finalizerErr := r.ensureFinalizers(ctx, obj, policy, logger)
 	if finalizerErr != nil {
 		return ctrl.Result{}, finalizerErr
 	}
@@ -132,47 +141,55 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	return result, normalErr
 }
 
-// ensureFinalizers ensures our own finalizer is present and removes any stale ASO
-// finalizer left from a previous sidecar-era deployment. Returns (true, nil) if a
-// mutation was made and the caller should requeue; (false, nil) if no change was
-// needed; or (false, err) if the update failed.
+// ensureFinalizers reconciles the resource's finalizers to match its reconcile
+// policy. Our finalizer is only carried on resources we actually delete in Azure
+// (policy "manage"); for "skip"/"detach-on-delete" resources it is pure liability
+// — we never issue an ARM DELETE for them, so a lingering finalizer can only wedge
+// CR/namespace teardown — and is therefore removed. Any stale ASO finalizer left
+// from a previous sidecar-era deployment is stripped regardless. Returns (true,
+// nil) when a mutation was made and the caller should requeue, (false, nil) when no
+// change was needed, or (false, err) when the update failed.
 func (r *Reconciler) ensureFinalizers(
 	ctx context.Context,
 	obj genruntime.ARMMetaObject,
+	policy annotations.ReconcilePolicyValue,
 	logger *zap.Logger,
 ) (bool, error) {
-	if controllerutil.AddFinalizer(obj, finalizerName) {
-		err := r.Update(ctx, obj)
-		if err != nil {
-			if apierrors.IsConflict(err) {
-				return true, nil
-			}
+	changed := false
 
-			return false, fmt.Errorf("adding finalizer: %w", err)
+	if policy.AllowsDelete() {
+		if controllerutil.AddFinalizer(obj, finalizerName) {
+			changed = true
 		}
+	} else if controllerutil.RemoveFinalizer(obj, finalizerName) {
+		logger.Info("Removing azurearm finalizer from non-managed resource",
+			zap.String("policy", string(policy)))
 
-		return true, nil
+		changed = true
 	}
 
-	// Remove any stale ASO finalizer left from the sidecar era. Clusters
-	// previously managed by the ASO Docker sidecar carry this finalizer; we strip
-	// it so teardown is not blocked by a reconciler that no longer runs.
+	// Clusters previously managed by the ASO Docker sidecar carry this finalizer;
+	// strip it so teardown is not blocked by a reconciler that no longer runs.
 	if controllerutil.RemoveFinalizer(obj, genruntime.ReconcilerFinalizer) {
 		logger.Info("Removing stale ASO finalizer from resource")
 
-		err := r.Update(ctx, obj)
-		if err != nil {
-			if apierrors.IsConflict(err) {
-				return true, nil
-			}
-
-			return false, fmt.Errorf("removing stale ASO finalizer: %w", err)
-		}
-
-		return true, nil
+		changed = true
 	}
 
-	return false, nil
+	if !changed {
+		return false, nil
+	}
+
+	err := r.Update(ctx, obj)
+	if err != nil {
+		if apierrors.IsConflict(err) {
+			return true, nil
+		}
+
+		return false, fmt.Errorf("updating finalizers: %w", err)
+	}
+
+	return true, nil
 }
 
 func (r *Reconciler) reconcileNormal(
@@ -555,12 +572,62 @@ func (r *Reconciler) reconcileDelete(
 
 	armID, err := r.armIDFor(ctx, r.Client, obj, creds.subscriptionID)
 	if err != nil {
+		// The owner is already gone (or otherwise unresolvable), so the resource is
+		// unreachable for a targeted delete. Release the finalizer rather than wedge
+		// teardown — a parent delete cascades to children in Azure anyway.
 		logger.Warn("Cannot resolve ARM ID during delete; removing finalizer", zap.Error(err))
 
 		return r.removeFinalizer(ctx, obj)
 	}
 
-	delResp, err := creds.armClient.delete(ctx, armID, obj.GetAPIVersion())
+	return r.reconcileDeleteARM(ctx, obj, creds, armID)
+}
+
+// reconcileDeleteARM drives the actual ARM deletion of a managed resource. It GETs
+// first so the authoritative "gone" signal is a 404 on read (an async DELETE only
+// returns 202/200), which also clears the finalizer when the resource was already
+// removed as a side effect of deleting a parent (e.g. a subnet gone with its VNet).
+func (r *Reconciler) reconcileDeleteARM(
+	ctx context.Context,
+	obj genruntime.ARMMetaObject,
+	creds *azureCredentials,
+	armID string,
+) (ctrl.Result, error) {
+	logger := logging.FromContext(ctx)
+	apiVersion := obj.GetAPIVersion()
+
+	getResp, err := creds.armClient.get(ctx, armID, apiVersion)
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("getting resource %s during delete: %w", armID, err)
+	}
+
+	if getResp.statusCode == http.StatusTooManyRequests {
+		return ctrl.Result{RequeueAfter: getResp.retryAfter}, nil
+	}
+
+	if getResp.statusCode == http.StatusNotFound {
+		logger.Info("Azure resource already gone; removing finalizer")
+
+		return r.removeFinalizer(ctx, obj)
+	}
+
+	// The resource still exists. Bound how long we wait so teardown is never wedged
+	// indefinitely on a resource Azure refuses to delete.
+	expired, graceErr := r.deletionGraceExpired(ctx, obj)
+	if graceErr != nil {
+		return ctrl.Result{}, graceErr
+	}
+
+	if expired {
+		logger.Warn("Azure resource still present after deletion grace period; "+
+			"removing finalizer (resource may be orphaned)",
+			zap.String("armID", armID),
+			zap.Duration("gracePeriod", r.deletionGracePeriod))
+
+		return r.removeFinalizer(ctx, obj)
+	}
+
+	delResp, err := creds.armClient.delete(ctx, armID, apiVersion)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("deleting resource %s: %w", armID, err)
 	}
@@ -572,11 +639,11 @@ func (r *Reconciler) reconcileDelete(
 		return ctrl.Result{RequeueAfter: delResp.retryAfter}, nil
 	}
 
-	if delResp.statusCode == http.StatusNotFound || delResp.statusCode == http.StatusOK {
-		return r.removeFinalizer(ctx, obj)
-	}
-
-	logger.Info("Azure resource deletion in progress; requeueing",
+	// Any in-flight/accepted status (202/200) — and a 409 where a dependent still
+	// references the resource (e.g. a NAT gateway attached to a not-yet-deleted
+	// subnet) — is transient: a sibling reconcile clears the dependency and the
+	// next GET confirms removal. We never treat DELETE's status as terminal.
+	logger.Info("Azure resource deletion issued; awaiting removal",
 		zap.Int("statusCode", delResp.statusCode))
 
 	setDeleting(obj)
@@ -587,6 +654,37 @@ func (r *Reconciler) reconcileDelete(
 	}
 
 	return ctrl.Result{RequeueAfter: reconcilingRequeueInterval}, nil
+}
+
+// deletionGraceExpired reports whether the resource has been pending Azure deletion
+// for longer than the configured grace period. The first time it is observed
+// pending, it stamps a timestamp annotation; thereafter it compares against it. A
+// non-positive grace period disables the safety net.
+func (r *Reconciler) deletionGraceExpired(ctx context.Context, obj genruntime.ARMMetaObject) (bool, error) {
+	if r.deletionGracePeriod <= 0 {
+		return false, nil
+	}
+
+	started := obj.GetAnnotations()[deletionStartedAnnotation]
+	if started == "" {
+		genruntime.AddAnnotation(obj, deletionStartedAnnotation, time.Now().UTC().Format(time.RFC3339))
+
+		err := r.Update(ctx, obj)
+		if err != nil {
+			return false, fmt.Errorf("stamping deletion-started annotation: %w", err)
+		}
+
+		return false, nil
+	}
+
+	startedAt, err := time.Parse(time.RFC3339, started)
+	if err != nil {
+		// Unparseable timestamp: treat as not expired so we keep trying to delete.
+		//nolint:nilerr // a malformed annotation is non-fatal; do not abort the delete.
+		return false, nil
+	}
+
+	return time.Since(startedAt) > r.deletionGracePeriod, nil
 }
 
 func (r *Reconciler) removeFinalizer(

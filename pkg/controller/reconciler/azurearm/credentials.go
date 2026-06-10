@@ -27,7 +27,7 @@ const (
 // its target subscription and a ready-to-use ARM client.
 type azureCredentials struct {
 	subscriptionID string
-	armClient      *armClient
+	armClient      armRequester
 }
 
 // credentialProvider resolves and caches Azure credentials from the Kubernetes

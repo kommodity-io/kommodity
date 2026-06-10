@@ -36,11 +36,12 @@ func SetupReconcilers(
 
 	for _, resource := range resources {
 		reconciler := &Reconciler{
-			Client:         mgr.GetClient(),
-			controllerName: resource.controllerName,
-			newObj:         resource.newObj,
-			armIDFor:       resource.armIDFor,
-			creds:          creds,
+			Client:              mgr.GetClient(),
+			controllerName:      resource.controllerName,
+			newObj:              resource.newObj,
+			armIDFor:            resource.armIDFor,
+			creds:               creds,
+			deletionGracePeriod: azureCfg.ARMDeletionGracePeriod,
 		}
 
 		err := reconciler.SetupWithManager(ctx, mgr, opt)
