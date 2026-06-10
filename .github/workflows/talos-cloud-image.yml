@@ -48,7 +48,7 @@ on:
         required: false
         type: string
       image_name:
-        description: "Override image name (defaults to per-platform name, e.g. kommodity-talos-scaleway)"
+        description: "Override image name (defaults to per-platform name, e.g. kommodity-talos-scaleway). Requires a single platform; cannot be used with platforms=all."
         required: false
         type: string
 
