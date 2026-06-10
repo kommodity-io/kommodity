@@ -92,6 +92,16 @@ jobs:
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Validate image_name override
+        env:
+          IMAGE_NAME_OVERRIDE: ${{ inputs.image_name }}
+          PLATFORMS: ${{ inputs.platforms || 'all' }}
+        run: |
+          if [[ -n "${IMAGE_NAME_OVERRIDE}" && "${PLATFORMS}" == "all" ]]; then
+            echo "::error::image_name override cannot be used with platforms=all (would cause tag collisions). Select a single platform."
+            exit 1
+          fi
+
       - name: Validate talos_version
         env:
           TALOS_VERSION: ${{ steps.resolve-inputs.outputs.talos_version }}
