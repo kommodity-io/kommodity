@@ -4,43 +4,16 @@ kommodity:
   provider:
     name: Azure
     secret:
-      # Azure credentials secret for Cloud Controller Manager.
-      # This secret must exist in the Kommodity management cluster BEFORE deploying the chart.
-      # The CCM CRS reconciler reads this secret and delivers it into the workload cluster's
-      # kube-system namespace as "azure-cloud-provider" via a ClusterResourceSet payload Secret.
+      # Name of the CCM cloud-config Secret. You do NOT need to create this Secret:
+      # Kommodity's Azure credential materializer generates it (and the
+      # `<cluster>-aso-secret` the embedded ARM reconciler uses) from the single
+      # AzureClusterIdentity below, then the CCM CRS reconciler delivers it into the
+      # workload cluster's kube-system namespace. The only Azure secret you create by
+      # hand is the AzureClusterIdentity's clientSecret Secret (see identity, below).
       #
-      # Create the secret in the management cluster:
-      #
-      # apiVersion: v1
-      # kind: Secret
-      # metadata:
-      #   name: azure-cloud-provider
-      #   namespace: <release-namespace>
-      # stringData:
-      #   cloud-config: |
-      #     {
-      #       "tenantId": "<YOUR_TENANT_ID>",
-      #       "subscriptionId": "<YOUR_SUBSCRIPTION_ID>",
-      #       "resourceGroup": "<YOUR_WORKLOAD_RESOURCE_GROUP>",
-      #       "location": "westeurope",
-      #       "useManagedIdentityExtension": false,
-      #       "aadClientId": "<YOUR_CLIENT_ID>",
-      #       "aadClientSecret": "<YOUR_CLIENT_SECRET>",
-      #       "loadBalancerSku": "standard",
-      #       "vmType": "standard",
-      #       "useInstanceMetadata": true,
-      #       "securityGroupName": "<CLUSTER>-node-nsg",
-      #       "securityGroupResourceGroup": "<NSG_RESOURCE_GROUP>",
-      #       "vnetName": "<YOUR_VNET_NAME>",
-      #       "vnetResourceGroup": "<VNET_RESOURCE_GROUP>",
-      #       "subnetName": "<CLUSTER>-node-subnet",
-      #       "routeTableName": "<CLUSTER>-node-routetable",
-      #       "cloudProviderBackoff": true,
-      #       "cloudProviderBackoffRetries": 6,
-      #       "cloudProviderRateLimit": true,
-      #       "cloudProviderRateLimitQPS": 3.0,
-      #       "cloudProviderRateLimitBucket": 10
-      #     }
+      # If you pre-create a Secret with this name yourself, Kommodity detects it (by
+      # the absence of its managed-by label) and leaves it untouched — a manual
+      # override escape hatch.
       name: azure-cloud-provider
     identity:
       # AzureClusterIdentity resource name for authentication.

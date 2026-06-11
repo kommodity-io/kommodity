@@ -233,26 +233,27 @@ Kommodity's embedded scheme does not register, causing conversion errors at runt
 
 ## 5. Per-cluster setup
 
-### 5.1 Per-release ASO credential Secret
+### 5.1 Credentials — one secret only
 
-Every cluster Helm release needs an ASO credential Secret named **`<release-name>-aso-secret`** in
-the management cluster's `default` namespace. CAPZ annotates every ASO CR it creates with
-`serviceoperator.azure.com/credential-from: <release>-aso-secret`, so this Secret must exist
-before or at the time of `helm install`.
+The **only** Azure secret you create per environment is the `AzureClusterIdentity`'s
+`clientSecret` Secret (§4.1). From it, Kommodity's in-process **Azure credential materializer**
+(`pkg/controller/reconciler/azure_credentials_materializer.go`) derives the other two automatically
+for every Azure cluster, keyed off the cluster's `AzureClusterIdentity` and `AzureCluster` spec:
 
-This is currently a **manual step** — create it for each release:
+- **`<release-name>-aso-secret`** (`AZURE_SUBSCRIPTION_ID/TENANT_ID/CLIENT_ID/CLIENT_SECRET`) — what
+  CAPZ's `serviceoperator.azure.com/credential-from` annotation and the embedded ARM reconciler read.
+- the **CCM cloud-config Secret** (named by `provider.secret.name`) — generated from the cluster's
+  subscription/RG/location/VNet plus the chart's resource naming, then delivered to the workload
+  cluster by the CCM CRS reconciler.
 
-```bash
-kubectl --kubeconfig kommodity.yaml create secret generic my-cluster-aso-secret \
-  --namespace default \
-  --from-literal=AZURE_SUBSCRIPTION_ID=<subscription-id> \
-  --from-literal=AZURE_TENANT_ID=<tenant-id> \
-  --from-literal=AZURE_CLIENT_ID=<sp-app-id> \
-  --from-literal=AZURE_CLIENT_SECRET=<sp-password>
-```
+Both materialized Secrets are owned by the `AzureCluster` (garbage-collected on teardown) and are
+re-derived if the service principal password rotates. You no longer create `<release>-aso-secret`
+or the cloud-config Secret by hand.
 
-Replace `my-cluster` with your Helm release name. A follow-up is planned to template this Secret
-into the chart so it is created automatically.
+> **Escape hatch:** if you pre-create either Secret yourself, the materializer detects it (by the
+> absence of its `kommodity.io/azure-credential-materializer` label) and leaves it untouched. Only
+> `ServicePrincipal`-type `AzureClusterIdentity` is materialized; other identity types still require
+> you to supply the Secrets manually.
 
 ### 5.2 Quotas
 
