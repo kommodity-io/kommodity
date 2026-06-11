@@ -171,7 +171,7 @@ tests:
           pattern: "image: mcr.microsoft.com/oss/kubernetes/azure-cloud-node-manager:v1.34.3"
       - matchRegex:
           path: data["ccm.yaml"]
-          pattern: "image: registry.k8s.io/kubectl:v1.34.2"
+          pattern: "image: registry.k8s.io/kubectl:v1.35.3"
       - matchRegex:
           path: data["ccm.yaml"]
           pattern: "image: mcr.microsoft.com/oss/kubernetes/azure-cloud-controller-manager:v1.34.3"

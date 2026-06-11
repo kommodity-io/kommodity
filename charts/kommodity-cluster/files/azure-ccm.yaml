@@ -369,7 +369,7 @@ spec:
             component: cloud-controller-manager
       initContainers:
         - name: wait-for-cloud-config-secret
-          image: {{ (.Values.kommodity.provider.cloudControllerManager.initImage | default dict).repository | default "registry.k8s.io/kubectl" }}:{{ (.Values.kommodity.provider.cloudControllerManager.initImage | default dict).tag | default "v1.34.2" }}
+          image: {{ (.Values.kommodity.provider.cloudControllerManager.initImage | default dict).repository | default "registry.k8s.io/kubectl" }}:{{ (.Values.kommodity.provider.cloudControllerManager.initImage | default dict).tag | default "v1.35.3" }}
           command:
             - kubectl
             - wait

@@ -71,6 +71,10 @@ kommodity:
       # private registry mirror or tune requests/limits). Each defaults to the value shown.
       #
       # cloud-controller-manager Deployment image + resources:
+      # v1.34.3 is the latest published azure-cloud-controller-manager — no v1.35.x
+      # release exists yet. Azure supports running the CCM one minor behind the
+      # cluster's Kubernetes version (here v1.35.3), so this is the correct
+      # best-available pin, not stale. Bump to v1.35.x once Azure ships it.
       image:
         repository: mcr.microsoft.com/oss/kubernetes/azure-cloud-controller-manager
         tag: v1.34.3
@@ -81,11 +85,14 @@ kommodity:
         limits:
           cpu: 4
           memory: 2Gi
-      # initContainer image that waits for the cloud-config Secret before CCM starts:
+      # initContainer image that waits for the cloud-config Secret before CCM starts.
+      # Tracks the cluster's Kubernetes version (talos.version / values.yaml).
       initImage:
         repository: registry.k8s.io/kubectl
-        tag: v1.34.2
+        tag: v1.35.3
       # cloud-node-manager DaemonSet (Linux + Windows) image + resources:
+      # v1.34.3 is the latest published azure-cloud-node-manager (no v1.35.x yet);
+      # same N-1 rationale as the controller-manager image above.
       nodeManager:
         image:
           repository: mcr.microsoft.com/oss/kubernetes/azure-cloud-node-manager
