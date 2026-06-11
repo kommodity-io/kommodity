@@ -26,13 +26,25 @@ metadata:
   {{- $_ := set $annotations "kommodity.io/node-cidr" .Values.kommodity.network.ipv4.nodeCIDR }}
   {{- end }}
   {{- if .Values.kommodity.provider.cloudControllerManager.enabled }}
+  {{- if eq .Values.kommodity.provider.name "Azure" }}
+  {{- /*
+    Azure's CCM cloud-config Secret is materialized per cluster (not hand-created),
+    so its management-side name defaults to <release>-cloud-provider — unique per
+    release, letting multiple Azure clusters share one namespace without colliding.
+    An explicit provider.secret.name overrides it (e.g. to point at a Secret you
+    manage yourself). The downstream name inside each workload cluster is always
+    azure-cloud-provider (separate clusters, no collision).
+  */}}
+  {{- $azureCCMSecret := dig "secret" "name" "" .Values.kommodity.provider | default (printf "%s-cloud-provider" .Release.Name) }}
+  {{- $_ := set $annotations "kommodity.io/ccm-secret-name" $azureCCMSecret }}
+  {{- $_ := set $annotations "kommodity.io/ccm-downstream-secret-name" "azure-cloud-provider" }}
+  {{- else }}
   {{- $_ := set $annotations "kommodity.io/ccm-secret-name" .Values.kommodity.provider.secret.name }}
   {{- if eq .Values.kommodity.provider.name "Kubevirt" }}
   {{- $_ := set $annotations "kommodity.io/ccm-downstream-secret-name" "kubevirt-cloud-controller-manager" }}
   {{- else if eq .Values.kommodity.provider.name "Scaleway" }}
   {{- $_ := set $annotations "kommodity.io/ccm-downstream-secret-name" "scaleway-secret" }}
-  {{- else if eq .Values.kommodity.provider.name "Azure" }}
-  {{- $_ := set $annotations "kommodity.io/ccm-downstream-secret-name" "azure-cloud-provider" }}
+  {{- end }}
   {{- end }}
   {{- end }}
   {{- if $annotations }}

@@ -3,18 +3,18 @@
 kommodity:
   provider:
     name: Azure
-    secret:
-      # Name of the CCM cloud-config Secret. You do NOT need to create this Secret:
-      # Kommodity's Azure credential materializer generates it (and the
-      # `<cluster>-aso-secret` the embedded ARM reconciler uses) from the single
-      # AzureClusterIdentity below, then the CCM CRS reconciler delivers it into the
-      # workload cluster's kube-system namespace. The only Azure secret you create by
-      # hand is the AzureClusterIdentity's clientSecret Secret (see identity, below).
-      #
-      # If you pre-create a Secret with this name yourself, Kommodity detects it (by
-      # the absence of its managed-by label) and leaves it untouched — a manual
-      # override escape hatch.
-      name: azure-cloud-provider
+    # CCM cloud-config Secret — you do NOT create or name this. Kommodity's Azure
+    # credential materializer generates it (and `<release>-aso-secret`) from the
+    # single AzureClusterIdentity below, then the CCM CRS reconciler delivers it to
+    # the workload cluster's kube-system. The management-side name defaults to
+    # `<release>-cloud-provider` (unique per release), so multiple Azure clusters can
+    # share one namespace without colliding. The only Azure secret you create by hand
+    # is the AzureClusterIdentity's clientSecret Secret (see identity, below).
+    #
+    # secret:
+    #   # Optional override: point at a Secret you manage yourself instead. The
+    #   # materializer leaves any Secret without its managed-by label untouched.
+    #   name: my-cloud-provider-secret
     identity:
       # AzureClusterIdentity resource name for authentication.
       # Create this resource in the management cluster before deploying:

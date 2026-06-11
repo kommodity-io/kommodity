@@ -29,12 +29,21 @@ tests:
           path: spec.infrastructureRef.namespace
           value: default
 
-  - it: should set ccm-secret-name annotation when CCM is enabled
+  - it: should default ccm-secret-name to <release>-cloud-provider (unique per cluster)
     template: templates/provider/capi/cluster.yaml
     asserts:
       - equal:
           path: metadata.annotations["kommodity.io/ccm-secret-name"]
-          value: azure-cloud-provider
+          value: test-cluster-cloud-provider
+
+  - it: should honour an explicit provider.secret.name override for ccm-secret-name
+    template: templates/provider/capi/cluster.yaml
+    set:
+      kommodity.provider.secret.name: my-own-cloud-provider
+    asserts:
+      - equal:
+          path: metadata.annotations["kommodity.io/ccm-secret-name"]
+          value: my-own-cloud-provider
 
   - it: should set ccm-downstream-secret-name annotation to azure-cloud-provider
     template: templates/provider/capi/cluster.yaml
