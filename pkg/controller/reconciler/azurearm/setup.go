@@ -1,9 +1,38 @@
-// Package azurearm provides an in-process reconciler that materializes Azure
-// Service Operator (ASO) custom resources directly into Azure via the Azure
-// Resource Manager (ARM) API. It is a drop-in, single-binary replacement for the
-// external ASO sidecar: it reuses ASO's public generated CR types
-// (ConvertToARM/PopulateFromARM) and satisfies the readiness contract that the
-// Cluster API Provider Azure (CAPZ) controllers depend on.
+// Package azurearm is an in-process reconciler that materializes Azure Service
+// Operator (ASO) custom resources directly into Azure via the Azure Resource
+// Manager (ARM) API. It is a drop-in replacement for the external ASO operator
+// for the specific resource kinds CAPZ drives (ResourceGroup, VirtualNetwork,
+// VirtualNetworksSubnet, NetworkSecurityGroup, NetworkSecurityGroupsSecurityRule,
+// RouteTable, NatGateway).
+//
+// # Why this exists (why we built it instead of running ASO)
+//
+// Kommodity ships and deploys as a single binary (e.g. an Azure Container App)
+// with no sidecars. Provisioning an Azure cluster requires something to turn the
+// ASO CRs that CAPZ creates into real Azure resources — upstream, that "something"
+// is the ASO operator, which is only distributed as a separate Deployment/sidecar.
+// A deployed Kommodity instance therefore had no ASO at all and could not provision
+// Azure clusters. Running ASO alongside us would also mean two binaries, a second
+// version matrix (CAPZ ↔ ASO), and an extra Pod to deploy and secure.
+//
+// We could not simply import and embed ASO's controller, either: the part that
+// actually talks to ARM — its generic ARM-by-ID client, ARM-ID construction,
+// reference resolution, and the reconcile/poll loop — lives entirely under ASO's
+// internal/ packages, which the Go toolchain forbids importing from another module.
+//
+// So we reuse everything ASO exposes publicly and reimplement only the engine that
+// is locked away. Reused as-is from ASO's public surface: the generated CR types
+// and their ConvertToARM (spec → ARM body) and PopulateFromARM (ARM → status)
+// methods, plus pkg/genruntime and pkg/common/annotations. Hand-written here: the
+// ARM client (armclient.go), ARM-ID construction (armid.go), reference resolution
+// (references.go, reflecthelpers.go), credential loading (credentials.go), and the
+// generic controller loop (reconciler.go). The Ready condition we publish
+// (conditions.go) matches the exact reason/severity vocabulary the Cluster API
+// Provider Azure (CAPZ) controllers read, so CAPZ cannot tell our reconciler apart
+// from upstream ASO.
+//
+// The net effect: a single Kommodity binary provisions Azure end-to-end with no
+// ASO sidecar.
 package azurearm
 
 import (
