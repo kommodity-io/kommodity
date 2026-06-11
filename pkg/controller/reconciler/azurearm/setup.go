@@ -33,6 +33,31 @@
 //
 // The net effect: a single Kommodity binary provisions Azure end-to-end with no
 // ASO sidecar.
+//
+// # How CAPZ and ASO split the work
+//
+// CAPZ does not provision all Azure resources the same way. The work is split:
+//
+//   - Network foundation — ResourceGroup, VirtualNetwork, VirtualNetworksSubnet,
+//     NetworkSecurityGroup (+ SecurityRule), RouteTable, NatGateway — is delegated
+//     to ASO. CAPZ only *creates the ASO custom resources*; it makes no ARM calls
+//     for these itself. For this subset CAPZ is purely a translation layer, and
+//     without an ASO reconciler the CRs just sit there — nothing reaches Azure.
+//     This is the gap this package fills, and it is exactly the set of kinds in
+//     registry.go.
+//   - Compute and its immediate dependencies — virtual machines, OS disks, network
+//     interfaces, load balancers, and public IPs — are provisioned by CAPZ's own
+//     controllers calling the Azure SDK directly. These never become ASO CRs (the
+//     apiserver does not even serve compute.azure.com / loadBalancers /
+//     networkInterfaces / publicIPAddresses CRDs), so this package neither sees nor
+//     manages them.
+//
+// The practical consequence, and the reason the embedded reconciler is mandatory
+// rather than optional: CAPZ on its own cannot bring up a cluster. It would create
+// the VMs/NICs/LB/PIPs, but the network foundation (the ASO CRs) would never
+// reconcile, leaving the NICs with no subnet to attach to. Something has to turn
+// those ASO CRs into Azure resources — upstream that is the ASO operator; here it
+// is this package.
 package azurearm
 
 import (
