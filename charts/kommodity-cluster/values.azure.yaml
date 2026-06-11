@@ -129,11 +129,18 @@ kommodity:
       # and node (10.1.0.0/16) subnets the chart creates, hence the VNet supernet.
       # Azure VNets support CIDR ranges between /8 and /29.
       nodeCIDR: 10.0.0.0/8
+      # VNet — by DEFAULT you omit the `vnet:` block entirely (as here) and CAPZ
+      # auto-creates `<release>-vnet` (10.0.0.0/8) in the cluster's resource group,
+      # with the controlplane (10.0.0.0/16) and node (10.1.0.0/16) subnets, NSGs,
+      # route table and NAT gateway provisioned inside it. You do NOT need to
+      # pre-create any networking — only the resource group must exist. Each cluster
+      # gets its own `<release>-vnet`, so multiple clusters never collide.
+      #
+      # Set the block below ONLY to adopt a pre-existing (BYO) VNet: pre-create the
+      # (empty) VNet yourself; the chart still creates the subnets / NSG / route
+      # table / NAT gateway inside it (emitted as ASO CRs, since CAPZ skips creating
+      # them in BYO-VNet mode).
       # vnet:
-      #   # Optional: Use an existing VNet instead of creating a new one.
-      #   # When omitted, the chart creates <cluster>-vnet with 10.0.0.0/8.
-      #   # When set, all three NSG and RouteTable ASO CRs are emitted via networkresources.yaml
-      #   # (CAPZ skips creating them in BYO-VNet mode, so they must pre-exist).
       #   name: my-existing-vnet
       #   resourceGroup: my-vnet-resource-group
       # subnet:
