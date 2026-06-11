@@ -185,6 +185,7 @@ spec:
               direction: Inbound
               priority: 200
               source: VirtualNetwork
+              sourcePorts: "*"
               destination: "*"
               destinationPorts: "50000"
               action: Allow
