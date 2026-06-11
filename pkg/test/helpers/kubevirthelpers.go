@@ -17,16 +17,27 @@ import (
 
 // InfraClusterNamespace is the namespace in the kind cluster where KubeVirt VMs are deployed.
 const (
-	kubevirtVersion      = "v1.4.0"
-	cdiVersion           = "v1.61.0"
-	kubevirtReadyTimeout = 5 * time.Minute
-	cdiReadyTimeout      = 5 * time.Minute
-	instanceTypeSKU      = "s1.medium"
-	instanceTypeCPU      = 2
-	instanceTypeMemory   = "4Gi"
-	kubevirtNamespace    = "kubevirt"
-	kubevirtValuesFile   = "values.kubevirt.yaml"
+	kubevirtVersion       = "v1.8.2"
+	cdiVersion            = "v1.65.0"
+	kubevirtReadyTimeout  = 5 * time.Minute
+	cdiReadyTimeout       = 5 * time.Minute
+	controlPlaneSKU       = "sku-min-control-plane"
+	controlPlaneSKUCPU    = 2
+	controlPlaneSKUMemory = "2Gi"
+	workerSKU             = "sku-min-worker"
+	workerSKUCPU          = 1
+	workerSKUMemory       = "1Gi"
+	minBootDiskSizeGiB    = 10
+	kubevirtNamespace     = "kubevirt"
+	kubevirtValuesFile    = "values.kubevirt.yaml"
 )
+
+// vmInstanceTypeSpec describes a VirtualMachineClusterInstancetype to be created in the infra cluster.
+type vmInstanceTypeSpec struct {
+	name   string
+	cpu    int64
+	memory string
+}
 
 // KubevirtInfraEnv holds the configuration for the KubeVirt infrastructure cluster.
 type KubevirtInfraEnv struct {
@@ -52,10 +63,13 @@ func (k KubevirtInfra) Overrides() map[string]any {
 			"host": k.ControlPlaneEndpointHost,
 			"port": k.ControlPlaneEndpointPort,
 		},
-		"kommodity.controlplane.replicas":      int64(1),
-		"kommodity.controlplane.sku":           instanceTypeSKU,
-		"kommodity.nodepools.default.replicas": int64(1),
-		"kommodity.nodepools.default.sku":      instanceTypeSKU,
+		"kommodity.controlplane.replicas":               int64(1),
+		"kommodity.controlplane.sku":                    controlPlaneSKU,
+		"kommodity.controlplane.os.disk.size":           int64(minBootDiskSizeGiB),
+		"kommodity.nodepools.default.replicas":          int64(1),
+		"kommodity.nodepools.default.sku":               workerSKU,
+		"kommodity.nodepools.default.os.disk.size":      int64(minBootDiskSizeGiB),
+		"kommodity.nodepools.default.additionalVolumes": []any{},
 	}
 }
 
@@ -221,10 +235,9 @@ func waitForCDIReady(config *rest.Config) error {
 	return nil
 }
 
-// createInstanceTypes creates VirtualMachineClusterInstancetype resources needed by the Helm chart.
+// createInstanceTypes creates the VirtualMachineClusterInstancetype resources referenced by the
+// Helm chart for control plane and worker SKUs.
 func createInstanceTypes(config *rest.Config) error {
-	log.Printf("Creating VirtualMachineClusterInstancetype %q...", instanceTypeSKU)
-
 	dynClient, err := dynamic.NewForConfig(config)
 	if err != nil {
 		return fmt.Errorf("failed to create dynamic client: %w", err)
@@ -236,32 +249,56 @@ func createInstanceTypes(config *rest.Config) error {
 		Resource: "virtualmachineclusterinstancetypes",
 	}
 
+	specs := []vmInstanceTypeSpec{
+		{name: controlPlaneSKU, cpu: controlPlaneSKUCPU, memory: controlPlaneSKUMemory},
+		{name: workerSKU, cpu: workerSKUCPU, memory: workerSKUMemory},
+	}
+
+	ctx := context.Background()
+
+	for _, spec := range specs {
+		err := createInstanceType(ctx, dynClient, gvr, spec)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func createInstanceType(
+	ctx context.Context,
+	dynClient dynamic.Interface,
+	gvr schema.GroupVersionResource,
+	spec vmInstanceTypeSpec,
+) error {
+	log.Printf("Creating VirtualMachineClusterInstancetype %q (cpu=%d, memory=%s)...",
+		spec.name, spec.cpu, spec.memory)
+
 	instanceType := &unstructured.Unstructured{
 		Object: map[string]any{
 			"apiVersion": "instancetype.kubevirt.io/v1beta1",
 			"kind":       "VirtualMachineClusterInstancetype",
 			"metadata": map[string]any{
-				"name": instanceTypeSKU,
+				"name": spec.name,
 			},
 			"spec": map[string]any{
 				"cpu": map[string]any{
-					"guest": int64(instanceTypeCPU),
+					"guest": spec.cpu,
 				},
 				"memory": map[string]any{
-					"guest": instanceTypeMemory,
+					"guest": spec.memory,
 				},
 			},
 		},
 	}
 
-	ctx := context.Background()
-
-	_, err = dynClient.Resource(gvr).Create(ctx, instanceType, metav1.CreateOptions{})
+	_, err := dynClient.Resource(gvr).Create(ctx, instanceType, metav1.CreateOptions{})
 	if err != nil {
-		return fmt.Errorf("failed to create instance type %q: %w", instanceTypeSKU, err)
+		return fmt.Errorf("failed to create instance type %q: %w", spec.name, err)
 	}
 
-	log.Printf("VirtualMachineClusterInstancetype %q created", instanceTypeSKU)
+	log.Printf("VirtualMachineClusterInstancetype %q created", spec.name)
 
 	return nil
 }
