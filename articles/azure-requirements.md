@@ -440,6 +440,7 @@ The following are handled by the chart — you do **not** need to do these by ha
 | Talos API access (port 50000) | Reached via the talos-cluster-proxy tunnel (never exposed on the LB); requires the `kommodity.io/node-cidr` annotation, set whenever node VMs are private (always on Azure) |
 | CCM Secret delivery at bootstrap | `cloudConfig` → Talos `inlineManifest` → `azure-cloud-provider` Secret in workload `kube-system` |
 | VM extension suppression | `disableExtensionOperations: true` on all AzureMachineTemplates (Talos has no Azure Linux agent) |
+| Standalone VMs (no VMSS) | Nodes are individual `Microsoft.Compute/virtualMachines` via `AzureMachineTemplate`; the chart never templates `MachinePool`/`AzureMachinePool` (see §12) |
 | Auto-bootstrap | Talos auto-bootstrap extension self-initializes the CP on private clusters without management→workload connectivity |
 
 ---
@@ -535,3 +536,40 @@ The `AzureCluster` CR carries `helm.sh/resource-policy: keep`, so Helm does not 
 CAPI's deletion flow drives the sequence: `Cluster` → `AzureCluster` → Azure resources. The ASO
 NSG/RouteTable CRs (BYO-VNet only) do not carry this annotation and are deleted by Helm directly,
 after which ASO deletes the corresponding Azure resources.
+
+---
+
+## 12. Node compute: standalone VMs, not scale sets
+
+Cluster nodes (control plane and workers) are provisioned as **individual
+`Microsoft.Compute/virtualMachines`** — **not** as a Virtual Machine Scale Set (VMSS). This is by
+design and is a property of which Cluster API types the chart templates, not a tunable.
+
+**How the layers split.** Two distinct controllers provision Azure resources, and the VM-vs-VMSS
+choice belongs entirely to the compute layer — the embedded ASO reconciler has nothing to do with it:
+
+| Layer | Owns | Mechanism |
+|---|---|---|
+| **Network** | ResourceGroup, VirtualNetwork, Subnet, NetworkSecurityGroup, RouteTable, NatGateway | Kommodity's **embedded ASO reconciler** materializes ASO CRs into Azure (replaces the ASO sidecar) |
+| **Compute** | the node VMs themselves | **CAPZ's `AzureMachine` controller** calls the Azure SDK directly — node compute never goes through an ASO CR |
+
+**Why it's standalone VMs.** CAPZ binds compute kind to the CAPI machine abstraction:
+
+- `MachineDeployment` / `TalosControlPlane` + **`AzureMachineTemplate`** → standalone
+  `Microsoft.Compute/virtualMachines`. **This is what the chart templates** (see
+  [`templates/provider/azure/machinetemplate.yaml`](../charts/kommodity-cluster/templates/provider/azure/machinetemplate.yaml)
+  and [`templates/provider/capi/machinedeployment.yaml`](../charts/kommodity-cluster/templates/provider/capi/machinedeployment.yaml)).
+- `MachinePool` + `AzureMachinePool` → a VMSS. **The chart never templates these**, so no VMSS is
+  ever created.
+
+**How to verify on a running cluster.** Standalone-VM nodes have a providerID of the form:
+
+```
+azure:///subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.Compute/virtualMachines/<name>
+```
+
+A VMSS-backed node would instead read `.../Microsoft.Compute/virtualMachineScaleSets/<vmss>/virtualMachines/<n>`.
+
+**Switching to VMSS would be opting in, not out:** it would require adding `MachinePool` +
+`AzureMachinePool` templates (and the matching compute wiring). There is no VMSS in the stack today
+to remove.
