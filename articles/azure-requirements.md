@@ -6,8 +6,9 @@ cluster. Cross-reference [`articles/000_baseline.md`](000_baseline.md) for the n
 and [`charts/kommodity-cluster/values.azure.yaml`](../charts/kommodity-cluster/values.azure.yaml)
 for the full annotated values reference.
 
-> Status: written against chart v0.12.24 and the completed Azure MVP. Manual steps are documented
-> honestly as such; planned automation is noted with a "Roadmap" callout.
+> Status: written against chart v0.20.x and the embedded Azure ARM reconciler + single-secret
+> credential materializer. Manual steps are documented honestly as such; planned automation is
+> noted with a "Roadmap" callout.
 
 ## TL;DR
 
@@ -16,11 +17,13 @@ You need (in order):
 1. An Azure **subscription** and a target **region**.
 2. A **Talos OS Azure VM image** in that subscription (one-time per Talos version).
 3. A **service principal** with Contributor on the subscription.
-4. The **Kommodity management cluster** running with an **ASO sidecar** alongside it.
-5. An **`AzureClusterIdentity`** + its backing Secret in the management cluster.
-6. A **per-release ASO credential Secret** named `<release>-aso-secret` (one per cluster).
-7. A **`values.azure.yaml`** with your subscription, resource group, image, and CCM credentials.
-8. `helm install` (or `helm template | kubectl apply`).
+4. The **Kommodity management cluster** — CAPI, CAPZ, the Talos providers, and the embedded
+   Azure ARM reconciler are all bundled into the single Kommodity binary (no ASO sidecar).
+5. An **`AzureClusterIdentity`** + its backing Secret in the management cluster. This is the
+   **only** Azure Secret you create by hand; Kommodity's credential materializer derives the
+   per-cluster `<release>-aso-secret` and the CCM cloud-config Secret from it.
+6. A **`values.azure.yaml`** with your subscription, resource group, image, and identity name.
+7. `helm install` (or `helm template | kubectl apply`).
 
 ---
 
@@ -136,7 +139,9 @@ You need a Kubernetes cluster running Kommodity with:
 - **CAPI core controllers** — provided by Kommodity.
 - **CAPZ infrastructure provider** — bundled into the Kommodity binary.
 - **Talos bootstrap + control plane providers** — bundled into the Kommodity binary.
-- **ASO (Azure Service Operator) v2.18.0** running as a **separate sidecar process** (see §4.2).
+- **Embedded Azure ARM reconciler** — materializes the ASO custom resources CAPZ delegates
+  (ResourceGroup, VNet, Subnet, NSG, RouteTable, NatGateway) directly to Azure, in-process. No
+  separate ASO sidecar is required (see §4.2).
 - Outbound network access from the management cluster host to `management.azure.com` and
   `login.microsoftonline.com`.
 
@@ -180,54 +185,33 @@ kubectl --kubeconfig kommodity.yaml apply -f azure-cluster-identity.yaml
 The name `azure-cluster-identity` is what you reference under `kommodity.provider.identity.name`
 in chart values.
 
-### 4.2 ASO sidecar
+### 4.2 Embedded Azure ARM reconciler
 
-CAPZ ≥ v1.10 delegates Resource Group, VNet, Subnet, NAT Gateway, and related Azure resource
-creation to [Azure Service Operator (ASO)](https://azure.github.io/azure-service-operator/) custom
-resources. Kommodity does not embed ASO controllers today (the ASO `internal/` packages cannot be
-imported externally, and its entrypoint expects to own the process). Run ASO **v2.18.0** as a
-separate Docker container pointed at the same Kommodity API server:
+CAPZ ≥ v1.10 delegates the network-foundation resources (ResourceGroup, VirtualNetwork, Subnet,
+NetworkSecurityGroup, RouteTable, NatGateway) to
+[Azure Service Operator (ASO)](https://azure.github.io/azure-service-operator/) custom resources;
+it provisions compute, disks, NICs, load balancers, and public IPs directly via the Azure SDK.
+Kommodity does **not** run an external ASO sidecar. Instead it embeds a purpose-built ARM
+reconciler ([`pkg/controller/reconciler/azurearm/`](../pkg/controller/reconciler/azurearm/)) that
+watches those ASO custom resources and reconciles them straight to Azure Resource Manager in the
+same process as the rest of Kommodity.
 
-```bash
-docker run -d \
-  --name aso-kommodity \
-  --restart=unless-stopped \
-  -v /path/to/kommodity.kubeconfig:/kubeconfig \
-  -e KUBECONFIG=/kubeconfig \
-  -e AZURE_SUBSCRIPTION_ID=<subscription-id> \
-  -e AZURE_TENANT_ID=<tenant-id> \
-  -e AZURE_CLIENT_ID=<sp-app-id> \
-  -e AZURE_CLIENT_SECRET=<sp-password> \
-  -e POD_NAMESPACE=azureserviceoperator-system \
-  -e AZURE_OPERATOR_MODE=watchers \
-  mcr.microsoft.com/k8s/azureserviceoperator:v2.18.0 \
-  --crd-management=none --health-addr=:8081 --metrics-addr=0
-```
+There is nothing to deploy or operate separately — the reconciler starts with the Kommodity binary
+whenever the Azure provider is enabled. It authenticates per resource via the
+`serviceoperator.azure.com/credential-from` annotation CAPZ stamps on each CR, resolving the
+referenced `<release>-aso-secret` (which the credential materializer creates for you, see §5.1).
 
-Two flags are required:
-- `--crd-management=none`: Kommodity ships its own copy of the Azure CRDs; ASO must not try to
-  replace them.
-- `AZURE_OPERATOR_MODE=watchers`: disables webhook servers (Kommodity has no cert-manager).
+**Why in-process rather than the ASO sidecar?** ASO's controller wiring lives in its `internal/`
+packages (not importable) and its entrypoint expects to own the process, so it cannot be linked
+into Kommodity's single binary. Running it as a sidecar would add a second deployable, a second
+credential surface, and a CRD-version coupling to manage. The embedded reconciler keeps Azure
+support to one binary, one credential path, and the same teardown story as every other provider.
+See the package doc comment in
+[`pkg/controller/reconciler/azurearm/setup.go`](../pkg/controller/reconciler/azurearm/setup.go) for
+the full rationale and the CAPZ/ASO responsibility split.
 
-The kubeconfig must point at Kommodity through a routable address. In Docker Desktop on macOS that
-is typically `https://host.docker.internal:8443` or `https://192.168.5.2:8443`. If Kommodity's
-serving cert only covers `127.0.0.1`, pass `insecure-skip-tls-verify: true` in the kubeconfig
-(acceptable for local dev; use a properly-SANed cert in production).
-
-**ASO version compatibility**: use v2.18.0. Newer ASO versions introduce CRD storage versions that
-Kommodity's embedded scheme does not register, causing conversion errors at runtime. See
-[`pkg/provider/crds/azure/`](../pkg/provider/crds/azure/) for the embedded CRD set.
-
-> **Note**: Kommodity's embedded CRDs are generated by `make fetch-providers` and track CAPZ's
-> pinned provider release, so they cannot carry hand-added stub versions. If a given ASO sidecar
-> version refuses to start because a CRD (e.g. `extensions.kubernetesconfiguration.azure.com`) is
-> missing a served version it expects, patch that CRD on the management cluster as a setup step
-> (`kubectl ... patch crd ...` adding the served version) rather than editing the embedded CRD —
-> the latter would fail the CAPI provider-consistency check.
-
-> **Roadmap**: embedded ASO. Two unblockers must land first: (1) ASO upstream exposes a public
-> controller setup API (or Kommodity accepts a fork), and (2) CAPZ catches up to an ASO version
-> that contains the storage versions Kommodity wants to ship.
+The embedded Azure CRD set is generated by `make fetch-providers` and tracks CAPZ's pinned provider
+release; see [`pkg/provider/crds/azure/`](../pkg/provider/crds/azure/).
 
 ---
 
@@ -295,55 +279,38 @@ talos:
 ### 6.2 Cloud Controller Manager
 
 The Azure CCM must run inside the workload cluster to assign node provider IDs and manage
-`type=LoadBalancer` Services. Set `cloudControllerManager.cloudConfig` to deliver the CCM
-credential as a Talos bootstrap `inlineManifest`:
+`type=LoadBalancer` Services. Enable it with a single flag:
 
 ```yaml
 kommodity:
   provider:
     cloudControllerManager:
       enabled: true
-      cloudConfig: |
-        {
-          "tenantId": "<tenant-id>",
-          "subscriptionId": "<subscription-id>",
-          "resourceGroup": "<workload-rg>",
-          "location": "westeurope",
-          "useManagedIdentityExtension": false,
-          "aadClientId": "<sp-app-id>",
-          "aadClientSecret": "<sp-password>",
-          "loadBalancerSku": "standard",
-          "vmType": "standard",
-          "useInstanceMetadata": true,
-          "securityGroupName": "<release>-node-nsg",
-          "securityGroupResourceGroup": "<workload-rg>",
-          "vnetName": "<release>-vnet",
-          "vnetResourceGroup": "<workload-rg>",
-          "subnetName": "<release>-node-subnet",
-          "routeTableName": "<release>-node-routetable"
-        }
 ```
 
-When `cloudConfig` is set, the chart embeds the `azure-cloud-provider` Secret and the CCM
-`Deployment` (with an `initContainer` that waits for the Secret) into the Talos machine config via
-`cluster.inlineManifests`. The Secret is applied at first boot — no management→workload connectivity
-is required for the CCM to start.
+You do **not** write a `cloudConfig` blob. The credential materializer (§5.1) generates the
+cloud-config Secret from the `AzureClusterIdentity` + `AzureCluster` spec (subscription, resource
+group, location, VNet, and the chart's resource naming), so no SP credentials live in your values
+file. Every image and resource block is overridable — see
+[`values.azure.yaml`](../charts/kommodity-cluster/values.azure.yaml) for the full annotated set
+(controller-manager image, node-manager DaemonSet image, the kubectl initImage, and resource
+requests/limits), each defaulting to the value shown there.
 
-Also add the kubelet flag that tells Kubernetes a cloud provider is in use:
+**Delivery:** the chart emits a `ClusterResourceSet` ([`ccm-crs.yaml`](../charts/kommodity-cluster/templates/ccm-crs.yaml))
+that propagates the CCM manifests (a ConfigMap) and the credential (the `azure-cloud-provider`
+Secret in the workload's `kube-system`) into the cluster once it registers. The CCM `Deployment`
+carries an `initContainer` that waits for the Secret before starting, so there is no crash loop if
+the Secret arrives slightly later than the pod.
 
-```yaml
-kommodity:
-  global:
-    configPatches:
-      - op: add
-        path: /machine/kubelet/extraArgs
-        value:
-          cloud-provider: external
-```
+The kubelet `--cloud-provider=external` flag is **auto-injected** by the chart whenever
+`cloudControllerManager.enabled` is true (see the `mergedStrategicPatch` helper in
+[`_helpers.tpl`](../charts/kommodity-cluster/templates/_helpers.tpl)). You do not add it by hand —
+omitting it previously left nodes without a providerID, which wedged CAPI NodeRef linking.
 
-> **Security note:** `cloudConfig` is embedded verbatim into the Talos machine config (stored
-> encrypted on the Talos STATE partition and in the management cluster's TalosConfig secret). Store
-> the values file containing `cloudConfig` in a gitignored file — never commit SP credentials.
+> **Security note:** the materialized cloud-config Secret carries the SP credentials and is stored
+> in the management cluster (Kine/PostgreSQL) and delivered to the workload `kube-system`. The only
+> credential you supply by hand is the `AzureClusterIdentity`'s `clientSecret` (§4.1) — keep that
+> out of version control. Nothing sensitive belongs in your `values.azure.yaml` anymore.
 
 ### 6.3 Private cluster (default)
 
@@ -361,7 +328,7 @@ kommodity:
     ipv4:
       enabled: true
       public: false
-      nodeCIDR: 10.200.0.0/16   # required when public: false
+      nodeCIDR: 10.0.0.0/8   # required on Azure in BOTH modes (node VMs are always private)
 ```
 
 **Accessing the cluster from outside the VNet:** The API server (`apiserver.<release>.capz.io:6443`)
@@ -439,7 +406,9 @@ The following are handled by the chart — you do **not** need to do these by ha
 | NAT gateway on CP + node subnets | Both subnets reference the same `<release>-node-natgw-1` |
 | NSG + route table for BYO-VNet | ASO `NetworkSecurityGroup` / `RouteTable` CRs (all BYO-VNet clusters; `allow-apiserver` source is `Internet` in public mode, `VirtualNetwork` in private) |
 | Talos API access (port 50000) | Reached via the talos-cluster-proxy tunnel (never exposed on the LB); requires the `kommodity.io/node-cidr` annotation, set whenever node VMs are private (always on Azure) |
-| CCM Secret delivery at bootstrap | `cloudConfig` → Talos `inlineManifest` → `azure-cloud-provider` Secret in workload `kube-system` |
+| CCM credential materialized | Credential materializer derives the cloud-config Secret from the `AzureClusterIdentity` (§5.1) — no `cloudConfig` written by hand |
+| CCM delivery | `ClusterResourceSet` propagates the CCM manifests + the `azure-cloud-provider` Secret into the workload `kube-system` (CCM `initContainer` waits for the Secret) |
+| kubelet `--cloud-provider=external` | Auto-injected by the chart whenever `cloudControllerManager.enabled` is true |
 | VM extension suppression | `disableExtensionOperations: true` on all AzureMachineTemplates (Talos has no Azure Linux agent) |
 | Standalone VMs (no VMSS) | Nodes are individual `Microsoft.Compute/virtualMachines` via `AzureMachineTemplate`; the chart never templates `MachinePool`/`AzureMachinePool` (see §12) |
 | Auto-bootstrap | Talos auto-bootstrap extension self-initializes the CP on private clusters without management→workload connectivity |
@@ -468,7 +437,7 @@ Assuming §1–§5 are done and you have a file `values.azure.private.yaml` (git
 ```bash
 # Deploy
 helm template my-cluster oci://ghcr.io/kommodity-io/charts/kommodity-cluster \
-  --version 0.12.24 \
+  --version 0.20.3 \
   -f values.azure.private.yaml \
   | kubectl --kubeconfig kommodity.yaml apply -f -
 
@@ -528,15 +497,18 @@ helm uninstall my-cluster --kubeconfig kommodity.yaml
 
 # Delete the workload resource group (CAPI usually does this; belt-and-suspenders)
 az group delete --name <workload-rg> --yes --no-wait
-
-# Delete the per-release ASO secret
-kubectl --kubeconfig kommodity.yaml delete secret my-cluster-aso-secret
 ```
+
+You do **not** delete the per-cluster credential Secrets by hand. The materialized
+`<release>-aso-secret` and cloud-config Secret carry an `ownerReference` to the `AzureCluster`, so
+they are garbage-collected automatically when the cluster is torn down. (The only Secret you ever
+created — the `AzureClusterIdentity`'s `clientSecret` — is shared across clusters and is yours to
+keep or remove.)
 
 The `AzureCluster` CR carries `helm.sh/resource-policy: keep`, so Helm does not delete it directly.
 CAPI's deletion flow drives the sequence: `Cluster` → `AzureCluster` → Azure resources. The ASO
 NSG/RouteTable CRs (BYO-VNet only) do not carry this annotation and are deleted by Helm directly,
-after which ASO deletes the corresponding Azure resources.
+after which Kommodity's embedded ARM reconciler deletes the corresponding Azure resources.
 
 ---
 
@@ -547,11 +519,11 @@ Cluster nodes (control plane and workers) are provisioned as **individual
 design and is a property of which Cluster API types the chart templates, not a tunable.
 
 **How the layers split.** Two distinct controllers provision Azure resources, and the VM-vs-VMSS
-choice belongs entirely to the compute layer — the embedded ASO reconciler has nothing to do with it:
+choice belongs entirely to the compute layer — the embedded ARM reconciler has nothing to do with it:
 
 | Layer | Owns | Mechanism |
 |---|---|---|
-| **Network** | ResourceGroup, VirtualNetwork, Subnet, NetworkSecurityGroup, RouteTable, NatGateway | Kommodity's **embedded ASO reconciler** materializes ASO CRs into Azure (replaces the ASO sidecar) |
+| **Network** | ResourceGroup, VirtualNetwork, Subnet, NetworkSecurityGroup, RouteTable, NatGateway | Kommodity's **embedded Azure ARM reconciler** materializes ASO CRs into Azure (replaces the ASO sidecar) |
 | **Compute** | the node VMs themselves | **CAPZ's `AzureMachine` controller** calls the Azure SDK directly — node compute never goes through an ASO CR |
 
 **Why it's standalone VMs.** CAPZ binds compute kind to the CAPI machine abstraction:
