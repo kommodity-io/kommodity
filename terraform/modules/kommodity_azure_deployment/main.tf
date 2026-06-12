@@ -1,3 +1,16 @@
+locals {
+  # This module deploys Kommodity to manage Azure clusters, so the Azure provider
+  # must be enabled for the embedded CAPZ/ASO controllers and CRDs to be reconciled.
+  # Append "azure" to any explicitly-provided provider list that lacks it; an empty
+  # value leaves Kommodity on its defaults (which already include azure).
+  infrastructure_providers = (
+    var.kommodity_container.infrastructure_providers != "" &&
+    !contains([for p in split(",", var.kommodity_container.infrastructure_providers) : trimspace(p)], "azure")
+    ? "${var.kommodity_container.infrastructure_providers},azure"
+    : var.kommodity_container.infrastructure_providers
+  )
+}
+
 # Resource Group
 resource "azurerm_resource_group" "kommodity-resource-group" {
   name     = var.resource_group.name
@@ -254,11 +267,18 @@ resource "azurerm_container_app" "kommodity-app" {
       }
       env {
         name  = "KOMMODITY_INFRASTRUCTURE_PROVIDERS"
-        value = var.kommodity_container.infrastructure_providers
+        value = local.infrastructure_providers
       }
       env {
         name  = "KOMMODITY_GARBAGE_COLLECTOR_ENABLED"
         value = var.kommodity_container.garbage_collector_enabled
+      }
+      dynamic "env" {
+        for_each = var.kommodity_container.azure_default_credential_secret != "" ? [var.kommodity_container.azure_default_credential_secret] : []
+        content {
+          name  = "KOMMODITY_AZURE_DEFAULT_CREDENTIAL_SECRET"
+          value = env.value
+        }
       }
 
       liveness_probe {

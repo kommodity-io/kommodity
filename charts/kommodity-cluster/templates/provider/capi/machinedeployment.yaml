@@ -57,7 +57,7 @@ spec:
           name: {{ $.Release.Name }}-worker-{{ $name }}-{{ include "kommodity-cluster.talosConfigHash" (dict "poolValues" $np "allValues" $.Values) }}
           namespace: {{ $.Release.Namespace }}
       clusterName: {{ $.Release.Name }}
-      failureDomain: {{ $np.zone }}
+      failureDomain: {{ $np.zone | quote }}
       infrastructureRef:
         {{- if not $.Values.kommodity.provider.name }}
         {{- fail "kommodity.provider.name must be set in values.yaml" -}}
@@ -70,6 +70,9 @@ spec:
         {{- else if eq $.Values.kommodity.provider.name "Kubevirt" }}
         apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
         kind: KubevirtMachineTemplate
+        {{- else if eq $.Values.kommodity.provider.name "Azure" }}
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+        kind: AzureMachineTemplate
         {{- else }}
         {{- fail "infrastructure provider is not supported" -}}
         {{- end }}

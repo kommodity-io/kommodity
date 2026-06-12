@@ -1,0 +1,277 @@
+---
+suite: test AzureCluster template
+values:
+  - ../values.azure.yaml
+release:
+  name: test-cluster
+  namespace: default
+templates:
+  - templates/provider/azure/cluster.yaml
+tests:
+  - it: should create an AzureCluster with required fields
+    asserts:
+      - isKind:
+          of: AzureCluster
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: apiVersion
+          value: infrastructure.cluster.x-k8s.io/v1beta1
+      - equal:
+          path: metadata.name
+          value: test-cluster
+      - equal:
+          path: metadata.namespace
+          value: default
+      - equal:
+          path: metadata.labels["app.kubernetes.io/managed-by"]
+          value: kommodity
+      - equal:
+          path: metadata.annotations["helm.sh/resource-policy"]
+          value: keep
+      - equal:
+          path: spec.subscriptionID
+          value: <YOUR_SUBSCRIPTION_ID>
+      - equal:
+          path: spec.resourceGroup
+          value: <YOUR_RESOURCE_GROUP>
+      - equal:
+          path: spec.location
+          value: westeurope
+
+  - it: should include identityRef when identity is configured
+    asserts:
+      - equal:
+          path: spec.identityRef.apiVersion
+          value: infrastructure.cluster.x-k8s.io/v1beta1
+      - equal:
+          path: spec.identityRef.kind
+          value: AzureClusterIdentity
+      - equal:
+          path: spec.identityRef.name
+          value: azure-cluster-identity
+      - equal:
+          path: spec.identityRef.namespace
+          value: default
+
+  - it: should not include identityRef when identity is not configured
+    set:
+      kommodity.provider.identity: null
+    asserts:
+      - notExists:
+          path: spec.identityRef
+
+  - it: should collect failure domains from nodepools
+    asserts:
+      - exists:
+          path: spec.failureDomains
+      - equal:
+          path: spec.failureDomains["1"]
+          value: {}
+
+  - it: should collect multiple failure domains from multiple nodepools
+    set:
+      kommodity.nodepools.default.zone: "1"
+      kommodity.nodepools.gpu.replicas: 1
+      kommodity.nodepools.gpu.zone: "2"
+      kommodity.nodepools.gpu.sku: Standard_NC6s_v3
+      kommodity.nodepools.gpu.os.disk.size: 30
+    asserts:
+      - equal:
+          path: spec.failureDomains["1"]
+          value: {}
+      - equal:
+          path: spec.failureDomains["2"]
+          value: {}
+
+  - it: should fail when subscriptionID is missing
+    set:
+      kommodity.provider.config.subscriptionID: null
+    asserts:
+      - failedTemplate:
+          errorMessage: "missing required subscriptionID in kommodity.provider.config for Azure"
+
+  - it: should fail when resourceGroup is missing
+    set:
+      kommodity.provider.config.resourceGroup: null
+    asserts:
+      - failedTemplate:
+          errorMessage: "missing required resourceGroup in kommodity.provider.config for Azure"
+
+  - it: should fail when location is missing
+    set:
+      kommodity.provider.config.location: null
+    asserts:
+      - failedTemplate:
+          errorMessage: "missing required location in kommodity.provider.config for Azure"
+
+  - it: should include internal apiServerLB and full networkSpec when cluster is private
+    asserts:
+      - exists:
+          path: spec.networkSpec
+      - equal:
+          path: spec.networkSpec.apiServerLB.name
+          value: test-cluster-internal-lb
+      - equal:
+          path: spec.networkSpec.apiServerLB.type
+          value: Internal
+      - equal:
+          path: spec.networkSpec.apiServerLB.sku
+          value: Standard
+      - equal:
+          path: spec.networkSpec.apiServerLB.idleTimeoutInMinutes
+          value: 4
+      - notExists:
+          path: spec.networkSpec.apiServerLB.frontendIPs
+      - equal:
+          path: spec.networkSpec.apiServerLB.backendPool.name
+          value: test-cluster-internal-lb-backendPool
+      - notExists:
+          path: spec.networkSpec.nodeOutboundLB
+      - equal:
+          path: spec.networkSpec.vnet.name
+          value: test-cluster-vnet
+      - equal:
+          path: spec.networkSpec.vnet.resourceGroup
+          value: <YOUR_RESOURCE_GROUP>
+      - equal:
+          path: spec.networkSpec.vnet.cidrBlocks[0]
+          value: 10.0.0.0/8
+      - equal:
+          path: spec.networkSpec.subnets[0].name
+          value: test-cluster-controlplane-subnet
+      - equal:
+          path: spec.networkSpec.subnets[0].role
+          value: control-plane
+      - equal:
+          path: spec.networkSpec.subnets[0].securityGroup.name
+          value: test-cluster-controlplane-nsg
+      - equal:
+          path: spec.networkSpec.subnets[0].securityGroup.securityRules[0].name
+          value: allow-talos-api-from-vnet
+      - equal:
+          path: spec.networkSpec.subnets[0].securityGroup.securityRules[0].protocol
+          value: Tcp
+      - equal:
+          path: spec.networkSpec.subnets[0].securityGroup.securityRules[0].direction
+          value: Inbound
+      - equal:
+          path: spec.networkSpec.subnets[0].securityGroup.securityRules[0].source
+          value: VirtualNetwork
+      - equal:
+          path: spec.networkSpec.subnets[0].securityGroup.securityRules[0].destinationPorts
+          value: "50000"
+      - equal:
+          path: spec.networkSpec.subnets[0].natGateway.name
+          value: test-cluster-node-natgw-1
+      - equal:
+          path: spec.networkSpec.subnets[0].natGateway.ip.name
+          value: pip-test-cluster-node-natgw-1
+      - equal:
+          path: spec.networkSpec.subnets[1].name
+          value: test-cluster-node-subnet
+      - equal:
+          path: spec.networkSpec.subnets[1].role
+          value: node
+      - equal:
+          path: spec.networkSpec.subnets[1].natGateway.name
+          value: test-cluster-node-natgw-1
+      - equal:
+          path: spec.networkSpec.subnets[1].natGateway.ip.name
+          value: pip-test-cluster-node-natgw-1
+      # Talos API (50000) is never exposed on the apiServerLB; it is reached via
+      # the talos-cluster-proxy tunnel over the private network.
+      - notExists:
+          path: spec.networkSpec.additionalAPIServerLBPorts
+
+  - it: should include apiServerLB and vnet and subnet defaults when public cluster is configured
+    set:
+      kommodity.network.ipv4.public: true
+    asserts:
+      - equal:
+          path: spec.networkSpec.apiServerLB.name
+          value: test-cluster-public-lb
+      - equal:
+          path: spec.networkSpec.apiServerLB.type
+          value: Public
+      - equal:
+          path: spec.networkSpec.apiServerLB.sku
+          value: Standard
+      - equal:
+          path: spec.networkSpec.apiServerLB.idleTimeoutInMinutes
+          value: 4
+      - notExists:
+          path: spec.networkSpec.apiServerLB.frontendIPs
+      - equal:
+          path: spec.networkSpec.apiServerLB.backendPool.name
+          value: test-cluster-public-lb-backendPool
+      - equal:
+          path: spec.networkSpec.vnet.name
+          value: test-cluster-vnet
+      - equal:
+          path: spec.networkSpec.vnet.resourceGroup
+          value: <YOUR_RESOURCE_GROUP>
+      - equal:
+          path: spec.networkSpec.vnet.cidrBlocks[0]
+          value: 10.0.0.0/8
+      - equal:
+          path: spec.networkSpec.subnets[0].name
+          value: test-cluster-controlplane-subnet
+      - equal:
+          path: spec.networkSpec.subnets[0].role
+          value: control-plane
+      - equal:
+          path: spec.networkSpec.subnets[1].name
+          value: test-cluster-node-subnet
+      - equal:
+          path: spec.networkSpec.subnets[1].role
+          value: node
+      - equal:
+          path: spec.networkSpec.subnets[1].natGateway.name
+          value: test-cluster-node-natgw-1
+      - equal:
+          path: spec.networkSpec.subnets[1].natGateway.ip.name
+          value: pip-test-cluster-node-natgw-1
+      # Talos API (50000) is never exposed on the apiServerLB, even in public mode.
+      - notExists:
+          path: spec.networkSpec.additionalAPIServerLBPorts
+
+  - it: should include networkSpec with vnet when configured
+    set:
+      kommodity.network.ipv4.vnet.name: my-vnet
+      kommodity.network.ipv4.vnet.resourceGroup: my-rg
+      kommodity.network.ipv4.vnet.cidrBlocks:
+        - "10.0.0.0/16"
+    asserts:
+      - equal:
+          path: spec.networkSpec.vnet.name
+          value: my-vnet
+      - equal:
+          path: spec.networkSpec.vnet.resourceGroup
+          value: my-rg
+      - equal:
+          path: spec.networkSpec.vnet.cidrBlocks[0]
+          value: "10.0.0.0/16"
+
+  - it: should include networkSpec with subnet when configured
+    set:
+      kommodity.network.ipv4.subnet.name: my-subnet
+      kommodity.network.ipv4.subnet.role: node
+      kommodity.network.ipv4.subnet.cidrBlock: "10.0.1.0/24"
+    asserts:
+      - equal:
+          path: spec.networkSpec.subnets[0].name
+          value: my-subnet
+      - equal:
+          path: spec.networkSpec.subnets[0].role
+          value: node
+      - equal:
+          path: spec.networkSpec.subnets[0].cidrBlocks[0]
+          value: "10.0.1.0/24"
+
+  - it: should not render for non-Azure providers
+    set:
+      kommodity.provider.name: Scaleway
+    asserts:
+      - hasDocuments:
+          count: 0

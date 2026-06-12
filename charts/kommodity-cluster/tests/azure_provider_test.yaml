@@ -1,0 +1,479 @@
+---
+suite: test creation of resources for Azure cluster
+values:
+  - ../values.azure.yaml
+release:
+  name: test-cluster
+  namespace: default
+templates:
+  - templates/*
+tests:
+  # CAPI Cluster template tests
+  - it: should make sure a Cluster is created with Azure infrastructureRef
+    template: templates/provider/capi/cluster.yaml
+    asserts:
+      - isKind:
+          of: Cluster
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: spec.infrastructureRef.kind
+          value: AzureCluster
+      - equal:
+          path: spec.infrastructureRef.apiVersion
+          value: infrastructure.cluster.x-k8s.io/v1beta1
+      - equal:
+          path: spec.infrastructureRef.name
+          value: test-cluster
+      - equal:
+          path: spec.infrastructureRef.namespace
+          value: default
+
+  - it: should default ccm-secret-name to <release>-cloud-provider (unique per cluster)
+    template: templates/provider/capi/cluster.yaml
+    asserts:
+      - equal:
+          path: metadata.annotations["kommodity.io/ccm-secret-name"]
+          value: test-cluster-cloud-provider
+
+  - it: should honour an explicit provider.secret.name override for ccm-secret-name
+    template: templates/provider/capi/cluster.yaml
+    set:
+      kommodity.provider.secret.name: my-own-cloud-provider
+    asserts:
+      - equal:
+          path: metadata.annotations["kommodity.io/ccm-secret-name"]
+          value: my-own-cloud-provider
+
+  - it: should set ccm-downstream-secret-name annotation to azure-cloud-provider
+    template: templates/provider/capi/cluster.yaml
+    asserts:
+      - equal:
+          path: metadata.annotations["kommodity.io/ccm-downstream-secret-name"]
+          value: azure-cloud-provider
+
+  - it: should not set ccm annotations when CCM is disabled
+    template: templates/provider/capi/cluster.yaml
+    set:
+      kommodity.provider.cloudControllerManager.enabled: false
+    asserts:
+      - notExists:
+          path: metadata.annotations["kommodity.io/ccm-secret-name"]
+      - notExists:
+          path: metadata.annotations["kommodity.io/ccm-downstream-secret-name"]
+
+  # CAPI MachineDeployment template tests
+  - it: should make sure a MachineDeployment is created for each nodepool
+    template: templates/provider/capi/machinedeployment.yaml
+    asserts:
+      - isKind:
+          of: MachineDeployment
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: metadata.name
+          value: "test-cluster-worker-default"
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.infrastructureRef.kind
+          value: AzureMachineTemplate
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.infrastructureRef.apiVersion
+          value: infrastructure.cluster.x-k8s.io/v1beta1
+        documentIndex: 0
+
+  - it: should create MachineDeployments for multiple nodepools
+    template: templates/provider/capi/machinedeployment.yaml
+    set:
+      kommodity.nodepools.gpu.replicas: 2
+      kommodity.nodepools.gpu.sku: Standard_NC6s_v3
+      kommodity.nodepools.gpu.zone: "2"
+      kommodity.nodepools.gpu.os.disk.size: 50
+    asserts:
+      - hasDocuments:
+          count: 2
+      - equal:
+          path: metadata.name
+          value: "test-cluster-worker-default"
+        documentIndex: 0
+      - equal:
+          path: metadata.name
+          value: "test-cluster-worker-gpu"
+        documentIndex: 1
+      - equal:
+          path: spec.replicas
+          value: 2
+        documentIndex: 1
+      - equal:
+          path: spec.template.spec.infrastructureRef.kind
+          value: AzureMachineTemplate
+        documentIndex: 1
+
+  - it: should set failureDomain from nodepool zone (quoted string)
+    template: templates/provider/capi/machinedeployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.failureDomain
+          value: "1"
+        documentIndex: 0
+
+  # AzureCluster template tests (complementing azure_cluster_test.yaml)
+  - it: should create an AzureCluster with correct apiVersion
+    template: templates/provider/azure/cluster.yaml
+    asserts:
+      - isKind:
+          of: AzureCluster
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: apiVersion
+          value: infrastructure.cluster.x-k8s.io/v1beta1
+
+  # AzureMachineTemplate tests
+  - it: should create AzureMachineTemplates for controlplane and nodepools
+    template: templates/provider/azure/machinetemplate.yaml
+    asserts:
+      - isKind:
+          of: AzureMachineTemplate
+      - hasDocuments:
+          count: 2
+      - matchRegex:
+          path: metadata.name
+          pattern: ^test-cluster-controlplane-[a-f0-9]{6}$
+        documentIndex: 0
+      - matchRegex:
+          path: metadata.name
+          pattern: ^test-cluster-worker-default-[a-f0-9]{6}$
+        documentIndex: 1
+
+  - it: should set vmSize for controlplane from sku
+    template: templates/provider/azure/machinetemplate.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.vmSize
+          value: Standard_D2s_v3
+        documentIndex: 0
+
+  - it: should set vmSize for worker from nodepool sku
+    template: templates/provider/azure/machinetemplate.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.vmSize
+          value: Standard_D2s_v3
+        documentIndex: 1
+
+  - it: should configure osDisk for controlplane
+    template: templates/provider/azure/machinetemplate.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.osDisk.diskSizeGB
+          value: 30
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.osDisk.osType
+          value: Linux
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.osDisk.managedDisk.storageAccountType
+          value: Premium_LRS
+        documentIndex: 0
+
+  - it: should configure osDisk for worker nodepool
+    template: templates/provider/azure/machinetemplate.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.osDisk.diskSizeGB
+          value: 30
+        documentIndex: 1
+      - equal:
+          path: spec.template.spec.osDisk.osType
+          value: Linux
+        documentIndex: 1
+      - equal:
+          path: spec.template.spec.osDisk.managedDisk.storageAccountType
+          value: Premium_LRS
+        documentIndex: 1
+
+  - it: should use custom osDisk type when specified
+    template: templates/provider/azure/machinetemplate.yaml
+    set:
+      kommodity.controlplane.os.disk.type: StandardSSD_LRS
+      kommodity.nodepools.default.os.disk.type: Standard_LRS
+    asserts:
+      - equal:
+          path: spec.template.spec.osDisk.managedDisk.storageAccountType
+          value: StandardSSD_LRS
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.osDisk.managedDisk.storageAccountType
+          value: Standard_LRS
+        documentIndex: 1
+
+  - it: should create dataDisks for worker when configured
+    template: templates/provider/azure/machinetemplate.yaml
+    set:
+      kommodity.nodepools.default.dataDisks:
+        - nameSuffix: data
+          diskSizeGB: 100
+          lun: 0
+          storageAccountType: Premium_LRS
+          cachingType: ReadWrite
+    asserts:
+      - notExists:
+          path: spec.template.spec.dataDisks
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.dataDisks[0].nameSuffix
+          value: data
+        documentIndex: 1
+      - equal:
+          path: spec.template.spec.dataDisks[0].diskSizeGB
+          value: 100
+        documentIndex: 1
+      - equal:
+          path: spec.template.spec.dataDisks[0].lun
+          value: 0
+        documentIndex: 1
+      - equal:
+          path: spec.template.spec.dataDisks[0].managedDisk.storageAccountType
+          value: Premium_LRS
+        documentIndex: 1
+      - equal:
+          path: spec.template.spec.dataDisks[0].cachingType
+          value: ReadWrite
+        documentIndex: 1
+
+  - it: should create multiple AzureMachineTemplates for multiple nodepools
+    template: templates/provider/azure/machinetemplate.yaml
+    set:
+      kommodity.nodepools.gpu.replicas: 1
+      kommodity.nodepools.gpu.sku: Standard_NC6s_v3
+      kommodity.nodepools.gpu.zone: "2"
+      kommodity.nodepools.gpu.os.disk.size: 50
+      kommodity.nodepools.gpu.os.disk.type: Premium_LRS
+    asserts:
+      - hasDocuments:
+          count: 3
+      - matchRegex:
+          path: metadata.name
+          pattern: ^test-cluster-controlplane-[a-f0-9]{6}$
+        documentIndex: 0
+      - matchRegex:
+          path: metadata.name
+          pattern: ^test-cluster-worker-default-[a-f0-9]{6}$
+        documentIndex: 1
+      - matchRegex:
+          path: metadata.name
+          pattern: ^test-cluster-worker-gpu-[a-f0-9]{6}$
+        documentIndex: 2
+      - equal:
+          path: spec.template.spec.vmSize
+          value: Standard_NC6s_v3
+        documentIndex: 2
+      - equal:
+          path: spec.template.spec.osDisk.diskSizeGB
+          value: 50
+        documentIndex: 2
+
+  - it: should use image id when configured
+    template: templates/provider/azure/machinetemplate.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.image.id
+          value: /subscriptions/<YOUR_SUBSCRIPTION_ID>/resourceGroups/<YOUR_RESOURCE_GROUP>/providers/Microsoft.Compute/images/kommodity-talos-azure-v1.13.0
+        documentIndex: 0
+
+  - it: should use marketplace image when configured
+    template: templates/provider/azure/machinetemplate.yaml
+    set:
+      talos.id: null
+      talos.marketplace:
+        publisher: siderolabs
+        offer: talos
+        sku: talos
+        version: 1.13.0
+    asserts:
+      - equal:
+          path: spec.template.spec.image.marketplace.publisher
+          value: siderolabs
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.image.marketplace.offer
+          value: talos
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.image.marketplace.sku
+          value: talos
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.image.marketplace.version
+          value: 1.13.0
+        documentIndex: 0
+
+  - it: should use computeGallery image when configured
+    template: templates/provider/azure/machinetemplate.yaml
+    set:
+      talos.id: null
+      talos.computeGallery:
+        gallery: myGallery
+        name: talos-image
+        version: 1.13.0
+        subscriptionID: my-subscription
+        resourceGroup: my-rg
+    asserts:
+      - equal:
+          path: spec.template.spec.image.computeGallery.gallery
+          value: myGallery
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.image.computeGallery.name
+          value: talos-image
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.image.computeGallery.version
+          value: 1.13.0
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.image.computeGallery.subscriptionID
+          value: my-subscription
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.image.computeGallery.resourceGroup
+          value: my-rg
+        documentIndex: 0
+
+  - it: should set disableExtensionOperations to true by default
+    template: templates/provider/azure/machinetemplate.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.disableExtensionOperations
+          value: true
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.disableExtensionOperations
+          value: true
+        documentIndex: 1
+
+  - it: should allow overriding disableExtensionOperations to false
+    template: templates/provider/azure/machinetemplate.yaml
+    set:
+      azure.disableExtensionOperations: false
+    asserts:
+      - equal:
+          path: spec.template.spec.disableExtensionOperations
+          value: false
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.disableExtensionOperations
+          value: false
+        documentIndex: 1
+
+  - it: should not render AzureMachineTemplates for non-Azure providers
+    template: templates/provider/azure/machinetemplate.yaml
+    set:
+      kommodity.provider.name: Docker
+      kommodity.provider.cloudControllerManager.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  # TalosControlPlane template tests
+  - it: should create TalosControlPlane with AzureMachineTemplate infrastructureTemplate
+    template: templates/talos/controlplane.yaml
+    asserts:
+      - isKind:
+          of: TalosControlPlane
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: spec.infrastructureTemplate.kind
+          value: AzureMachineTemplate
+      - equal:
+          path: spec.infrastructureTemplate.apiVersion
+          value: infrastructure.cluster.x-k8s.io/v1beta1
+      - matchRegex:
+          path: spec.infrastructureTemplate.name
+          pattern: ^test-cluster-controlplane-[a-f0-9]{6}$
+
+  - it: should set controlplane replicas correctly
+    template: templates/talos/controlplane.yaml
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 1
+
+  - it: should set controlplane replicas from values
+    template: templates/talos/controlplane.yaml
+    set:
+      kommodity.controlplane.replicas: 3
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 3
+
+  - it: should include anonymous-auth in strategicPatches via global.strategicPatches
+    template: templates/talos/controlplane.yaml
+    asserts:
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[0]
+          pattern: "anonymous-auth"
+
+  # cloud-provider=external is auto-injected by the chart whenever the CCM is
+  # enabled (not via global.strategicPatches), so an operator can never omit it
+  # and orphan nodes (no providerID → no NodeRef → wedged rollout).
+  - it: should auto-inject cloud-provider=external when CCM is enabled
+    template: templates/talos/controlplane.yaml
+    asserts:
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[0]
+          pattern: "cloud-provider: external"
+
+  - it: should NOT inject cloud-provider=external when CCM is disabled
+    template: templates/talos/controlplane.yaml
+    set:
+      kommodity.provider.cloudControllerManager.enabled: false
+    asserts:
+      - notMatchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[0]
+          pattern: "cloud-provider: external"
+
+  # CCM CRS tests — CCM manifest is delivered via ClusterResourceSet, not inlineManifests
+  - it: should render ConfigMap and ClusterResourceSet for Azure CCM
+    template: templates/ccm-crs.yaml
+    asserts:
+      - hasDocuments:
+          count: 2
+      - containsDocument:
+          kind: ConfigMap
+          apiVersion: v1
+          name: test-cluster-ccm-manifests
+          namespace: default
+        documentIndex: 0
+      - containsDocument:
+          kind: ClusterResourceSet
+          apiVersion: addons.cluster.x-k8s.io/v1beta1
+          name: test-cluster-ccm
+          namespace: default
+        documentIndex: 1
+
+  - it: should embed azure-cloud-node-manager image in CCM ConfigMap
+    template: templates/ccm-crs.yaml
+    set:
+      kommodity.provider.cloudControllerManager.image.repository: mcr.microsoft.com/oss/kubernetes/azure-cloud-controller-manager
+      kommodity.provider.cloudControllerManager.image.tag: v1.34.3
+    documentSelector:
+      path: kind
+      value: ConfigMap
+    asserts:
+      - matchRegex:
+          path: data["ccm.yaml"]
+          pattern: "image: mcr.microsoft.com/oss/kubernetes/azure-cloud-controller-manager:v1.34.3"
+
+  - it: should not render CCM resources when cloudControllerManager is disabled
+    template: templates/ccm-crs.yaml
+    set:
+      kommodity.provider.cloudControllerManager.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0

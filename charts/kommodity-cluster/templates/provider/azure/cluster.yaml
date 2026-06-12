@@ -1,0 +1,271 @@
+{{- if eq .Values.kommodity.provider.name "Azure" }}
+{{- $zones := dict }}
+{{- range $name, $np := .Values.kommodity.nodepools }}
+  {{- $_ := set $zones $np.zone true }}
+{{- end }}
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: AzureCluster
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: kommodity
+  annotations:
+    helm.sh/resource-policy: keep # Prevent Helm from deleting the resource on uninstall, deletion will be handled by CAPI
+spec:
+  {{- if dig "config" "subscriptionID" "" .Values.kommodity.provider }}
+  subscriptionID: {{ .Values.kommodity.provider.config.subscriptionID }}
+  {{- else }}
+  {{- fail "missing required subscriptionID in kommodity.provider.config for Azure" -}}
+  {{- end }}
+  {{- if dig "config" "resourceGroup" "" .Values.kommodity.provider }}
+  resourceGroup: {{ .Values.kommodity.provider.config.resourceGroup }}
+  {{- else }}
+  {{- fail "missing required resourceGroup in kommodity.provider.config for Azure" -}}
+  {{- end }}
+  {{- if dig "config" "location" "" .Values.kommodity.provider }}
+  location: {{ .Values.kommodity.provider.config.location }}
+  {{- else }}
+  {{- fail "missing required location in kommodity.provider.config for Azure" -}}
+  {{- end }}
+  {{- if .Values.kommodity.provider.identity }}
+  identityRef:
+    apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+    kind: AzureClusterIdentity
+    name: {{ .Values.kommodity.provider.identity.name }}
+    namespace: {{ .Release.Namespace }}
+  {{- end }}
+  {{- if $zones }}
+  failureDomains:
+    {{- range $zone, $_ := $zones }}
+    {{ $zone }}: {}
+    {{- end }}
+  {{- end }}
+  {{- /*
+    networkSpec is always emitted for Azure clusters.
+    Without an explicit apiServerLB block CAPZ's mutating defaulter creates a
+    Public LB even when the operator intends a private cluster.  Emitting the
+    block unconditionally gives the chart full control over cluster topology.
+
+    public: true  → apiServerLB.type: Public  (internet-facing control plane)
+    public: false → apiServerLB.type: Internal (private control plane; egress
+                    via NAT gateway on the node subnet only — no inbound path)
+  */}}
+  {{- $isPublic := dig "ipv4" "public" false .Values.kommodity.network }}
+  {{- $hasVnet := dig "ipv4" "vnet" "" .Values.kommodity.network }}
+  {{- $hasSubnet := dig "ipv4" "subnet" "" .Values.kommodity.network }}
+  networkSpec:
+    {{- /*
+      Talos API (port 50000) is deliberately NOT exposed on the apiServerLB.
+      Matching the Scaleway model, only the Kubernetes API (6443) is reachable
+      through the load balancer.  Node VMs have no public IPs in either mode;
+      the `public` flag controls the apiServerLB type only.
+
+      Kommodity's TalosControlPlane reconciler reaches the Talos API over the
+      private network via the talos-cluster-proxy tunnel: it port-forwards
+      through the K8s API LB (6443) to the in-cluster proxy pod, which dials the
+      node's private IP on 50000.  This requires the kommodity.io/node-cidr
+      annotation on the Cluster (see provider/capi/cluster.yaml) so the proxy
+      routes node IPs through the tunnel rather than direct-dialing them.
+
+      Exposing 50000 on the public LB would put the Talos management API on the
+      internet — not how Scaleway does it and a needless widening of the audited
+      surface — so no additionalAPIServerLBPorts entry is emitted.
+    */}}
+    {{- /*
+      VNet — populate defaults matching what the CAPZ mutating webhook would
+      apply (azurecluster_default.go setVnetDefaults).
+    */}}
+    {{- if $isPublic }}
+    vnet:
+      {{- if and $hasVnet (dig "ipv4" "vnet" "name" "" .Values.kommodity.network) }}
+      name: {{ .Values.kommodity.network.ipv4.vnet.name }}
+      {{- else }}
+      name: {{ printf "%s-vnet" .Release.Name }}
+      {{- end }}
+      {{- if and $hasVnet (dig "ipv4" "vnet" "resourceGroup" "" .Values.kommodity.network) }}
+      resourceGroup: {{ .Values.kommodity.network.ipv4.vnet.resourceGroup }}
+      {{- else }}
+      resourceGroup: {{ .Values.kommodity.provider.config.resourceGroup }}
+      {{- end }}
+      {{- if and $hasVnet (dig "ipv4" "vnet" "cidrBlocks" "" .Values.kommodity.network) }}
+      cidrBlocks:
+        {{- toYaml .Values.kommodity.network.ipv4.vnet.cidrBlocks | nindent 8 }}
+      {{- else }}
+      cidrBlocks:
+        - 10.0.0.0/8
+      {{- end }}
+    {{- else }}
+    {{- /* Private mode: same VNet shape as public, user override respected. */}}
+    vnet:
+      {{- if and $hasVnet (dig "ipv4" "vnet" "name" "" .Values.kommodity.network) }}
+      name: {{ .Values.kommodity.network.ipv4.vnet.name }}
+      {{- else }}
+      name: {{ printf "%s-vnet" .Release.Name }}
+      {{- end }}
+      {{- if and $hasVnet (dig "ipv4" "vnet" "resourceGroup" "" .Values.kommodity.network) }}
+      resourceGroup: {{ .Values.kommodity.network.ipv4.vnet.resourceGroup }}
+      {{- else }}
+      resourceGroup: {{ .Values.kommodity.provider.config.resourceGroup }}
+      {{- end }}
+      {{- if and $hasVnet (dig "ipv4" "vnet" "cidrBlocks" "" .Values.kommodity.network) }}
+      cidrBlocks:
+        {{- toYaml .Values.kommodity.network.ipv4.vnet.cidrBlocks | nindent 8 }}
+      {{- else }}
+      cidrBlocks:
+        - 10.0.0.0/8
+      {{- end }}
+    {{- end }}
+    {{- /*
+      Subnets — populate defaults matching setSubnetDefaults.
+      For both public and private clusters: CP subnet + node subnet.
+      The node subnet carries a NAT gateway in both modes:
+        - public:  NAT-gw provides SNAT; the public apiServerLB also handles
+                   inbound SSH InboundNAT rules (not used by Talos, harmless).
+        - private: NAT-gw is the ONLY internet egress path (SNAT only, no
+                   inbound). The internal apiServerLB has no public IP.
+      Naming (index 1 for the first node subnet):
+        controlplane: <clusterName>-controlplane-subnet, NSG: <clusterName>-controlplane-nsg
+        node:         <clusterName>-node-subnet, NSG: <clusterName>-node-nsg,
+                      RT:    <clusterName>-node-routetable,
+                      NatGW: <clusterName>-node-natgw-1,
+                      NatGW IP: pip-<clusterName>-node-natgw-1
+                        (SNAT egress only — this public IP accepts no inbound traffic)
+    */}}
+    {{- if $isPublic }}
+    subnets:
+      - name: {{ printf "%s-controlplane-subnet" .Release.Name }}
+        role: control-plane
+        cidrBlocks:
+          - 10.0.0.0/16
+        securityGroup:
+          name: {{ printf "%s-controlplane-nsg" .Release.Name }}
+      - name: {{ printf "%s-node-subnet" .Release.Name }}
+        role: node
+        cidrBlocks:
+          - 10.1.0.0/16
+        securityGroup:
+          name: {{ printf "%s-node-nsg" .Release.Name }}
+        routeTable:
+          name: {{ printf "%s-node-routetable" .Release.Name }}
+        natGateway:
+          name: {{ printf "%s-node-natgw-1" .Release.Name }}
+          ip:
+            name: {{ printf "pip-%s-node-natgw-1" .Release.Name }}
+    {{- else if $hasSubnet }}
+    subnets:
+      - name: {{ required "missing required subnet.name in kommodity.network.ipv4" .Values.kommodity.network.ipv4.subnet.name }}
+        {{- if dig "ipv4" "subnet" "role" "" .Values.kommodity.network }}
+        role: {{ .Values.kommodity.network.ipv4.subnet.role }}
+        {{- end }}
+        {{- if dig "ipv4" "subnet" "cidrBlock" "" .Values.kommodity.network }}
+        cidrBlocks:
+          - {{ .Values.kommodity.network.ipv4.subnet.cidrBlock }}
+        {{- end }}
+    {{- else }}
+    {{- /* Private mode, no user-supplied subnet override — emit full defaults. */}}
+    subnets:
+      - name: {{ printf "%s-controlplane-subnet" .Release.Name }}
+        role: control-plane
+        cidrBlocks:
+          - 10.0.0.0/16
+        securityGroup:
+          name: {{ printf "%s-controlplane-nsg" .Release.Name }}
+          {{- /*
+            Add an explicit inbound rule for Talos API (TCP/50000) from within
+            the VNet so that talosctl can reach the internal apiServerLB's
+            additional LB rule.  CAPZ merges these securityRules with the
+            rules it auto-generates (e.g. the 6443 allow-from-LB rule) and
+            does NOT remove rules it didn't create.
+          */}}
+          securityRules:
+            - name: allow-talos-api-from-vnet
+              description: "Allow Talos API (port 50000) from within the VNet"
+              protocol: Tcp
+              direction: Inbound
+              priority: 200
+              source: VirtualNetwork
+              sourcePorts: "*"
+              destination: "*"
+              destinationPorts: "50000"
+              action: Allow
+        {{- /*
+          Attach the SAME NAT gateway used by the node subnet to the CP subnet.
+          Azure no longer provides default outbound access for new subnets, so
+          without an explicit egress path the CP VMs cannot reach NTP servers.
+          Blocked NTP → time sync failure → etcd/kubelet/trustd stuck in
+          Waiting → kube-apiserver never starts → cluster never bootstraps.
+
+          CAPZ creates/manages the NAT gateway once (keyed on the name), and
+          Azure supports a single NAT gateway being attached to multiple subnets
+          in the same VNet.  We reference the same name/IP as the node subnet so
+          no second gateway resource is created or billed.
+        */}}
+        natGateway:
+          name: {{ printf "%s-node-natgw-1" .Release.Name }}
+          ip:
+            name: {{ printf "pip-%s-node-natgw-1" .Release.Name }}
+      - name: {{ printf "%s-node-subnet" .Release.Name }}
+        role: node
+        cidrBlocks:
+          - 10.1.0.0/16
+        securityGroup:
+          name: {{ printf "%s-node-nsg" .Release.Name }}
+        routeTable:
+          name: {{ printf "%s-node-routetable" .Release.Name }}
+        natGateway:
+          {{- /*
+            NAT gateway provides SNAT-only internet egress for the node subnet.
+            The public IP (pip-*-node-natgw-1) accepts NO inbound traffic.
+            Inbound access to the control plane is via the internal LB only.
+          */}}
+          name: {{ printf "%s-node-natgw-1" .Release.Name }}
+          ip:
+            name: {{ printf "pip-%s-node-natgw-1" .Release.Name }}
+    {{- end }}
+    {{- /*
+      apiServerLB — controls whether the control-plane is internet-reachable.
+
+      Public mode:
+        type: Public — CAPZ creates pip-<cluster>-apiserver and a public LB.
+        frontendIPs is intentionally omitted: the list lacks +listType=map so
+        SSA treats it as atomic. CAPZ writes DNSName onto frontendIPs[0].publicIP
+        post-create and claims ownership via cluster-api-azure-controller-manager.
+        Helm then conflicts on every upgrade. CAPZ's defaulter generates identical
+        names (<lb>-frontEnd / pip-<cluster>-apiserver) so resource naming is
+        unchanged. CAPZ owns the atomic list from creation onwards.
+
+      Private mode:
+        type: Internal — CAPZ allocates 10.0.0.100 from the CP subnet as the
+        frontend IP; no PublicIP resource is created.
+        SetNodeOutboundLBDefaults returns early when the apiServerLB is Internal,
+        so outbound internet traffic MUST flow via the NAT gateway on the node
+        subnet; do NOT add a nodeOutboundLB block in private mode.
+        SSH InboundNatRules on the internal LB are not internet-reachable and are
+        harmless on Talos (which has no SSH daemon).
+    */}}
+    {{- if $isPublic }}
+    {{- $lbName := printf "%s-public-lb" .Release.Name }}
+    apiServerLB:
+      name: {{ $lbName }}
+      type: Public
+      sku: Standard
+      idleTimeoutInMinutes: 4
+      backendPool:
+        name: {{ printf "%s-backendPool" $lbName }}
+    {{- else }}
+    {{- $lbName := printf "%s-internal-lb" .Release.Name }}
+    apiServerLB:
+      name: {{ $lbName }}
+      type: Internal
+      sku: Standard
+      idleTimeoutInMinutes: 4
+      {{- /*
+        frontendIPs is omitted: CAPZ defaults to 10.0.0.100 from the CP subnet.
+        Emitting it here would conflict with SSA on every upgrade (same reason as
+        the public-mode frontendIPs omission above).
+      */}}
+      backendPool:
+        name: {{ printf "%s-backendPool" $lbName }}
+    {{- end }}
+{{- end }}
