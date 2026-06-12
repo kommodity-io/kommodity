@@ -303,8 +303,8 @@ func (r *AzureCredentialMaterializer) upsertManagedSecret(
 	existing := &corev1.Secret{}
 
 	err := r.Get(ctx, types.NamespacedName{Namespace: cluster.Namespace, Name: name}, existing)
-	if err == nil && existing.Labels[materializerManagedByLabel] != managedByLabelValue {
-		logging.FromContext(ctx).Info("Secret exists and is not materializer-managed; leaving it untouched",
+	if err == nil && len(existing.Data) > 0 && existing.Labels[materializerManagedByLabel] != managedByLabelValue {
+		logging.FromContext(ctx).Info("Secret exists with data and is not materializer-managed; leaving it untouched",
 			zap.String("secret", cluster.Namespace+"/"+name))
 
 		return nil

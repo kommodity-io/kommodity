@@ -247,6 +247,33 @@ func TestMaterializeDoesNotClobberOperatorSecret(t *testing.T) {
 	}
 }
 
+// TestMaterializePopulatesEmptyPlaceholderSecret verifies the escape hatch is gated
+// on the Secret carrying data: an empty, unlabeled placeholder Secret is not treated
+// as operator-supplied and gets populated (rather than left empty forever).
+func TestMaterializePopulatesEmptyPlaceholderSecret(t *testing.T) {
+	t.Parallel()
+
+	emptySecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: testClusterName + asoSecretSuffix, Namespace: testMatNamespace},
+	}
+
+	materializer := buildMaterializer(t, materializerFixture{
+		identityType: infrav1.ServicePrincipal, withClientSecret: true, ccmEnabled: false,
+		preExistingSecret: emptySecret,
+	})
+	reconcileCluster(t, materializer)
+
+	aso := getSecret(t, materializer, testClusterName+asoSecretSuffix)
+	if string(aso.Data["AZURE_CLIENT_SECRET"]) != testClientSecretPW {
+		t.Errorf("empty placeholder secret was not populated: AZURE_CLIENT_SECRET = %q",
+			string(aso.Data["AZURE_CLIENT_SECRET"]))
+	}
+
+	if aso.Labels[materializerManagedByLabel] != managedByLabelValue {
+		t.Error("populated placeholder secret missing materializer managed-by label")
+	}
+}
+
 // TestMaterializeSkipsCCMSecretWhenDisabled verifies that with no CCM annotation
 // (cloudControllerManager disabled) the aso-secret is still materialized but no
 // cloud-config Secret is created — guarding the shared-namespace contract where a

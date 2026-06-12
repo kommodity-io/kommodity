@@ -50,15 +50,20 @@ func getOrCreateWebhookServingCert(
 	ctx context.Context,
 	client corev1client.CoreV1Interface,
 ) ([]byte, []byte, error) {
-	secret, getErr := client.Secrets(config.KommodityNamespace).
+	existing, getErr := client.Secrets(config.KommodityNamespace).
 		Get(ctx, webhookServingCertSecretName, metav1.GetOptions{})
 	if getErr == nil {
-		cert, key, dataErr := webhookCertDataFromSecret(secret)
+		cert, key, dataErr := webhookCertDataFromSecret(existing)
 		if dataErr == nil {
 			return cert, key, nil
 		}
-		// The Secret exists but is malformed; fall through to regenerate and overwrite it.
-	} else if !apierrors.IsNotFound(getErr) {
+
+		// The Secret exists but is malformed; regenerate and Update it in place so the
+		// function can self-heal (a Create here would just return AlreadyExists).
+		return regenerateAndUpdateWebhookCert(ctx, client, existing)
+	}
+
+	if !apierrors.IsNotFound(getErr) {
 		return nil, nil, fmt.Errorf("failed to get webhook serving cert secret: %w", getErr)
 	}
 
@@ -67,7 +72,7 @@ func getOrCreateWebhookServingCert(
 		return nil, nil, fmt.Errorf("failed to generate webhook serving cert: %w", err)
 	}
 
-	secret = &corev1.Secret{
+	desired := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      webhookServingCertSecretName,
 			Namespace: config.KommodityNamespace,
@@ -79,7 +84,7 @@ func getOrCreateWebhookServingCert(
 		},
 	}
 
-	_, createErr := client.Secrets(config.KommodityNamespace).Create(ctx, secret, metav1.CreateOptions{})
+	_, createErr := client.Secrets(config.KommodityNamespace).Create(ctx, desired, metav1.CreateOptions{})
 	if createErr == nil {
 		return certPEM, keyPEM, nil
 	}
@@ -88,20 +93,48 @@ func getOrCreateWebhookServingCert(
 		return nil, nil, fmt.Errorf("failed to create webhook serving cert secret: %w", createErr)
 	}
 
-	// A concurrent caller created the Secret first; re-read and use its certificate so all
-	// consumers agree on a single serving certificate.
-	existing, reGetErr := client.Secrets(config.KommodityNamespace).
+	// The initial Get returned NotFound but Create raced a concurrent caller that created
+	// the Secret first; re-read and use its certificate so all consumers agree on one cert.
+	created, reGetErr := client.Secrets(config.KommodityNamespace).
 		Get(ctx, webhookServingCertSecretName, metav1.GetOptions{})
 	if reGetErr != nil {
 		return nil, nil, fmt.Errorf("failed to get existing webhook serving cert secret: %w", reGetErr)
 	}
 
-	cert, key, dataErr := webhookCertDataFromSecret(existing)
+	cert, key, dataErr := webhookCertDataFromSecret(created)
 	if dataErr != nil {
 		return nil, nil, dataErr
 	}
 
 	return cert, key, nil
+}
+
+// regenerateAndUpdateWebhookCert replaces a malformed serving-cert Secret in place with a freshly
+// generated cert/key, updating the already-fetched object so the operation self-heals.
+// Returns the certificate PEM and the private key PEM, in that order.
+func regenerateAndUpdateWebhookCert(
+	ctx context.Context,
+	client corev1client.CoreV1Interface,
+	existing *corev1.Secret,
+) ([]byte, []byte, error) {
+	certPEM, keyPEM, err := generateSelfSignedWebhookCert()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to generate webhook serving cert: %w", err)
+	}
+
+	if existing.Data == nil {
+		existing.Data = map[string][]byte{}
+	}
+
+	existing.Data[corev1.TLSCertKey] = certPEM
+	existing.Data[corev1.TLSPrivateKeyKey] = keyPEM
+
+	_, err = client.Secrets(config.KommodityNamespace).Update(ctx, existing, metav1.UpdateOptions{})
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to update malformed webhook serving cert secret: %w", err)
+	}
+
+	return certPEM, keyPEM, nil
 }
 
 // webhookCertDataFromSecret extracts and validates the cert/key PEM from the Secret.

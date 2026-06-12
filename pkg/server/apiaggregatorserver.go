@@ -269,6 +269,9 @@ func applyCRDsHook(cfg *config.KommodityConfig,
 
 		errCh := make(chan error)
 
+		// The goroutine sends exactly one value on errCh: the first failure, or nil
+		// once every stage has succeeded. Sending more than once would deadlock the
+		// goroutine (the reader takes a single value) and could mask a later failure.
 		go func() {
 			err := applyProviderResources(ctx, cfg, providerCache, dynamicClient, kubeClient)
 			if err != nil {
@@ -279,8 +282,8 @@ func applyCRDsHook(cfg *config.KommodityConfig,
 
 			if !cache.WaitForCacheSync(ctx.Done(), crds.Informer().HasSynced) {
 				errCh <- ErrTimeoutWaitingForCRD
-			} else {
-				errCh <- nil
+
+				return
 			}
 
 			mwcInf := genericServerConfig.SharedInformerFactory.
@@ -293,9 +296,11 @@ func applyCRDsHook(cfg *config.KommodityConfig,
 				vwcInf.Informer().HasSynced,
 			) {
 				errCh <- ErrTimeoutWaitingForWebhook
-			} else {
-				errCh <- nil
+
+				return
 			}
+
+			errCh <- nil
 		}()
 
 		err = <-errCh

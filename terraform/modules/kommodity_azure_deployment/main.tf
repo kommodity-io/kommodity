@@ -5,7 +5,7 @@ locals {
   # value leaves Kommodity on its defaults (which already include azure).
   infrastructure_providers = (
     var.kommodity_container.infrastructure_providers != "" &&
-    !contains(split(",", var.kommodity_container.infrastructure_providers), "azure")
+    !contains([for p in split(",", var.kommodity_container.infrastructure_providers) : trimspace(p)], "azure")
     ? "${var.kommodity_container.infrastructure_providers},azure"
     : var.kommodity_container.infrastructure_providers
   )
