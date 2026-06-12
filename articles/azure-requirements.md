@@ -17,11 +17,12 @@ You need (in order):
 1. An Azure **subscription** and a target **region**.
 2. A **Talos OS Azure VM image** in that subscription (one-time per Talos version).
 3. A **service principal** with Contributor on the subscription.
-4. The **Kommodity management cluster** — CAPI, CAPZ, the Talos providers, and the embedded
-   Azure ARM reconciler are all bundled into the single Kommodity binary (no ASO sidecar).
-5. An **`AzureClusterIdentity`** + its backing Secret in the management cluster. This is the
-   **only** Azure Secret you create by hand; Kommodity's credential materializer derives the
-   per-cluster `<release>-aso-secret` and the CCM cloud-config Secret from it.
+4. A running **Kommodity management plane** — a single binary serving a Kubernetes API backed by
+   PostgreSQL via Kine (no separate cluster to stand up). CAPI, CAPZ, the Talos providers, and the
+   embedded Azure ARM reconciler are all bundled into that one binary (no ASO sidecar).
+5. An **`AzureClusterIdentity`** + its backing Secret, applied to **Kommodity's own API server**.
+   This is the **only** Azure Secret you create by hand; Kommodity's credential materializer derives
+   the per-cluster `<release>-aso-secret` and the CCM cloud-config Secret from it.
 6. A **`values.azure.yaml`** with your subscription, resource group, image, and identity name.
 7. `helm install` (or `helm template | kubectl apply`).
 
@@ -132,25 +133,38 @@ of this guide.
 
 ---
 
-## 4. Management cluster setup
+## 4. The Kommodity management plane
 
-You need a Kubernetes cluster running Kommodity with:
+Kommodity **is** the management plane — you do not stand up a separate Kubernetes cluster to run it.
+Kommodity is a single binary that serves a Kubernetes API and persists all of its state in
+**PostgreSQL via Kine** (no etcd, no kubelet, no worker nodes). Run it anywhere it can reach a
+PostgreSQL database: a container, a VM, an Azure Container App, or your laptop. Every Kubernetes
+resource in this guide (`AzureClusterIdentity`, `Cluster`, `AzureCluster`, Secrets, …) is applied to
+**Kommodity's own API server** and stored in that database — not to some other cluster.
 
-- **CAPI core controllers** — provided by Kommodity.
+Everything the Azure workflow needs runs inside that one process:
+
+- **CAPI core controllers** — bundled into the Kommodity binary.
 - **CAPZ infrastructure provider** — bundled into the Kommodity binary.
 - **Talos bootstrap + control plane providers** — bundled into the Kommodity binary.
 - **Embedded Azure ARM reconciler** — materializes the ASO custom resources CAPZ delegates
   (ResourceGroup, VNet, Subnet, NSG, RouteTable, NatGateway) directly to Azure, in-process. No
   separate ASO sidecar is required (see §4.2).
-- Outbound network access from the management cluster host to `management.azure.com` and
-  `login.microsoftonline.com`.
+
+The only external requirements are a reachable **PostgreSQL** database (via Kine) and **outbound
+network access** from wherever Kommodity runs to `management.azure.com` and
+`login.microsoftonline.com`.
 
 ### 4.1 AzureClusterIdentity
 
-CAPZ authenticates to Azure via an `AzureClusterIdentity` resource. Its backing Secret **must use
-`.data` (base64-encoded values), not `.stringData`**: Kommodity's embedded API server does not
-perform the standard `stringData`→`data` merge during admission, so `.stringData` keys are silently
-discarded, leaving `.data.clientSecret` empty and CAPZ unable to authenticate.
+CAPZ authenticates to Azure via an `AzureClusterIdentity` resource. You create it — and its backing
+Secret — directly in **Kommodity's API server** (the `kubectl --kubeconfig kommodity.yaml` below
+points at Kommodity itself; the objects land in PostgreSQL via Kine). There is no separate
+management cluster to target.
+
+Its backing Secret **must use `.data` (base64-encoded values), not `.stringData`**: Kommodity's API
+server does not perform the standard `stringData`→`data` merge during admission, so `.stringData`
+keys are silently discarded, leaving `.data.clientSecret` empty and CAPZ unable to authenticate.
 
 ```bash
 # Create the identity secret with base64-encoded value
@@ -308,7 +322,7 @@ The kubelet `--cloud-provider=external` flag is **auto-injected** by the chart w
 omitting it previously left nodes without a providerID, which wedged CAPI NodeRef linking.
 
 > **Security note:** the materialized cloud-config Secret carries the SP credentials and is stored
-> in the management cluster (Kine/PostgreSQL) and delivered to the workload `kube-system`. The only
+> by Kommodity (in PostgreSQL via Kine) and delivered to the workload `kube-system`. The only
 > credential you supply by hand is the `AzureClusterIdentity`'s `clientSecret` (§4.1) — keep that
 > out of version control. Nothing sensitive belongs in your `values.azure.yaml` anymore.
 
@@ -441,7 +455,7 @@ helm template my-cluster oci://ghcr.io/kommodity-io/charts/kommodity-cluster \
   -f values.azure.private.yaml \
   | kubectl --kubeconfig kommodity.yaml apply -f -
 
-# Watch the cluster come up (from management cluster)
+# Watch the cluster come up (against the Kommodity API server)
 kubectl --kubeconfig kommodity.yaml get cluster,azurecluster,taloscontrolplane,machine -w
 
 # Once AzureCluster is Ready and nodes are Running, access from inside the VNet:
@@ -450,8 +464,9 @@ kubectl --kubeconfig workload-kubeconfig.yaml get nodes
 
 The cluster self-bootstraps. The TalosControlPlane reconciler may show `bootstrap failed, retrying`
 until VNet connectivity is available, but the nodes come up healthy regardless (Talos auto-bootstrap
-via customData). Once you establish VNet access (VPN, sshuttle, Azure Bastion, or a management VM
-inside Azure), all controller conditions clear.
+via customData). Once you establish VNet access (VPN, sshuttle, Azure Bastion, or by running
+Kommodity itself inside the VNet — e.g. on an Azure VM or Container App), all controller conditions
+clear.
 
 ### Retrieve the workload kubeconfig
 
