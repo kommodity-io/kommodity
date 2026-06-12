@@ -16,6 +16,7 @@ kommodity:
     #   # materializer leaves any Secret without its managed-by label untouched.
     #   name: my-cloud-provider-secret
     identity:
+      name: azure-cluster-identity
       # AzureClusterIdentity resource name for authentication.
       # Create this resource in the management cluster before deploying:
       #
@@ -32,7 +33,6 @@ kommodity:
       #     name: azure-cluster-identity-secret
       #     namespace: default
       #   allowedNamespaces: {}
-      name: azure-cluster-identity
     config:
       subscriptionID: <YOUR_SUBSCRIPTION_ID>
       resourceGroup: <YOUR_RESOURCE_GROUP>
@@ -77,6 +77,25 @@ kommodity:
           limits:
             cpu: 2
             memory: 512Mi
+
+  # OIDC for the workload cluster's kube-apiserver. Set this if you want the
+  # Kommodity UI (running in production / OIDC mode) to render a kubeconfig for
+  # this cluster: the UI serves an OIDC-federated kubeconfig and reads these
+  # settings back off the workload apiserver's extraArgs. Without it the UI shows
+  # "Kubeconfig not available" — the cluster still works; you can always pull the
+  # admin kubeconfig directly from the `<release>-kubeconfig` Secret. Point this at
+  # the SAME identity provider your Kommodity deployment uses. `clientID` and
+  # `issuerURL` are identifiers, not secrets. Changing these args rolls the control
+  # plane on `helm upgrade`.
+  oidc:
+    enabled: true
+    # Azure AD example: https://login.microsoftonline.com/<TENANT_ID>/v2.0
+    issuerURL: https://login.microsoftonline.com/<YOUR_TENANT_ID>/v2.0
+    clientID: <YOUR_OIDC_CLIENT_ID>
+    usernameClaim: email
+    groupsClaim: groups
+    # clientSecret: <optional — only if your IdP requires it>
+    # extraScopes: []
 
   global:
     strategicPatches:
