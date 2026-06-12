@@ -47,6 +47,10 @@ on:
         description: "Extra kernel args passed to imager (space-separated, e.g. 'console=ttyS0 net.ifnames=0')"
         required: false
         type: string
+      image_name:
+        description: "Override image name (defaults to per-platform name, e.g. kommodity-talos-scaleway). Requires a single platform; cannot be used with platforms=all."
+        required: false
+        type: string
 
 env:
   REGISTRY: ghcr.io/kommodity-io
@@ -87,6 +91,16 @@ jobs:
             echo "${{ inputs.extra_kernel_args }}"
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
+
+      - name: Validate image_name override
+        env:
+          IMAGE_NAME_OVERRIDE: ${{ inputs.image_name }}
+          PLATFORMS: ${{ inputs.platforms || 'all' }}
+        run: |
+          if [[ -n "${IMAGE_NAME_OVERRIDE}" && "${PLATFORMS}" == "all" ]]; then
+            echo "::error::image_name override cannot be used with platforms=all (would cause tag collisions). Select a single platform."
+            exit 1
+          fi
 
       - name: Validate talos_version
         env:
@@ -161,7 +175,7 @@ jobs:
       TALOS_VERSION: ${{ needs.setup.outputs.talos_version }}
       EXTENSIONS: ${{ needs.setup.outputs.extensions }}
       PUSH: ${{ needs.setup.outputs.push }}
-      IMAGE_NAME: ${{ matrix.image_name }}
+      IMAGE_NAME: ${{ inputs.image_name || matrix.image_name }}
       PLATFORM: ${{ matrix.platform }}
       IMAGER_OUTPUT: ${{ matrix.imager_output }}
       FINAL_EXTENSION: ${{ matrix.final_extension }}
