@@ -284,3 +284,124 @@ func TestReconcileDeleteARMRateLimitedGet(t *testing.T) {
 		t.Fatalf("expected no DELETE while rate limited, got %d", arm.delCalls)
 	}
 }
+
+// TestIsTerminalARMError pins the classification that decides whether a failed ARM
+// PUT is fatal (mark the resource Failed, stop retrying) or retryable. A
+// misclassification here is high-consequence: treating a 429/transient code as
+// terminal strands a resource as Failed, while treating a 400 as retryable spins
+// the controller forever on an unfixable spec.
+func TestIsTerminalARMError(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name       string
+		statusCode int
+		want       bool
+	}{
+		{"200 OK is not terminal", http.StatusOK, false},
+		{"400 Bad Request is terminal", http.StatusBadRequest, true},
+		{"401 Unauthorized is terminal", http.StatusUnauthorized, true},
+		{"403 Forbidden is terminal", http.StatusForbidden, true},
+		{"404 Not Found is not terminal (handled separately)", http.StatusNotFound, false},
+		{"409 Conflict is not terminal (handled separately)", http.StatusConflict, false},
+		{"422 Unprocessable Entity is terminal", http.StatusUnprocessableEntity, true},
+		{"429 Too Many Requests is not terminal (rate limited)", http.StatusTooManyRequests, false},
+		{"499 client-range edge is terminal", 499, true},
+		{"500 Internal Server Error is not terminal", http.StatusInternalServerError, false},
+		{"503 Service Unavailable is not terminal", http.StatusServiceUnavailable, false},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := isTerminalARMError(test.statusCode)
+			if got != test.want {
+				t.Fatalf("isTerminalARMError(%d) = %v, want %v", test.statusCode, got, test.want)
+			}
+		})
+	}
+}
+
+// TestReconcilePolicyFor pins the reconcile-policy resolution that drives whether
+// the reconciler carries a finalizer and deletes the resource in Azure. The
+// absent-annotation default must be "manage" (matching ASO); a wrong default is
+// exactly the failure mode behind orphaned resources / stuck finalizers.
+func TestReconcilePolicyFor(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name        string
+		annotations map[string]string
+		want        annotations.ReconcilePolicyValue
+	}{
+		{"nil annotations default to manage", nil, annotations.ReconcilePolicyManage},
+		{"empty annotations default to manage", map[string]string{}, annotations.ReconcilePolicyManage},
+		{
+			"empty policy value defaults to manage",
+			map[string]string{annotations.ReconcilePolicy: ""},
+			annotations.ReconcilePolicyManage,
+		},
+		{
+			"explicit manage is honoured",
+			map[string]string{annotations.ReconcilePolicy: string(annotations.ReconcilePolicyManage)},
+			annotations.ReconcilePolicyManage,
+		},
+		{
+			"explicit skip is honoured",
+			map[string]string{annotations.ReconcilePolicy: string(annotations.ReconcilePolicySkip)},
+			annotations.ReconcilePolicySkip,
+		},
+		{
+			"explicit detach-on-delete is honoured",
+			map[string]string{annotations.ReconcilePolicy: string(annotations.ReconcilePolicyDetachOnDelete)},
+			annotations.ReconcilePolicyDetachOnDelete,
+		},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			resourceGroup := newResourceGroup("my-rg")
+			resourceGroup.ObjectMeta = metav1.ObjectMeta{Annotations: test.annotations}
+
+			got := reconcilePolicyFor(resourceGroup)
+			if got != test.want {
+				t.Fatalf("reconcilePolicyFor() = %q, want %q", got, test.want)
+			}
+		})
+	}
+}
+
+// TestParseProvisioningState pins extraction of properties.provisioningState from
+// an ARM response body — the value that drives whether a resource is reported
+// Ready or requeued. A malformed or empty body must degrade to "" (not crash, not
+// a false "Succeeded"), and a missing field must not be mistaken for a state.
+func TestParseProvisioningState(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		body string
+		want string
+	}{
+		{"empty body yields empty state", "", ""},
+		{"malformed JSON yields empty state", "{not valid json", ""},
+		{"succeeded state is extracted", `{"properties":{"provisioningState":"Succeeded"}}`, "Succeeded"},
+		{"in-progress state is extracted", `{"properties":{"provisioningState":"Updating"}}`, "Updating"},
+		{"properties without provisioningState yields empty", `{"properties":{"foo":"bar"}}`, ""},
+		{"body without properties yields empty", `{"id":"/subscriptions/x"}`, ""},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := parseProvisioningState([]byte(test.body))
+			if got != test.want {
+				t.Fatalf("parseProvisioningState(%q) = %q, want %q", test.body, got, test.want)
+			}
+		})
+	}
+}

@@ -174,6 +174,9 @@ func TestMaterializeBothSecrets(t *testing.T) {
 
 	ccm := getSecret(t, materializer, testCCMSecretName)
 
+	// Cloud-config content is asserted exhaustively by
+	// TestBuildAzureCloudConfigContract; here we only confirm the materializer
+	// wrote a parseable payload under the expected key.
 	var cfg map[string]any
 
 	err := json.Unmarshal(ccm.Data[ccmCloudConfigKey], &cfg)
@@ -181,26 +184,8 @@ func TestMaterializeBothSecrets(t *testing.T) {
 		t.Fatalf("cloud-config is not valid JSON: %v", err)
 	}
 
-	wantCfg := map[string]any{
-		"tenantId":                   testTenant,
-		"subscriptionId":             testSubscription,
-		"resourceGroup":              testRG,
-		"location":                   testLocation,
-		"aadClientId":                testClientID,
-		"aadClientSecret":            testClientSecretPW,
-		"securityGroupName":          testClusterName + "-node-nsg",
-		"securityGroupResourceGroup": testRG,
-		"vnetName":                   testVnetName,
-		"vnetResourceGroup":          testRG,
-		"subnetName":                 testClusterName + "-node-subnet",
-		"routeTableName":             testClusterName + "-node-routetable",
-		"loadBalancerSku":            "standard",
-		"vmType":                     "standard",
-	}
-	for k, want := range wantCfg {
-		if got := cfg[k]; got != want {
-			t.Errorf("cloud-config[%s] = %v, want %v", k, got, want)
-		}
+	if len(cfg) == 0 {
+		t.Error("materialized cloud-config is empty")
 	}
 }
 
@@ -259,5 +244,186 @@ func TestMaterializeDoesNotClobberOperatorSecret(t *testing.T) {
 	aso := getSecret(t, materializer, testClusterName+asoSecretSuffix)
 	if string(aso.Data["AZURE_CLIENT_SECRET"]) != "operator-managed" {
 		t.Errorf("operator-supplied secret was clobbered: %q", string(aso.Data["AZURE_CLIENT_SECRET"]))
+	}
+}
+
+// TestMaterializeSkipsCCMSecretWhenDisabled verifies that with no CCM annotation
+// (cloudControllerManager disabled) the aso-secret is still materialized but no
+// cloud-config Secret is created — guarding the shared-namespace contract where a
+// stray <release>-cloud-provider Secret must not appear unless CCM is on.
+func TestMaterializeSkipsCCMSecretWhenDisabled(t *testing.T) {
+	t.Parallel()
+
+	materializer := buildMaterializer(t, materializerFixture{
+		identityType: infrav1.ServicePrincipal, withClientSecret: true, ccmEnabled: false,
+	})
+	reconcileCluster(t, materializer)
+
+	// aso-secret is always materialized.
+	getSecret(t, materializer, testClusterName+asoSecretSuffix)
+
+	// The CCM cloud-config Secret must NOT exist when CCM is disabled.
+	ccm := &corev1.Secret{}
+
+	err := materializer.Get(context.Background(),
+		types.NamespacedName{Namespace: testMatNamespace, Name: testCCMSecretName}, ccm)
+	if err == nil {
+		t.Fatal("CCM cloud-config Secret should not be created when CCM is disabled")
+	}
+}
+
+// TestBuildAzureCloudConfigContract locks the generated CCM cloud-config
+// byte-for-byte: the EXACT key set (no missing or extra keys), the derived values,
+// and the value types. A dropped/renamed/retyped field here silently breaks the
+// Azure CCM (LoadBalancer Services, node providerIDs) with no error surfaced — so
+// the contract is asserted directly rather than via a field subset.
+func TestBuildAzureCloudConfigContract(t *testing.T) {
+	t.Parallel()
+
+	creds := &azureCredentials{
+		subscriptionID: testSubscription,
+		tenantID:       testTenant,
+		clientID:       testClientID,
+		clientSecret:   testClientSecretPW,
+		resourceGroup:  testRG,
+		location:       testLocation,
+		vnetName:       testVnetName,
+		vnetRG:         testRG,
+	}
+
+	raw, err := buildAzureCloudConfig(testClusterName, creds)
+	if err != nil {
+		t.Fatalf("buildAzureCloudConfig returned error: %v", err)
+	}
+
+	var cfg map[string]any
+
+	err = json.Unmarshal(raw, &cfg)
+	if err != nil {
+		t.Fatalf("cloud-config is not valid JSON: %v", err)
+	}
+
+	want := wantCloudConfig()
+
+	if len(cfg) != len(want) {
+		t.Fatalf("cloud-config has %d keys, want %d (keys present: %v)", len(cfg), len(want), keysOf(cfg))
+	}
+
+	for key, wantValue := range want {
+		got, ok := cfg[key]
+		if !ok {
+			t.Errorf("cloud-config missing key %q", key)
+
+			continue
+		}
+
+		if got != wantValue {
+			t.Errorf("cloud-config[%q] = %v (%T), want %v (%T)", key, got, got, wantValue, wantValue)
+		}
+	}
+}
+
+// wantCloudConfig is the exhaustive expected cloud-config map. Numeric values are
+// float64 because they are compared after a JSON round-trip.
+func wantCloudConfig() map[string]any {
+	return map[string]any{
+		"tenantId":                     testTenant,
+		"subscriptionId":               testSubscription,
+		"resourceGroup":                testRG,
+		"location":                     testLocation,
+		"useManagedIdentityExtension":  false,
+		"aadClientId":                  testClientID,
+		"aadClientSecret":              testClientSecretPW,
+		"loadBalancerSku":              ccmValueStandard,
+		"vmType":                       ccmValueStandard,
+		"useInstanceMetadata":          true,
+		"securityGroupName":            testClusterName + "-node-nsg",
+		"securityGroupResourceGroup":   testRG,
+		"vnetName":                     testVnetName,
+		"vnetResourceGroup":            testRG,
+		"subnetName":                   testClusterName + "-node-subnet",
+		"routeTableName":               testClusterName + "-node-routetable",
+		"cloudProviderBackoff":         true,
+		"cloudProviderBackoffRetries":  float64(ccmBackoffRetries),
+		"cloudProviderRateLimit":       true,
+		"cloudProviderRateLimitQPS":    ccmRateLimitQPS,
+		"cloudProviderRateLimitBucket": float64(ccmRateLimitBucket),
+	}
+}
+
+func keysOf(m map[string]any) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+
+	return keys
+}
+
+// TestClustersForIdentitySecretEnqueuesOnRotation verifies the watch-mapping that
+// re-materializes credentials when the service principal password rotates: a
+// change to the identity's clientSecret Secret must enqueue the owning Cluster.
+func TestClustersForIdentitySecretEnqueuesOnRotation(t *testing.T) {
+	t.Parallel()
+
+	materializer := buildMaterializer(t, materializerFixture{
+		identityType: infrav1.ServicePrincipal, withClientSecret: true, ccmEnabled: true,
+	})
+
+	identitySecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: testIdentitySecret, Namespace: testMatNamespace},
+	}
+
+	requests := materializer.clustersForIdentitySecret(context.Background(), identitySecret)
+	if len(requests) != 1 {
+		t.Fatalf("expected 1 enqueued cluster on clientSecret rotation, got %d: %+v", len(requests), requests)
+	}
+
+	if requests[0].Name != testClusterName || requests[0].Namespace != testMatNamespace {
+		t.Fatalf("enqueued wrong cluster: %+v", requests[0].NamespacedName)
+	}
+}
+
+// TestClustersForIdentitySecretIgnoresManagedSecret guards the reconcile-loop
+// prevention: the mapper must ignore Secrets it materialized itself (carrying the
+// managed-by label), otherwise materializing a Secret would re-enqueue the cluster
+// and spin forever.
+func TestClustersForIdentitySecretIgnoresManagedSecret(t *testing.T) {
+	t.Parallel()
+
+	materializer := buildMaterializer(t, materializerFixture{
+		identityType: infrav1.ServicePrincipal, withClientSecret: true, ccmEnabled: true,
+	})
+
+	managedSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      testClusterName + asoSecretSuffix,
+			Namespace: testMatNamespace,
+			Labels:    map[string]string{materializerManagedByLabel: managedByLabelValue},
+		},
+	}
+
+	requests := materializer.clustersForIdentitySecret(context.Background(), managedSecret)
+	if requests != nil {
+		t.Fatalf("materializer-managed Secret must not enqueue any cluster, got %+v", requests)
+	}
+}
+
+// TestClustersForIdentitySecretIgnoresUnrelatedSecret verifies that a Secret no
+// AzureClusterIdentity references enqueues nothing.
+func TestClustersForIdentitySecretIgnoresUnrelatedSecret(t *testing.T) {
+	t.Parallel()
+
+	materializer := buildMaterializer(t, materializerFixture{
+		identityType: infrav1.ServicePrincipal, withClientSecret: true, ccmEnabled: true,
+	})
+
+	unrelated := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: "some-other-secret", Namespace: testMatNamespace},
+	}
+
+	requests := materializer.clustersForIdentitySecret(context.Background(), unrelated)
+	if len(requests) != 0 {
+		t.Fatalf("unrelated Secret must not enqueue any cluster, got %+v", requests)
 	}
 }

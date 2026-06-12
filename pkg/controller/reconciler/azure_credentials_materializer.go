@@ -53,6 +53,9 @@ const (
 	ccmBackoffRetries  = 6
 	ccmRateLimitQPS    = 3.0
 	ccmRateLimitBucket = 10
+
+	// ccmValueStandard is the cloud-config value for loadBalancerSku and vmType.
+	ccmValueStandard = "standard"
 )
 
 // AzureCredentialMaterializer derives the per-cluster Azure credential Secrets
@@ -436,8 +439,8 @@ func buildAzureCloudConfig(clusterName string, creds *azureCredentials) ([]byte,
 		"useManagedIdentityExtension":  false,
 		"aadClientId":                  creds.clientID,
 		"aadClientSecret":              creds.clientSecret,
-		"loadBalancerSku":              "standard",
-		"vmType":                       "standard",
+		"loadBalancerSku":              ccmValueStandard,
+		"vmType":                       ccmValueStandard,
 		"useInstanceMetadata":          true,
 		"securityGroupName":            clusterName + "-node-nsg",
 		"securityGroupResourceGroup":   creds.resourceGroup,
