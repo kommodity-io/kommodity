@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	taloscontrolplanev1 "github.com/siderolabs/cluster-api-control-plane-provider-talos/api/v1alpha3"
 	"go.uber.org/zap"
@@ -54,6 +55,7 @@ type MachineDetail struct {
 	Name              string
 	NodeName          string
 	CreationTime      string
+	Age               string
 	Phase             string
 	KubernetesVersion string
 	Health            string
@@ -297,7 +299,8 @@ func machineToDetail(machine *clusterv1.Machine) MachineDetail {
 	return MachineDetail{
 		Name:              machine.Name,
 		NodeName:          nodeName,
-		CreationTime:      machine.CreationTimestamp.Format("2006-01-02 15:04:05"),
+		CreationTime:      machine.CreationTimestamp.Format(time.RFC3339),
+		Age:               FormatAge(machine.CreationTimestamp.Time),
 		Phase:             phase,
 		KubernetesVersion: kubernetesVersion,
 		Health:            machineHealthFromConditions(machine),

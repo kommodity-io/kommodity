@@ -99,7 +99,7 @@
                                             <th class="py-2 px-4 font-semibold text-gray-500">Kubernetes Version</th>
                                             <th class="py-2 px-4 font-semibold text-gray-500">
                                                 <button type="button" class="sort-creation-time cursor-pointer bg-transparent border-0 p-0 focus:outline-none hover:text-gray-300 transition-colors" data-deployment="cp-{{.Name}}">
-                                                    Creation Time <span class="sort-indicator">↕</span>
+                                                    Age <span class="sort-indicator">↕</span>
                                                 </button>
                                             </th>
                                         </tr>
@@ -116,7 +116,7 @@
                                             <td class="py-2 px-4">{{.Name}}</td>
                                             <td class="py-2 px-4">{{.NodeName}}</td>
                                             <td class="py-2 px-4">{{.KubernetesVersion}}</td>
-                                            <td class="py-2 px-4">{{.CreationTime}}</td>
+                                            <td class="py-2 px-4" data-creation-time="{{.CreationTime}}">{{.Age}}</td>
                                         </tr>
                                         {{end}}
                                     </tbody>
@@ -205,7 +205,7 @@
                                             <th class="py-2 px-4 font-semibold text-gray-500">Kubernetes Version</th>
                                             <th class="py-2 px-4 font-semibold text-gray-500">
                                                 <button type="button" class="sort-creation-time cursor-pointer bg-transparent border-0 p-0 focus:outline-none hover:text-gray-300 transition-colors" data-deployment="{{.Name}}">
-                                                    Creation Time <span class="sort-indicator">↕</span>
+                                                    Age <span class="sort-indicator">↕</span>
                                                 </button>
                                             </th>
                                         </tr>
@@ -222,7 +222,7 @@
                                             <td class="py-2 px-4">{{.Name}}</td>
                                             <td class="py-2 px-4">{{.NodeName}}</td>
                                             <td class="py-2 px-4">{{.KubernetesVersion}}</td>
-                                            <td class="py-2 px-4">{{.CreationTime}}</td>
+                                            <td class="py-2 px-4" data-creation-time="{{.CreationTime}}">{{.Age}}</td>
                                         </tr>
                                         {{end}}
                                     </tbody>
@@ -318,16 +318,16 @@ document.querySelectorAll('.sort-creation-time').forEach(function(btn) {
             sortState = 'desc';
             indicator.textContent = '↓';
             rows.sort(function(a, b) {
-                const timeA = a.cells[5].textContent;
-                const timeB = b.cells[5].textContent;
+                const timeA = a.cells[5].getAttribute('data-creation-time') || '';
+                const timeB = b.cells[5].getAttribute('data-creation-time') || '';
                 return timeB.localeCompare(timeA);
             });
         } else {
             sortState = 'asc';
             indicator.textContent = '↑';
             rows.sort(function(a, b) {
-                const timeA = a.cells[5].textContent;
-                const timeB = b.cells[5].textContent;
+                const timeA = a.cells[5].getAttribute('data-creation-time') || '';
+                const timeB = b.cells[5].getAttribute('data-creation-time') || '';
                 return timeA.localeCompare(timeB);
             });
         }
