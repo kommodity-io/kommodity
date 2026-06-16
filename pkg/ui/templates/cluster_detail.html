@@ -239,6 +239,33 @@
 {{template "health_indicator.js.html"}}
 
 <script>
+// Persist expand state per cluster across reloads
+const __expandStorageKey = 'kommodity:expanded:{{.ClusterName}}';
+
+function __getExpanded() {
+    try {
+        return new Set(JSON.parse(localStorage.getItem(__expandStorageKey) || '[]'));
+    } catch (e) {
+        return new Set();
+    }
+}
+
+function __saveExpanded(set) {
+    localStorage.setItem(__expandStorageKey, JSON.stringify(Array.from(set)));
+}
+
+function __expandRow(deploymentName) {
+    const machineRow = document.querySelector('.machine-row[data-deployment="' + deploymentName + '"]');
+    if (!machineRow) return;
+    machineRow.classList.remove('hidden');
+
+    const btn = document.querySelector('.deployment-toggle[data-deployment="' + deploymentName + '"]');
+    if (btn) {
+        const chevron = btn.closest('tr').querySelector('.deployment-toggle div');
+        if (chevron) chevron.classList.add('rotate-90');
+    }
+}
+
 // Toggle machine rows
 document.querySelectorAll('.deployment-toggle').forEach(function(btn) {
     btn.addEventListener('click', function() {
@@ -252,8 +279,21 @@ document.querySelectorAll('.deployment-toggle').forEach(function(btn) {
             if (chevron) {
                 chevron.classList.toggle('rotate-90');
             }
+
+            const expanded = __getExpanded();
+            if (machineRow.classList.contains('hidden')) {
+                expanded.delete(deploymentName);
+            } else {
+                expanded.add(deploymentName);
+            }
+            __saveExpanded(expanded);
         }
     });
+});
+
+// Restore expanded rows on load
+document.addEventListener('DOMContentLoaded', function() {
+    __getExpanded().forEach(__expandRow);
 });
 
 // Sort machine rows by creation time
