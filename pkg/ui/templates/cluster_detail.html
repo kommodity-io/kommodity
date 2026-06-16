@@ -44,7 +44,7 @@
         <!-- Control Plane Table -->
         {{if .Cluster.ControlPlane}}
         <div class="rounded-sm border border-gray-800 bg-gray-900 p-6">
-            <h2 class="text-xl font-semibold mb-4">Control Plane</h2>
+            <h2 class="text-xl font-semibold mb-4">Control Planes</h2>
 
             <div class="overflow-x-auto">
                 <table class="w-full text-sm">
@@ -104,7 +104,7 @@
                                         {{range .Machines}}
                                         <tr class="border-b border-gray-700 last:border-0">
                                             <td class="py-2 px-6">
-                                                {{template "machine_health.html" (dict "Health" .Health "Reason" .HealthReason)}}
+                                                {{template "machine_health.html" (dict "Health" .Health "Conditions" .Conditions)}}
                                             </td>
                                             <td class="py-2 px-4">
                                                 <code class="px-2 py-1 bg-gray-700 rounded">{{.Phase}}</code>
@@ -206,7 +206,7 @@
                                         {{range .Machines}}
                                         <tr class="border-b border-gray-700 last:border-0">
                                             <td class="py-2 px-6">
-                                                {{template "machine_health.html" (dict "Health" .Health "Reason" .HealthReason)}}
+                                                {{template "machine_health.html" (dict "Health" .Health "Conditions" .Conditions)}}
                                             </td>
                                             <td class="py-2 px-4">
                                                 <code class="px-2 py-1 bg-gray-700 rounded">{{.Phase}}</code>

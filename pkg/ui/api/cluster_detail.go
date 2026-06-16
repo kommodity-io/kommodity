@@ -55,7 +55,13 @@ type MachineDetail struct {
 	Phase             string
 	KubernetesVersion string
 	Health            string
-	HealthReason      string
+	Conditions        []MachineConditionDetail
+}
+
+// MachineConditionDetail holds a single condition for UI display.
+type MachineConditionDetail struct {
+	Type   string
+	Status string
 }
 
 // GetClusterDetail retrieves detailed information about a specific cluster.
@@ -270,25 +276,68 @@ func machineToDetail(machine *clusterv1.Machine) MachineDetail {
 		phase = UnknownVersion
 	}
 
-	health, healthReason := machineHealthFromConditions(machine)
-
 	return MachineDetail{
 		Name:              machine.Name,
 		NodeName:          nodeName,
 		CreationTime:      machine.CreationTimestamp.Format("2006-01-02 15:04:05"),
 		Phase:             phase,
 		KubernetesVersion: kubernetesVersion,
-		Health:            health,
-		HealthReason:      healthReason,
+		Health:            machineHealthFromConditions(machine),
+		Conditions:        extractDisplayConditions(machine),
 	}
 }
 
-// healthSummary aggregates the relevant CAPI conditions for a machine.
+// displayConditionTypes returns the condition types surfaced in the UI tooltip,
+// in display order.
+func displayConditionTypes() []clusterv1.ConditionType {
+	return []clusterv1.ConditionType{
+		clusterv1.ReadyCondition,
+		clusterv1.BootstrapReadyCondition,
+		clusterv1.InfrastructureReadyCondition,
+		clusterv1.MachineNodeHealthyCondition,
+		clusterv1.MachineHealthCheckSucceededCondition,
+	}
+}
+
+// extractDisplayConditions returns the configured display conditions for a machine,
+// preserving the order defined by displayConditionTypes. Missing conditions are
+// rendered with status "Unknown".
+func extractDisplayConditions(machine *clusterv1.Machine) []MachineConditionDetail {
+	found := make(map[clusterv1.ConditionType]*clusterv1.Condition, len(machine.Status.Conditions))
+
+	for i := range machine.Status.Conditions {
+		cond := &machine.Status.Conditions[i]
+		found[cond.Type] = cond
+	}
+
+	types := displayConditionTypes()
+	result := make([]MachineConditionDetail, 0, len(types))
+
+	for _, condType := range types {
+		cond, ok := found[condType]
+		if !ok {
+			result = append(result, MachineConditionDetail{
+				Type:   string(condType),
+				Status: string(corev1.ConditionUnknown),
+			})
+
+			continue
+		}
+
+		result = append(result, MachineConditionDetail{
+			Type:   string(condType),
+			Status: string(cond.Status),
+		})
+	}
+
+	return result
+}
+
+// healthSummary aggregates the relevant CAPI condition statuses for a machine.
 type healthSummary struct {
-	anyFalse   *clusterv1.Condition
-	anyUnknown *clusterv1.Condition
-	sawTrue    bool
-	sawAny     bool
+	hasFalse   bool
+	hasUnknown bool
+	hasTrue    bool
 }
 
 // summarizeHealthConditions walks machine conditions and aggregates those relevant to health.
@@ -306,19 +355,13 @@ func summarizeHealthConditions(machine *clusterv1.Machine) healthSummary {
 			continue
 		}
 
-		summary.sawAny = true
-
 		switch cond.Status {
 		case corev1.ConditionFalse:
-			if summary.anyFalse == nil {
-				summary.anyFalse = cond
-			}
+			summary.hasFalse = true
 		case corev1.ConditionUnknown:
-			if summary.anyUnknown == nil {
-				summary.anyUnknown = cond
-			}
+			summary.hasUnknown = true
 		case corev1.ConditionTrue:
-			summary.sawTrue = true
+			summary.hasTrue = true
 		}
 	}
 
@@ -329,19 +372,19 @@ func summarizeHealthConditions(machine *clusterv1.Machine) healthSummary {
 // Considers both HealthCheckSucceeded (set by MachineHealthCheck) and NodeHealthy
 // (reflects backing node Ready status). NodeHealthy is used because MHC may not be
 // configured, in which case HealthCheckSucceeded is absent.
-func machineHealthFromConditions(machine *clusterv1.Machine) (string, string) {
+func machineHealthFromConditions(machine *clusterv1.Machine) string {
 	summary := summarizeHealthConditions(machine)
 
 	switch {
-	case summary.anyFalse != nil:
-		return MachineHealthUnhealthy, summary.anyFalse.Message
-	case summary.anyUnknown != nil:
-		return MachineHealthCheckFailed, summary.anyUnknown.Message
-	case summary.sawTrue:
-		return MachineHealthHealthy, ""
+	case summary.hasFalse:
+		return MachineHealthUnhealthy
+	case summary.hasUnknown:
+		return MachineHealthCheckFailed
+	case summary.hasTrue:
+		return MachineHealthHealthy
 	}
 
-	return MachineHealthUnknown, ""
+	return MachineHealthUnknown
 }
 
 // getDeploymentNameFromMachine extracts the deployment name from a machine's owner references.
