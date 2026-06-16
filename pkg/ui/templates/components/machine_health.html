@@ -1,0 +1,18 @@
+{{define "machine_health.html"}}
+{{- $color := "text-gray-500" -}}
+{{- $label := "Unknown" -}}
+{{- if eq .Health "Healthy" -}}
+    {{- $color = "text-green-500" -}}
+    {{- $label = "Healthy" -}}
+{{- else if eq .Health "Unhealthy" -}}
+    {{- $color = "text-red-500" -}}
+    {{- $label = "Unhealthy" -}}
+{{- else if eq .Health "CheckFailed" -}}
+    {{- $color = "text-yellow-500" -}}
+    {{- $label = "Check failed" -}}
+{{- end -}}
+<span class="inline-flex items-center gap-2" title="{{$label}}{{if .Reason}}: {{.Reason}}{{end}}">
+    <span class="{{$color}} text-base leading-none">●</span>
+    <span class="text-gray-400">{{$label}}</span>
+</span>
+{{end}}

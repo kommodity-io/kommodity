@@ -591,6 +591,7 @@ func loadTemplates() map[string]*template.Template {
 		"templates/components/icon_chevron.html",
 		"templates/components/health_tooltip.html",
 		"templates/components/health_indicator.js.html",
+		"templates/components/machine_health.html",
 	}
 
 	return map[string]*template.Template{

@@ -88,7 +88,8 @@
                                 <table class="w-full text-xs">
                                     <thead class="text-left border-b border-gray-700">
                                         <tr>
-                                            <th class="py-2 px-6 font-semibold text-gray-500">Phase</th>
+                                            <th class="py-2 px-6 font-semibold text-gray-500">Health</th>
+                                            <th class="py-2 px-4 font-semibold text-gray-500">Phase</th>
                                             <th class="py-2 px-4 font-semibold text-gray-500">Name</th>
                                             <th class="py-2 px-4 font-semibold text-gray-500">Node Name</th>
                                             <th class="py-2 px-4 font-semibold text-gray-500">Kubernetes Version</th>
@@ -103,6 +104,9 @@
                                         {{range .Machines}}
                                         <tr class="border-b border-gray-700 last:border-0">
                                             <td class="py-2 px-6">
+                                                {{template "machine_health.html" (dict "Health" .Health "Reason" .HealthReason)}}
+                                            </td>
+                                            <td class="py-2 px-4">
                                                 <code class="px-2 py-1 bg-gray-700 rounded">{{.Phase}}</code>
                                             </td>
                                             <td class="py-2 px-4">{{.Name}}</td>
@@ -186,7 +190,8 @@
                                 <table class="w-full text-xs">
                                     <thead class="text-left border-b border-gray-700">
                                         <tr>
-                                            <th class="py-2 px-6 font-semibold text-gray-500">Phase</th>
+                                            <th class="py-2 px-6 font-semibold text-gray-500">Health</th>
+                                            <th class="py-2 px-4 font-semibold text-gray-500">Phase</th>
                                             <th class="py-2 px-4 font-semibold text-gray-500">Name</th>
                                             <th class="py-2 px-4 font-semibold text-gray-500">Node Name</th>
                                             <th class="py-2 px-4 font-semibold text-gray-500">Kubernetes Version</th>
@@ -201,6 +206,9 @@
                                         {{range .Machines}}
                                         <tr class="border-b border-gray-700 last:border-0">
                                             <td class="py-2 px-6">
+                                                {{template "machine_health.html" (dict "Health" .Health "Reason" .HealthReason)}}
+                                            </td>
+                                            <td class="py-2 px-4">
                                                 <code class="px-2 py-1 bg-gray-700 rounded">{{.Phase}}</code>
                                             </td>
                                             <td class="py-2 px-4">{{.Name}}</td>
@@ -262,16 +270,16 @@ document.querySelectorAll('.sort-creation-time').forEach(function(btn) {
             sortState = 'desc';
             indicator.textContent = '↓';
             rows.sort(function(a, b) {
-                const timeA = a.cells[4].textContent;
-                const timeB = b.cells[4].textContent;
+                const timeA = a.cells[5].textContent;
+                const timeB = b.cells[5].textContent;
                 return timeB.localeCompare(timeA);
             });
         } else {
             sortState = 'asc';
             indicator.textContent = '↑';
             rows.sort(function(a, b) {
-                const timeA = a.cells[4].textContent;
-                const timeB = b.cells[4].textContent;
+                const timeA = a.cells[5].textContent;
+                const timeB = b.cells[5].textContent;
                 return timeA.localeCompare(timeB);
             });
         }

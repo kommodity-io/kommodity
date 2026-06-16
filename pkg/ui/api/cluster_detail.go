@@ -7,9 +7,18 @@ import (
 
 	taloscontrolplanev1 "github.com/siderolabs/cluster-api-control-plane-provider-talos/api/v1alpha3"
 	"go.uber.org/zap"
+	corev1 "k8s.io/api/core/v1"
 	clientgoclientset "k8s.io/client-go/kubernetes"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
+)
+
+// Machine health status values for the UI health circle.
+const (
+	MachineHealthHealthy     = "Healthy"
+	MachineHealthUnhealthy   = "Unhealthy"
+	MachineHealthCheckFailed = "CheckFailed"
+	MachineHealthUnknown     = "Unknown"
 )
 
 // ClusterDetail holds detailed information about a cluster.
@@ -45,6 +54,8 @@ type MachineDetail struct {
 	CreationTime      string
 	Phase             string
 	KubernetesVersion string
+	Health            string
+	HealthReason      string
 }
 
 // GetClusterDetail retrieves detailed information about a specific cluster.
@@ -259,13 +270,37 @@ func machineToDetail(machine *clusterv1.Machine) MachineDetail {
 		phase = UnknownVersion
 	}
 
+	health, healthReason := machineHealthFromConditions(machine)
+
 	return MachineDetail{
 		Name:              machine.Name,
 		NodeName:          nodeName,
 		CreationTime:      machine.CreationTimestamp.Format("2006-01-02 15:04:05"),
 		Phase:             phase,
 		KubernetesVersion: kubernetesVersion,
+		Health:            health,
+		HealthReason:      healthReason,
 	}
+}
+
+// machineHealthFromConditions maps the HealthCheckSucceeded condition into a UI health state.
+func machineHealthFromConditions(machine *clusterv1.Machine) (string, string) {
+	for _, cond := range machine.Status.Conditions {
+		if cond.Type != clusterv1.MachineHealthCheckSucceededCondition {
+			continue
+		}
+
+		switch cond.Status {
+		case corev1.ConditionTrue:
+			return MachineHealthHealthy, ""
+		case corev1.ConditionFalse:
+			return MachineHealthUnhealthy, cond.Message
+		case corev1.ConditionUnknown:
+			return MachineHealthCheckFailed, cond.Message
+		}
+	}
+
+	return MachineHealthUnknown, ""
 }
 
 // getDeploymentNameFromMachine extracts the deployment name from a machine's owner references.
