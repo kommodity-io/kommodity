@@ -54,6 +54,7 @@
                             <th class="pb-3 font-semibold text-gray-400">Name</th>
                             <th class="pb-3 font-semibold text-gray-400">Phase</th>
                             <th class="pb-3 pl-4 font-semibold text-gray-400">Replicas</th>
+                            <th class="pb-3 pl-4 font-semibold text-gray-400">Healthy</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -81,10 +82,13 @@
                                 <span class="text-accent">0</span>
                                 {{end}}
                             </td>
+                            <td class="py-4 pl-4">
+                                {{template "group_health.html" (dict "Healthy" .HealthyMachines "Total" (len .Machines))}}
+                            </td>
                         </tr>
                         {{if .Machines}}
                         <tr class="machine-row hidden border-b border-gray-800 bg-gray-800/30" data-deployment="cp-{{.Name}}">
-                            <td colspan="4" class="p-0">
+                            <td colspan="5" class="p-0">
                                 <table class="w-full text-xs">
                                     <thead class="text-left border-b border-gray-700">
                                         <tr>
@@ -142,6 +146,7 @@
                             <th class="pb-3 pl-4 font-semibold text-gray-400">Min</th>
                             <th class="pb-3 pl-4 font-semibold text-gray-400">Current</th>
                             <th class="pb-3 pl-4 font-semibold text-gray-400">Max</th>
+                            <th class="pb-3 pl-4 font-semibold text-gray-400">Healthy</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -183,10 +188,13 @@
                                 <span class="text-gray-500">—</span>
                                 {{end}}
                             </td>
+                            <td class="py-4 pl-4">
+                                {{template "group_health.html" (dict "Healthy" .HealthyMachines "Total" (len .Machines))}}
+                            </td>
                         </tr>
                         {{if .Machines}}
                         <tr class="machine-row hidden border-b border-gray-800 bg-gray-800/30" data-deployment="{{.Name}}">
-                            <td colspan="6" class="p-0">
+                            <td colspan="7" class="p-0">
                                 <table class="w-full text-xs">
                                     <thead class="text-left border-b border-gray-700">
                                         <tr>

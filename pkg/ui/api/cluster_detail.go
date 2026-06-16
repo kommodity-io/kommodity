@@ -31,20 +31,22 @@ type ClusterDetail struct {
 
 // ControlPlaneDetail holds information about a control plane.
 type ControlPlaneDetail struct {
-	Name     string
-	Phase    string
-	Replicas *int32
-	Machines []MachineDetail
+	Name            string
+	Phase           string
+	Replicas        *int32
+	HealthyMachines int
+	Machines        []MachineDetail
 }
 
 // MachineDeploymentDetail holds information about a MachineDeployment.
 type MachineDeploymentDetail struct {
-	Name     string
-	Phase    string
-	Replicas *int32
-	MinSize  *int32
-	MaxSize  *int32
-	Machines []MachineDetail
+	Name            string
+	Phase           string
+	Replicas        *int32
+	MinSize         *int32
+	MaxSize         *int32
+	HealthyMachines int
+	Machines        []MachineDetail
 }
 
 // MachineDetail holds information about a Machine.
@@ -149,9 +151,10 @@ func getControlPlane(
 		}
 
 		return &ControlPlaneDetail{
-			Name:     clusterName,
-			Phase:    UnknownVersion,
-			Machines: machines,
+			Name:            clusterName,
+			Phase:           UnknownVersion,
+			HealthyMachines: countHealthyMachines(machines),
+			Machines:        machines,
 		}, nil
 	}
 
@@ -169,11 +172,25 @@ func getControlPlane(
 	replicas := controlPlane.Status.Replicas
 
 	return &ControlPlaneDetail{
-		Name:     controlPlane.Name,
-		Phase:    phase,
-		Replicas: &replicas,
-		Machines: machines,
+		Name:            controlPlane.Name,
+		Phase:           phase,
+		Replicas:        &replicas,
+		HealthyMachines: countHealthyMachines(machines),
+		Machines:        machines,
 	}, nil
+}
+
+// countHealthyMachines returns the number of machines with Health == Healthy.
+func countHealthyMachines(machines []MachineDetail) int {
+	count := 0
+
+	for _, machine := range machines {
+		if machine.Health == MachineHealthHealthy {
+			count++
+		}
+	}
+
+	return count
 }
 
 // getMachineDeployments retrieves all MachineDeployments for a cluster.
@@ -218,12 +235,13 @@ func getMachineDeployments(
 		replicas := deployment.Status.Replicas
 
 		detail := MachineDeploymentDetail{
-			Name:     deployment.Name,
-			Phase:    phase,
-			Replicas: &replicas,
-			MinSize:  minSize,
-			MaxSize:  maxSize,
-			Machines: machines,
+			Name:            deployment.Name,
+			Phase:           phase,
+			Replicas:        &replicas,
+			MinSize:         minSize,
+			MaxSize:         maxSize,
+			HealthyMachines: countHealthyMachines(machines),
+			Machines:        machines,
 		}
 
 		result = append(result, detail)

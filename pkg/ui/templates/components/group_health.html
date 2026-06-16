@@ -1,0 +1,16 @@
+{{define "group_health.html"}}
+{{- $color := "text-gray-500" -}}
+{{- if eq .Total 0 -}}
+    {{- $color = "text-gray-500" -}}
+{{- else if eq .Healthy .Total -}}
+    {{- $color = "text-green-500" -}}
+{{- else if eq .Healthy 0 -}}
+    {{- $color = "text-red-500" -}}
+{{- else -}}
+    {{- $color = "text-yellow-500" -}}
+{{- end -}}
+<span class="inline-flex items-center gap-2">
+    <span class="{{$color}} text-base leading-none">●</span>
+    <span class="text-gray-300">{{.Healthy}}/{{.Total}}</span>
+</span>
+{{end}}

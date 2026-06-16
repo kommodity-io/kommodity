@@ -416,7 +416,6 @@ func buildClusterDetailData(
 	clusterDetail *api.ClusterDetail,
 	kubeconfigContent string,
 ) map[string]any {
-	// Calculate total machines and check if any deployment has autoscaler
 	totalMachines := 0
 	hasAutoscaler := false
 
@@ -592,6 +591,7 @@ func loadTemplates() map[string]*template.Template {
 		"templates/components/health_tooltip.html",
 		"templates/components/health_indicator.js.html",
 		"templates/components/machine_health.html",
+		"templates/components/group_health.html",
 	}
 
 	return map[string]*template.Template{
