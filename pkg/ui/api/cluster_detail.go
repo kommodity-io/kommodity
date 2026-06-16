@@ -283,21 +283,62 @@ func machineToDetail(machine *clusterv1.Machine) MachineDetail {
 	}
 }
 
-// machineHealthFromConditions maps the HealthCheckSucceeded condition into a UI health state.
-func machineHealthFromConditions(machine *clusterv1.Machine) (string, string) {
-	for _, cond := range machine.Status.Conditions {
-		if cond.Type != clusterv1.MachineHealthCheckSucceededCondition {
+// healthSummary aggregates the relevant CAPI conditions for a machine.
+type healthSummary struct {
+	anyFalse   *clusterv1.Condition
+	anyUnknown *clusterv1.Condition
+	sawTrue    bool
+	sawAny     bool
+}
+
+// summarizeHealthConditions walks machine conditions and aggregates those relevant to health.
+func summarizeHealthConditions(machine *clusterv1.Machine) healthSummary {
+	relevant := map[clusterv1.ConditionType]bool{
+		clusterv1.MachineHealthCheckSucceededCondition: true,
+		clusterv1.MachineNodeHealthyCondition:          true,
+	}
+
+	var summary healthSummary
+
+	for i := range machine.Status.Conditions {
+		cond := &machine.Status.Conditions[i]
+		if !relevant[cond.Type] {
 			continue
 		}
 
+		summary.sawAny = true
+
 		switch cond.Status {
-		case corev1.ConditionTrue:
-			return MachineHealthHealthy, ""
 		case corev1.ConditionFalse:
-			return MachineHealthUnhealthy, cond.Message
+			if summary.anyFalse == nil {
+				summary.anyFalse = cond
+			}
 		case corev1.ConditionUnknown:
-			return MachineHealthCheckFailed, cond.Message
+			if summary.anyUnknown == nil {
+				summary.anyUnknown = cond
+			}
+		case corev1.ConditionTrue:
+			summary.sawTrue = true
 		}
+	}
+
+	return summary
+}
+
+// machineHealthFromConditions derives a UI health state from CAPI conditions.
+// Considers both HealthCheckSucceeded (set by MachineHealthCheck) and NodeHealthy
+// (reflects backing node Ready status). NodeHealthy is used because MHC may not be
+// configured, in which case HealthCheckSucceeded is absent.
+func machineHealthFromConditions(machine *clusterv1.Machine) (string, string) {
+	summary := summarizeHealthConditions(machine)
+
+	switch {
+	case summary.anyFalse != nil:
+		return MachineHealthUnhealthy, summary.anyFalse.Message
+	case summary.anyUnknown != nil:
+		return MachineHealthCheckFailed, summary.anyUnknown.Message
+	case summary.sawTrue:
+		return MachineHealthHealthy, ""
 	}
 
 	return MachineHealthUnknown, ""
