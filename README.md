@@ -304,6 +304,7 @@ contexts:
     context:
       cluster: kommodity
       user: oidc
+      namespace: default
 current-context: kommodity-context
 ```
 
