@@ -8,6 +8,7 @@ import (
 	authorizationv1 "k8s.io/api/authorization/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apiserver/pkg/authentication/user"
 	authz "k8s.io/apiserver/pkg/authorization/authorizer"
 	"k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/apiserver/pkg/registry/rest"
@@ -55,8 +56,8 @@ func (r *SelfSubjectAccessReviewREST) Create(
 	}
 
 	// SSAR always evaluates the *requesting* user ("self"), not a provided user.
-	user, success := request.UserFrom(ctx)
-	if !success || user == nil {
+	requester, success := request.UserFrom(ctx)
+	if !success || requester == nil {
 		// Don't 500; return a completed object with denied status.
 		ssar.Status.Allowed = false
 		ssar.Status.Denied = true
@@ -66,7 +67,7 @@ func (r *SelfSubjectAccessReviewREST) Create(
 		return ssar, nil
 	}
 
-	attrs := getUserAttributes(ssar)
+	attrs := getUserAttributes(ssar, requester)
 	if attrs == nil {
 		// No attributes provided; deny safely.
 		ssar.Status.Allowed = false
@@ -89,12 +90,13 @@ func (r *SelfSubjectAccessReviewREST) Create(
 	return ssar, nil
 }
 
-func getUserAttributes(ssar *authorizationv1.SelfSubjectAccessReview) *authz.AttributesRecord {
+func getUserAttributes(ssar *authorizationv1.SelfSubjectAccessReview, requester user.Info) *authz.AttributesRecord {
 	switch {
 	case ssar.Spec.ResourceAttributes != nil:
 		resourceAttributes := ssar.Spec.ResourceAttributes
 
 		return &authz.AttributesRecord{
+			User:            requester,
 			Verb:            resourceAttributes.Verb,
 			APIGroup:        resourceAttributes.Group,
 			Resource:        resourceAttributes.Resource,
@@ -107,6 +109,7 @@ func getUserAttributes(ssar *authorizationv1.SelfSubjectAccessReview) *authz.Att
 		nra := ssar.Spec.NonResourceAttributes
 
 		return &authz.AttributesRecord{
+			User:            requester,
 			Verb:            nra.Verb,
 			Path:            nra.Path,
 			ResourceRequest: false,
