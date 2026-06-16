@@ -420,6 +420,10 @@ func buildClusterDetailData(
 	totalMachines := 0
 	hasAutoscaler := false
 
+	if clusterDetail.ControlPlane != nil {
+		totalMachines += len(clusterDetail.ControlPlane.Machines)
+	}
+
 	for _, deployment := range clusterDetail.MachineDeployments {
 		totalMachines += len(deployment.Machines)
 
