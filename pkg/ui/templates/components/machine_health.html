@@ -11,11 +11,12 @@
     {{- $color = "text-yellow-500" -}}
     {{- $label = "Check failed" -}}
 {{- end -}}
-<span class="machine-health relative inline-flex items-center gap-2" tabindex="0">
-    <span class="{{$color}} text-base leading-none">●</span>
+{{- $tooltipID := printf "machine-conditions-%s" .Name -}}
+<span class="machine-health relative inline-flex items-center gap-2" tabindex="0"{{if .Conditions}} aria-describedby="{{$tooltipID}}"{{end}}>
+    <span class="{{$color}} text-base leading-none" aria-hidden="true">●</span>
     <span class="text-gray-400">{{$label}}</span>
     {{- if .Conditions }}
-    <div class="machine-health-tooltip invisible fixed z-50 w-80 rounded-sm border border-gray-700 bg-gray-900 p-3 shadow-lg text-xs pointer-events-none">
+    <div id="{{$tooltipID}}" role="tooltip" class="machine-health-tooltip invisible fixed z-50 w-80 rounded-sm border border-gray-700 bg-gray-900 p-3 shadow-lg text-xs pointer-events-none">
         <div class="font-semibold text-gray-300 mb-2 border-b border-gray-700 pb-1">Conditions</div>
         <ul class="space-y-1.5">
             {{- range .Conditions }}
@@ -24,7 +25,7 @@
             {{- if eq .Status "False" -}}{{- $dot = "text-red-500" -}}{{- end -}}
             {{- if eq .Status "Unknown" -}}{{- $dot = "text-yellow-500" -}}{{- end -}}
             <li class="flex items-start gap-2">
-                <span class="{{$dot}} leading-none mt-0.5">●</span>
+                <span class="{{$dot}} leading-none mt-0.5" aria-hidden="true">●</span>
                 <div class="flex-1 min-w-0">
                     <div class="text-gray-200">{{.Type}}<span class="text-gray-500"> · {{.Status}}</span></div>
                 </div>

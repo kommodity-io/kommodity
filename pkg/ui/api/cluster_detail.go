@@ -98,13 +98,19 @@ func GetClusterDetail(
 	}
 
 	// Fetch all machines for the cluster once and group them.
+	// Degrade gracefully on list failure: log and render with no machines rather than fail the page.
 	machineList := &clusterv1.MachineList{}
 
 	err = client.List(ctx, machineList, ctrlclient.InNamespace(DefaultNamespace), ctrlclient.MatchingLabels{
 		ClusterNameLabel: clusterName,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to list machines: %w", err)
+		logger.Warn("Failed to list machines",
+			zap.String("cluster", clusterName),
+			zap.Error(err),
+		)
+
+		machineList = &clusterv1.MachineList{}
 	}
 
 	machinesByDeployment, controlPlaneMachines := groupMachines(machineList)

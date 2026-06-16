@@ -61,14 +61,14 @@
                         {{with .Cluster.ControlPlane}}
                         <tr class="border-b border-gray-800">
                             <td class="py-4 pl-4">
-                                <button type="button" class="deployment-toggle inline-flex items-center cursor-pointer bg-transparent border-0 p-0 focus:outline-none" data-deployment="cp-{{.Name}}">
+                                <button type="button" class="deployment-toggle inline-flex items-center cursor-pointer bg-transparent border-0 p-0 focus:outline-none" data-deployment="cp-{{.Name}}" aria-expanded="false" aria-controls="machines-cp-{{.Name}}" aria-label="Toggle machines for {{.Name}}">
                                     <div class="rotate-0 transition-transform duration-200">
                                         {{template "icon_chevron.html"}}
                                     </div>
                                 </button>
                             </td>
                             <td class="py-4">
-                                <button type="button" class="deployment-toggle cursor-pointer bg-transparent border-0 p-0 focus:outline-none text-left font-medium" data-deployment="cp-{{.Name}}">
+                                <button type="button" class="deployment-toggle cursor-pointer bg-transparent border-0 p-0 focus:outline-none text-left font-medium" data-deployment="cp-{{.Name}}" aria-expanded="false" aria-controls="machines-cp-{{.Name}}">
                                     {{.Name}}
                                 </button>
                             </td>
@@ -87,7 +87,7 @@
                             </td>
                         </tr>
                         {{if .Machines}}
-                        <tr class="machine-row hidden border-b border-gray-800 bg-gray-800/30" data-deployment="cp-{{.Name}}">
+                        <tr id="machines-cp-{{.Name}}" class="machine-row hidden border-b border-gray-800 bg-gray-800/30" data-deployment="cp-{{.Name}}">
                             <td colspan="5" class="p-0">
                                 <table class="w-full text-xs">
                                     <thead class="text-left border-b border-gray-700">
@@ -108,7 +108,7 @@
                                         {{range .Machines}}
                                         <tr class="border-b border-gray-700 last:border-0">
                                             <td class="py-2 px-6">
-                                                {{template "machine_health.html" (dict "Health" .Health "Conditions" .Conditions)}}
+                                                {{template "machine_health.html" (dict "Health" .Health "Conditions" .Conditions "Name" .Name)}}
                                             </td>
                                             <td class="py-2 px-4">
                                                 <code class="px-2 py-1 bg-gray-700 rounded">{{.Phase}}</code>
@@ -153,14 +153,14 @@
                         {{range .Cluster.MachineDeployments}}
                         <tr class="border-b border-gray-800">
                             <td class="py-4 pl-4">
-                                <button type="button" class="deployment-toggle inline-flex items-center cursor-pointer bg-transparent border-0 p-0 focus:outline-none" data-deployment="{{.Name}}">
+                                <button type="button" class="deployment-toggle inline-flex items-center cursor-pointer bg-transparent border-0 p-0 focus:outline-none" data-deployment="{{.Name}}" aria-expanded="false" aria-controls="machines-{{.Name}}" aria-label="Toggle machines for {{.Name}}">
                                     <div class="rotate-0 transition-transform duration-200">
                                         {{template "icon_chevron.html"}}
                                     </div>
                                 </button>
                             </td>
                             <td class="py-4">
-                                <button type="button" class="deployment-toggle cursor-pointer bg-transparent border-0 p-0 focus:outline-none text-left font-medium" data-deployment="{{.Name}}">
+                                <button type="button" class="deployment-toggle cursor-pointer bg-transparent border-0 p-0 focus:outline-none text-left font-medium" data-deployment="{{.Name}}" aria-expanded="false" aria-controls="machines-{{.Name}}">
                                     {{.Name}}
                                 </button>
                             </td>
@@ -193,7 +193,7 @@
                             </td>
                         </tr>
                         {{if .Machines}}
-                        <tr class="machine-row hidden border-b border-gray-800 bg-gray-800/30" data-deployment="{{.Name}}">
+                        <tr id="machines-{{.Name}}" class="machine-row hidden border-b border-gray-800 bg-gray-800/30" data-deployment="{{.Name}}">
                             <td colspan="7" class="p-0">
                                 <table class="w-full text-xs">
                                     <thead class="text-left border-b border-gray-700">
@@ -214,7 +214,7 @@
                                         {{range .Machines}}
                                         <tr class="border-b border-gray-700 last:border-0">
                                             <td class="py-2 px-6">
-                                                {{template "machine_health.html" (dict "Health" .Health "Conditions" .Conditions)}}
+                                                {{template "machine_health.html" (dict "Health" .Health "Conditions" .Conditions "Name" .Name)}}
                                             </td>
                                             <td class="py-2 px-4">
                                                 <code class="px-2 py-1 bg-gray-700 rounded">{{.Phase}}</code>
@@ -267,11 +267,12 @@ function __expandRow(deploymentName) {
     if (!machineRow) return;
     machineRow.classList.remove('hidden');
 
-    const btn = document.querySelector('.deployment-toggle[data-deployment="' + deploymentName + '"]');
-    if (btn) {
-        const chevron = btn.closest('tr').querySelector('.deployment-toggle div');
+    const btns = document.querySelectorAll('.deployment-toggle[data-deployment="' + deploymentName + '"]');
+    btns.forEach(function(b) {
+        b.setAttribute('aria-expanded', 'true');
+        const chevron = b.querySelector('div');
         if (chevron) chevron.classList.add('rotate-90');
-    }
+    });
 }
 
 // Toggle machine rows
@@ -288,11 +289,16 @@ document.querySelectorAll('.deployment-toggle').forEach(function(btn) {
                 chevron.classList.toggle('rotate-90');
             }
 
+            const isExpanded = !machineRow.classList.contains('hidden');
+            document.querySelectorAll('.deployment-toggle[data-deployment="' + deploymentName + '"]').forEach(function(b) {
+                b.setAttribute('aria-expanded', isExpanded ? 'true' : 'false');
+            });
+
             const expanded = __getExpanded();
-            if (machineRow.classList.contains('hidden')) {
-                expanded.delete(deploymentName);
-            } else {
+            if (isExpanded) {
                 expanded.add(deploymentName);
+            } else {
+                expanded.delete(deploymentName);
             }
             __saveExpanded(expanded);
         }
