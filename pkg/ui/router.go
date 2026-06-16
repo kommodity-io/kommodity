@@ -51,8 +51,9 @@ var templatesFS embed.FS
 const (
 	htmxRequestHeader = "Hx-Request"
 	htmxTrue          = "true"
-	pageApp           = "app.html"
-	pageClusterDetail = "cluster_detail.html"
+	pageApp             = "app.html"
+	pageClusterDetail   = "cluster_detail.html"
+	pageClusterNotFound = "cluster_not_found.html"
 )
 
 // ErrTemplateNotFound is returned when a template is not found.
@@ -373,9 +374,8 @@ func (r *Router) handleClusterDetail(writer http.ResponseWriter, req *http.Reque
 	// Get cluster detail
 	clusterDetail, err := api.GetClusterDetail(ctx, client, kubeClient, clusterName, r.logger)
 	if err != nil {
-		// Return 404 for cluster not found, 500 for other errors
 		if errors.Is(err, api.ErrClusterNotFound) {
-			http.Error(writer, fmt.Sprintf("Cluster %s not found", clusterName), http.StatusNotFound)
+			r.renderClusterNotFound(writer, req, clusterName)
 
 			return
 		}
@@ -407,6 +407,23 @@ func (r *Router) handleClusterDetail(writer http.ResponseWriter, req *http.Reque
 	if err != nil {
 		r.logger.Error("failed to render cluster detail page", zap.Error(err))
 		http.Error(writer, "Failed to render page", http.StatusInternalServerError)
+	}
+}
+
+// renderClusterNotFound renders a friendly 404 page when a cluster cannot be found,
+// providing a link back to the dashboard.
+func (r *Router) renderClusterNotFound(writer http.ResponseWriter, req *http.Request, clusterName string) {
+	writer.WriteHeader(http.StatusNotFound)
+
+	data := map[string]any{
+		"Title":       "Cluster: " + clusterName,
+		"ClusterName": clusterName,
+		"Version":     getKommodityVersion(),
+	}
+
+	err := r.renderPageOrContent(writer, req, pageClusterNotFound, data)
+	if err != nil {
+		r.logger.Error("failed to render cluster not found page", zap.Error(err))
 	}
 }
 
@@ -595,8 +612,9 @@ func loadTemplates() map[string]*template.Template {
 	}
 
 	return map[string]*template.Template{
-		pageApp:           mustParsePage(shared, "templates/app.html"),
-		pageClusterDetail: mustParsePage(shared, "templates/cluster_detail.html"),
+		pageApp:             mustParsePage(shared, "templates/app.html"),
+		pageClusterDetail:   mustParsePage(shared, "templates/cluster_detail.html"),
+		pageClusterNotFound: mustParsePage(shared, "templates/cluster_not_found.html"),
 	}
 }
 
