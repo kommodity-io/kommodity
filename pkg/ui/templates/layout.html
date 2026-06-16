@@ -1,6 +1,6 @@
 {{define "layout.html"}}
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en" class="dark bg-gray-950 min-h-screen">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -108,7 +108,7 @@
                 border-bottom: 1px solid rgb(31 41 55);
                 background-color: rgb(17 24 39);
                 margin-bottom: 0.5rem;
-                border-radius: 0.5rem;
+                border-radius: 0.125rem;
             }
 
             .card-table tbody td {
@@ -167,7 +167,7 @@
         /* Code Block Styling */
         .code-block {
             background-color: rgb(17 24 39);
-            border-radius: 0.5rem;
+            border-radius: 0.125rem;
             overflow-x: auto;
         }
 
@@ -263,7 +263,7 @@
         function showToast(message, type) {
             type = type || 'success';
             var toast = document.createElement('div');
-            toast.className = 'fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 animate-fade-in ' +
+            toast.className = 'fixed bottom-4 right-4 px-6 py-3 rounded-sm shadow-lg z-50 animate-fade-in ' +
                 (type === 'error' ? 'bg-red-600 text-white' : 'bg-accent text-gray-950');
             toast.textContent = message;
             document.body.appendChild(toast);

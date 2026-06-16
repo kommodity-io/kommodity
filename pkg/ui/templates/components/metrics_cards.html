@@ -1,7 +1,7 @@
 {{define "metrics_cards.html"}}
-<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
     {{range $index, $metric := .}}
-    <div class="rounded-lg border border-gray-800 bg-gray-900 p-6 animate-fade-in" style="animation-delay: {{mul $index 100}}ms;">
+    <div class="rounded-sm border border-gray-800 bg-gray-900 p-6">
         <div class="text-3xl font-bold text-accent mb-2">{{$metric.Value}}</div>
         <div class="text-sm text-gray-400">{{$metric.Label}}</div>
     </div>

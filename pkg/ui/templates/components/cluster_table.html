@@ -1,5 +1,5 @@
 {{define "cluster_table.html"}}
-<div class="rounded-lg border border-gray-800 bg-gray-900 p-6 animate-fade-in">
+<div class="rounded-sm border border-gray-800 bg-gray-900 p-6">
     <h2 class="text-xl font-semibold mb-4">Clusters</h2>
 
     {{if .}}
@@ -39,7 +39,7 @@
                         <div class="flex gap-2 justify-end">
                             <button
                                 onclick="event.stopPropagation(); copyClusterKubeconfig('{{.Name}}')"
-                                class="inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent border border-gray-700 bg-gray-800 hover:bg-gray-700 hover:text-white h-8 px-3"
+                                class="inline-flex items-center justify-center gap-2 rounded-sm text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent border border-gray-700 bg-gray-800 hover:bg-gray-700 hover:text-white h-8 px-3"
                                 title="Copy kubeconfig"
                             >
                                 {{template "icon_copy.html"}}
@@ -47,7 +47,7 @@
                             </button>
                             <button
                                 onclick="event.stopPropagation(); downloadClusterKubeconfig('{{.Name}}')"
-                                class="inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent bg-accent text-gray-950 hover:bg-accent-glow hover:shadow-lg h-8 px-3"
+                                class="inline-flex items-center justify-center gap-2 rounded-sm text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent bg-accent text-gray-950 hover:bg-accent-glow hover:shadow-lg h-8 px-3"
                                 title="Download kubeconfig"
                             >
                                 {{template "icon_download.html"}}
