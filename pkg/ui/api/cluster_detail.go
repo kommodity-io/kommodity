@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	taloscontrolplanev1 "github.com/siderolabs/cluster-api-control-plane-provider-talos/api/v1alpha3"
 	"go.uber.org/zap"
 	clientgoclientset "k8s.io/client-go/kubernetes"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
@@ -15,7 +16,16 @@ import (
 type ClusterDetail struct {
 	ClusterInfo
 
+	ControlPlane       *ControlPlaneDetail
 	MachineDeployments []MachineDeploymentDetail
+}
+
+// ControlPlaneDetail holds information about a control plane.
+type ControlPlaneDetail struct {
+	Name     string
+	Phase    string
+	Replicas *int32
+	Machines []MachineDetail
 }
 
 // MachineDeploymentDetail holds information about a MachineDeployment.
@@ -66,15 +76,86 @@ func GetClusterDetail(
 		return nil, fmt.Errorf("%w: %s", ErrClusterNotFound, clusterName)
 	}
 
+	// Fetch all machines for the cluster once and group them.
+	machineList := &clusterv1.MachineList{}
+
+	err = client.List(ctx, machineList, ctrlclient.InNamespace(DefaultNamespace), ctrlclient.MatchingLabels{
+		ClusterNameLabel: clusterName,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list machines: %w", err)
+	}
+
+	machinesByDeployment, controlPlaneMachines := groupMachines(machineList)
+
 	// Get MachineDeployments
-	machineDeployments, err := getMachineDeployments(ctx, client, clusterName, logger)
+	machineDeployments, err := getMachineDeployments(ctx, client, clusterName, machinesByDeployment)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get machine deployments: %w", err)
 	}
 
+	// Get control plane
+	controlPlane, err := getControlPlane(ctx, client, clusterName, controlPlaneMachines, logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get control plane: %w", err)
+	}
+
 	return &ClusterDetail{
 		ClusterInfo:        *clusterInfo,
+		ControlPlane:       controlPlane,
 		MachineDeployments: machineDeployments,
+	}, nil
+}
+
+// getControlPlane retrieves the TalosControlPlane for the cluster and its machines.
+func getControlPlane(
+	ctx context.Context,
+	client ctrlclient.Client,
+	clusterName string,
+	machines []MachineDetail,
+	logger *zap.Logger,
+) (*ControlPlaneDetail, error) {
+	cpList := &taloscontrolplanev1.TalosControlPlaneList{}
+
+	err := client.List(ctx, cpList, ctrlclient.InNamespace(DefaultNamespace), ctrlclient.MatchingLabels{
+		ClusterNameLabel: clusterName,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list control planes: %w", err)
+	}
+
+	if len(cpList.Items) == 0 {
+		logger.Debug("No control plane found for cluster", zap.String("cluster", clusterName))
+
+		if len(machines) == 0 {
+			return nil, nil //nolint:nilnil
+		}
+
+		return &ControlPlaneDetail{
+			Name:     clusterName,
+			Phase:    UnknownVersion,
+			Machines: machines,
+		}, nil
+	}
+
+	controlPlane := &cpList.Items[0]
+
+	phase := UnknownVersion
+
+	switch {
+	case controlPlane.Status.Ready:
+		phase = MachinePhaseRunning
+	case controlPlane.Status.Initialized:
+		phase = MachinePhaseProvisioning
+	}
+
+	replicas := controlPlane.Status.Replicas
+
+	return &ControlPlaneDetail{
+		Name:     controlPlane.Name,
+		Phase:    phase,
+		Replicas: &replicas,
+		Machines: machines,
 	}, nil
 }
 
@@ -83,7 +164,7 @@ func getMachineDeployments(
 	ctx context.Context,
 	client ctrlclient.Client,
 	clusterName string,
-	logger *zap.Logger,
+	machinesByDeployment map[string][]MachineDetail,
 ) ([]MachineDeploymentDetail, error) {
 	mdList := &clusterv1.MachineDeploymentList{}
 
@@ -92,14 +173,6 @@ func getMachineDeployments(
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list machine deployments: %w", err)
-	}
-
-	// Fetch all machines once to avoid N+1 queries
-	machinesByDeployment, err := getMachinesGroupedByDeployment(ctx, client)
-	if err != nil {
-		logger.Warn("Failed to get machines", zap.Error(err))
-		// Continue with empty machines rather than failing
-		machinesByDeployment = make(map[string][]MachineDetail)
 	}
 
 	var result []MachineDeploymentDetail
@@ -142,60 +215,57 @@ func getMachineDeployments(
 	return result, nil
 }
 
-// getMachinesGroupedByDeployment fetches all machines once and groups them by deployment.
-// This avoids N+1 queries when fetching machines for multiple deployments.
-func getMachinesGroupedByDeployment(
-	ctx context.Context,
-	client ctrlclient.Client,
-) (map[string][]MachineDetail, error) {
-	machineList := &clusterv1.MachineList{}
+// groupMachines splits the machine list into per-MachineDeployment groups and a control plane group.
+func groupMachines(machineList *clusterv1.MachineList) (map[string][]MachineDetail, []MachineDetail) {
+	byDeployment := make(map[string][]MachineDetail)
 
-	err := client.List(ctx, machineList, ctrlclient.InNamespace(DefaultNamespace))
-	if err != nil {
-		return nil, fmt.Errorf("failed to list machines: %w", err)
-	}
-
-	// Group machines by their owning MachineDeployment
-	result := make(map[string][]MachineDetail)
+	var controlPlane []MachineDetail
 
 	for i := range machineList.Items {
 		machine := &machineList.Items[i]
+		detail := machineToDetail(machine)
 
-		// Find which deployment this machine belongs to
+		if _, isControlPlane := machine.Labels[clusterv1.MachineControlPlaneLabel]; isControlPlane {
+			controlPlane = append(controlPlane, detail)
+
+			continue
+		}
+
 		deploymentName := getDeploymentNameFromMachine(machine)
 		if deploymentName == "" {
 			continue
 		}
 
-		nodeName := UnknownVersion
-		if machine.Status.NodeRef != nil {
-			nodeName = machine.Status.NodeRef.Name
-		}
-
-		kubernetesVersion := UnknownVersion
-		if machine.Spec.Version != nil {
-			kubernetesVersion = *machine.Spec.Version
-		}
-
-		phase := machine.Status.Phase
-		if phase == "" {
-			phase = UnknownVersion
-		}
-
-		creationTime := machine.CreationTimestamp.Format("2006-01-02 15:04:05")
-
-		detail := MachineDetail{
-			Name:              machine.Name,
-			NodeName:          nodeName,
-			CreationTime:      creationTime,
-			Phase:             phase,
-			KubernetesVersion: kubernetesVersion,
-		}
-
-		result[deploymentName] = append(result[deploymentName], detail)
+		byDeployment[deploymentName] = append(byDeployment[deploymentName], detail)
 	}
 
-	return result, nil
+	return byDeployment, controlPlane
+}
+
+// machineToDetail converts a CAPI Machine into a UI MachineDetail.
+func machineToDetail(machine *clusterv1.Machine) MachineDetail {
+	nodeName := UnknownVersion
+	if machine.Status.NodeRef != nil {
+		nodeName = machine.Status.NodeRef.Name
+	}
+
+	kubernetesVersion := UnknownVersion
+	if machine.Spec.Version != nil {
+		kubernetesVersion = *machine.Spec.Version
+	}
+
+	phase := machine.Status.Phase
+	if phase == "" {
+		phase = UnknownVersion
+	}
+
+	return MachineDetail{
+		Name:              machine.Name,
+		NodeName:          nodeName,
+		CreationTime:      machine.CreationTimestamp.Format("2006-01-02 15:04:05"),
+		Phase:             phase,
+		KubernetesVersion: kubernetesVersion,
+	}
 }
 
 // getDeploymentNameFromMachine extracts the deployment name from a machine's owner references.

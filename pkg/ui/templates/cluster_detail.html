@@ -41,6 +41,88 @@
             {{end}}
         </div>
 
+        <!-- Control Plane Table -->
+        {{if .Cluster.ControlPlane}}
+        <div class="rounded-sm border border-gray-800 bg-gray-900 p-6">
+            <h2 class="text-xl font-semibold mb-4">Control Plane</h2>
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="text-left border-b border-gray-800">
+                        <tr>
+                            <th class="pb-3 font-semibold text-gray-400 w-8"></th>
+                            <th class="pb-3 font-semibold text-gray-400">Name</th>
+                            <th class="pb-3 font-semibold text-gray-400">Phase</th>
+                            <th class="pb-3 pl-4 font-semibold text-gray-400">Replicas</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {{with .Cluster.ControlPlane}}
+                        <tr class="border-b border-gray-800">
+                            <td class="py-4 pl-4">
+                                <button type="button" class="deployment-toggle inline-flex items-center cursor-pointer bg-transparent border-0 p-0 focus:outline-none" data-deployment="cp-{{.Name}}">
+                                    <div class="rotate-0 transition-transform duration-200">
+                                        {{template "icon_chevron.html"}}
+                                    </div>
+                                </button>
+                            </td>
+                            <td class="py-4">
+                                <button type="button" class="deployment-toggle cursor-pointer bg-transparent border-0 p-0 focus:outline-none text-left font-medium" data-deployment="cp-{{.Name}}">
+                                    {{.Name}}
+                                </button>
+                            </td>
+                            <td class="py-4">
+                                <code class="px-2 py-1 bg-gray-800 rounded text-xs">{{.Phase}}</code>
+                            </td>
+                            <td class="py-4 pl-4">
+                                {{if .Replicas}}
+                                <span class="text-accent">{{.Replicas}}</span>
+                                {{else}}
+                                <span class="text-accent">0</span>
+                                {{end}}
+                            </td>
+                        </tr>
+                        {{if .Machines}}
+                        <tr class="machine-row hidden border-b border-gray-800 bg-gray-800/30" data-deployment="cp-{{.Name}}">
+                            <td colspan="4" class="p-0">
+                                <table class="w-full text-xs">
+                                    <thead class="text-left border-b border-gray-700">
+                                        <tr>
+                                            <th class="py-2 px-6 font-semibold text-gray-500">Phase</th>
+                                            <th class="py-2 px-4 font-semibold text-gray-500">Name</th>
+                                            <th class="py-2 px-4 font-semibold text-gray-500">Node Name</th>
+                                            <th class="py-2 px-4 font-semibold text-gray-500">Kubernetes Version</th>
+                                            <th class="py-2 px-4 font-semibold text-gray-500">
+                                                <button type="button" class="sort-creation-time cursor-pointer bg-transparent border-0 p-0 focus:outline-none hover:text-gray-300 transition-colors" data-deployment="cp-{{.Name}}">
+                                                    Creation Time <span class="sort-indicator">↕</span>
+                                                </button>
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {{range .Machines}}
+                                        <tr class="border-b border-gray-700 last:border-0">
+                                            <td class="py-2 px-6">
+                                                <code class="px-2 py-1 bg-gray-700 rounded">{{.Phase}}</code>
+                                            </td>
+                                            <td class="py-2 px-4">{{.Name}}</td>
+                                            <td class="py-2 px-4">{{.NodeName}}</td>
+                                            <td class="py-2 px-4">{{.KubernetesVersion}}</td>
+                                            <td class="py-2 px-4">{{.CreationTime}}</td>
+                                        </tr>
+                                        {{end}}
+                                    </tbody>
+                                </table>
+                            </td>
+                        </tr>
+                        {{end}}
+                        {{end}}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {{end}}
+
         <!-- Machine Deployments Table -->
         <div class="rounded-sm border border-gray-800 bg-gray-900 p-6">
             <h2 class="text-xl font-semibold mb-4">Machine Deployments</h2>
