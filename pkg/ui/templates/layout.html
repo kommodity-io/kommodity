@@ -167,6 +167,13 @@
             background: rgb(75 85 99);
         }
 
+        /* Machine health tooltip */
+        .machine-health:hover .machine-health-tooltip,
+        .machine-health:focus-within .machine-health-tooltip,
+        .machine-health:focus .machine-health-tooltip {
+            visibility: visible;
+        }
+
         /* Code Block Styling */
         .code-block {
             background-color: rgb(17 24 39);
@@ -239,6 +246,25 @@
 
         document.addEventListener('htmx:historyRestore', function() {
             hideLoading();
+        });
+
+        // Position machine-health tooltip on hover/focus (fixed positioning escapes overflow ancestors).
+        function positionMachineHealthTooltip(trigger) {
+            var tip = trigger.querySelector('.machine-health-tooltip');
+            if (!tip) return;
+            var rect = trigger.getBoundingClientRect();
+            tip.style.left = Math.max(8, rect.left) + 'px';
+            tip.style.top = (rect.bottom + 8) + 'px';
+        }
+
+        document.addEventListener('mouseover', function(e) {
+            var trigger = e.target.closest('.machine-health');
+            if (trigger) positionMachineHealthTooltip(trigger);
+        });
+
+        document.addEventListener('focusin', function(e) {
+            var trigger = e.target.closest('.machine-health');
+            if (trigger) positionMachineHealthTooltip(trigger);
         });
 
         // Utility functions
