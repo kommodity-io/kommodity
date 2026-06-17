@@ -98,16 +98,28 @@ publishes pre-built Talos VHDs as OCI artifacts on GHCR:
      --hyper-v-generation V2
    ```
 
-5. Note the resulting resource ID and use it in chart values (see §7):
+5. Note the image **name** and the **resource group** it lives in. You reference
+   the image the same way Scaleway does — by name only (see §7):
 
-   ```text
-   /subscriptions/<sub-id>/resourceGroups/kommodity-images-rg/providers/Microsoft.Compute/images/kommodity-talos-azure-v1.13.0
+   ```yaml
+   kommodity:
+     provider:
+       config:
+         talosImageResourceGroup: kommodity-images-rg   # RG holding the image
+   talos:
+     imageName: kommodity-talos-azure-v1.13.0           # just the name
    ```
+
+   The chart assembles the full ARM ID
+   (`/subscriptions/<subscriptionID>/resourceGroups/<talosImageResourceGroup>/providers/Microsoft.Compute/images/<imageName>`)
+   from `kommodity.provider.config.subscriptionID` + `talosImageResourceGroup`, so
+   the subscription is never repeated. (A full `talos.id` is still accepted as an
+   escape hatch when the image lives in another subscription.)
 
 ### Alternative: Azure Compute Gallery
 
 You can publish the image into an Azure Compute Gallery and reference it via
-`talos.computeGallery.{gallery,name,version}` instead of `talos.id`. See
+`talos.computeGallery.{gallery,name,version}` instead of `talos.imageName`. See
 [`machinetemplate.yaml`](../charts/kommodity-cluster/templates/provider/azure/machinetemplate.yaml)
 for all supported image forms (`id`, `computeGallery`, `marketplace`, `sharedGallery`).
 
@@ -285,9 +297,11 @@ kommodity:
       subscriptionID: <subscription-id>
       resourceGroup: <workload-rg>        # CAPZ creates this RG automatically
       location: westeurope
+      talosImageResourceGroup: <image-rg> # RG holding the Talos managed image
 
 talos:
-  id: /subscriptions/<sub-id>/resourceGroups/<image-rg>/providers/Microsoft.Compute/images/kommodity-talos-azure-v1.13.0
+  imageName: kommodity-talos-azure-v1.13.0   # name only — full ARM ID is built
+                                             # from subscriptionID + talosImageResourceGroup
 ```
 
 ### 6.2 Cloud Controller Manager

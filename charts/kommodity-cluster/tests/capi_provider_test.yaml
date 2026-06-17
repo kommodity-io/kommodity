@@ -139,6 +139,8 @@ tests:
     values:
       - ../values.azure.yaml
     set:
+      # resourceGroup must equal the release name (kommodity.azure.validateNaming).
+      kommodity.provider.config.resourceGroup: test-cluster
       kommodity.network.ipv4.enabled: true
       kommodity.network.ipv4.public: true
       kommodity.network.ipv4.nodeCIDR: "10.0.0.0/8"
@@ -152,6 +154,8 @@ tests:
     values:
       - ../values.azure.yaml
     set:
+      # resourceGroup must equal the release name (kommodity.azure.validateNaming).
+      kommodity.provider.config.resourceGroup: test-cluster
       kommodity.network.ipv4.enabled: true
       kommodity.network.ipv4.public: true
       kommodity.network.ipv4.nodeCIDR: null

@@ -5,6 +5,10 @@ values:
 release:
   name: test-cluster
   namespace: default
+# The naming guard (kommodity.azure.validateNaming) requires the resource group to
+# equal the release name; the example values use a placeholder, so set it here.
+set:
+  kommodity.provider.config.resourceGroup: test-cluster
 templates:
   - templates/*
 tests:
@@ -276,18 +280,50 @@ tests:
           value: 50
         documentIndex: 2
 
-  - it: should use image id when configured
+  # Scaleway-aligned: provide only talos.imageName; the chart builds the managed
+  # image ARM ID from the subscription + talosImageResourceGroup config.
+  - it: should build the image id from imageName + talosImageResourceGroup
     template: templates/provider/azure/machinetemplate.yaml
+    set:
+      kommodity.provider.config.subscriptionID: sub-1234
+      kommodity.provider.config.talosImageResourceGroup: shared-images-rg
+      talos.imageName: kommodity-talos-azure-v1.13.0
     asserts:
       - equal:
           path: spec.template.spec.image.id
-          value: /subscriptions/<YOUR_SUBSCRIPTION_ID>/resourceGroups/<YOUR_RESOURCE_GROUP>/providers/Microsoft.Compute/images/kommodity-talos-azure-v1.13.0
+          value: /subscriptions/sub-1234/resourceGroups/shared-images-rg/providers/Microsoft.Compute/images/kommodity-talos-azure-v1.13.0
+        documentIndex: 0
+      # The same built id is used for worker nodepools.
+      - equal:
+          path: spec.template.spec.image.id
+          value: /subscriptions/sub-1234/resourceGroups/shared-images-rg/providers/Microsoft.Compute/images/kommodity-talos-azure-v1.13.0
+        documentIndex: 1
+
+  - it: should require talosImageResourceGroup when only imageName is set
+    template: templates/provider/azure/machinetemplate.yaml
+    set:
+      kommodity.provider.config.talosImageResourceGroup: null
+      talos.imageName: kommodity-talos-azure-v1.13.0
+    asserts:
+      - failedTemplate:
+          errorMessage: talos.imageName requires kommodity.provider.config.talosImageResourceGroup (the resource group holding the Talos managed image) to build the Talos image resource ID
+
+  # Escape hatch: an explicit full ARM id takes precedence over imageName.
+  - it: should use an explicit image id when configured
+    template: templates/provider/azure/machinetemplate.yaml
+    set:
+      talos.id: /subscriptions/explicit-sub/resourceGroups/explicit-rg/providers/Microsoft.Compute/images/explicit-image
+    asserts:
+      - equal:
+          path: spec.template.spec.image.id
+          value: /subscriptions/explicit-sub/resourceGroups/explicit-rg/providers/Microsoft.Compute/images/explicit-image
         documentIndex: 0
 
   - it: should use marketplace image when configured
     template: templates/provider/azure/machinetemplate.yaml
     set:
       talos.id: null
+      talos.imageName: null
       talos.marketplace:
         publisher: siderolabs
         offer: talos

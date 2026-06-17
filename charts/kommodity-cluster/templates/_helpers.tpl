@@ -211,3 +211,86 @@ to preserve YAML block scalar formatting for multi-line contents.
 {{ $result | toYaml | indent 2 }}
 {{- end -}}
 {{- end -}}
+
+{{/*
+kommodity.azure.validateNaming — fail fast on the copy-paste footgun.
+
+A common mistake is copying a values file for one cluster to another and
+forgetting to update the cluster-scoped Azure identifiers. The Helm release name
+changes (so the AzureCluster/Cluster names differ), but the resource group is
+carried over verbatim. The duplicate then silently shares the original's resource
+group (and, in BYO-VNet mode, its VNet — overlapping subnet CIDRs), corrupting
+both rather than failing fast.
+
+Convention: the Azure resource group is named after the cluster (== release
+name). This template enforces that convention so a copied-but-unedited values
+file is rejected at `helm install`/`template` time — before anything is
+provisioned, when it is trivially removable.
+
+(The CCM Secret collision is guarded independently on the management plane: the
+credential materializer refuses to take over a Secret owned by another cluster —
+see ErrSecretOwnedByAnotherCluster — so this template intentionally does not
+constrain provider.secret.name, which has a legitimate custom-override use case.)
+
+Set kommodity.provider.config.allowSharedResourceGroup: true to intentionally
+place multiple clusters in one resource group (you are then responsible for
+non-colliding resource names and CIDRs).
+
+Usage: {{ include "kommodity.azure.validateNaming" . }}
+*/}}
+{{- define "kommodity.azure.validateNaming" -}}
+{{- if eq .Values.kommodity.provider.name "Azure" -}}
+{{- if not (dig "config" "allowSharedResourceGroup" false .Values.kommodity.provider) -}}
+{{- $rg := dig "config" "resourceGroup" "" .Values.kommodity.provider -}}
+{{- if and $rg (ne $rg .Release.Name) -}}
+{{- fail (printf "Azure resourceGroup %q does not match the Helm release name %q. This usually means a values file was copied from another cluster without updating kommodity.provider.config.resourceGroup, which would make this release share the other cluster's resource group and corrupt both. Rename the resource group to %q, or set kommodity.provider.config.allowSharedResourceGroup=true to intentionally share one." $rg .Release.Name .Release.Name) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+kommodity.azure.image — render the AzureMachineTemplate spec.template.spec.image
+block. Mirrors the Scaleway model: provide just talos.imageName and the full
+managed-image ARM ID is assembled from the subscription + image resource group, so
+you only supply the last segment of the resource ID rather than the whole thing.
+
+Precedence (first match wins):
+  1. talos.marketplace      — Azure Marketplace image
+  2. talos.computeGallery   — Shared Image Gallery
+  3. talos.id               — explicit full ARM resource ID (escape hatch)
+  4. talos.imageName        — managed image; ARM ID built from
+                              kommodity.provider.config.subscriptionID +
+                              kommodity.provider.config.talosImageResourceGroup
+
+Usage (after an `image:` key): {{- include "kommodity.azure.image" . | nindent 8 }}
+*/}}
+{{- define "kommodity.azure.image" -}}
+{{- $talos := .Values.talos -}}
+{{- if dig "marketplace" "" $talos -}}
+marketplace:
+  publisher: {{ $talos.marketplace.publisher }}
+  offer: {{ $talos.marketplace.offer }}
+  sku: {{ $talos.marketplace.sku }}
+  version: {{ $talos.marketplace.version }}
+{{- else if dig "computeGallery" "" $talos -}}
+computeGallery:
+  gallery: {{ $talos.computeGallery.gallery }}
+  name: {{ $talos.computeGallery.name }}
+  version: {{ $talos.computeGallery.version }}
+  {{- if dig "computeGallery" "subscriptionID" "" $talos }}
+  subscriptionID: {{ $talos.computeGallery.subscriptionID }}
+  {{- end }}
+  {{- if dig "computeGallery" "resourceGroup" "" $talos }}
+  resourceGroup: {{ $talos.computeGallery.resourceGroup }}
+  {{- end }}
+{{- else if dig "id" "" $talos -}}
+id: {{ $talos.id }}
+{{- else if dig "imageName" "" $talos -}}
+{{- $subID := required "talos.imageName requires kommodity.provider.config.subscriptionID to build the Talos image resource ID" (dig "config" "subscriptionID" "" .Values.kommodity.provider) -}}
+{{- $imageRG := required "talos.imageName requires kommodity.provider.config.talosImageResourceGroup (the resource group holding the Talos managed image) to build the Talos image resource ID" (dig "config" "talosImageResourceGroup" "" .Values.kommodity.provider) -}}
+id: {{ printf "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Compute/images/%s" $subID $imageRG $talos.imageName }}
+{{- else -}}
+{{- fail "no Talos image configured for Azure: set talos.imageName (recommended) together with kommodity.provider.config.talosImageResourceGroup, or use talos.id / talos.computeGallery / talos.marketplace" -}}
+{{- end -}}
+{{- end -}}

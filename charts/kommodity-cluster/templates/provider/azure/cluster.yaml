@@ -1,4 +1,5 @@
 {{- if eq .Values.kommodity.provider.name "Azure" }}
+{{- include "kommodity.azure.validateNaming" . }}
 {{- $zones := dict }}
 {{- range $name, $np := .Values.kommodity.nodepools }}
   {{- $_ := set $zones $np.zone true }}

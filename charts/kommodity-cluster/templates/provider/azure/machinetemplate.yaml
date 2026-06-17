@@ -10,36 +10,12 @@ metadata:
 spec:
   template:
     spec:
+      additionalTags:
+        managed-by: kommodity
+        cluster-name: {{ $.Release.Name }}
       vmSize: {{ .Values.kommodity.controlplane.sku }}
-      {{- if dig "marketplace" "" .Values.talos }}
       image:
-        marketplace:
-          publisher: {{ .Values.talos.marketplace.publisher }}
-          offer: {{ .Values.talos.marketplace.offer }}
-          sku: {{ .Values.talos.marketplace.sku }}
-          version: {{ .Values.talos.marketplace.version }}
-      {{- else if dig "computeGallery" "" .Values.talos }}
-      image:
-        computeGallery:
-          gallery: {{ .Values.talos.computeGallery.gallery }}
-          name: {{ .Values.talos.computeGallery.name }}
-          version: {{ .Values.talos.computeGallery.version }}
-          {{- if dig "computeGallery" "subscriptionID" "" .Values.talos }}
-          subscriptionID: {{ .Values.talos.computeGallery.subscriptionID }}
-          {{- end }}
-          {{- if dig "computeGallery" "resourceGroup" "" .Values.talos }}
-          resourceGroup: {{ .Values.talos.computeGallery.resourceGroup }}
-          {{- end }}
-      {{- else if dig "id" "" .Values.talos }}
-      image:
-        id: {{ .Values.talos.id }}
-      {{- else }}
-      image:
-        sharedGallery:
-          gallery: {{ .Values.talos.imageName }}
-          name: talos
-          version: latest
-      {{- end }}
+        {{- include "kommodity.azure.image" . | nindent 8 }}
       sshPublicKey: {{ if .Values.azure }}{{ default "c3NoLWVkMjU1MTkgQUFBQUMzTnphQzFsWkRJMU5URTVBQUFBSUZLeGlkQ1FxTzZZU3JKUHpKNlNPa1loRk9yZVpSb0JCNlZPVlVGNEtHb1ogdGFsb3Mta2V5Cg==" .Values.azure.sshPublicKey }}{{ else }}c3NoLWVkMjU1MTkgQUFBQUMzTnphQzFsWkRJMU5URTVBQUFBSUZLeGlkQ1FxTzZZU3JKUHpKNlNPa1loRk9yZVpSb0JCNlZPVlVGNEtHb1ogdGFsb3Mta2V5Cg=={{ end }}
       disableExtensionOperations: {{ if and .Values.azure (hasKey .Values.azure "disableExtensionOperations") }}{{ .Values.azure.disableExtensionOperations }}{{ else }}true{{ end }}
       osDisk:
@@ -61,35 +37,8 @@ spec:
   template:
     spec:
       vmSize: {{ $np.sku }}
-      {{- if dig "marketplace" "" $.Values.talos }}
       image:
-        marketplace:
-          publisher: {{ $.Values.talos.marketplace.publisher }}
-          offer: {{ $.Values.talos.marketplace.offer }}
-          sku: {{ $.Values.talos.marketplace.sku }}
-          version: {{ $.Values.talos.marketplace.version }}
-      {{- else if dig "computeGallery" "" $.Values.talos }}
-      image:
-        computeGallery:
-          gallery: {{ $.Values.talos.computeGallery.gallery }}
-          name: {{ $.Values.talos.computeGallery.name }}
-          version: {{ $.Values.talos.computeGallery.version }}
-          {{- if dig "computeGallery" "subscriptionID" "" $.Values.talos }}
-          subscriptionID: {{ $.Values.talos.computeGallery.subscriptionID }}
-          {{- end }}
-          {{- if dig "computeGallery" "resourceGroup" "" $.Values.talos }}
-          resourceGroup: {{ $.Values.talos.computeGallery.resourceGroup }}
-          {{- end }}
-      {{- else if dig "id" "" $.Values.talos }}
-      image:
-        id: {{ $.Values.talos.id }}
-      {{- else }}
-      image:
-        sharedGallery:
-          gallery: {{ $.Values.talos.imageName }}
-          name: talos
-          version: latest
-      {{- end }}
+        {{- include "kommodity.azure.image" $ | nindent 8 }}
       sshPublicKey: {{ if $.Values.azure }}{{ default "c3NoLWVkMjU1MTkgQUFBQUMzTnphQzFsWkRJMU5URTVBQUFBSUZLeGlkQ1FxTzZZU3JKUHpKNlNPa1loRk9yZVpSb0JCNlZPVlVGNEtHb1ogdGFsb3Mta2V5Cg==" $.Values.azure.sshPublicKey }}{{ else }}c3NoLWVkMjU1MTkgQUFBQUMzTnphQzFsWkRJMU5URTVBQUFBSUZLeGlkQ1FxTzZZU3JKUHpKNlNPa1loRk9yZVpSb0JCNlZPVlVGNEtHb1ogdGFsb3Mta2V5Cg=={{ end }}
       disableExtensionOperations: {{ if and $.Values.azure (hasKey $.Values.azure "disableExtensionOperations") }}{{ $.Values.azure.disableExtensionOperations }}{{ else }}true{{ end }}
       osDisk:

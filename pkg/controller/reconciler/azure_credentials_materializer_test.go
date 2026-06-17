@@ -4,6 +4,7 @@ package reconciler
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
@@ -244,6 +245,48 @@ func TestMaterializeDoesNotClobberOperatorSecret(t *testing.T) {
 	aso := getSecret(t, materializer, testClusterName+asoSecretSuffix)
 	if string(aso.Data["AZURE_CLIENT_SECRET"]) != "operator-managed" {
 		t.Errorf("operator-supplied secret was clobbered: %q", string(aso.Data["AZURE_CLIENT_SECRET"]))
+	}
+}
+
+// TestMaterializeRefusesSecretOwnedByAnotherCluster verifies the copy-paste collision
+// guard: when the target CCM Secret is materializer-managed but owned by a DIFFERENT
+// Cluster (the signature of a values file copied with a stale provider.secret.name), the
+// reconcile fails with ErrSecretOwnedByAnotherCluster and the other cluster's Secret is
+// left untouched rather than stolen (which would GC it on this cluster's teardown).
+func TestMaterializeRefusesSecretOwnedByAnotherCluster(t *testing.T) {
+	t.Parallel()
+
+	otherSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      testCCMSecretName,
+			Namespace: testMatNamespace,
+			Labels: map[string]string{
+				materializerManagedByLabel: managedByLabelValue,
+				clusterNameLabel:           "other-cluster",
+			},
+		},
+		Data: map[string][]byte{ccmCloudConfigKey: []byte(`{"owned":"by-other"}`)},
+	}
+
+	materializer := buildMaterializer(t, materializerFixture{
+		identityType: infrav1.ServicePrincipal, withClientSecret: true, ccmEnabled: true,
+		preExistingSecret: otherSecret,
+	})
+
+	_, err := materializer.Reconcile(context.Background(), ctrl.Request{
+		NamespacedName: types.NamespacedName{Namespace: testMatNamespace, Name: testClusterName},
+	})
+	if !errors.Is(err, ErrSecretOwnedByAnotherCluster) {
+		t.Fatalf("Reconcile error = %v, want ErrSecretOwnedByAnotherCluster", err)
+	}
+
+	ccm := getSecret(t, materializer, testCCMSecretName)
+	if got := string(ccm.Data[ccmCloudConfigKey]); got != `{"owned":"by-other"}` {
+		t.Errorf("other cluster's CCM secret was modified: %q", got)
+	}
+
+	if ccm.Labels[clusterNameLabel] != "other-cluster" {
+		t.Errorf("other cluster's ownership label changed to %q", ccm.Labels[clusterNameLabel])
 	}
 }
 

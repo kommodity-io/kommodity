@@ -5,6 +5,11 @@ values:
 release:
   name: test-cluster
   namespace: default
+# The naming guard (kommodity.azure.validateNaming) requires the resource group to
+# equal the release name; the example values use a placeholder, so set it here for
+# the suite. Individual tests below exercise the guard's failure paths explicitly.
+set:
+  kommodity.provider.config.resourceGroup: test-cluster
 templates:
   - templates/provider/azure/cluster.yaml
 tests:
@@ -34,7 +39,7 @@ tests:
           value: <YOUR_SUBSCRIPTION_ID>
       - equal:
           path: spec.resourceGroup
-          value: <YOUR_RESOURCE_GROUP>
+          value: test-cluster
       - equal:
           path: spec.location
           value: westeurope
@@ -133,7 +138,7 @@ tests:
           value: test-cluster-vnet
       - equal:
           path: spec.networkSpec.vnet.resourceGroup
-          value: <YOUR_RESOURCE_GROUP>
+          value: test-cluster
       - equal:
           path: spec.networkSpec.vnet.cidrBlocks[0]
           value: 10.0.0.0/8
@@ -210,7 +215,7 @@ tests:
           value: test-cluster-vnet
       - equal:
           path: spec.networkSpec.vnet.resourceGroup
-          value: <YOUR_RESOURCE_GROUP>
+          value: test-cluster
       - equal:
           path: spec.networkSpec.vnet.cidrBlocks[0]
           value: 10.0.0.0/8
@@ -275,3 +280,24 @@ tests:
     asserts:
       - hasDocuments:
           count: 0
+
+  # Naming guard: a values file copied from another cluster (resourceGroup not
+  # updated to match the new release name) must fail fast at render time.
+  - it: should fail when resourceGroup does not match the release name
+    set:
+      kommodity.provider.config.resourceGroup: some-other-cluster
+    asserts:
+      - failedTemplate:
+          errorMessage: 'Azure resourceGroup "some-other-cluster" does not match the Helm release name "test-cluster". This usually means a values file was copied from another cluster without updating kommodity.provider.config.resourceGroup, which would make this release share the other cluster''s resource group and corrupt both. Rename the resource group to "test-cluster", or set kommodity.provider.config.allowSharedResourceGroup=true to intentionally share one.'
+
+  # The opt-in escape hatch disables the resource-group check for intentional sharing.
+  - it: should allow a mismatched resourceGroup when allowSharedResourceGroup is set
+    set:
+      kommodity.provider.config.resourceGroup: shared-rg
+      kommodity.provider.config.allowSharedResourceGroup: true
+    asserts:
+      - isKind:
+          of: AzureCluster
+      - equal:
+          path: spec.resourceGroup
+          value: shared-rg

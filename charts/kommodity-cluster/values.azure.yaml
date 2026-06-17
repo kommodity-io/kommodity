@@ -35,8 +35,20 @@ kommodity:
       #   allowedNamespaces: {}
     config:
       subscriptionID: <YOUR_SUBSCRIPTION_ID>
+      # Convention: name the resource group after the cluster (it must equal the
+      # Helm release name). The chart fails fast at install time if they differ —
+      # this catches a values file copied from another cluster without updating
+      # this field, which would otherwise silently share that cluster's resource
+      # group and corrupt both. Set allowSharedResourceGroup: true below to place
+      # multiple clusters in one resource group on purpose.
       resourceGroup: <YOUR_RESOURCE_GROUP>
       location: westeurope
+      # Resource group that holds the Talos managed image referenced by
+      # talos.imageName. Combined with subscriptionID above, the chart builds the
+      # full image ARM ID, so you only provide the image name (Scaleway-aligned).
+      # May differ from the cluster resourceGroup (images are often shared).
+      talosImageResourceGroup: <YOUR_IMAGE_RESOURCE_GROUP>
+      # allowSharedResourceGroup: true   # opt out of the release-name == RG check
 
     cloudControllerManager:
       enabled: true
@@ -225,8 +237,14 @@ talos:
   # Follow this documentation to generate a Talos image for Azure:
   # https://docs.siderolabs.com/talos/v1.13/platform-specific-installations/cloud-platforms/azure
   #
-  # Use one of:
-  #   id: <MANAGED_IMAGE_ARM_ID>           # managed image (e.g. /subscriptions/.../images/talos-v1.13.0)
+  # Recommended (Scaleway-aligned): provide just the managed image NAME. The chart
+  # builds the full ARM ID from kommodity.provider.config.subscriptionID and
+  # kommodity.provider.config.talosImageResourceGroup, so you only supply the last
+  # segment of the resource ID — the same `imageName` field Scaleway uses.
+  imageName: kommodity-talos-azure-v1.13.0
+  #
+  # Alternatives (take precedence over imageName in this order):
+  #   id: <MANAGED_IMAGE_ARM_ID>            # explicit full ARM ID (escape hatch)
   #   computeGallery:                       # shared image gallery
   #     gallery: myGallery
   #     name: talos-v1.13.0
@@ -236,4 +254,3 @@ talos:
   #     offer: talos
   #     sku: talos
   #     version: 1.13.0
-  id: /subscriptions/<YOUR_SUBSCRIPTION_ID>/resourceGroups/<YOUR_RESOURCE_GROUP>/providers/Microsoft.Compute/images/kommodity-talos-azure-v1.13.0

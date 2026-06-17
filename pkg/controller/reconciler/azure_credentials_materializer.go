@@ -303,14 +303,33 @@ func (r *AzureCredentialMaterializer) upsertManagedSecret(
 	existing := &corev1.Secret{}
 
 	err := r.Get(ctx, types.NamespacedName{Namespace: cluster.Namespace, Name: name}, existing)
-	if err == nil && len(existing.Data) > 0 && existing.Labels[materializerManagedByLabel] != managedByLabelValue {
-		logging.FromContext(ctx).Info("Secret exists with data and is not materializer-managed; leaving it untouched",
-			zap.String("secret", cluster.Namespace+"/"+name))
+	if err == nil {
+		// Operator-supplied escape hatch: a Secret holding data that we do not manage is
+		// left untouched.
+		if len(existing.Data) > 0 && existing.Labels[materializerManagedByLabel] != managedByLabelValue {
+			logging.FromContext(ctx).Info("Secret exists with data and is not materializer-managed; leaving it untouched",
+				zap.String("secret", cluster.Namespace+"/"+name))
 
-		return nil
-	}
+			return nil
+		}
 
-	if err != nil && !apierrors.IsNotFound(err) {
+		// Collision guard: the Secret is materializer-managed but belongs to a different
+		// Cluster. Refuse to take it over — overwriting would steal that cluster's credentials
+		// and, on this cluster's teardown, garbage collect a Secret it still depends on. This is
+		// the signature of a values file copied from another cluster whose provider.secret.name
+		// was not updated.
+		owner := existing.Labels[clusterNameLabel]
+		if owner != "" && owner != cluster.Name {
+			logging.FromContext(ctx).Error("refusing to take over a materialized Secret owned by another cluster",
+				zap.String("secret", cluster.Namespace+"/"+name),
+				zap.String("ownedBy", owner),
+				zap.String("requestedBy", cluster.Name))
+
+			return fmt.Errorf("%w: Secret %s/%s is materialized for cluster %q, not %q "+
+				"(likely a duplicate provider.secret.name copied from another cluster's values)",
+				ErrSecretOwnedByAnotherCluster, cluster.Namespace, name, owner, cluster.Name)
+		}
+	} else if !apierrors.IsNotFound(err) {
 		return fmt.Errorf("failed to get Secret %s/%s: %w", cluster.Namespace, name, err)
 	}
 
