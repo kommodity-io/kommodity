@@ -1,0 +1,63 @@
+{{- if eq .Values.kommodity.provider.name "Azure" }}
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: AzureMachineTemplate
+metadata:
+  name: {{ .Release.Name }}-controlplane-{{ include "kommodity-cluster.machineSpecsHash" (dict "poolValues" .Values.kommodity.controlplane "allValues" .Values) }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: kommodity
+spec:
+  template:
+    spec:
+      additionalTags:
+        managed-by: kommodity
+        cluster-name: {{ $.Release.Name }}
+      vmSize: {{ .Values.kommodity.controlplane.sku }}
+      image:
+        {{- include "kommodity.azure.image" . | nindent 8 }}
+      sshPublicKey: {{ if .Values.azure }}{{ default "c3NoLWVkMjU1MTkgQUFBQUMzTnphQzFsWkRJMU5URTVBQUFBSUZLeGlkQ1FxTzZZU3JKUHpKNlNPa1loRk9yZVpSb0JCNlZPVlVGNEtHb1ogdGFsb3Mta2V5Cg==" .Values.azure.sshPublicKey }}{{ else }}c3NoLWVkMjU1MTkgQUFBQUMzTnphQzFsWkRJMU5URTVBQUFBSUZLeGlkQ1FxTzZZU3JKUHpKNlNPa1loRk9yZVpSb0JCNlZPVlVGNEtHb1ogdGFsb3Mta2V5Cg=={{ end }}
+      disableExtensionOperations: {{ if and .Values.azure (hasKey .Values.azure "disableExtensionOperations") }}{{ .Values.azure.disableExtensionOperations }}{{ else }}true{{ end }}
+      osDisk:
+        diskSizeGB: {{ .Values.kommodity.controlplane.os.disk.size }}
+        osType: Linux
+        managedDisk:
+          storageAccountType: {{ default "Premium_LRS" .Values.kommodity.controlplane.os.disk.type }}
+
+{{- range $name, $np := .Values.kommodity.nodepools }}
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: AzureMachineTemplate
+metadata:
+  name: {{ $.Release.Name }}-worker-{{ $name }}-{{ include "kommodity-cluster.machineSpecsHash" (dict "poolValues" $np "allValues" $.Values) }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: kommodity
+spec:
+  template:
+    spec:
+      vmSize: {{ $np.sku }}
+      image:
+        {{- include "kommodity.azure.image" $ | nindent 8 }}
+      sshPublicKey: {{ if $.Values.azure }}{{ default "c3NoLWVkMjU1MTkgQUFBQUMzTnphQzFsWkRJMU5URTVBQUFBSUZLeGlkQ1FxTzZZU3JKUHpKNlNPa1loRk9yZVpSb0JCNlZPVlVGNEtHb1ogdGFsb3Mta2V5Cg==" $.Values.azure.sshPublicKey }}{{ else }}c3NoLWVkMjU1MTkgQUFBQUMzTnphQzFsWkRJMU5URTVBQUFBSUZLeGlkQ1FxTzZZU3JKUHpKNlNPa1loRk9yZVpSb0JCNlZPVlVGNEtHb1ogdGFsb3Mta2V5Cg=={{ end }}
+      disableExtensionOperations: {{ if and $.Values.azure (hasKey $.Values.azure "disableExtensionOperations") }}{{ $.Values.azure.disableExtensionOperations }}{{ else }}true{{ end }}
+      osDisk:
+        diskSizeGB: {{ $np.os.disk.size }}
+        osType: Linux
+        managedDisk:
+          storageAccountType: {{ default "Premium_LRS" $np.os.disk.type }}
+      {{- if $np.dataDisks }}
+      dataDisks:
+        {{- range $np.dataDisks }}
+        - nameSuffix: {{ .nameSuffix }}
+          diskSizeGB: {{ .diskSizeGB }}
+          lun: {{ .lun }}
+          managedDisk:
+            storageAccountType: {{ default "Premium_LRS" .storageAccountType }}
+          {{- if .cachingType }}
+          cachingType: {{ .cachingType }}
+          {{- end }}
+        {{- end }}
+      {{- end }}
+{{- end }}
+{{- end }}

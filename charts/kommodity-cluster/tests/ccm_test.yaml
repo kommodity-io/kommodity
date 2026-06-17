@@ -129,6 +129,97 @@ tests:
           path: data["ccm.yaml"]
           pattern: "image: quay.io/kubevirt/kubevirt-cloud-controller-manager:v9.9.9"
 
+  - it: should embed all Azure CCM images (controller, node-manager, init) from values
+    template: templates/ccm-crs.yaml
+    values:
+      - ../values.azure.yaml
+    set:
+      kommodity.provider.cloudControllerManager.image.repository: myreg.example.com/ccm
+      kommodity.provider.cloudControllerManager.image.tag: t1
+      kommodity.provider.cloudControllerManager.nodeManager.image.repository: myreg.example.com/nodemgr
+      kommodity.provider.cloudControllerManager.nodeManager.image.tag: t2
+      kommodity.provider.cloudControllerManager.initImage.repository: myreg.example.com/kubectl
+      kommodity.provider.cloudControllerManager.initImage.tag: t3
+    documentSelector:
+      path: kind
+      value: ConfigMap
+    asserts:
+      - matchRegex:
+          path: data["ccm.yaml"]
+          pattern: "image: myreg.example.com/ccm:t1"
+      - matchRegex:
+          path: data["ccm.yaml"]
+          pattern: "image: myreg.example.com/nodemgr:t2"
+      - matchRegex:
+          path: data["ccm.yaml"]
+          pattern: "image: myreg.example.com/kubectl:t3"
+
+  - it: should default the Azure CCM images when not overridden
+    template: templates/ccm-crs.yaml
+    values:
+      - ../values.azure.yaml
+    set:
+      kommodity.provider.cloudControllerManager.nodeManager: null
+      kommodity.provider.cloudControllerManager.initImage: null
+      kommodity.provider.cloudControllerManager.image: null
+    documentSelector:
+      path: kind
+      value: ConfigMap
+    asserts:
+      - matchRegex:
+          path: data["ccm.yaml"]
+          pattern: "image: mcr.microsoft.com/oss/kubernetes/azure-cloud-node-manager:v1.34.3"
+      - matchRegex:
+          path: data["ccm.yaml"]
+          pattern: "image: registry.k8s.io/kubectl:v1.35.3"
+      - matchRegex:
+          path: data["ccm.yaml"]
+          pattern: "image: mcr.microsoft.com/oss/kubernetes/azure-cloud-controller-manager:v1.34.3"
+
+  - it: should embed Azure CCM component resources from values
+    template: templates/ccm-crs.yaml
+    values:
+      - ../values.azure.yaml
+    set:
+      kommodity.provider.cloudControllerManager.resources.requests.cpu: 111m
+      kommodity.provider.cloudControllerManager.resources.limits.memory: 3Gi
+      kommodity.provider.cloudControllerManager.nodeManager.resources.requests.cpu: 22m
+      kommodity.provider.cloudControllerManager.nodeManager.resources.limits.memory: 333Mi
+    documentSelector:
+      path: kind
+      value: ConfigMap
+    asserts:
+      - matchRegex:
+          path: data["ccm.yaml"]
+          pattern: "cpu: 111m"
+      - matchRegex:
+          path: data["ccm.yaml"]
+          pattern: "memory: 3Gi"
+      - matchRegex:
+          path: data["ccm.yaml"]
+          pattern: "cpu: 22m"
+      - matchRegex:
+          path: data["ccm.yaml"]
+          pattern: "memory: 333Mi"
+
+  - it: should default Azure CCM component resources when not overridden
+    template: templates/ccm-crs.yaml
+    values:
+      - ../values.azure.yaml
+    set:
+      kommodity.provider.cloudControllerManager.resources: null
+      kommodity.provider.cloudControllerManager.nodeManager: null
+    documentSelector:
+      path: kind
+      value: ConfigMap
+    asserts:
+      - matchRegex:
+          path: data["ccm.yaml"]
+          pattern: "memory: 2Gi"
+      - matchRegex:
+          path: data["ccm.yaml"]
+          pattern: "memory: 512Mi"
+
   - it: should embed the Scaleway CCM image from values
     template: templates/ccm-crs.yaml
     values:

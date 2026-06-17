@@ -206,7 +206,46 @@ func bootstrapRequiredResourcesHook(
 	}
 }
 
-//nolint:funlen // Not possible to shorten this function in a meaningful way due to go routine.
+// applyProviderResources applies the provider CRDs and webhooks and reconciles the conversion
+// webhook caBundles using the persisted webhook serving certificate as the caBundle.
+func applyProviderResources(
+	ctx context.Context,
+	cfg *config.KommodityConfig,
+	providerCache *provider.Cache,
+	dynamicClient *restclientdynamic.DynamicClient,
+	kubeClient kubernetes.Interface,
+) error {
+	webhookURL := fmt.Sprintf("https://localhost:%d", cfg.WebhookPort)
+
+	// Use the persisted webhook serving certificate as the caBundle. The webhook server serves the
+	// same stable certificate (see NewAggregatedControllerManager), so the caBundle stays valid
+	// across restarts — unlike the apiserver's ephemeral, per-start self-signed cert, which would
+	// diverge from the persisted CRD caBundle on every restart.
+	crt, _, err := getOrCreateWebhookServingCert(ctx, kubeClient.CoreV1())
+	if err != nil {
+		return fmt.Errorf("failed to get or create webhook serving cert: %w", err)
+	}
+
+	err = providerCache.ApplyCRDProviders(ctx, webhookURL, crt, dynamicClient)
+	if err != nil {
+		return fmt.Errorf("failed to apply all provider CRDs: %w", err)
+	}
+
+	// Force the conversion-webhook caBundle on existing CRDs to match the current serving cert;
+	// the create-or-replace path above does not refresh it on already-existing CRDs.
+	err = providerCache.ReconcileConversionCABundles(ctx, dynamicClient, webhookURL, crt)
+	if err != nil {
+		return fmt.Errorf("failed to reconcile conversion caBundles: %w", err)
+	}
+
+	err = providerCache.ApplyWebhookProviders(ctx, webhookURL, crt, dynamicClient)
+	if err != nil {
+		return fmt.Errorf("failed to apply all provider webhooks: %w", err)
+	}
+
+	return nil
+}
+
 func applyCRDsHook(cfg *config.KommodityConfig,
 	genericServerConfig *genericapiserver.RecommendedConfig,
 	providerCache *provider.Cache,
@@ -217,36 +256,34 @@ func applyCRDsHook(cfg *config.KommodityConfig,
 			return fmt.Errorf("failed to create dynamic rest client: %w", err)
 		}
 
+		kubeClient, err := kubernetes.NewForConfig(genericServerConfig.LoopbackClientConfig)
+		if err != nil {
+			return fmt.Errorf("failed to create kubernetes client for webhook cert: %w", err)
+		}
+
+		// Ensure the namespace exists before persisting the webhook serving cert Secret.
+		err = ensureKommodityNamespace(ctx, kubeClient.CoreV1())
+		if err != nil {
+			return err
+		}
+
 		errCh := make(chan error)
 
+		// The goroutine sends exactly one value on errCh: the first failure, or nil
+		// once every stage has succeeded. Sending more than once would deadlock the
+		// goroutine (the reader takes a single value) and could mask a later failure.
 		go func() {
-			webhookURL := fmt.Sprintf("https://localhost:%d", cfg.WebhookPort)
-
-			crt, err := getServingCertFromFiles(genericServerConfig)
+			err := applyProviderResources(ctx, cfg, providerCache, dynamicClient, kubeClient)
 			if err != nil {
-				errCh <- fmt.Errorf("failed to get serving PEM from files: %w", err)
-
-				return
-			}
-
-			err = providerCache.ApplyCRDProviders(ctx, webhookURL, crt, dynamicClient)
-			if err != nil {
-				errCh <- fmt.Errorf("failed to apply all provider CRDs: %w", err)
-
-				return
-			}
-
-			err = providerCache.ApplyWebhookProviders(ctx, webhookURL, crt, dynamicClient)
-			if err != nil {
-				errCh <- fmt.Errorf("failed to apply all provider webhooks: %w", err)
+				errCh <- err
 
 				return
 			}
 
 			if !cache.WaitForCacheSync(ctx.Done(), crds.Informer().HasSynced) {
 				errCh <- ErrTimeoutWaitingForCRD
-			} else {
-				errCh <- nil
+
+				return
 			}
 
 			mwcInf := genericServerConfig.SharedInformerFactory.
@@ -259,9 +296,11 @@ func applyCRDsHook(cfg *config.KommodityConfig,
 				vwcInf.Informer().HasSynced,
 			) {
 				errCh <- ErrTimeoutWaitingForWebhook
-			} else {
-				errCh <- nil
+
+				return
 			}
+
+			errCh <- nil
 		}()
 
 		err = <-errCh
@@ -303,7 +342,21 @@ func startControllerManagersHook(cfg *config.KommodityConfig,
 			},
 		}
 
-		ctlMgr, err := controller.NewAggregatedControllerManager(ctx, cfg, genericServerConfig, scheme, signingKeyDeps)
+		// Serve the webhook server with the same persisted certificate that apply-crds injects
+		// as the CRD caBundle, so the conversion webhook stays trusted across restarts.
+		webhookCert, webhookKey, err := getOrCreateWebhookServingCert(ctx, kubeClient.CoreV1())
+		if err != nil {
+			return fmt.Errorf("failed to get or create webhook serving cert: %w", err)
+		}
+
+		ctlMgr, err := controller.NewAggregatedControllerManager(ctx, controller.AggregatedControllerManagerDeps{
+			KommodityConfig:     cfg,
+			GenericServerConfig: genericServerConfig,
+			Scheme:              scheme,
+			SigningKeyDeps:      signingKeyDeps,
+			WebhookCertPEM:      webhookCert,
+			WebhookKeyPEM:       webhookKey,
+		})
 		if err != nil {
 			return fmt.Errorf("failed to create controller manager: %w", err)
 		}
@@ -383,11 +436,9 @@ func persistSigningKeyHook(
 		}
 
 		// Ensure namespace exists (may race with bootstrap-required-resources hook)
-		_, err = kubeClient.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{Name: config.KommodityNamespace},
-		}, metav1.CreateOptions{})
-		if err != nil && !apierrors.IsAlreadyExists(err) {
-			return fmt.Errorf("failed to ensure namespace %q exists: %w", config.KommodityNamespace, err)
+		err = ensureKommodityNamespace(ctx, kubeClient.CoreV1())
+		if err != nil {
+			return err
 		}
 
 		err = persistSigningKey(ctx, kubeClient.CoreV1(), signingKey, true)

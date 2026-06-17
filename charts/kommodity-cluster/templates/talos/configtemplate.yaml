@@ -21,6 +21,7 @@ spec:
         "annotations" $np.annotations
         "installer" $.Values.talos.installer
         "logLevel" $.Values.kommodity.logLevel
+        "ccmEnabled" (dig "provider" "cloudControllerManager" "enabled" false $.Values.kommodity)
       ) | trim -}}
       {{- $needsStrategicPatches := or (not (empty $mergedPatch)) $.Values.kommodity.kms.enabled $.Values.kommodity.security.enabled }}
       {{- if $needsStrategicPatches }}

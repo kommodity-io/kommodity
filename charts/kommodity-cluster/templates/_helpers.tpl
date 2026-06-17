@@ -94,6 +94,9 @@ Any values that should trigger a new Talos config template when changed should b
 {{- $talosVersion := default .allValues.talos.version (dig "talos" "version" "" .poolValues) -}}
 {{- $_ := set $data "talosVersion" $talosVersion -}}
 
+{{- /* CCM enabled drives auto-injection of kubelet --cloud-provider=external
+       (see mergedStrategicPatch); include it so toggling CCM rolls the nodes. */ -}}
+{{- $_ := set $data "ccmEnabled" (dig "provider" "cloudControllerManager" "enabled" false .allValues.kommodity) -}}
 {{- $_ := set $data "kmsEnabled" .allValues.kommodity.kms.enabled -}}
 {{- if .allValues.kommodity.kms.enabled -}}
 	{{- with .allValues.kommodity.kms.endpoint -}}
@@ -160,6 +163,22 @@ to preserve YAML block scalar formatting for multi-line contents.
 {{- $oidcExtraArgs := include "kommodity.talos.oidc.extraArgs" (dict "oidc" .oidc) | fromJson -}}
 {{- $_ := mustMergeOverwrite $result (dict "cluster" (dict "apiServer" (dict "extraArgs" $oidcExtraArgs))) -}}
 {{- end -}}
+{{- /*
+  Cloud Controller Manager → kubelet --cloud-provider=external.
+
+  When a CCM is enabled the kubelet MUST run with --cloud-provider=external so
+  the node registers with the node.cloudprovider.kubernetes.io/uninitialized
+  taint and defers spec.providerID assignment to the CCM. Without it the node
+  comes up with NO providerID; CAPI links Machine→Node by matching providerID,
+  so Machine.status.nodeRef is never set, and CACPPT's control-plane scale-down
+  refuses to remove any machine while one lacks a NodeRef — wedging every
+  subsequent rollout. Auto-injected here (not left to global.strategicPatches)
+  so it can never be omitted by mistake. An explicit user patch for
+  cloud-provider still wins, as user patches are merged on top below.
+*/ -}}
+{{- if .ccmEnabled -}}
+{{- $_ := mustMergeOverwrite $result (dict "machine" (dict "kubelet" (dict "extraArgs" (dict "cloud-provider" "external")))) -}}
+{{- end -}}
 {{- /* Add installer image */ -}}
 {{- if .installer -}}
 {{- $installerImage := include "kommodity.talos.installer.image" (dict "installer" .installer) -}}
@@ -190,5 +209,88 @@ to preserve YAML block scalar formatting for multi-line contents.
 {{- if gt (len (keys $result)) 0 -}}
 - |
 {{ $result | toYaml | indent 2 }}
+{{- end -}}
+{{- end -}}
+
+{{/*
+kommodity.azure.validateNaming — fail fast on the copy-paste footgun.
+
+A common mistake is copying a values file for one cluster to another and
+forgetting to update the cluster-scoped Azure identifiers. The Helm release name
+changes (so the AzureCluster/Cluster names differ), but the resource group is
+carried over verbatim. The duplicate then silently shares the original's resource
+group (and, in BYO-VNet mode, its VNet — overlapping subnet CIDRs), corrupting
+both rather than failing fast.
+
+Convention: the Azure resource group is named after the cluster (== release
+name). This template enforces that convention so a copied-but-unedited values
+file is rejected at `helm install`/`template` time — before anything is
+provisioned, when it is trivially removable.
+
+(The CCM Secret collision is guarded independently on the management plane: the
+credential materializer refuses to take over a Secret owned by another cluster —
+see ErrSecretOwnedByAnotherCluster — so this template intentionally does not
+constrain provider.secret.name, which has a legitimate custom-override use case.)
+
+Set kommodity.provider.config.allowSharedResourceGroup: true to intentionally
+place multiple clusters in one resource group (you are then responsible for
+non-colliding resource names and CIDRs).
+
+Usage: {{ include "kommodity.azure.validateNaming" . }}
+*/}}
+{{- define "kommodity.azure.validateNaming" -}}
+{{- if eq .Values.kommodity.provider.name "Azure" -}}
+{{- if not (dig "config" "allowSharedResourceGroup" false .Values.kommodity.provider) -}}
+{{- $rg := dig "config" "resourceGroup" "" .Values.kommodity.provider -}}
+{{- if and $rg (ne $rg .Release.Name) -}}
+{{- fail (printf "Azure resourceGroup %q does not match the Helm release name %q. This usually means a values file was copied from another cluster without updating kommodity.provider.config.resourceGroup, which would make this release share the other cluster's resource group and corrupt both. Rename the resource group to %q, or set kommodity.provider.config.allowSharedResourceGroup=true to intentionally share one." $rg .Release.Name .Release.Name) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+kommodity.azure.image — render the AzureMachineTemplate spec.template.spec.image
+block. Mirrors the Scaleway model: provide just talos.imageName and the full
+managed-image ARM ID is assembled from the subscription + image resource group, so
+you only supply the last segment of the resource ID rather than the whole thing.
+
+Precedence (first match wins):
+  1. talos.marketplace      — Azure Marketplace image
+  2. talos.computeGallery   — Shared Image Gallery
+  3. talos.id               — explicit full ARM resource ID (escape hatch)
+  4. talos.imageName        — managed image; ARM ID built from
+                              kommodity.provider.config.subscriptionID +
+                              kommodity.provider.config.talosImageResourceGroup
+
+Usage (after an `image:` key): {{- include "kommodity.azure.image" . | nindent 8 }}
+*/}}
+{{- define "kommodity.azure.image" -}}
+{{- $talos := .Values.talos -}}
+{{- if dig "marketplace" "" $talos -}}
+marketplace:
+  publisher: {{ $talos.marketplace.publisher }}
+  offer: {{ $talos.marketplace.offer }}
+  sku: {{ $talos.marketplace.sku }}
+  version: {{ $talos.marketplace.version }}
+{{- else if dig "computeGallery" "" $talos -}}
+computeGallery:
+  gallery: {{ $talos.computeGallery.gallery }}
+  name: {{ $talos.computeGallery.name }}
+  version: {{ $talos.computeGallery.version }}
+  {{- if dig "computeGallery" "subscriptionID" "" $talos }}
+  subscriptionID: {{ $talos.computeGallery.subscriptionID }}
+  {{- end }}
+  {{- if dig "computeGallery" "resourceGroup" "" $talos }}
+  resourceGroup: {{ $talos.computeGallery.resourceGroup }}
+  {{- end }}
+{{- else if dig "id" "" $talos -}}
+id: {{ $talos.id }}
+{{- else if dig "imageName" "" $talos -}}
+{{- $subID := required "talos.imageName requires kommodity.provider.config.subscriptionID to build the Talos image resource ID" (dig "config" "subscriptionID" "" .Values.kommodity.provider) -}}
+{{- $imageRG := required "talos.imageName requires kommodity.provider.config.talosImageResourceGroup (the resource group holding the Talos managed image) to build the Talos image resource ID" (dig "config" "talosImageResourceGroup" "" .Values.kommodity.provider) -}}
+id: {{ printf "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Compute/images/%s" $subID $imageRG $talos.imageName }}
+{{- else -}}
+{{- fail "no Talos image configured for Azure: set talos.imageName (recommended) together with kommodity.provider.config.talosImageResourceGroup, or use talos.id / talos.computeGallery / talos.marketplace" -}}
 {{- end -}}
 {{- end -}}

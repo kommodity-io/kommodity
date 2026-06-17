@@ -86,6 +86,30 @@ providers:
       - api/v1alpha1
       - api/v1beta1
       - exp/api/v1beta1
+  - name: aso-resources
+    provider: azure
+    go_module: github.com/Azure/azure-service-operator/v2
+    scheme_locations:
+      - api/resources/v1api20200601
+      - api/resources/v1api20200601/storage
+  - name: aso-network-v1api20201101
+    provider: azure
+    go_module: github.com/Azure/azure-service-operator/v2
+    scheme_locations:
+      - api/network/v1api20201101
+      - api/network/v1api20201101/storage
+  - name: aso-network-v1api20220701
+    provider: azure
+    go_module: github.com/Azure/azure-service-operator/v2
+    scheme_locations:
+      - api/network/v1api20220701
+      - api/network/v1api20220701/storage
+  - name: aso-network-v1api20240301
+    provider: azure
+    go_module: github.com/Azure/azure-service-operator/v2
+    scheme_locations:
+      - api/network/v1api20240301
+      - api/network/v1api20240301/storage
   - name: kubevirt
     provider: kubevirt
     repository: kubernetes-sigs/cluster-api-provider-kubevirt

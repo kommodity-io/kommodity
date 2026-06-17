@@ -18,9 +18,17 @@ import (
 	scheme_10 "sigs.k8s.io/cluster-api-provider-azure/api/v1alpha1"
 	scheme_11 "sigs.k8s.io/cluster-api-provider-azure/api/v1beta1"
 	scheme_12 "sigs.k8s.io/cluster-api-provider-azure/exp/api/v1beta1"
-	scheme_13 "sigs.k8s.io/cluster-api-provider-kubevirt/api/v1alpha1"
-	scheme_14 "kubevirt.io/api/core/v1"
-	scheme_15 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	scheme_13 "github.com/Azure/azure-service-operator/v2/api/resources/v1api20200601"
+	scheme_14 "github.com/Azure/azure-service-operator/v2/api/resources/v1api20200601/storage"
+	scheme_15 "github.com/Azure/azure-service-operator/v2/api/network/v1api20201101"
+	scheme_16 "github.com/Azure/azure-service-operator/v2/api/network/v1api20201101/storage"
+	scheme_17 "github.com/Azure/azure-service-operator/v2/api/network/v1api20220701"
+	scheme_18 "github.com/Azure/azure-service-operator/v2/api/network/v1api20220701/storage"
+	scheme_19 "github.com/Azure/azure-service-operator/v2/api/network/v1api20240301"
+	scheme_20 "github.com/Azure/azure-service-operator/v2/api/network/v1api20240301/storage"
+	scheme_21 "sigs.k8s.io/cluster-api-provider-kubevirt/api/v1alpha1"
+	scheme_22 "kubevirt.io/api/core/v1"
+	scheme_23 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 )
 
 func addAllProvidersToScheme(scheme *runtime.Scheme) error {
@@ -40,6 +48,14 @@ func addAllProvidersToScheme(scheme *runtime.Scheme) error {
 	if err = scheme_13.AddToScheme(scheme); err != nil { return err }
 	if err = scheme_14.AddToScheme(scheme); err != nil { return err }
 	if err = scheme_15.AddToScheme(scheme); err != nil { return err }
+	if err = scheme_16.AddToScheme(scheme); err != nil { return err }
+	if err = scheme_17.AddToScheme(scheme); err != nil { return err }
+	if err = scheme_18.AddToScheme(scheme); err != nil { return err }
+	if err = scheme_19.AddToScheme(scheme); err != nil { return err }
+	if err = scheme_20.AddToScheme(scheme); err != nil { return err }
+	if err = scheme_21.AddToScheme(scheme); err != nil { return err }
+	if err = scheme_22.AddToScheme(scheme); err != nil { return err }
+	if err = scheme_23.AddToScheme(scheme); err != nil { return err }
     return nil
 }
 
@@ -60,5 +76,13 @@ func GetProviderGroupKindVersions() []schema.GroupVersion {
 		scheme_13.GroupVersion,
 		scheme_14.GroupVersion,
 		scheme_15.GroupVersion,
+		scheme_16.GroupVersion,
+		scheme_17.GroupVersion,
+		scheme_18.GroupVersion,
+		scheme_19.GroupVersion,
+		scheme_20.GroupVersion,
+		scheme_21.GroupVersion,
+		scheme_22.GroupVersion,
+		scheme_23.GroupVersion,
   }
 }

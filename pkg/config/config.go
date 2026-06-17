@@ -20,6 +20,7 @@ import (
 const (
 	envBaseURL                            = "KOMMODITY_BASE_URL"
 	envServerPort                         = "KOMMODITY_PORT"
+	envAPIServerPort                      = "KOMMODITY_API_SERVER_PORT"
 	envAdminGroup                         = "KOMMODITY_ADMIN_GROUP"
 	envDisableAuth                        = "KOMMODITY_INSECURE_DISABLE_AUTHENTICATION"
 	envOIDCIssuerURL                      = "KOMMODITY_OIDC_ISSUER_URL"
@@ -41,6 +42,9 @@ const (
 	envTalosProxyNamespace                = "KOMMODITY_TALOS_PROXY_NAMESPACE"
 	envTalosProxyServiceName              = "KOMMODITY_TALOS_PROXY_SERVICE_NAME"
 	envTalosProxyIdleTimeout              = "KOMMODITY_TALOS_PROXY_IDLE_TIMEOUT"
+	//nolint:gosec // G101: env var name, not a credential
+	envAzureDefaultCredentialSecret = "KOMMODITY_AZURE_DEFAULT_CREDENTIAL_SECRET"
+	envAzureARMDeletionGracePeriod  = "KOMMODITY_AZURE_ARM_DELETION_GRACE_PERIOD"
 
 	defaultServerPort                         = 5000
 	defaultAPIServerPort                      = 8443
@@ -59,6 +63,13 @@ const (
 	defaultGarbageCollectorWorkers            = 5
 	defaultGarbageCollectorSyncPeriod         = 30 * time.Second
 	defaultGarbageCollectorInitialSyncTimeout = 60 * time.Second
+	defaultAzureDefaultCredentialSecret       = ""
+	// defaultAzureARMDeletionGracePeriod bounds how long the embedded ARM
+	// reconciler waits for Azure to actually delete a managed resource before it
+	// releases its finalizer. This prevents a single un-deletable resource from
+	// wedging cluster teardown indefinitely (the resource may be orphaned, which
+	// is recoverable; a stuck finalizer blocks the whole namespace, which is not).
+	defaultAzureARMDeletionGracePeriod = 15 * time.Minute
 )
 
 const (
@@ -81,6 +92,19 @@ type KommodityConfig struct {
 	AuditPolicyFilePath     string
 	DevelopmentMode         bool
 	InfrastructureProviders []Provider
+	AzureConfig             *AzureConfig
+}
+
+// AzureConfig holds configuration for the embedded Azure integration.
+type AzureConfig struct {
+	// DefaultCredentialSecret is the fallback Secret name used to resolve Azure
+	// credentials when a custom resource carries no
+	// "serviceoperator.azure.com/credential-from" annotation.
+	DefaultCredentialSecret string
+	// ARMDeletionGracePeriod bounds how long the embedded ARM reconciler waits for
+	// Azure to delete a managed resource before releasing its finalizer to avoid
+	// wedging teardown. A non-positive value disables the safety net.
+	ARMDeletionGracePeriod time.Duration
 }
 
 // GarbageCollectorConfig holds the configuration for the embedded
@@ -149,11 +173,12 @@ func LoadConfig(ctx context.Context) (*KommodityConfig, error) {
 
 	talosProxyConfig := getTalosProxyConfig(ctx)
 	garbageCollectorConfig := getGarbageCollectorConfig(ctx)
+	azureConfig := getAzureConfig(ctx)
 
 	return &KommodityConfig{
 		BaseURL:             baseURL,
 		ServerPort:          serverPort,
-		APIServerPort:       defaultAPIServerPort,
+		APIServerPort:       getAPIServerPort(ctx),
 		WebhookPort:         ctrlwebhook.DefaultPort,
 		DBURI:               dbURI,
 		KineURI:             kineURI,
@@ -169,7 +194,55 @@ func LoadConfig(ctx context.Context) (*KommodityConfig, error) {
 		GarbageCollectorConfig:  garbageCollectorConfig,
 		DevelopmentMode:         developmentMode,
 		InfrastructureProviders: infrastructureProviders,
+		AzureConfig:             azureConfig,
 	}, nil
+}
+
+func getAzureConfig(ctx context.Context) *AzureConfig {
+	return &AzureConfig{
+		DefaultCredentialSecret: getAzureDefaultCredentialSecret(ctx),
+		ARMDeletionGracePeriod:  getAzureARMDeletionGracePeriod(ctx),
+	}
+}
+
+func getAzureARMDeletionGracePeriod(ctx context.Context) time.Duration {
+	logger := logging.FromContext(ctx)
+
+	value := os.Getenv(envAzureARMDeletionGracePeriod)
+	if value == "" {
+		logger.Info(configurationNotSpecified,
+			zap.String("envVar", envAzureARMDeletionGracePeriod),
+			zap.String("default", defaultAzureARMDeletionGracePeriod.String()))
+
+		return defaultAzureARMDeletionGracePeriod
+	}
+
+	duration, err := time.ParseDuration(value)
+	if err != nil {
+		logger.Info("failed to parse azure ARM deletion grace period",
+			zap.String("envVar", envAzureARMDeletionGracePeriod),
+			zap.String("value", value),
+			zap.String("default", defaultAzureARMDeletionGracePeriod.String()))
+
+		return defaultAzureARMDeletionGracePeriod
+	}
+
+	return duration
+}
+
+func getAzureDefaultCredentialSecret(ctx context.Context) string {
+	logger := logging.FromContext(ctx)
+
+	secret := os.Getenv(envAzureDefaultCredentialSecret)
+	if secret == "" {
+		logger.Info(configurationNotSpecified,
+			zap.String("envVar", envAzureDefaultCredentialSecret),
+			zap.String("default", defaultAzureDefaultCredentialSecret))
+
+		return defaultAzureDefaultCredentialSecret
+	}
+
+	return secret
 }
 
 func getBaseURL(ctx context.Context) string {
@@ -210,6 +283,27 @@ func getServerPort(ctx context.Context) int {
 	}
 
 	return serverPortInt
+}
+
+func getAPIServerPort(ctx context.Context) int {
+	logger := logging.FromContext(ctx)
+
+	apiServerPort := os.Getenv(envAPIServerPort)
+	if apiServerPort == "" {
+		return defaultAPIServerPort
+	}
+
+	apiServerPortInt, err := strconv.Atoi(apiServerPort)
+	if err != nil {
+		logger.Info("failed to convert API server port to integer",
+			zap.String("envVar", envAPIServerPort),
+			zap.String("value", apiServerPort),
+			zap.Int("default", defaultAPIServerPort))
+
+		return defaultAPIServerPort
+	}
+
+	return apiServerPortInt
 }
 
 func getApplyAuth(ctx context.Context) bool {
