@@ -42,3 +42,5 @@ values.private-mvp.yaml
 compose.override.yml
 
 azure-sbx-cluster-resources.md
+
+.playwright-mcp/

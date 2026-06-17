@@ -3,7 +3,9 @@ package reconciler
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"embed"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"html/template"
@@ -17,10 +19,17 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/predicates"
 	ctrl "sigs.k8s.io/controller-runtime"
+	ctrlbuilder "sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 // AutoscalerJobConfig defined the temporary config for Autoscaler.
@@ -54,12 +63,34 @@ const (
 
 	// autoscalerDeploymentName is the name of the Deployment created by the cluster-autoscaler Helm chart.
 	autoscalerDeploymentName = "cluster-autoscaler"
+
+	// autoscalerSATokenSecretSuffix is appended to the Cluster name to derive the
+	// mgmt-cluster Secret of type kubernetes.io/service-account-token whose `token`
+	// field feeds the workload-cluster autoscaler kubeconfig.
+	autoscalerSATokenSecretSuffix = "-cluster-autoscaler" //nolint:gosec // secret-name suffix, not a credential
+
+	// autoscalerSecretTokenKey is the data key holding the signed SA JWT in the
+	// service-account-token Secret.
+	autoscalerSecretTokenKey = "token"
+
+	// autoscalerControllerName is the controller name used to scope the filter
+	// label and the controller registration.
+	autoscalerControllerName = "kommodity-autoscaler-controller"
+
+	// autoscalerKubeconfigHashAnnotation is stamped on the downstream
+	// cluster-autoscaler Deployment's pod template to trigger a rolling restart
+	// whenever the mounted kubeconfig's bearer token changes. cluster-autoscaler
+	// parses the kubeconfig once at process start, so a Secret-volume update
+	// alone is not sufficient to pick up a rotated SA token.
+	autoscalerKubeconfigHashAnnotation = "kommodity.io/kubeconfig-hash"
 )
 
 //go:embed kubeconfig.tmpl
 var kubeconfigTmplFS embed.FS
 
 // PrepareForApply prepares the Autoscaler installation job.
+//
+//nolint:funlen // fetch token, render kubeconfig, apply to downstream, roll autoscaler on token change.
 func (a *AutoscalerJob) PrepareForApply(ctx context.Context, cfg *config.KommodityConfig, clusterName string) error {
 	logger := logging.FromContext(ctx)
 	logger.Info("Preparing Autoscaler Job", zap.String("jobName", a.config.Name))
@@ -67,14 +98,14 @@ func (a *AutoscalerJob) PrepareForApply(ctx context.Context, cfg *config.Kommodi
 	var autoscalerSecret corev1.Secret
 
 	err := a.Get(ctx, client.ObjectKey{
-		Name:      clusterName + "-cluster-autoscaler",
+		Name:      clusterName + autoscalerSATokenSecretSuffix,
 		Namespace: "default",
 	}, &autoscalerSecret)
 	if err != nil {
 		return fmt.Errorf("failed to get Autoscaler kubeconfig secret: %w", err)
 	}
 
-	token := autoscalerSecret.Data["token"]
+	token := autoscalerSecret.Data[autoscalerSecretTokenKey]
 	if len(token) == 0 {
 		return fmt.Errorf("%w: %s", ErrTokenNotPopulated, autoscalerSecret.Name)
 	}
@@ -115,6 +146,11 @@ func (a *AutoscalerJob) PrepareForApply(ctx context.Context, cfg *config.Kommodi
 	err = ApplySecretToClient(ctx, a.downstreamClient, autoscalerKubeconfig)
 	if err != nil {
 		return fmt.Errorf("failed to apply autoscaler kubeconfig secret to downstream cluster: %w", err)
+	}
+
+	err = a.ensureAutoscalerRolloutOnTokenChange(ctx, token)
+	if err != nil {
+		return fmt.Errorf("failed to ensure autoscaler rollout on token change: %w", err)
 	}
 
 	logger.Info("Successfully prepared Autoscaler Job",
@@ -177,6 +213,63 @@ func (a *AutoscalerJob) IsInstalled(ctx context.Context) (bool, error) {
 	return true, nil
 }
 
+// ensureAutoscalerRolloutOnTokenChange triggers a rolling restart of the
+// downstream cluster-autoscaler Deployment whenever the bearer token in its
+// mounted kubeconfig changes, by stamping a sha256 hash of the token onto the
+// pod template annotations. If the Deployment does not yet exist (autoscaler
+// not installed) the call is a no-op: the pod will read the current kubeconfig
+// on first start.
+func (a *AutoscalerJob) ensureAutoscalerRolloutOnTokenChange(ctx context.Context, token []byte) error {
+	logger := logging.FromContext(ctx)
+
+	tokenHashSum := sha256.Sum256(token)
+	tokenHash := hex.EncodeToString(tokenHashSum[:])
+
+	namespace := a.config.Namespace
+	if namespace == "" {
+		namespace = a.config.Name
+	}
+
+	deployment := &appsv1.Deployment{}
+	deploymentKey := client.ObjectKey{
+		Name:      autoscalerDeploymentName,
+		Namespace: namespace,
+	}
+
+	err := a.downstreamClient.Get(ctx, deploymentKey, deployment)
+	if apierrors.IsNotFound(err) {
+		return nil
+	}
+
+	if err != nil {
+		return fmt.Errorf("failed to get cluster-autoscaler Deployment %s/%s: %w",
+			namespace, autoscalerDeploymentName, err)
+	}
+
+	if deployment.Spec.Template.Annotations[autoscalerKubeconfigHashAnnotation] == tokenHash {
+		return nil
+	}
+
+	patched := deployment.DeepCopy()
+	if patched.Spec.Template.Annotations == nil {
+		patched.Spec.Template.Annotations = map[string]string{}
+	}
+
+	patched.Spec.Template.Annotations[autoscalerKubeconfigHashAnnotation] = tokenHash
+
+	err = a.downstreamClient.Patch(ctx, patched, client.MergeFrom(deployment))
+	if err != nil {
+		return fmt.Errorf("failed to patch cluster-autoscaler Deployment %s/%s with kubeconfig hash: %w",
+			namespace, autoscalerDeploymentName, err)
+	}
+
+	logger.Info("Rolled cluster-autoscaler Deployment after kubeconfig token change",
+		zap.String("namespace", namespace),
+		zap.String("deployment", autoscalerDeploymentName))
+
+	return nil
+}
+
 func (a *AutoscalerJob) applySecret(ctx context.Context, clusterName string) error {
 	a.config.HasExtraValues = true
 
@@ -215,17 +308,28 @@ type AutoscalerReconciler struct {
 }
 
 // SetupWithManager sets up the reconciler with the provided manager.
+//
+// The controller's primary watch is the autoscaler ConfigMap (label-filtered).
+// It also watches mgmt-cluster service-account-token Secrets so that whenever
+// the signed JWT is rotated (e.g. by the signing-key controller) we re-render
+// the workload-cluster kubeconfig secret automatically.
 func (r *AutoscalerReconciler) SetupWithManager(ctx context.Context,
 	mgr ctrl.Manager, opt controller.Options) error {
+	configMapPredicate := predicates.ResourceNotPausedAndHasFilterLabel(
+		mgr.GetScheme(),
+		zapr.NewLogger(logging.FromContext(ctx)),
+		autoscalerControllerName,
+	)
+
 	builder := ctrl.NewControllerManagedBy(mgr).
-		Named("kommodity-autoscaler-controller").
-		For(&corev1.ConfigMap{}).
-		WithOptions(opt).
-		WithEventFilter(predicates.ResourceNotPausedAndHasFilterLabel(
-			mgr.GetScheme(),
-			zapr.NewLogger(logging.FromContext(ctx)),
-			"kommodity-autoscaler-controller",
-		))
+		Named(autoscalerControllerName).
+		For(&corev1.ConfigMap{}, ctrlbuilder.WithPredicates(configMapPredicate)).
+		Watches(
+			&corev1.Secret{},
+			handler.EnqueueRequestsFromMapFunc(r.configMapForAutoscalerTokenSecret),
+			ctrlbuilder.WithPredicates(autoscalerTokenSecretPredicate()),
+		).
+		WithOptions(opt)
 
 	err := builder.Complete(r)
 	if err != nil {
@@ -364,4 +468,114 @@ func (r *AutoscalerReconciler) installAutoscaler(ctx context.Context, clusterNam
 		zap.String("clusterName", clusterName))
 
 	return ctrl.Result{}, nil
+}
+
+// configMapForAutoscalerTokenSecret maps an SA-token Secret event to a reconcile
+// request for the autoscaler ConfigMap belonging to the same Cluster. The map
+// uses the secret's `cluster.x-k8s.io/cluster-name` label plus the well-known
+// secret-name suffix to identify the owning Cluster, then verifies the target
+// ConfigMap carries this controller's watch-filter label before enqueueing —
+// this preserves the label-based scoping enforced on the primary ConfigMap
+// watch.
+func (r *AutoscalerReconciler) configMapForAutoscalerTokenSecret(
+	ctx context.Context,
+	obj client.Object,
+) []reconcile.Request {
+	logger := logging.FromContext(ctx)
+
+	secret, success := obj.(*corev1.Secret)
+	if !success {
+		return nil
+	}
+
+	clusterName, success := secret.Labels[clusterNameLabel]
+	if !success {
+		return nil
+	}
+
+	if secret.Name != clusterName+autoscalerSATokenSecretSuffix {
+		return nil
+	}
+
+	configMapKey := types.NamespacedName{
+		Namespace: secret.Namespace,
+		Name:      clusterName + AutoscalerConfigMapSuffix,
+	}
+
+	configMap := &corev1.ConfigMap{}
+
+	err := r.Get(ctx, configMapKey, configMap)
+	if err != nil {
+		if !apierrors.IsNotFound(err) {
+			logger.Error("Failed to get autoscaler ConfigMap for token-secret mapping",
+				zap.String("configmap", configMapKey.String()),
+				zap.Error(err))
+		}
+
+		return nil
+	}
+
+	if configMap.Labels[clusterv1.WatchLabel] != autoscalerControllerName {
+		return nil
+	}
+
+	return []reconcile.Request{{NamespacedName: configMapKey}}
+}
+
+// autoscalerTokenSecretPredicate filters Secret events to service-account-token
+// Secrets that back a cluster autoscaler, and only forwards events where the
+// `token` value actually changed. This avoids spurious reconciles on unrelated
+// Secret writes and ensures every kubeconfig refresh corresponds to a real JWT
+// rotation.
+func autoscalerTokenSecretPredicate() predicate.Predicate {
+	asAutoscalerTokenSecret := func(obj client.Object) (*corev1.Secret, bool) {
+		secret, success := obj.(*corev1.Secret)
+		if !success {
+			return nil, false
+		}
+
+		if secret.Type != corev1.SecretTypeServiceAccountToken {
+			return nil, false
+		}
+
+		clusterName, success := secret.Labels[clusterNameLabel]
+		if !success {
+			return nil, false
+		}
+
+		return secret, secret.Name == clusterName+autoscalerSATokenSecretSuffix
+	}
+
+	return predicate.Funcs{
+		CreateFunc: func(createEvent event.CreateEvent) bool {
+			secret, matched := asAutoscalerTokenSecret(createEvent.Object)
+			if !matched {
+				return false
+			}
+
+			return len(secret.Data[autoscalerSecretTokenKey]) > 0
+		},
+		UpdateFunc: func(updateEvent event.UpdateEvent) bool {
+			newSecret, matched := asAutoscalerTokenSecret(updateEvent.ObjectNew)
+			if !matched {
+				return false
+			}
+
+			oldSecret, success := updateEvent.ObjectOld.(*corev1.Secret)
+			if !success {
+				return false
+			}
+
+			return !bytes.Equal(
+				oldSecret.Data[autoscalerSecretTokenKey],
+				newSecret.Data[autoscalerSecretTokenKey],
+			)
+		},
+		DeleteFunc: func(_ event.DeleteEvent) bool {
+			return false
+		},
+		GenericFunc: func(_ event.GenericEvent) bool {
+			return false
+		},
+	}
 }
