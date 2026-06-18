@@ -62,8 +62,4 @@ if ! ${KUBECTL} wait --for=delete "cluster/${CLUSTER_NAME}" --timeout="${CLUSTER
 fi
 echo "✅ Cluster object deleted."
 
-# Remove secrets related to this cluster
-echo "🧹 Cleaning up secrets..."
-${KUBECTL} delete secrets -l cluster.x-k8s.io/cluster-name="$CLUSTER_NAME"
-
 echo "✅ Cluster teardown completed."
