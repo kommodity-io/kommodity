@@ -19,6 +19,8 @@ tests:
           count: 1
   - it: should create a single unsuffixed MachineDeployment when the nodepool has no zones
     template: templates/provider/capi/machinedeployment.yaml
+    set:
+      kommodity.nodepools.default.zones: null
     asserts:
       - isKind:
           of: MachineDeployment
