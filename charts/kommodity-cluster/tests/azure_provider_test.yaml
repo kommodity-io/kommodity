@@ -92,7 +92,8 @@ tests:
     set:
       kommodity.nodepools.gpu.replicas: 2
       kommodity.nodepools.gpu.sku: Standard_NC6s_v3
-      kommodity.nodepools.gpu.zone: "2"
+      kommodity.nodepools.gpu.zones:
+        - "2"
       kommodity.nodepools.gpu.os.disk.size: 50
     asserts:
       - hasDocuments:
