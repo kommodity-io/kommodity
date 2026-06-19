@@ -26,29 +26,13 @@ Usage: {{ $zones := include "kommodity-cluster.poolZones" $np | fromJsonArray }}
 
 {{/*
 Resolve the control-plane failure domains from controlplane.zones. These populate the
-cluster's failureDomains, which the control plane uses to place its replicas. At least one
-zone is required. Returns the zones as a JSON array string; decode with fromJsonArray.
+cluster's failureDomains, which the control plane uses to place its replicas. Optional: when
+unset, no failureDomains are set and the provider uses its default zone (for Scaleway, the
+zone from the credentials secret). Returns the zones as a JSON array string.
 Usage: {{ $zones := include "kommodity-cluster.controlPlaneZones" . | fromJsonArray }}
 */}}
 {{- define "kommodity-cluster.controlPlaneZones" -}}
-{{- $cpZones := include "kommodity-cluster.poolZones" .Values.kommodity.controlplane | fromJsonArray -}}
-{{- if eq (len $cpZones) 0 -}}
-{{- fail "missing required controlplane.zones: set the failure domains where control-plane nodes are placed" -}}
-{{- end -}}
-{{- $cpZones | toJson -}}
-{{- end -}}
-
-{{/*
-Resolve a nodepool's failure domains (zones), requiring at least one. Mirrors poolZones but
-fails when zones is unset or empty, naming the offending nodepool.
-Usage: {{ $zones := include "kommodity-cluster.requiredPoolZones" (dict "name" $name "pool" $np) | fromJsonArray }}
-*/}}
-{{- define "kommodity-cluster.requiredPoolZones" -}}
-{{- $zones := include "kommodity-cluster.poolZones" .pool | fromJsonArray -}}
-{{- if eq (len $zones) 0 -}}
-{{- fail (printf "nodepool %s: missing required zones" .name) -}}
-{{- end -}}
-{{- $zones | toJson -}}
+{{- include "kommodity-cluster.poolZones" .Values.kommodity.controlplane -}}
 {{- end -}}
 
 {{/*

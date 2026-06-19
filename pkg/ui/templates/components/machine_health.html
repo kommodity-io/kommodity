@@ -14,7 +14,7 @@
 {{- $tooltipID := printf "machine-conditions-%s" .Name -}}
 <span class="machine-health relative inline-flex items-center gap-2" tabindex="0"{{if .Conditions}} aria-describedby="{{$tooltipID}}"{{end}}>
     <span class="{{$color}} text-base leading-none" aria-hidden="true">●</span>
-    <span class="text-gray-400">{{$label}}</span>
+    <span class="sr-only">{{$label}}</span>
     {{- if .Conditions }}
     <div id="{{$tooltipID}}" role="tooltip" class="machine-health-tooltip invisible fixed z-50 w-80 rounded-sm border border-gray-700 bg-gray-900 p-3 shadow-lg text-xs pointer-events-none">
         <div class="font-semibold text-gray-300 mb-2 border-b border-gray-700 pb-1">Conditions</div>

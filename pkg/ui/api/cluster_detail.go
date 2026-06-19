@@ -54,6 +54,7 @@ type MachineDeploymentDetail struct {
 type MachineDetail struct {
 	Name              string
 	NodeName          string
+	Zone              string
 	CreationTime      string
 	Age               string
 	Phase             string
@@ -302,9 +303,16 @@ func machineToDetail(machine *clusterv1.Machine) MachineDetail {
 		phase = UnknownVersion
 	}
 
+	// No failureDomain means the pool has no zones set; the provider uses its default zone.
+	zone := "—"
+	if machine.Spec.FailureDomain != nil && *machine.Spec.FailureDomain != "" {
+		zone = *machine.Spec.FailureDomain
+	}
+
 	return MachineDetail{
 		Name:              machine.Name,
 		NodeName:          nodeName,
+		Zone:              zone,
 		CreationTime:      machine.CreationTimestamp.Format(time.RFC3339),
 		Age:               FormatAge(machine.CreationTimestamp.Time),
 		Phase:             phase,

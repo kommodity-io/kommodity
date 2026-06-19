@@ -21,10 +21,17 @@ spec:
 {{- range $name, $np := .Values.kommodity.nodepools }}
 {{- if dig "healthCheck" "enabled" "" $np }}
 {{- /* Match the per-zone MachineDeployment fan-out: emit one MachineHealthCheck per zone,
-       each selecting that zone's deployment. Zones are required on every nodepool. */ -}}
-{{- $zones := include "kommodity-cluster.requiredPoolZones" (dict "name" $name "pool" $np) | fromJsonArray }}
+       each selecting that zone's deployment. Zones are optional: with none set, a single
+       MachineHealthCheck with the original (unsuffixed) name is emitted. */ -}}
+{{- $zones := include "kommodity-cluster.poolZones" $np | fromJsonArray }}
+{{- if eq (len $zones) 0 }}
+{{- $zones = list "" }}
+{{- end }}
 {{- range $zone := $zones }}
-{{- $mdName := printf "%s-worker-%s-%s" $.Release.Name $name $zone }}
+{{- $mdName := printf "%s-worker-%s" $.Release.Name $name }}
+{{- if $zone }}
+{{- $mdName = printf "%s-worker-%s-%s" $.Release.Name $name $zone }}
+{{- end }}
 ---
 apiVersion: cluster.x-k8s.io/v1beta1
 kind: MachineHealthCheck

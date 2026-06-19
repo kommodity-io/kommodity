@@ -11,14 +11,22 @@
 {{- if and $hasReplicas (or $hasMinReplicas $hasMaxReplicas) }}
 {{- fail (printf "nodepool %s: replicas cannot be set together with autoscaling.minReplicas or autoscaling.maxReplicas" $name) }}
 {{- end }}
-{{- /* Resolve the nodepool's failure domains (zones), which are required. A MachineDeployment
-       carries a single failureDomain and CAPI does not spread workers across domains, so we
-       emit one MachineDeployment per zone, each pinned to its zone and suffixed with it.
-       Replicas and autoscaling bounds are split evenly across the zones. */ -}}
-{{- $zones := include "kommodity-cluster.requiredPoolZones" (dict "name" $name "pool" $np) | fromJsonArray }}
+{{- /* Resolve the nodepool's failure domains (zones). A MachineDeployment carries a single
+       failureDomain and CAPI does not spread workers across domains, so we emit one
+       MachineDeployment per zone, each pinned to its zone and suffixed with it, splitting
+       replicas and autoscaling bounds evenly. Zones are optional: with none set, a single
+       domain-less MachineDeployment is emitted with the original (unsuffixed) name and the
+       provider's default zone is used. */ -}}
+{{- $zones := include "kommodity-cluster.poolZones" $np | fromJsonArray }}
+{{- if eq (len $zones) 0 }}
+{{- $zones = list "" }}
+{{- end }}
 {{- $zoneCount := len $zones }}
 {{- range $zoneIdx, $zone := $zones }}
-{{- $mdName := printf "%s-worker-%s-%s" $.Release.Name $name $zone }}
+{{- $mdName := printf "%s-worker-%s" $.Release.Name $name }}
+{{- if $zone }}
+{{- $mdName = printf "%s-worker-%s-%s" $.Release.Name $name $zone }}
+{{- end }}
 {{- $npAnnotations := dig "annotations" (dict) $np }}
 {{- $annotations := deepCopy $npAnnotations }}
 {{- if and $hasMinReplicas $hasMaxReplicas }}
@@ -67,7 +75,9 @@ spec:
           name: {{ $.Release.Name }}-worker-{{ $name }}-{{ include "kommodity-cluster.talosConfigHash" (dict "poolValues" $np "allValues" $.Values) }}
           namespace: {{ $.Release.Namespace }}
       clusterName: {{ $.Release.Name }}
+      {{- if $zone }}
       failureDomain: {{ $zone | quote }}
+      {{- end }}
       infrastructureRef:
         {{- if not $.Values.kommodity.provider.name }}
         {{- fail "kommodity.provider.name must be set in values.yaml" -}}
