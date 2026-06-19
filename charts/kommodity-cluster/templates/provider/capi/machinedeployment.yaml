@@ -22,12 +22,27 @@
 {{- $zones = list "" }}
 {{- end }}
 {{- $zoneCount := len $zones }}
+{{- $npAnnotations := dig "annotations" (dict) $np }}
+{{- /* When autoscaling splits minReplicas across multiple zones, a zone can end up with a
+       minimum of 0 (e.g. minReplicas 0 or 1 over 2 zones). Scaling such a node group up from
+       zero requires the autoscaler to know the node capacity, which it reads from
+       capacity.cluster-autoscaler.kubernetes.io/* annotations. Require at least one. */ -}}
+{{- if and $hasMinReplicas (le (int $minReplicas) 1) (gt $zoneCount 1) }}
+{{- $hasCapacityAnnotation := false }}
+{{- range $k, $v := $npAnnotations }}
+{{- if hasPrefix "capacity.cluster-autoscaler.kubernetes.io" $k }}
+{{- $hasCapacityAnnotation = true }}
+{{- end }}
+{{- end }}
+{{- if not $hasCapacityAnnotation }}
+{{- fail (printf "nodepool %s: autoscaling with minReplicas %v across %d zones leaves a zone with a minimum of 0; add at least one 'capacity.cluster-autoscaler.kubernetes.io/*' annotation (e.g. .../cpu, .../memory) so the autoscaler can scale that zone from zero" $name $minReplicas $zoneCount) }}
+{{- end }}
+{{- end }}
 {{- range $zoneIdx, $zone := $zones }}
 {{- $mdName := printf "%s-worker-%s" $.Release.Name $name }}
 {{- if $zone }}
 {{- $mdName = printf "%s-worker-%s-%s" $.Release.Name $name $zone }}
 {{- end }}
-{{- $npAnnotations := dig "annotations" (dict) $np }}
 {{- $annotations := deepCopy $npAnnotations }}
 {{- if and $hasMinReplicas $hasMaxReplicas }}
 {{- $zoneMin := include "kommodity-cluster.zoneShare" (dict "total" $minReplicas "count" $zoneCount "index" $zoneIdx) }}
