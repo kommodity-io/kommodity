@@ -25,6 +25,10 @@ tests:
   # MachineDeployment tests
   - it: should make sure MachineDeployment references the correct TalosConfigTemplate
     template: templates/provider/capi/machinedeployment.yaml
+    set:
+      kommodity.nodepools.second: null
+      kommodity.nodepools.default.zones: null
+      kommodity.nodepools.default.zone: fr-par-1
     asserts:
       - isKind:
           of: MachineDeployment
@@ -170,6 +174,9 @@ tests:
   - it: should set autoscaler annotations when both minReplicas and maxReplicas are set
     template: templates/provider/capi/machinedeployment.yaml
     set:
+      kommodity.nodepools.second: null
+      kommodity.nodepools.default.zones: null
+      kommodity.nodepools.default.zone: fr-par-1
       kommodity.nodepools.default.replicas: null
       kommodity.nodepools.default.autoscaling.minReplicas: 0
       kommodity.nodepools.default.autoscaling.maxReplicas: 5
@@ -188,6 +195,9 @@ tests:
   - it: should propagate nodepool annotations to MachineDeployment metadata
     template: templates/provider/capi/machinedeployment.yaml
     set:
+      kommodity.nodepools.second: null
+      kommodity.nodepools.default.zones: null
+      kommodity.nodepools.default.zone: fr-par-1
       kommodity.nodepools.default.annotations:
         my-annotation: my-annotation-value
         another: another-value
@@ -204,6 +214,9 @@ tests:
   - it: should merge nodepool annotations with autoscaler annotations
     template: templates/provider/capi/machinedeployment.yaml
     set:
+      kommodity.nodepools.second: null
+      kommodity.nodepools.default.zones: null
+      kommodity.nodepools.default.zone: fr-par-1
       kommodity.nodepools.default.replicas: null
       kommodity.nodepools.default.autoscaling.minReplicas: 1
       kommodity.nodepools.default.autoscaling.maxReplicas: 3
@@ -243,6 +256,9 @@ tests:
   - it: should set replicas to 0 when explicitly configured
     template: templates/provider/capi/machinedeployment.yaml
     set:
+      kommodity.nodepools.second: null
+      kommodity.nodepools.default.zones: null
+      kommodity.nodepools.default.zone: fr-par-1
       kommodity.nodepools.default.replicas: 0
     asserts:
       - isKind:
@@ -265,6 +281,9 @@ tests:
   - it: should make sure Kubernetes version defined in nodepool's config take precedence
     template: templates/provider/capi/machinedeployment.yaml
     set:
+      kommodity.nodepools.second: null
+      kommodity.nodepools.default.zones: null
+      kommodity.nodepools.default.zone: fr-par-1
       kubernetes.version: "global-kubernetes-version"
       kommodity.nodepools.default.kubernetes.version: "nodepool-kubernetes-version"
     asserts:

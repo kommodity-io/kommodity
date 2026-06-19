@@ -76,7 +76,7 @@ tests:
           count: 1
       - equal:
           path: metadata.name
-          value: "test-cluster-worker-default"
+          value: "test-cluster-worker-default-1"
         documentIndex: 0
       - equal:
           path: spec.template.spec.infrastructureRef.kind
@@ -99,11 +99,11 @@ tests:
           count: 2
       - equal:
           path: metadata.name
-          value: "test-cluster-worker-default"
+          value: "test-cluster-worker-default-1"
         documentIndex: 0
       - equal:
           path: metadata.name
-          value: "test-cluster-worker-gpu"
+          value: "test-cluster-worker-gpu-2"
         documentIndex: 1
       - equal:
           path: spec.replicas

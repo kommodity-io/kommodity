@@ -6,17 +6,32 @@
 {{- if and (or $hasMinReplicas $hasMaxReplicas) (not (and $hasMinReplicas $hasMaxReplicas)) }}
 {{- fail (printf "nodepool %s: both autoscaling.minReplicas and autoscaling.maxReplicas must be set together" $name) }}
 {{- end }}
+{{- $replicas := dig "replicas" nil $np }}
+{{- $hasReplicas := not (kindIs "invalid" $replicas) }}
+{{- if and $hasReplicas (or $hasMinReplicas $hasMaxReplicas) }}
+{{- fail (printf "nodepool %s: replicas cannot be set together with autoscaling.minReplicas or autoscaling.maxReplicas" $name) }}
+{{- end }}
+{{- /* Resolve the nodepool's failure domains (zones), which are required. A MachineDeployment
+       carries a single failureDomain and CAPI does not spread workers across domains, so we
+       emit one MachineDeployment per zone, each pinned to its zone and suffixed with it.
+       Replicas and autoscaling bounds are split evenly across the zones. */ -}}
+{{- $zones := include "kommodity-cluster.requiredPoolZones" (dict "name" $name "pool" $np) | fromJsonArray }}
+{{- $zoneCount := len $zones }}
+{{- range $zoneIdx, $zone := $zones }}
+{{- $mdName := printf "%s-worker-%s-%s" $.Release.Name $name $zone }}
 {{- $npAnnotations := dig "annotations" (dict) $np }}
 {{- $annotations := deepCopy $npAnnotations }}
 {{- if and $hasMinReplicas $hasMaxReplicas }}
-{{- $_ := set $annotations "cluster.x-k8s.io/cluster-api-autoscaler-node-group-min-size" (printf "%v" $minReplicas) }}
-{{- $_ := set $annotations "cluster.x-k8s.io/cluster-api-autoscaler-node-group-max-size" (printf "%v" $maxReplicas) }}
+{{- $zoneMin := include "kommodity-cluster.zoneShare" (dict "total" $minReplicas "count" $zoneCount "index" $zoneIdx) }}
+{{- $zoneMax := include "kommodity-cluster.zoneShare" (dict "total" $maxReplicas "count" $zoneCount "index" $zoneIdx) }}
+{{- $_ := set $annotations "cluster.x-k8s.io/cluster-api-autoscaler-node-group-min-size" (printf "%v" $zoneMin) }}
+{{- $_ := set $annotations "cluster.x-k8s.io/cluster-api-autoscaler-node-group-max-size" (printf "%v" $zoneMax) }}
 {{- end }}
 ---
 apiVersion: cluster.x-k8s.io/v1beta1
 kind: MachineDeployment
 metadata:
-  name: {{ $.Release.Name }}-worker-{{ $name }}
+  name: {{ $mdName }}
   namespace: {{ $.Release.Namespace }}
   labels:
     app.kubernetes.io/managed-by: kommodity
@@ -28,13 +43,8 @@ spec:
   clusterName: {{ $.Release.Name }}
   minReadySeconds: 0
   progressDeadlineSeconds: 600
-{{- $replicas := dig "replicas" nil $np }}
-{{- $hasReplicas := not (kindIs "invalid" $replicas) }}
-{{- if and $hasReplicas (or $hasMinReplicas $hasMaxReplicas) }}
-{{- fail (printf "nodepool %s: replicas cannot be set together with autoscaling.minReplicas or autoscaling.maxReplicas" $name) }}
-{{- end }}
 {{- if $hasReplicas }}
-  replicas: {{ $replicas }}
+  replicas: {{ include "kommodity-cluster.zoneShare" (dict "total" $replicas "count" $zoneCount "index" $zoneIdx) }}
 {{- end }}
   strategy:
     rollingUpdate:
@@ -47,7 +57,7 @@ spec:
     metadata:
       labels:
         cluster.x-k8s.io/cluster-name: {{ $.Release.Name }}
-        cluster.x-k8s.io/deployment-name: {{ $.Release.Name }}-worker-{{ $name }}
+        cluster.x-k8s.io/deployment-name: {{ $mdName }}
         app.kubernetes.io/managed-by: kommodity
     spec:
       bootstrap:
@@ -57,7 +67,7 @@ spec:
           name: {{ $.Release.Name }}-worker-{{ $name }}-{{ include "kommodity-cluster.talosConfigHash" (dict "poolValues" $np "allValues" $.Values) }}
           namespace: {{ $.Release.Namespace }}
       clusterName: {{ $.Release.Name }}
-      failureDomain: {{ $np.zone | quote }}
+      failureDomain: {{ $zone | quote }}
       infrastructureRef:
         {{- if not $.Values.kommodity.provider.name }}
         {{- fail "kommodity.provider.name must be set in values.yaml" -}}
@@ -79,4 +89,5 @@ spec:
         name: {{ $.Release.Name }}-worker-{{ $name }}-{{ include "kommodity-cluster.machineSpecsHash" (dict "poolValues" $np "allValues" $.Values) }}
         namespace: {{ $.Release.Namespace }}
       version: {{ default $.Values.kubernetes.version (dig "kubernetes" "version" "" $np) -}}
+{{- end }}
 {{- end }}

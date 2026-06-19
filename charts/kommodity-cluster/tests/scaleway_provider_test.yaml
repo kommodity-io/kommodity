@@ -17,17 +17,22 @@ tests:
           value: ScalewayCluster
       - hasDocuments:
           count: 1
-  - it: should make sure a MachineDeployment is created for each nodepool
+  - it: should make sure a MachineDeployment is created per nodepool zone
     template: templates/provider/capi/machinedeployment.yaml
     asserts:
       - isKind:
           of: MachineDeployment
+      # The default nodepool spans fr-par-1 and fr-par-2, so it fans out into two MachineDeployments.
       - hasDocuments:
-          count: 1
+          count: 2
       - equal:
           path: metadata.name
-          value: "test-cluster-worker-default"
+          value: "test-cluster-worker-default-fr-par-1"
         documentIndex: 0
+      - equal:
+          path: metadata.name
+          value: "test-cluster-worker-default-fr-par-2"
+        documentIndex: 1
       - equal:
           path: spec.template.spec.infrastructureRef.kind
           value: ScalewayMachineTemplate
@@ -121,17 +126,83 @@ tests:
       kommodity.nodepools.gpu.zone: "fr-par-2"
       kommodity.nodepools.gpu.os.disk.size: 50
     asserts:
+      # default fans out across its two zones; gpu is single-zone (one MachineDeployment).
       - hasDocuments:
-          count: 2
+          count: 3
       - equal:
           path: metadata.name
-          value: "test-cluster-worker-default"
+          value: "test-cluster-worker-default-fr-par-1"
         documentIndex: 0
       - equal:
           path: metadata.name
-          value: "test-cluster-worker-gpu"
+          value: "test-cluster-worker-default-fr-par-2"
+        documentIndex: 1
+      - equal:
+          path: metadata.name
+          value: "test-cluster-worker-gpu-fr-par-2"
+        documentIndex: 2
+      - equal:
+          path: spec.replicas
+          value: 2
+        documentIndex: 2
+
+  - it: should suffix the zone and pin failureDomain for a single-zone nodepool
+    template: templates/provider/capi/machinedeployment.yaml
+    set:
+      kommodity.nodepools.default.zones: null
+      kommodity.nodepools.default.zone: "fr-par-1"
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: metadata.name
+          value: "test-cluster-worker-default-fr-par-1"
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.failureDomain
+          value: "fr-par-1"
+        documentIndex: 0
+
+  - it: should fan out one MachineDeployment per zone and split replicas evenly
+    template: templates/provider/capi/machinedeployment.yaml
+    set:
+      kommodity.nodepools.default.replicas: 5
+      kommodity.nodepools.default.zone: null
+      kommodity.nodepools.default.zones:
+        - fr-par-1
+        - fr-par-2
+    asserts:
+      - hasDocuments:
+          count: 2
+      # Remainder is front-loaded: 5 replicas over 2 zones -> 3 + 2.
+      - equal:
+          path: spec.template.spec.failureDomain
+          value: "fr-par-1"
+        documentIndex: 0
+      - equal:
+          path: spec.replicas
+          value: 3
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.failureDomain
+          value: "fr-par-2"
         documentIndex: 1
       - equal:
           path: spec.replicas
           value: 2
         documentIndex: 1
+
+  - it: should collect all nodepool zones into ScalewayCluster failureDomains
+    template: templates/provider/scaleway/cluster.yaml
+    set:
+      kommodity.nodepools.default.zone: null
+      kommodity.nodepools.default.zones:
+        - fr-par-1
+        - fr-par-2
+    asserts:
+      - contains:
+          path: spec.failureDomains
+          content: fr-par-1
+      - contains:
+          path: spec.failureDomains
+          content: fr-par-2

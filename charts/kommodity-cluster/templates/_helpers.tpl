@@ -11,6 +11,63 @@ Usage: {{ include "kommodity.talosVersion" . }}
 {{- end -}}
 
 {{/*
+Resolve the failure domains for a pool (nodepool or controlplane) from the `zones` list.
+The singular `zone` is not supported; always use the plural `zones`.
+Returns the zones as a JSON array string; decode with `fromJsonArray`.
+Usage: {{ $zones := include "kommodity-cluster.poolZones" $np | fromJsonArray }}
+*/}}
+{{- define "kommodity-cluster.poolZones" -}}
+{{- $zones := list -}}
+{{- range (.zones | default list) -}}
+{{- $zones = append $zones . -}}
+{{- end -}}
+{{- $zones | uniq | toJson -}}
+{{- end -}}
+
+{{/*
+Resolve the control-plane failure domains from controlplane.zones. These populate the
+cluster's failureDomains, which the control plane uses to place its replicas. At least one
+zone is required. Returns the zones as a JSON array string; decode with fromJsonArray.
+Usage: {{ $zones := include "kommodity-cluster.controlPlaneZones" . | fromJsonArray }}
+*/}}
+{{- define "kommodity-cluster.controlPlaneZones" -}}
+{{- $cpZones := include "kommodity-cluster.poolZones" .Values.kommodity.controlplane | fromJsonArray -}}
+{{- if eq (len $cpZones) 0 -}}
+{{- fail "missing required controlplane.zones: set the failure domains where control-plane nodes are placed" -}}
+{{- end -}}
+{{- $cpZones | toJson -}}
+{{- end -}}
+
+{{/*
+Resolve a nodepool's failure domains (zones), requiring at least one. Mirrors poolZones but
+fails when zones is unset or empty, naming the offending nodepool.
+Usage: {{ $zones := include "kommodity-cluster.requiredPoolZones" (dict "name" $name "pool" $np) | fromJsonArray }}
+*/}}
+{{- define "kommodity-cluster.requiredPoolZones" -}}
+{{- $zones := include "kommodity-cluster.poolZones" .pool | fromJsonArray -}}
+{{- if eq (len $zones) 0 -}}
+{{- fail (printf "nodepool %s: missing required zones" .name) -}}
+{{- end -}}
+{{- $zones | toJson -}}
+{{- end -}}
+
+{{/*
+Compute one zone's share when splitting a total count evenly across zones.
+The remainder is front-loaded, so lower indices receive the extra units
+(e.g. total 5 over 2 zones -> index 0 gets 3, index 1 gets 2).
+Usage: {{ include "kommodity-cluster.zoneShare" (dict "total" 6 "count" 2 "index" 0) }}
+*/}}
+{{- define "kommodity-cluster.zoneShare" -}}
+{{- $base := div .total .count -}}
+{{- $extra := mod .total .count -}}
+{{- if lt .index $extra -}}
+{{- add $base 1 -}}
+{{- else -}}
+{{- $base -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Expand the name of the chart.
 */}}
 {{- define "kommodity-cluster.name" -}}

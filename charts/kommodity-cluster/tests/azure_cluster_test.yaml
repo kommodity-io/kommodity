@@ -89,6 +89,20 @@ tests:
           path: spec.failureDomains["2"]
           value: {}
 
+  - it: should collect multiple failure domains from a single nodepool with zones
+    set:
+      kommodity.nodepools.default.zone: null
+      kommodity.nodepools.default.zones:
+        - "1"
+        - "3"
+    asserts:
+      - equal:
+          path: spec.failureDomains["1"]
+          value: {}
+      - equal:
+          path: spec.failureDomains["3"]
+          value: {}
+
   - it: should fail when subscriptionID is missing
     set:
       kommodity.provider.config.subscriptionID: null

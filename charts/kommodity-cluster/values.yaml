@@ -256,6 +256,14 @@ kommodity:
     # Using Talos strategic merge patches: https://docs.siderolabs.com/talos/v1.12/configure-your-talos-cluster/system-configuration/patching
     strategicPatches: {}
 
+    # Failure domains the control-plane nodes are spread across. These populate the cluster's
+    # failureDomains, which the control plane uses to place its replicas. Required: provide one
+    # or more zones (the singular `zone` is not supported). Only used by providers that consume
+    # cluster failureDomains (Scaleway, Azure).
+    # zones:
+    #   - fr-par-1
+    #   - fr-par-2
+
     # Kubernetes version can be overridden here, otherwise the top-level kubernetes.version is used
     # This is especially useful for K8s upgrades, where it is recommended to upgrade the control plane first (https://cluster-api.sigs.k8s.io/tasks/upgrading-clusters#upgrading-using-cluster-api)
     # kubernetes:
