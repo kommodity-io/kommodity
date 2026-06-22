@@ -98,7 +98,7 @@ func (r *ExtraSecretsManagerReconciler) Reconcile(ctx context.Context, req ctrl.
 
 		secret := &corev1.Secret{}
 
-		err := yaml.Unmarshal(value, &secret)
+		err := yaml.Unmarshal(value, secret)
 		if err != nil {
 			logger.Error("Failed to unmarshal Extra Secret Data", zap.String("key", key), zap.Error(err))
 
