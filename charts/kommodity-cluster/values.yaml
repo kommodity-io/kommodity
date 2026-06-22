@@ -257,10 +257,9 @@ kommodity:
     strategicPatches: {}
 
     # Failure domains the control-plane nodes are spread across. These populate the cluster's
-    # failureDomains, which the control plane uses to place its replicas. Optional (the singular
-    # `zone` is not supported); when unset, the provider's default zone is used (for Scaleway,
-    # the zone from the credentials secret). Only used by providers that consume cluster
-    # failureDomains (Scaleway, Azure).
+    # failureDomains, which the control plane uses to place its replicas. Optional; when unset, 
+    # the provider's default zone is used (for Scaleway, the zone from the credentials secret). 
+    # Only used by providers that consume cluster failureDomains (Scaleway, Azure).
     # zones:
     #   - fr-par-1
     #   - fr-par-2
