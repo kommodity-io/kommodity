@@ -256,7 +256,7 @@ kommodity:
     # Using Talos strategic merge patches: https://docs.siderolabs.com/talos/v1.12/configure-your-talos-cluster/system-configuration/patching
     strategicPatches: {}
 
-    # Optional failure domains for the control-plane nodes.
+    # Optional failure domains.
     # zones:
     #   - zone1
     #   - zone2
