@@ -291,3 +291,85 @@ tests:
           path: spec.template.spec.virtualMachineTemplate.spec.template.spec.dnsConfig.nameservers[0]
           value: 1.1.1.1
         documentIndex: 1
+  - it: should not render affinity when no zones are set
+    template: templates/provider/kubevirt/machinetemplate.yaml
+    asserts:
+      - isNull:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.affinity
+        documentIndex: 0
+      - isNull:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.affinity
+        documentIndex: 1
+  - it: should inject loose multi-zone nodeAffinity on controlplane when zones are set
+    template: templates/provider/kubevirt/machinetemplate.yaml
+    set:
+      kommodity.controlplane.zones:
+        - zone-a
+        - zone-b
+    asserts:
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].key
+          value: topology.kubernetes.io/zone
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].operator
+          value: In
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].values[0]
+          value: zone-a
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].values[1]
+          value: zone-b
+        documentIndex: 0
+  - it: should fan out one KubevirtMachineTemplate per nodepool zone with single-zone affinity
+    template: templates/provider/kubevirt/machinetemplate.yaml
+    set:
+      kommodity.nodepools.default.zones:
+        - zone-a
+        - zone-b
+    asserts:
+      - hasDocuments:
+          count: 3
+      - matchRegex:
+          path: metadata.name
+          pattern: ^test-cluster-controlplane-[a-f0-9]{6}$
+        documentIndex: 0
+      - matchRegex:
+          path: metadata.name
+          pattern: ^test-cluster-worker-default-zone-a-[a-f0-9]{6}$
+        documentIndex: 1
+      - matchRegex:
+          path: metadata.name
+          pattern: ^test-cluster-worker-default-zone-b-[a-f0-9]{6}$
+        documentIndex: 2
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].values[0]
+          value: zone-a
+        documentIndex: 1
+      - lengthEqual:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].values
+          count: 1
+        documentIndex: 1
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].values[0]
+          value: zone-b
+        documentIndex: 2
+  - it: should reference the zone-suffixed KubevirtMachineTemplate from each zone MachineDeployment
+    template: templates/provider/capi/machinedeployment.yaml
+    set:
+      kommodity.nodepools.default.zones:
+        - zone-a
+        - zone-b
+    asserts:
+      - hasDocuments:
+          count: 2
+      - matchRegex:
+          path: spec.template.spec.infrastructureRef.name
+          pattern: ^test-cluster-worker-default-zone-a-[a-f0-9]{6}$
+        documentIndex: 0
+      - matchRegex:
+          path: spec.template.spec.infrastructureRef.name
+          pattern: ^test-cluster-worker-default-zone-b-[a-f0-9]{6}$
+        documentIndex: 1

@@ -111,7 +111,15 @@ spec:
         {{- else }}
         {{- fail "infrastructure provider is not supported" -}}
         {{- end }}
+        {{- /* KubeVirt fans out one KubevirtMachineTemplate per zone (each with a nodeAffinity
+               pinned to its zone), so the MachineDeployment for a zone must reference the
+               matching zone-suffixed template. Other providers keep a single template per
+               nodepool. */ -}}
+        {{- if and (eq $.Values.kommodity.provider.name "Kubevirt") $zone }}
+        name: {{ $.Release.Name }}-worker-{{ $name }}-{{ $zone }}-{{ include "kommodity-cluster.machineSpecsHash" (dict "poolValues" $np "allValues" $.Values) }}
+        {{- else }}
         name: {{ $.Release.Name }}-worker-{{ $name }}-{{ include "kommodity-cluster.machineSpecsHash" (dict "poolValues" $np "allValues" $.Values) }}
+        {{- end }}
         namespace: {{ $.Release.Namespace }}
       version: {{ default $.Values.kubernetes.version (dig "kubernetes" "version" "" $np) -}}
 {{- end }}

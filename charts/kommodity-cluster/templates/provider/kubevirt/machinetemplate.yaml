@@ -9,6 +9,11 @@
 {{- if not (or $cpSku $cpResources) -}}
 {{- fail "kommodity.controlplane: one of 'sku' or 'resources' must be set" -}}
 {{- end -}}
+{{- /* TalosControlPlane references a single KubevirtMachineTemplate for all replicas, so we
+       cannot fan out per zone here. Instead, when controlplane.zones is set we inject a loose
+       nodeAffinity that lets every CP VM land on any of the listed zones. */ -}}
+{{- $cpZones := include "kommodity-cluster.poolZones" .Values.kommodity.controlplane | fromJsonArray }}
+{{- $cpAffinity := include "kommodity.kubevirt.nodeAffinity" $cpZones | trim }}
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
 kind: KubevirtMachineTemplate
@@ -52,6 +57,10 @@ spec:
           runStrategy: Always
           template:
             spec:
+              {{- if $cpAffinity }}
+              affinity:
+                {{- $cpAffinity | nindent 16 }}
+              {{- end }}
               {{- with (dig "network" "cluster" "dns" "dnsPolicy" "" $.Values.kommodity) }}
               dnsPolicy: {{ . }}
               {{- end }}
@@ -91,11 +100,26 @@ spec:
 {{- if not (or $npSku $npResources) -}}
 {{- fail (printf "kommodity.nodepools.%s: one of 'sku' or 'resources' must be set" $name) -}}
 {{- end }}
+{{- /* Per-zone KubevirtMachineTemplate fan-out: each MachineDeployment for a zone references
+       its own template with nodeAffinity pinning the VM to that single zone, matching the
+       MachineDeployment-per-zone model. With no zones set, emit one template (unsuffixed). */ -}}
+{{- $npZones := include "kommodity-cluster.poolZones" $np | fromJsonArray }}
+{{- if eq (len $npZones) 0 }}
+{{- $npZones = list "" }}
+{{- end }}
+{{- $hash := include "kommodity-cluster.machineSpecsHash" (dict "poolValues" $np "allValues" $.Values) }}
+{{- range $zone := $npZones }}
+{{- $tmplName := printf "%s-worker-%s-%s" $.Release.Name $name $hash }}
+{{- $zoneAffinity := "" }}
+{{- if $zone }}
+{{- $tmplName = printf "%s-worker-%s-%s-%s" $.Release.Name $name $zone $hash }}
+{{- $zoneAffinity = include "kommodity.kubevirt.nodeAffinity" (list $zone) | trim }}
+{{- end }}
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
 kind: KubevirtMachineTemplate
 metadata:
-  name: {{ $.Release.Name }}-worker-{{ $name }}-{{ include "kommodity-cluster.machineSpecsHash" (dict "poolValues" $np "allValues" $.Values) }}
+  name: {{ $tmplName }}
   namespace: {{ $.Release.Namespace }}
   labels:
     app.kubernetes.io/managed-by: kommodity
@@ -153,6 +177,10 @@ spec:
           runStrategy: Always
           template:
             spec:
+              {{- if $zoneAffinity }}
+              affinity:
+                {{- $zoneAffinity | nindent 16 }}
+              {{- end }}
               {{- with (dig "network" "cluster" "dns" "dnsPolicy" "" $.Values.kommodity) }}
               dnsPolicy: {{ . }}
               {{- end }}
@@ -199,5 +227,6 @@ spec:
                     name: additional-volume-{{ $idx }}
                   name: additional-volume-{{ $idx }}
                 {{- end }}
+{{- end }}
 {{- end }}
 {{- end }}

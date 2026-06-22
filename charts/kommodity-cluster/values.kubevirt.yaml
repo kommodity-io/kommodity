@@ -71,11 +71,13 @@ kommodity:
         dnsConfig:
           nameservers: ["1.1.1.1", "8.8.8.8"] # Cloudflare + Google. Override as needed.
 
-  # NOTE on zones: the `zones` field is not honored by the KubeVirt provider. CAPK ignores
-  # Machine.Spec.FailureDomain and KubevirtCluster exposes no settable failureDomains, so VMs are
-  # placed wherever the infra-cluster scheduler puts their virt-launcher pods. Setting `zones`
-  # only affects MachineDeployment naming/metadata, not actual placement. To pin VMs to nodes or
-  # zones, use KubeVirt node placement (nodeSelector/affinity) on the infra cluster instead.
+  # NOTE on zones: CAPK still ignores Machine.Spec.FailureDomain, so failureDomains alone do not
+  # place VMs. The chart compensates by injecting a `nodeAffinity` on each KubevirtMachineTemplate
+  # that matches the standard `topology.kubernetes.io/zone` label on the infra cluster's nodes.
+  # Per-nodepool zones fan out one KubevirtMachineTemplate per zone with a single-zone affinity
+  # (strict pinning, matching the per-zone MachineDeployment). Control-plane zones share one
+  # KubevirtMachineTemplate (TalosControlPlane references a single infrastructureTemplate) and
+  # get a loose `In [zones]` affinity, so each CP VM lands on one of the listed zones.
   controlplane:
     replicas: 2
     # Exactly one of 'sku' or 'resources' must be set per pool (mutually exclusive).

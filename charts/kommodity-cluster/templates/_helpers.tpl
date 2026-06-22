@@ -12,7 +12,6 @@ Usage: {{ include "kommodity.talosVersion" . }}
 
 {{/*
 Resolve the failure domains for a pool (nodepool or controlplane) from the `zones` list.
-The singular `zone` is not supported; always use the plural `zones`.
 Returns the zones as a JSON array string; decode with `fromJsonArray`.
 Usage: {{ $zones := include "kommodity-cluster.poolZones" $np | fromJsonArray }}
 */}}
@@ -33,6 +32,33 @@ Usage: {{ $zones := include "kommodity-cluster.controlPlaneZones" . | fromJsonAr
 */}}
 {{- define "kommodity-cluster.controlPlaneZones" -}}
 {{- include "kommodity-cluster.poolZones" .Values.kommodity.controlplane -}}
+{{- end -}}
+
+{{/*
+kommodity.kubevirt.nodeAffinity — render a `nodeAffinity` YAML block that restricts
+VM scheduling to the given zones via the standard `topology.kubernetes.io/zone` label
+on infra-cluster nodes. Returns empty when the zones list is empty.
+
+KubeVirt provider context: CAPK ignores Machine.Spec.FailureDomain, so the chart's
+per-zone MachineDeployment fan-out does not by itself pin VMs to zones. Injecting
+this affinity on the KubevirtMachineTemplate's VM spec actually constrains where
+virt-launcher pods land on the infra cluster.
+
+Usage: {{ include "kommodity.kubevirt.nodeAffinity" (list "fr-par-1" "fr-par-2") }}
+*/}}
+{{- define "kommodity.kubevirt.nodeAffinity" -}}
+{{- if gt (len .) 0 -}}
+nodeAffinity:
+  requiredDuringSchedulingIgnoredDuringExecution:
+    nodeSelectorTerms:
+      - matchExpressions:
+          - key: topology.kubernetes.io/zone
+            operator: In
+            values:
+              {{- range . }}
+              - {{ . | quote }}
+              {{- end }}
+{{- end -}}
 {{- end -}}
 
 {{/*
