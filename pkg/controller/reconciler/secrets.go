@@ -3,6 +3,7 @@ package reconciler
 import (
 	"context"
 	"fmt"
+	"maps"
 
 	"github.com/go-logr/zapr"
 	"github.com/kommodity-io/kommodity/pkg/logging"
@@ -90,12 +91,14 @@ func (r *ExtraSecretsManagerReconciler) Reconcile(ctx context.Context, req ctrl.
 		return ctrl.Result{RequeueAfter: RequeueAfter}, nil
 	}
 
-	for key, value := range extraSecretSecret.StringData {
+	entries := MergeExtraSecretEntries(extraSecretSecret)
+
+	for key, value := range entries {
 		logger.Info("Reconciling Extra Secret Data", zap.String("key", key))
 
 		secret := &corev1.Secret{}
 
-		err := yaml.Unmarshal([]byte(value), &secret)
+		err := yaml.Unmarshal(value, secret)
 		if err != nil {
 			logger.Error("Failed to unmarshal Extra Secret Data", zap.String("key", key), zap.Error(err))
 
@@ -114,4 +117,18 @@ func (r *ExtraSecretsManagerReconciler) Reconcile(ctx context.Context, req ctrl.
 		zap.String("clusterName", clusterName))
 
 	return ctrl.Result{}, nil
+}
+
+// MergeExtraSecretEntries returns a single map of payload manifests keyed by
+// entry name. Data and StringData are both honored.
+func MergeExtraSecretEntries(secret *corev1.Secret) map[string][]byte {
+	entries := make(map[string][]byte, len(secret.Data)+len(secret.StringData))
+
+	maps.Copy(entries, secret.Data)
+
+	for key, value := range secret.StringData {
+		entries[key] = []byte(value)
+	}
+
+	return entries
 }
