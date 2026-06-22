@@ -71,6 +71,11 @@ kommodity:
         dnsConfig:
           nameservers: ["1.1.1.1", "8.8.8.8"] # Cloudflare + Google. Override as needed.
 
+  # NOTE on zones: the `zones` field is not honored by the KubeVirt provider. CAPK ignores
+  # Machine.Spec.FailureDomain and KubevirtCluster exposes no settable failureDomains, so VMs are
+  # placed wherever the infra-cluster scheduler puts their virt-launcher pods. Setting `zones`
+  # only affects MachineDeployment naming/metadata, not actual placement. To pin VMs to nodes or
+  # zones, use KubeVirt node placement (nodeSelector/affinity) on the infra cluster instead.
   controlplane:
     replicas: 2
     # Exactly one of 'sku' or 'resources' must be set per pool (mutually exclusive).
