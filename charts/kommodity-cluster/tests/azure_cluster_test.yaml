@@ -67,6 +67,9 @@ tests:
           path: spec.identityRef
 
   - it: should set failure domains from controlplane zones
+    set:
+      kommodity.controlplane.zones:
+        - "1"
     asserts:
       - exists:
           path: spec.failureDomains

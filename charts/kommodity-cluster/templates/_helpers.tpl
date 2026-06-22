@@ -16,6 +16,9 @@ Returns the zones as a JSON array string; decode with `fromJsonArray`.
 Usage: {{ $zones := include "kommodity-cluster.poolZones" $np | fromJsonArray }}
 */}}
 {{- define "kommodity-cluster.poolZones" -}}
+{{- if hasKey . "zone" }}
+{{- fail "singular 'zone' is deprecated; use plural 'zones' list instead" -}}
+{{- end -}}
 {{- $zones := list -}}
 {{- range (.zones | default list) -}}
 {{- $zones = append $zones . -}}
