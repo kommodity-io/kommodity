@@ -207,7 +207,7 @@ jobs:
 
       - name: Log in to GitHub Container Registry
         if: ${{ env.PUSH == 'true' }}
-        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -215,7 +215,7 @@ jobs:
 
       - name: Set up Docker Buildx
         if: ${{ env.PUSH == 'true' && matrix.publish_containerdisk == 'true' }}
-        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4
+        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4
 
       - name: Build image
         run: |
@@ -362,7 +362,7 @@ jobs:
           echo "Tagged as: ${DISK_IMAGE_LATEST}"
 
       - name: Upload artifact
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: ${{ env.IMAGE_NAME }}-${{ env.TALOS_VERSION }}
           path: _out/*.${{ env.FINAL_EXTENSION }}
