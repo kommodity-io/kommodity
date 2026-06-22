@@ -195,9 +195,10 @@ Any values that should trigger a new Machine template when changed should be add
 	{{- $_ := set $data "additionalVolumes" . -}}
 {{- end -}}
 {{- $_ := set $data "publicNetworkEnabled" .allValues.kommodity.network.ipv4.public -}}
-{{- /* Include failure domains so editing a pool's zones rolls its machines (control plane and
-       workers), keeping placement in sync with the configured zones. */ -}}
-{{- $_ := set $data "zones" (include "kommodity-cluster.poolZones" .poolValues | fromJsonArray) -}}
+{{- $zones := include "kommodity-cluster.poolZones" .poolValues | fromJsonArray -}}
+{{- if gt (len $zones) 0 -}}
+{{- $_ := set $data "zones" $zones -}}
+{{- end -}}
 {{- toJson $data | sha256sum | trunc 6 -}}
 {{- end -}}
 
