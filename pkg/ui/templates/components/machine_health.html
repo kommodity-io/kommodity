@@ -12,7 +12,7 @@
     {{- $label = "Check failed" -}}
 {{- end -}}
 {{- $tooltipID := printf "machine-conditions-%s" .Name -}}
-<span class="machine-health relative inline-flex items-center gap-2" tabindex="0"{{if .Conditions}} aria-describedby="{{$tooltipID}}"{{end}}>
+<span class="machine-health relative inline-flex items-center gap-2" tabindex="0" title="{{$label}}"{{if .Conditions}} aria-describedby="{{$tooltipID}}"{{end}}>
     <span class="{{$color}} text-base leading-none" aria-hidden="true">●</span>
     <span class="sr-only">{{$label}}</span>
     {{- if .Conditions }}
