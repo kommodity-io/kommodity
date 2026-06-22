@@ -256,6 +256,11 @@ kommodity:
     # Using Talos strategic merge patches: https://docs.siderolabs.com/talos/v1.12/configure-your-talos-cluster/system-configuration/patching
     strategicPatches: {}
 
+    # Optional failure domains.
+    # zones:
+    #   - zone1
+    #   - zone2
+
     # Kubernetes version can be overridden here, otherwise the top-level kubernetes.version is used
     # This is especially useful for K8s upgrades, where it is recommended to upgrade the control plane first (https://cluster-api.sigs.k8s.io/tasks/upgrading-clusters#upgrading-using-cluster-api)
     # kubernetes:
@@ -295,6 +300,11 @@ kommodity:
     #   autoscaling:
     #     minReplicas: 1
     #     maxReplicas: 3
+
+    #   # Optional failure domains.
+    #   # zones:
+    #   #   - zone1
+    #   #   - zone2
 
     #   # Configurations related the specific nodepool
     #   # Using Talos strategic merge patches: https://docs.siderolabs.com/talos/v1.12/configure-your-talos-cluster/system-configuration/patching

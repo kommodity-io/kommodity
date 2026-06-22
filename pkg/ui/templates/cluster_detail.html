@@ -96,6 +96,7 @@
                                             <th class="py-2 px-4 font-semibold text-gray-500">Phase</th>
                                             <th class="py-2 px-4 font-semibold text-gray-500">Name</th>
                                             <th class="py-2 px-4 font-semibold text-gray-500">Node Name</th>
+                                            <th class="py-2 px-4 font-semibold text-gray-500">Zone</th>
                                             <th class="py-2 px-4 font-semibold text-gray-500">Kubernetes Version</th>
                                             <th class="py-2 px-4 font-semibold text-gray-500">
                                                 <button type="button" class="sort-creation-time cursor-pointer bg-transparent border-0 p-0 focus:outline-none hover:text-gray-300 transition-colors" data-deployment="cp-{{.Name}}">
@@ -115,6 +116,7 @@
                                             </td>
                                             <td class="py-2 px-4">{{.Name}}</td>
                                             <td class="py-2 px-4">{{.NodeName}}</td>
+                                            <td class="py-2 px-4">{{.Zone}}</td>
                                             <td class="py-2 px-4">{{.KubernetesVersion}}</td>
                                             <td class="py-2 px-4" data-creation-time="{{.CreationTime}}">{{.Age}}</td>
                                         </tr>
@@ -202,6 +204,7 @@
                                             <th class="py-2 px-4 font-semibold text-gray-500">Phase</th>
                                             <th class="py-2 px-4 font-semibold text-gray-500">Name</th>
                                             <th class="py-2 px-4 font-semibold text-gray-500">Node Name</th>
+                                            <th class="py-2 px-4 font-semibold text-gray-500">Zone</th>
                                             <th class="py-2 px-4 font-semibold text-gray-500">Kubernetes Version</th>
                                             <th class="py-2 px-4 font-semibold text-gray-500">
                                                 <button type="button" class="sort-creation-time cursor-pointer bg-transparent border-0 p-0 focus:outline-none hover:text-gray-300 transition-colors" data-deployment="{{.Name}}">
@@ -221,6 +224,7 @@
                                             </td>
                                             <td class="py-2 px-4">{{.Name}}</td>
                                             <td class="py-2 px-4">{{.NodeName}}</td>
+                                            <td class="py-2 px-4">{{.Zone}}</td>
                                             <td class="py-2 px-4">{{.KubernetesVersion}}</td>
                                             <td class="py-2 px-4" data-creation-time="{{.CreationTime}}">{{.Age}}</td>
                                         </tr>

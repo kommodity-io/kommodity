@@ -92,7 +92,8 @@ tests:
     set:
       kommodity.nodepools.gpu.replicas: 2
       kommodity.nodepools.gpu.sku: Standard_NC6s_v3
-      kommodity.nodepools.gpu.zone: "2"
+      kommodity.nodepools.gpu.zones:
+        - "2"
       kommodity.nodepools.gpu.os.disk.size: 50
     asserts:
       - hasDocuments:
@@ -103,7 +104,7 @@ tests:
         documentIndex: 0
       - equal:
           path: metadata.name
-          value: "test-cluster-worker-gpu"
+          value: "test-cluster-worker-gpu-2"
         documentIndex: 1
       - equal:
           path: spec.replicas
@@ -116,6 +117,9 @@ tests:
 
   - it: should set failureDomain from nodepool zone (quoted string)
     template: templates/provider/capi/machinedeployment.yaml
+    set:
+      kommodity.nodepools.default.zones:
+        - "1"
     asserts:
       - equal:
           path: spec.template.spec.failureDomain
@@ -253,7 +257,8 @@ tests:
     set:
       kommodity.nodepools.gpu.replicas: 1
       kommodity.nodepools.gpu.sku: Standard_NC6s_v3
-      kommodity.nodepools.gpu.zone: "2"
+      kommodity.nodepools.gpu.zones:
+        - "2"
       kommodity.nodepools.gpu.os.disk.size: 50
       kommodity.nodepools.gpu.os.disk.type: Premium_LRS
     asserts:

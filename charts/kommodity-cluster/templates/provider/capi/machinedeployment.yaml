@@ -6,17 +6,55 @@
 {{- if and (or $hasMinReplicas $hasMaxReplicas) (not (and $hasMinReplicas $hasMaxReplicas)) }}
 {{- fail (printf "nodepool %s: both autoscaling.minReplicas and autoscaling.maxReplicas must be set together" $name) }}
 {{- end }}
+{{- $replicas := dig "replicas" nil $np }}
+{{- $hasReplicas := not (kindIs "invalid" $replicas) }}
+{{- if and $hasReplicas (or $hasMinReplicas $hasMaxReplicas) }}
+{{- fail (printf "nodepool %s: replicas cannot be set together with autoscaling.minReplicas or autoscaling.maxReplicas" $name) }}
+{{- end }}
+{{- /* Resolve the nodepool's failure domains (zones). A MachineDeployment carries a single
+       failureDomain and CAPI does not spread workers across domains, so we emit one
+       MachineDeployment per zone, each pinned to its zone and suffixed with it, splitting
+       replicas and autoscaling bounds evenly. Zones are optional: with none set, a single
+       domain-less MachineDeployment is emitted with the original (unsuffixed) name and the
+       provider's default zone is used. */ -}}
+{{- $zones := include "kommodity-cluster.poolZones" $np | fromJsonArray }}
+{{- if eq (len $zones) 0 }}
+{{- $zones = list "" }}
+{{- end }}
+{{- $zoneCount := len $zones }}
 {{- $npAnnotations := dig "annotations" (dict) $np }}
+{{- /* When autoscaling splits minReplicas across multiple zones, a zone can end up with a
+       minimum of 0 (e.g. minReplicas 0 or 1 over 2 zones). Scaling such a node group up from
+       zero requires the autoscaler to know the node capacity, which it reads from
+       capacity.cluster-autoscaler.kubernetes.io/* annotations. Require at least one. */ -}}
+{{- if and $hasMinReplicas (le (int $minReplicas) 1) (gt $zoneCount 1) }}
+{{- $hasCapacityAnnotation := false }}
+{{- range $k, $v := $npAnnotations }}
+{{- if hasPrefix "capacity.cluster-autoscaler.kubernetes.io" $k }}
+{{- $hasCapacityAnnotation = true }}
+{{- end }}
+{{- end }}
+{{- if not $hasCapacityAnnotation }}
+{{- fail (printf "nodepool %s: autoscaling with minReplicas %v across %d zones leaves a zone with a minimum of 0; add at least one 'capacity.cluster-autoscaler.kubernetes.io/*' annotation (e.g. .../cpu, .../memory) so the autoscaler can scale that zone from zero" $name $minReplicas $zoneCount) }}
+{{- end }}
+{{- end }}
+{{- range $zoneIdx, $zone := $zones }}
+{{- $mdName := printf "%s-worker-%s" $.Release.Name $name }}
+{{- if $zone }}
+{{- $mdName = printf "%s-worker-%s-%s" $.Release.Name $name $zone }}
+{{- end }}
 {{- $annotations := deepCopy $npAnnotations }}
 {{- if and $hasMinReplicas $hasMaxReplicas }}
-{{- $_ := set $annotations "cluster.x-k8s.io/cluster-api-autoscaler-node-group-min-size" (printf "%v" $minReplicas) }}
-{{- $_ := set $annotations "cluster.x-k8s.io/cluster-api-autoscaler-node-group-max-size" (printf "%v" $maxReplicas) }}
+{{- $zoneMin := include "kommodity-cluster.zoneShare" (dict "total" $minReplicas "count" $zoneCount "index" $zoneIdx) }}
+{{- $zoneMax := include "kommodity-cluster.zoneShare" (dict "total" $maxReplicas "count" $zoneCount "index" $zoneIdx) }}
+{{- $_ := set $annotations "cluster.x-k8s.io/cluster-api-autoscaler-node-group-min-size" (printf "%v" $zoneMin) }}
+{{- $_ := set $annotations "cluster.x-k8s.io/cluster-api-autoscaler-node-group-max-size" (printf "%v" $zoneMax) }}
 {{- end }}
 ---
 apiVersion: cluster.x-k8s.io/v1beta1
 kind: MachineDeployment
 metadata:
-  name: {{ $.Release.Name }}-worker-{{ $name }}
+  name: {{ $mdName }}
   namespace: {{ $.Release.Namespace }}
   labels:
     app.kubernetes.io/managed-by: kommodity
@@ -28,13 +66,8 @@ spec:
   clusterName: {{ $.Release.Name }}
   minReadySeconds: 0
   progressDeadlineSeconds: 600
-{{- $replicas := dig "replicas" nil $np }}
-{{- $hasReplicas := not (kindIs "invalid" $replicas) }}
-{{- if and $hasReplicas (or $hasMinReplicas $hasMaxReplicas) }}
-{{- fail (printf "nodepool %s: replicas cannot be set together with autoscaling.minReplicas or autoscaling.maxReplicas" $name) }}
-{{- end }}
 {{- if $hasReplicas }}
-  replicas: {{ $replicas }}
+  replicas: {{ include "kommodity-cluster.zoneShare" (dict "total" $replicas "count" $zoneCount "index" $zoneIdx) }}
 {{- end }}
   strategy:
     rollingUpdate:
@@ -47,7 +80,7 @@ spec:
     metadata:
       labels:
         cluster.x-k8s.io/cluster-name: {{ $.Release.Name }}
-        cluster.x-k8s.io/deployment-name: {{ $.Release.Name }}-worker-{{ $name }}
+        cluster.x-k8s.io/deployment-name: {{ $mdName }}
         app.kubernetes.io/managed-by: kommodity
     spec:
       bootstrap:
@@ -57,7 +90,13 @@ spec:
           name: {{ $.Release.Name }}-worker-{{ $name }}-{{ include "kommodity-cluster.talosConfigHash" (dict "poolValues" $np "allValues" $.Values) }}
           namespace: {{ $.Release.Namespace }}
       clusterName: {{ $.Release.Name }}
-      failureDomain: {{ $np.zone | quote }}
+      {{- if $zone }}
+      failureDomain: {{ $zone | quote }}
+      {{- end }}
+      {{- /* KubeVirt fans out one KubevirtMachineTemplate per zone (each with a nodeAffinity
+             pinned to its zone), so its zone MachineDeployments reference a zone-suffixed
+             template. Other providers keep a single template per nodepool. */ -}}
+      {{- $tmplSuffix := "" }}
       infrastructureRef:
         {{- if not $.Values.kommodity.provider.name }}
         {{- fail "kommodity.provider.name must be set in values.yaml" -}}
@@ -70,13 +109,15 @@ spec:
         {{- else if eq $.Values.kommodity.provider.name "Kubevirt" }}
         apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
         kind: KubevirtMachineTemplate
+        {{- if $zone }}{{ $tmplSuffix = printf "-%s" $zone }}{{ end }}
         {{- else if eq $.Values.kommodity.provider.name "Azure" }}
         apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
         kind: AzureMachineTemplate
         {{- else }}
         {{- fail "infrastructure provider is not supported" -}}
         {{- end }}
-        name: {{ $.Release.Name }}-worker-{{ $name }}-{{ include "kommodity-cluster.machineSpecsHash" (dict "poolValues" $np "allValues" $.Values) }}
+        name: {{ $.Release.Name }}-worker-{{ $name }}{{ $tmplSuffix }}-{{ include "kommodity-cluster.machineSpecsHash" (dict "poolValues" $np "allValues" $.Values) }}
         namespace: {{ $.Release.Namespace }}
       version: {{ default $.Values.kubernetes.version (dig "kubernetes" "version" "" $np) -}}
+{{- end }}
 {{- end }}

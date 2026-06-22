@@ -261,6 +261,47 @@ tests:
       - failedTemplate:
           errorMessage: "nodepool default: replicas cannot be set together with autoscaling.minReplicas or autoscaling.maxReplicas"
 
+  - it: should fail when multi-zone autoscaling can scale a zone from zero without a capacity annotation
+    template: templates/provider/capi/machinedeployment.yaml
+    set:
+      kommodity.nodepools.default.replicas: null
+      kommodity.nodepools.default.zones:
+        - fr-par-1
+        - fr-par-2
+      kommodity.nodepools.default.autoscaling.minReplicas: 1
+      kommodity.nodepools.default.autoscaling.maxReplicas: 5
+    asserts:
+      - failedTemplate:
+          errorMessage: "nodepool default: autoscaling with minReplicas 1 across 2 zones leaves a zone with a minimum of 0; add at least one 'capacity.cluster-autoscaler.kubernetes.io/*' annotation (e.g. .../cpu, .../memory) so the autoscaler can scale that zone from zero"
+
+  - it: should allow multi-zone scale-from-zero autoscaling with a capacity annotation
+    template: templates/provider/capi/machinedeployment.yaml
+    set:
+      kommodity.nodepools.default.replicas: null
+      kommodity.nodepools.default.zones:
+        - fr-par-1
+        - fr-par-2
+      kommodity.nodepools.default.autoscaling.minReplicas: 1
+      kommodity.nodepools.default.autoscaling.maxReplicas: 5
+      kommodity.nodepools.default.annotations:
+        capacity.cluster-autoscaler.kubernetes.io/cpu: "2"
+    asserts:
+      - hasDocuments:
+          count: 2
+      - equal:
+          path: metadata.annotations["capacity.cluster-autoscaler.kubernetes.io/cpu"]
+          value: "2"
+        documentIndex: 0
+      # minReplicas 1 over 2 zones -> 1 and 0; the zero zone is what needs the capacity hint.
+      - equal:
+          path: metadata.annotations["cluster.x-k8s.io/cluster-api-autoscaler-node-group-min-size"]
+          value: "1"
+        documentIndex: 0
+      - equal:
+          path: metadata.annotations["cluster.x-k8s.io/cluster-api-autoscaler-node-group-min-size"]
+          value: "0"
+        documentIndex: 1
+
   # Test Kubernetes version precedence
   - it: should make sure Kubernetes version defined in nodepool's config take precedence
     template: templates/provider/capi/machinedeployment.yaml

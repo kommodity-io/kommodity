@@ -1,9 +1,6 @@
 {{- if eq .Values.kommodity.provider.name "Azure" }}
 {{- include "kommodity.azure.validateNaming" . }}
-{{- $zones := dict }}
-{{- range $name, $np := .Values.kommodity.nodepools }}
-  {{- $_ := set $zones $np.zone true }}
-{{- end }}
+{{- $zones := include "kommodity-cluster.controlPlaneZones" . | fromJsonArray }}
 apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
 kind: AzureCluster
 metadata:
@@ -36,10 +33,10 @@ spec:
     name: {{ .Values.kommodity.provider.identity.name }}
     namespace: {{ .Release.Namespace }}
   {{- end }}
-  {{- if $zones }}
+  {{- if gt (len $zones) 0 }}
   failureDomains:
-    {{- range $zone, $_ := $zones }}
-    {{ $zone }}: {}
+    {{- range $zones }}
+    {{ . }}: {}
     {{- end }}
   {{- end }}
   {{- /*

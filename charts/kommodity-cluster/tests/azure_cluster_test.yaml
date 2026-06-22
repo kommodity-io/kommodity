@@ -66,7 +66,10 @@ tests:
       - notExists:
           path: spec.identityRef
 
-  - it: should collect failure domains from nodepools
+  - it: should set failure domains from controlplane zones
+    set:
+      kommodity.controlplane.zones:
+        - "1"
     asserts:
       - exists:
           path: spec.failureDomains
@@ -74,13 +77,11 @@ tests:
           path: spec.failureDomains["1"]
           value: {}
 
-  - it: should collect multiple failure domains from multiple nodepools
+  - it: should set multiple failure domains from controlplane zones
     set:
-      kommodity.nodepools.default.zone: "1"
-      kommodity.nodepools.gpu.replicas: 1
-      kommodity.nodepools.gpu.zone: "2"
-      kommodity.nodepools.gpu.sku: Standard_NC6s_v3
-      kommodity.nodepools.gpu.os.disk.size: 30
+      kommodity.controlplane.zones:
+        - "1"
+        - "2"
     asserts:
       - equal:
           path: spec.failureDomains["1"]
@@ -88,6 +89,13 @@ tests:
       - equal:
           path: spec.failureDomains["2"]
           value: {}
+
+  - it: should omit failureDomains when controlplane has no zones
+    set:
+      kommodity.controlplane.zones: null
+    asserts:
+      - notExists:
+          path: spec.failureDomains
 
   - it: should fail when subscriptionID is missing
     set:

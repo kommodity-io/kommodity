@@ -11,6 +11,76 @@ Usage: {{ include "kommodity.talosVersion" . }}
 {{- end -}}
 
 {{/*
+Resolve the failure domains for a pool (nodepool or controlplane) from the `zones` list.
+Returns the zones as a JSON array string; decode with `fromJsonArray`.
+Usage: {{ $zones := include "kommodity-cluster.poolZones" $np | fromJsonArray }}
+*/}}
+{{- define "kommodity-cluster.poolZones" -}}
+{{- if hasKey . "zone" }}
+{{- fail "singular 'zone' is deprecated; use plural 'zones' list instead" -}}
+{{- end -}}
+{{- $zones := list -}}
+{{- range (.zones | default list) -}}
+{{- $zones = append $zones . -}}
+{{- end -}}
+{{- $zones | uniq | toJson -}}
+{{- end -}}
+
+{{/*
+Resolve the control-plane failure domains from controlplane.zones. These populate the
+cluster's failureDomains, which the control plane uses to place its replicas. Optional: when
+unset, no failureDomains are set and the provider uses its default zone (for Scaleway, the
+zone from the credentials secret). Returns the zones as a JSON array string.
+Usage: {{ $zones := include "kommodity-cluster.controlPlaneZones" . | fromJsonArray }}
+*/}}
+{{- define "kommodity-cluster.controlPlaneZones" -}}
+{{- include "kommodity-cluster.poolZones" .Values.kommodity.controlplane -}}
+{{- end -}}
+
+{{/*
+kommodity.kubevirt.nodeAffinity — render a `nodeAffinity` YAML block that restricts
+VM scheduling to the given zones via the standard `topology.kubernetes.io/zone` label
+on infra-cluster nodes. Returns empty when the zones list is empty.
+
+KubeVirt provider context: CAPK ignores Machine.Spec.FailureDomain, so the chart's
+per-zone MachineDeployment fan-out does not by itself pin VMs to zones. Injecting
+this affinity on the KubevirtMachineTemplate's VM spec actually constrains where
+virt-launcher pods land on the infra cluster.
+
+Usage: {{ include "kommodity.kubevirt.nodeAffinity" (list "fr-par-1" "fr-par-2") }}
+*/}}
+{{- define "kommodity.kubevirt.nodeAffinity" -}}
+{{- if gt (len .) 0 -}}
+nodeAffinity:
+  requiredDuringSchedulingIgnoredDuringExecution:
+    nodeSelectorTerms:
+      - matchExpressions:
+          - key: topology.kubernetes.io/zone
+            operator: In
+            values:
+              {{- range . }}
+              - {{ . | quote }}
+              {{- end }}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Compute one zone's share when splitting a total count evenly across zones.
+The remainder is front-loaded, so lower indices receive the extra units
+(e.g. total 5 over 2 zones -> index 0 gets 3, index 1 gets 2).
+Usage: {{ include "kommodity-cluster.zoneShare" (dict "total" 6 "count" 2 "index" 0) }}
+*/}}
+{{- define "kommodity-cluster.zoneShare" -}}
+{{- $base := div .total .count -}}
+{{- $extra := mod .total .count -}}
+{{- if lt .index $extra -}}
+{{- add $base 1 -}}
+{{- else -}}
+{{- $base -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Expand the name of the chart.
 */}}
 {{- define "kommodity-cluster.name" -}}
@@ -128,6 +198,10 @@ Any values that should trigger a new Machine template when changed should be add
 	{{- $_ := set $data "additionalVolumes" . -}}
 {{- end -}}
 {{- $_ := set $data "publicNetworkEnabled" .allValues.kommodity.network.ipv4.public -}}
+{{- $zones := include "kommodity-cluster.poolZones" .poolValues | fromJsonArray -}}
+{{- if gt (len $zones) 0 -}}
+{{- $_ := set $data "zones" $zones -}}
+{{- end -}}
 {{- toJson $data | sha256sum | trunc 6 -}}
 {{- end -}}
 

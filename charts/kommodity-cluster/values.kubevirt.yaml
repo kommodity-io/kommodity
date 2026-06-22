@@ -73,6 +73,10 @@ kommodity:
 
   controlplane:
     replicas: 2
+    # Optional failure domains.
+    # zones:
+    #   - fr-par-1
+    #   - fr-par-2
     # Exactly one of 'sku' or 'resources' must be set per pool (mutually exclusive).
     # - sku: references a Kubevirt VirtualMachineClusterInstancetype.
     #   Default set: https://github.com/kubevirt/common-instancetypes#series.
@@ -93,6 +97,10 @@ kommodity:
   nodepools:
     default:
       replicas: 1
+      # Optional failure domains.
+      # zones:
+      #   - zone1
+      #   - zone2
       # Exactly one of 'sku' or 'resources' must be set (mutually exclusive).
       sku: d1.xlarge
       # resources:

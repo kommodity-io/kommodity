@@ -54,6 +54,10 @@ kommodity:
   controlplane:
     replicas: 1
     sku: PLAY2-NANO
+    # Optional failure domains.
+    # zones:
+    #   - fr-par-1
+    #   - fr-par-2
     os:
       disk:
         size: 20
@@ -71,7 +75,10 @@ kommodity:
     default:
       replicas: 1
       sku: PLAY2-NANO
-      zone: fr-par-2 # Note: Make sure the Talos image specified below is available in this zone
+      # Optional failure domains.
+      # zones:
+      #   - fr-par-1
+      #   - fr-par-2
       os:
         disk:
           size: 20

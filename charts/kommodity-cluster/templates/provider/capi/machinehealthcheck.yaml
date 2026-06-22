@@ -20,11 +20,23 @@ spec:
 {{- end }}
 {{- range $name, $np := .Values.kommodity.nodepools }}
 {{- if dig "healthCheck" "enabled" "" $np }}
+{{- /* Match the per-zone MachineDeployment fan-out: emit one MachineHealthCheck per zone,
+       each selecting that zone's deployment. Zones are optional: with none set, a single
+       MachineHealthCheck with the original (unsuffixed) name is emitted. */ -}}
+{{- $zones := include "kommodity-cluster.poolZones" $np | fromJsonArray }}
+{{- if eq (len $zones) 0 }}
+{{- $zones = list "" }}
+{{- end }}
+{{- range $zone := $zones }}
+{{- $mdName := printf "%s-worker-%s" $.Release.Name $name }}
+{{- if $zone }}
+{{- $mdName = printf "%s-worker-%s-%s" $.Release.Name $name $zone }}
+{{- end }}
 ---
 apiVersion: cluster.x-k8s.io/v1beta1
 kind: MachineHealthCheck
 metadata:
-  name: {{ $.Release.Name }}-worker-{{ $name }}
+  name: {{ $mdName }}
   namespace: {{ $.Release.Namespace }}
 spec:
   clusterName: {{ $.Release.Name }}
@@ -32,11 +44,12 @@ spec:
   nodeStartupTimeout: {{ dig "healthCheck" "nodeStartupTimeout" "" $np | default "10m0s" }}
   selector:
     matchLabels:
-      cluster.x-k8s.io/deployment-name: {{ $.Release.Name }}-worker-{{ $name }}
+      cluster.x-k8s.io/deployment-name: {{ $mdName }}
   unhealthyConditions:
   {{- if not $np.healthCheck.unhealthyConditions }}
     {{- fail (printf "MachineHealthCheck for nodepool '%s' is enabled but no unhealthyConditions are defined in values" $name) }}
   {{- end }}
   {{- toYaml $np.healthCheck.unhealthyConditions | nindent 2 }}
+{{- end }}
 {{- end }}
 {{- end }}
