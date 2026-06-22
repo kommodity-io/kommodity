@@ -184,9 +184,9 @@ kommodity:
     replicas: 1
     # Azure VM size - see https://docs.microsoft.com/en-us/azure/virtual-machines/sizes
     sku: Standard_D2s_v3
-    # Azure availability zones (strings: "1", "2", "3") the control-plane nodes spread across
-    zones:
-      - "1"
+    # Optional failure domains.
+    # zones:
+    #   - "1"
     os:
       disk:
         size: 30
@@ -208,9 +208,9 @@ kommodity:
       # Azure VM size - see https://docs.microsoft.com/en-us/azure/virtual-machines/sizes
       # For GPU workloads, use NC-series (e.g., Standard_NC6s_v3)
       sku: Standard_D2s_v3
-      # Azure availability zones (strings: "1", "2", or "3"); one MachineDeployment per zone
-      zones:
-        - "1"
+      # Optional failure domains.
+      # zones:
+      #   - "1"
       os:
         disk:
           size: 30
