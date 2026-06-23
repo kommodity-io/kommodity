@@ -172,6 +172,9 @@ kommodity:
         configs:
           cm:
             admin.enabled: false
+        server:
+          ingress:
+            enabled: false
 
     # talos-cluster-proxy is an addon that deploys the talos-cluster-proxy pod, a component that runs on the cluster
     # and proxies requests coming from Kommodity (TalosControlPlaneReconciler) to the Talos nodes.
