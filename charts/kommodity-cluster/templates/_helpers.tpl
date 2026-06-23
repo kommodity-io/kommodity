@@ -191,7 +191,9 @@ Any values that should trigger a new Machine template when changed should be add
 {{- $talosImageName := default .allValues.talos.imageName (dig "talos" "imageName" "" .poolValues) -}}
 {{- $_ := set $data "talosImageName" $talosImageName -}}
 {{- $_ := set $data "sku" .poolValues.sku -}}
-{{- $_ := set $data "resources" (dig "resources" "" .poolValues) -}}
+{{- with (dig "resources" "" .poolValues) -}}
+{{- $_ := set $data "resources" . -}}
+{{- end -}}
 {{- $_ := set $data "diskSize" (dig "os" "disk" "size" "" .poolValues) -}}
 {{- $_ := set $data "gpus" (dig "gpus" "" .poolValues) -}}
 {{- with (dig "additionalVolumes" "" .poolValues) -}}
