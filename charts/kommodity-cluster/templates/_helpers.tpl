@@ -299,9 +299,10 @@ group (and, in BYO-VNet mode, its VNet — overlapping subnet CIDRs), corrupting
 both rather than failing fast.
 
 Convention: the Azure resource group is named after the cluster (== release
-name). This template enforces that convention so a copied-but-unedited values
-file is rejected at `helm install`/`template` time — before anything is
-provisioned, when it is trivially removable.
+name). When `resourceGroup` is omitted from values it defaults to the release
+name (see cluster.yaml). This template catches the case where it is set
+explicitly to a different value — a copied-but-unedited values file — and
+rejects it at `helm install`/`template` time, before anything is provisioned.
 
 (The CCM Secret collision is guarded independently on the management plane: the
 credential materializer refuses to take over a Secret owned by another cluster —

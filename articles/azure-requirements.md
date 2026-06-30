@@ -295,7 +295,7 @@ kommodity:
       name: azure-cluster-identity        # AzureClusterIdentity created in §4.1
     config:
       subscriptionID: <subscription-id>
-      resourceGroup: <workload-rg>        # CAPZ creates this RG automatically
+      # resourceGroup: <workload-rg>     # optional; defaults to the release name
       location: westeurope
       talosImageResourceGroup: <image-rg> # RG holding the Talos managed image
 

@@ -5,11 +5,8 @@ values:
 release:
   name: test-cluster
   namespace: default
-# The naming guard (kommodity.azure.validateNaming) requires the resource group to
-# equal the release name; the example values use a placeholder, so set it here for
-# the suite. Individual tests below exercise the guard's failure paths explicitly.
-set:
-  kommodity.provider.config.resourceGroup: test-cluster
+# resourceGroup defaults to the release name; no suite-level set needed.
+# Individual tests below exercise the guard's failure paths explicitly.
 templates:
   - templates/provider/azure/cluster.yaml
 tests:
@@ -104,12 +101,13 @@ tests:
       - failedTemplate:
           errorMessage: "missing required subscriptionID in kommodity.provider.config for Azure"
 
-  - it: should fail when resourceGroup is missing
+  - it: should default resourceGroup to the release name when not set
     set:
       kommodity.provider.config.resourceGroup: null
     asserts:
-      - failedTemplate:
-          errorMessage: "missing required resourceGroup in kommodity.provider.config for Azure"
+      - equal:
+          path: spec.resourceGroup
+          value: test-cluster
 
   - it: should fail when location is missing
     set:
