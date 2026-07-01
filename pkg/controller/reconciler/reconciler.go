@@ -86,19 +86,10 @@ func setUpExtraReconcilers(ctx context.Context,
 		return fmt.Errorf("failed to setup CCM CRS reconciler: %w", err)
 	}
 
-	err = (&AutoscalerReconciler{
-		Client: (*manager).GetClient(),
-		cfg:    cfg,
-	}).SetupWithManager(ctx, *manager, controllerOpts)
+	err = NewAutoscalerCRSReconciler((*manager).GetClient(), cfg).
+		SetupWithManager(ctx, *manager, controllerOpts)
 	if err != nil {
-		return fmt.Errorf("failed to setup Autoscaler reconciler: %w", err)
-	}
-
-	err = (&ExtraSecretsManagerReconciler{
-		Client: (*manager).GetClient(),
-	}).SetupWithManager(ctx, *manager, controllerOpts)
-	if err != nil {
-		return fmt.Errorf("failed to setup ExtraSecretsManager reconciler: %w", err)
+		return fmt.Errorf("failed to setup Autoscaler CRS reconciler: %w", err)
 	}
 
 	if azureProviderEnabled(cfg) {

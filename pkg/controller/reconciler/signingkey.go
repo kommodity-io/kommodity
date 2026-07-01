@@ -4,9 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"strconv"
 	"strings"
-	"time"
 
 	"github.com/go-logr/zapr"
 	"github.com/kommodity-io/kommodity/pkg/logging"
@@ -245,46 +243,8 @@ func (r *SigningKeyReconciler) rotateServiceAccountTokenSecret(
 		zap.String("secret", newSecret.Name),
 		zap.String("serviceAccount", annotations[serviceAccountNameAnnotation]))
 
-	err = r.updateAutoscalerConfigMap(ctx, clusterName, oldSecret.Namespace)
-	if err != nil {
-		logger.Warn("Failed to update autoscaler ConfigMap with signing key timestamp",
-			zap.String("clusterName", clusterName),
-			zap.Error(err))
-	}
+	_ = clusterName
 
 	return nil
 }
 
-// updateAutoscalerConfigMap fetches the cluster autoscaler ConfigMap and adds
-// the SigningKeyUpdatedAnnotation with the current unix timestamp.
-func (r *SigningKeyReconciler) updateAutoscalerConfigMap(
-	ctx context.Context,
-	clusterName string,
-	namespace string,
-) error {
-	configMapName := clusterName + AutoscalerConfigMapSuffix
-
-	configMap := &corev1.ConfigMap{}
-	configMapKey := client.ObjectKey{
-		Namespace: namespace,
-		Name:      configMapName,
-	}
-
-	err := r.Get(ctx, configMapKey, configMap)
-	if err != nil {
-		return fmt.Errorf("failed to get autoscaler ConfigMap %s: %w", configMapName, err)
-	}
-
-	if configMap.Annotations == nil {
-		configMap.Annotations = make(map[string]string)
-	}
-
-	configMap.Annotations[SigningKeyUpdatedAnnotation] = strconv.FormatInt(time.Now().Unix(), 10)
-
-	err = r.Update(ctx, configMap)
-	if err != nil {
-		return fmt.Errorf("failed to update autoscaler ConfigMap %s: %w", configMapName, err)
-	}
-
-	return nil
-}

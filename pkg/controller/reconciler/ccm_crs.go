@@ -10,7 +10,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	addonsv1 "sigs.k8s.io/cluster-api/api/addons/v1beta1"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/predicates"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -142,31 +141,7 @@ func (r *CCMCRSReconciler) clustersForSourceSecret(ctx context.Context, obj clie
 		return nil
 	}
 
-	clusters := &clusterv1.ClusterList{}
-
-	err := r.List(ctx, clusters, client.InNamespace(secret.Namespace))
-	if err != nil {
-		logging.FromContext(ctx).Error("Failed to list Clusters for Secret watch",
-			zap.String("secret", secret.Namespace+"/"+secret.Name),
-			zap.Error(err))
-
-		return nil
-	}
-
-	requests := make([]reconcile.Request, 0, len(clusters.Items))
-
-	for i := range clusters.Items {
-		cluster := &clusters.Items[i]
-		if cluster.Annotations[AnnotationCCMSecretName] != secret.Name {
-			continue
-		}
-
-		requests = append(requests, reconcile.Request{
-			NamespacedName: client.ObjectKeyFromObject(cluster),
-		})
-	}
-
-	return requests
+	return clustersByAnnotationValue(ctx, r.Client, secret, AnnotationCCMSecretName)
 }
 
 func resolveCCMAnnotations(cluster *clusterv1.Cluster) (string, string, bool, error) {
@@ -231,45 +206,6 @@ func buildDownstreamSecretManifest(name string, data map[string][]byte) ([]byte,
 
 func (r *CCMCRSReconciler) applyPayloadSecret(ctx context.Context,
 	cluster *clusterv1.Cluster, manifest []byte) error {
-	payloadName := cluster.Name + ccmPayloadSecretSuffix
-
-	payload := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      payloadName,
-			Namespace: cluster.Namespace,
-		},
-	}
-
-	operation, err := ctrl.CreateOrUpdate(ctx, r.Client, payload, func() error {
-		payload.Type = addonsv1.ClusterResourceSetSecretType
-		payload.Data = map[string][]byte{
-			ccmPayloadDataKey: manifest,
-		}
-
-		if payload.Labels == nil {
-			payload.Labels = map[string]string{}
-		}
-
-		payload.Labels["cluster.x-k8s.io/cluster-name"] = cluster.Name
-		payload.Labels["app.kubernetes.io/managed-by"] = "kommodity"
-
-		payload.OwnerReferences = []metav1.OwnerReference{{
-			APIVersion: clusterv1.GroupVersion.String(),
-			Kind:       "Cluster",
-			Name:       cluster.Name,
-			UID:        cluster.UID,
-		}}
-
-		return nil
-	})
-	if err != nil {
-		return fmt.Errorf("failed to upsert CCM CRS payload Secret %s/%s: %w",
-			cluster.Namespace, payloadName, err)
-	}
-
-	logging.FromContext(ctx).Info("CCM CRS payload Secret operation",
-		zap.String("operation", string(operation)),
-		zap.String("secret", cluster.Namespace+"/"+payloadName))
-
-	return nil
+	return upsertCRSPayloadSecret(ctx, r.Client, cluster,
+		cluster.Name+ccmPayloadSecretSuffix, ccmPayloadDataKey, manifest)
 }
