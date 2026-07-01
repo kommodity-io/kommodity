@@ -14,8 +14,12 @@ import (
 )
 
 const (
-	// RequeueAfter is the duration to wait before requeuing a request.
+	// RequeueAfter is the initial duration to wait before requeuing a request.
 	RequeueAfter = 10 * time.Second
+
+	// MaxRequeueAfter is the maximum duration for the exponential backoff
+	// when requeuing a failed request.
+	MaxRequeueAfter = 5 * time.Minute
 )
 
 // DownstreamClientConfig holds the configuration needed to create a Kubernetes client for downstream clusters.
