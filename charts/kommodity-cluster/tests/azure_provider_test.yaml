@@ -381,6 +381,52 @@ tests:
           value: my-rg
         documentIndex: 0
 
+  - it: should default computeGallery subscriptionID and resourceGroup from provider config
+    template: templates/provider/azure/machinetemplate.yaml
+    set:
+      kommodity.provider.config.subscriptionID: global-sub
+      kommodity.provider.config.talosImageResourceGroup: global-image-rg
+      talos.id: null
+      talos.computeGallery:
+        gallery: myGallery
+        name: talos-image
+        version: 1.13.0
+    asserts:
+      - equal:
+          path: spec.template.spec.image.computeGallery.gallery
+          value: myGallery
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.image.computeGallery.subscriptionID
+          value: global-sub
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.image.computeGallery.resourceGroup
+          value: global-image-rg
+        documentIndex: 0
+
+  - it: should let computeGallery override the default subscriptionID and resourceGroup
+    template: templates/provider/azure/machinetemplate.yaml
+    set:
+      kommodity.provider.config.subscriptionID: global-sub
+      kommodity.provider.config.talosImageResourceGroup: global-image-rg
+      talos.id: null
+      talos.computeGallery:
+        gallery: myGallery
+        name: talos-image
+        version: 1.13.0
+        subscriptionID: explicit-sub
+        resourceGroup: explicit-rg
+    asserts:
+      - equal:
+          path: spec.template.spec.image.computeGallery.subscriptionID
+          value: explicit-sub
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.image.computeGallery.resourceGroup
+          value: explicit-rg
+        documentIndex: 0
+
   - it: should set disableExtensionOperations to true by default
     template: templates/provider/azure/machinetemplate.yaml
     asserts:

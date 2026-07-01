@@ -334,7 +334,11 @@ you only supply the last segment of the resource ID rather than the whole thing.
 
 Precedence (first match wins):
   1. talos.marketplace      — Azure Marketplace image
-  2. talos.computeGallery   — Shared Image Gallery
+  2. talos.computeGallery   — Shared Image Gallery; subscriptionID and
+                              resourceGroup default to
+                              kommodity.provider.config.subscriptionID and
+                              kommodity.provider.config.talosImageResourceGroup
+                              when not set explicitly under talos.computeGallery
   3. talos.id               — explicit full ARM resource ID (escape hatch)
   4. talos.imageName        — managed image; ARM ID built from
                               kommodity.provider.config.subscriptionID +
@@ -351,15 +355,17 @@ marketplace:
   sku: {{ $talos.marketplace.sku }}
   version: {{ $talos.marketplace.version }}
 {{- else if dig "computeGallery" "" $talos -}}
+{{- $subID := dig "computeGallery" "subscriptionID" "" $talos | default (dig "config" "subscriptionID" "" .Values.kommodity.provider) -}}
+{{- $galleryRG := dig "computeGallery" "resourceGroup" "" $talos | default (dig "config" "talosImageResourceGroup" "" .Values.kommodity.provider) -}}
 computeGallery:
   gallery: {{ $talos.computeGallery.gallery }}
   name: {{ $talos.computeGallery.name }}
   version: {{ $talos.computeGallery.version }}
-  {{- if dig "computeGallery" "subscriptionID" "" $talos }}
-  subscriptionID: {{ $talos.computeGallery.subscriptionID }}
+  {{- if $subID }}
+  subscriptionID: {{ $subID }}
   {{- end }}
-  {{- if dig "computeGallery" "resourceGroup" "" $talos }}
-  resourceGroup: {{ $talos.computeGallery.resourceGroup }}
+  {{- if $galleryRG }}
+  resourceGroup: {{ $galleryRG }}
   {{- end }}
 {{- else if dig "id" "" $talos -}}
 id: {{ $talos.id }}

@@ -253,6 +253,9 @@ talos:
   #     gallery: myGallery
   #     name: talos-v1.13.0
   #     version: 1.0.0
+  #     subscriptionID and resourceGroup are optional; they default to
+  #     kommodity.provider.config.subscriptionID and
+  #     kommodity.provider.config.talosImageResourceGroup when omitted.
   #   marketplace:                          # Azure Marketplace image (requires accepting terms)
   #     publisher: siderolabs
   #     offer: talos
