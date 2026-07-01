@@ -60,9 +60,11 @@ func (r *ExtraSecretsManagerReconciler) Reconcile(ctx context.Context, req ctrl.
 
 	clusterName, success := extraSecretSecret.Labels["cluster.x-k8s.io/cluster-name"]
 	if !success {
-		logger.Error("ClusterName label not found in Secret", zap.String("secret", req.String()))
+		logger.Error("ClusterName label not found in Secret, requeuing",
+			zap.String("secret", req.String()),
+			zap.Duration("requeueAfter", RequeueAfter))
 
-		return ctrl.Result{}, fmt.Errorf("clusterName %w: %s", ErrValueNotFoundInSecret, req.String())
+		return ctrl.Result{RequeueAfter: RequeueAfter}, nil
 	}
 
 	kubeClient, err := (&DownstreamClientConfig{
@@ -78,7 +80,12 @@ func (r *ExtraSecretsManagerReconciler) Reconcile(ctx context.Context, req ctrl.
 			return ctrl.Result{RequeueAfter: RequeueAfter}, nil
 		}
 
-		return ctrl.Result{}, fmt.Errorf("failed to fetch kubeconfig from secret: %w", err)
+		logger.Error("Failed to fetch kubeconfig from secret, requeuing",
+			zap.String("clusterName", clusterName),
+			zap.Duration("requeueAfter", RequeueAfter),
+			zap.Error(err))
+
+		return ctrl.Result{RequeueAfter: RequeueAfter}, nil
 	}
 
 	err = CheckClusterReady(ctx, kubeClient)
@@ -100,9 +107,12 @@ func (r *ExtraSecretsManagerReconciler) Reconcile(ctx context.Context, req ctrl.
 
 		err := yaml.Unmarshal(value, secret)
 		if err != nil {
-			logger.Error("Failed to unmarshal Extra Secret Data", zap.String("key", key), zap.Error(err))
+			logger.Error("Failed to unmarshal Extra Secret Data, requeuing",
+				zap.String("key", key),
+				zap.Duration("requeueAfter", RequeueAfter),
+				zap.Error(err))
 
-			return ctrl.Result{}, fmt.Errorf("failed to unmarshal Extra Secret Data for key %s: %w", key, err)
+			return ctrl.Result{RequeueAfter: RequeueAfter}, nil
 		}
 
 		err = ApplySecretToClient(ctx, kubeClient, secret)
