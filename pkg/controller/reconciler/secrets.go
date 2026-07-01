@@ -80,6 +80,13 @@ func (r *ExtraSecretsManagerReconciler) Reconcile(ctx context.Context, req ctrl.
 		ClusterName: clusterName,
 	}).FetchDownstreamKubernetesClient(ctx)
 	if err != nil {
+		if apierrors.IsNotFound(err) {
+			logger.Info("Cluster kubeconfig not ready yet",
+				zap.String("clusterName", clusterName))
+
+			return ctrl.Result{}, fmt.Errorf("cluster kubeconfig not ready: %w", err)
+		}
+
 		logger.Error("Failed to fetch kubeconfig from secret",
 			zap.String("clusterName", clusterName),
 			zap.Error(err))
