@@ -5,10 +5,7 @@ values:
 release:
   name: test-cluster
   namespace: default
-# The naming guard (kommodity.azure.validateNaming) requires the resource group to
-# equal the release name; the example values use a placeholder, so set it here.
-set:
-  kommodity.provider.config.resourceGroup: test-cluster
+# resourceGroup defaults to the release name; no suite-level set needed.
 templates:
   - templates/*
 tests:

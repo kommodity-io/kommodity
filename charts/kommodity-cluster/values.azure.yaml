@@ -35,13 +35,13 @@ kommodity:
       #   allowedNamespaces: {}
     config:
       subscriptionID: <YOUR_SUBSCRIPTION_ID>
-      # Convention: name the resource group after the cluster (it must equal the
-      # Helm release name). The chart fails fast at install time if they differ —
-      # this catches a values file copied from another cluster without updating
-      # this field, which would otherwise silently share that cluster's resource
-      # group and corrupt both. Set allowSharedResourceGroup: true below to place
-      # multiple clusters in one resource group on purpose.
-      resourceGroup: <YOUR_RESOURCE_GROUP>
+      # Optional: defaults to the Helm release name. The chart fails fast at
+      # install time if an explicitly-set resourceGroup does not match the
+      # release name — this catches a values file copied from another cluster
+      # without updating this field, which would otherwise silently share that
+      # cluster's resource group and corrupt both. Set allowSharedResourceGroup:
+      # true below to place multiple clusters in one resource group on purpose.
+      # resourceGroup: <YOUR_RESOURCE_GROUP>
       location: westeurope
       # Resource group that holds the Talos managed image referenced by
       # talos.imageName. Combined with subscriptionID above, the chart builds the

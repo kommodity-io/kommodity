@@ -16,11 +16,8 @@ spec:
   {{- else }}
   {{- fail "missing required subscriptionID in kommodity.provider.config for Azure" -}}
   {{- end }}
-  {{- if dig "config" "resourceGroup" "" .Values.kommodity.provider }}
-  resourceGroup: {{ .Values.kommodity.provider.config.resourceGroup }}
-  {{- else }}
-  {{- fail "missing required resourceGroup in kommodity.provider.config for Azure" -}}
-  {{- end }}
+  {{- $rg := dig "config" "resourceGroup" "" .Values.kommodity.provider | default .Release.Name }}
+  resourceGroup: {{ $rg }}
   {{- if dig "config" "location" "" .Values.kommodity.provider }}
   location: {{ .Values.kommodity.provider.config.location }}
   {{- else }}
@@ -84,7 +81,7 @@ spec:
       {{- if and $hasVnet (dig "ipv4" "vnet" "resourceGroup" "" .Values.kommodity.network) }}
       resourceGroup: {{ .Values.kommodity.network.ipv4.vnet.resourceGroup }}
       {{- else }}
-      resourceGroup: {{ .Values.kommodity.provider.config.resourceGroup }}
+      resourceGroup: {{ $rg }}
       {{- end }}
       {{- if and $hasVnet (dig "ipv4" "vnet" "cidrBlocks" "" .Values.kommodity.network) }}
       cidrBlocks:
@@ -104,7 +101,7 @@ spec:
       {{- if and $hasVnet (dig "ipv4" "vnet" "resourceGroup" "" .Values.kommodity.network) }}
       resourceGroup: {{ .Values.kommodity.network.ipv4.vnet.resourceGroup }}
       {{- else }}
-      resourceGroup: {{ .Values.kommodity.provider.config.resourceGroup }}
+      resourceGroup: {{ $rg }}
       {{- end }}
       {{- if and $hasVnet (dig "ipv4" "vnet" "cidrBlocks" "" .Values.kommodity.network) }}
       cidrBlocks:
