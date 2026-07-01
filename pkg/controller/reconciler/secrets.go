@@ -107,9 +107,12 @@ func (r *ExtraSecretsManagerReconciler) Reconcile(ctx context.Context, req ctrl.
 
 		err = ApplySecretToClient(ctx, kubeClient, secret)
 		if err != nil {
-			logger.Error("Failed to apply Extra Secret to client", zap.String("key", key), zap.Error(err))
+			logger.Error("Failed to apply Extra Secret to client, requeuing",
+				zap.String("key", key),
+				zap.Duration("requeueAfter", RequeueAfter),
+				zap.Error(err))
 
-			return ctrl.Result{}, fmt.Errorf("failed to apply Extra Secret to client for key %s: %w", key, err)
+			return ctrl.Result{RequeueAfter: RequeueAfter}, nil
 		}
 	}
 
