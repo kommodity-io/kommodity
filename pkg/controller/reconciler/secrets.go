@@ -81,10 +81,11 @@ func (r *ExtraSecretsManagerReconciler) Reconcile(ctx context.Context, req ctrl.
 	}).FetchDownstreamKubernetesClient(ctx)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			logger.Info("Cluster kubeconfig not ready yet",
-				zap.String("clusterName", clusterName))
+			logger.Info("Cluster kubeconfig not ready yet, requeuing",
+				zap.String("clusterName", clusterName),
+				zap.Duration("requeueAfter", RequeueAfter))
 
-			return ctrl.Result{}, fmt.Errorf("cluster kubeconfig not ready: %w", err)
+			return ctrl.Result{RequeueAfter: RequeueAfter}, nil
 		}
 
 		logger.Error("Failed to fetch kubeconfig from secret",
@@ -96,11 +97,12 @@ func (r *ExtraSecretsManagerReconciler) Reconcile(ctx context.Context, req ctrl.
 
 	err = CheckClusterReady(ctx, kubeClient)
 	if err != nil {
-		logger.Info("Downstream cluster not ready yet",
+		logger.Info("Downstream cluster not ready yet, requeuing",
 			zap.String("clusterName", clusterName),
+			zap.Duration("requeueAfter", RequeueAfter),
 			zap.Error(err))
 
-		return ctrl.Result{}, fmt.Errorf("%w: %w", ErrClusterNotReady, err)
+		return ctrl.Result{RequeueAfter: RequeueAfter}, nil
 	}
 
 	entries := MergeExtraSecretEntries(extraSecretSecret)
@@ -119,9 +121,12 @@ func (r *ExtraSecretsManagerReconciler) Reconcile(ctx context.Context, req ctrl.
 
 		err = ApplySecretToClient(ctx, kubeClient, secret)
 		if err != nil {
-			logger.Error("Failed to apply Extra Secret to client", zap.String("key", key), zap.Error(err))
+			logger.Info("Failed to apply Extra Secret to client, requeuing",
+				zap.String("key", key),
+				zap.Duration("requeueAfter", RequeueAfter),
+				zap.Error(err))
 
-			return ctrl.Result{}, fmt.Errorf("failed to apply Extra Secret to client for key %s: %w", key, err)
+			return ctrl.Result{RequeueAfter: RequeueAfter}, nil
 		}
 	}
 
