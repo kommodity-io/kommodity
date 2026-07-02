@@ -164,13 +164,13 @@ spec:
                 fi
 
                 # If a condition is defined, use it to detect an existing installation
-                if [ "${CONDITION_DEFINED}" = "true" ] && [ kubectl -n "${NAMESPACE}" get "${CONDITION_KIND}" ${CONDITION_LABELS} --no-headers | grep -q . ]; then
+                if [ "${CONDITION_DEFINED}" = "true" ] && kubectl -n "${NAMESPACE}" get "${CONDITION_KIND}" ${CONDITION_LABELS} --no-headers 2>/dev/null | grep -q .; then
                   echo "Skipping installation of addon ${RELEASE} due to upgrade.disable=true and existing installation"
                   exit 0
                 fi
 
                 # Check if a Helm release already exists
-                if [ "${INSTALL_MODE}" = "HelmInstall" ] && [ helm ls -n "${NAMESPACE}" | grep -q "^${RELEASE} "]; then
+                if [ "${INSTALL_MODE}" = "HelmInstall" ] && helm ls -n "${NAMESPACE}" | grep -q "^${RELEASE} "; then
                   echo "Addon ${RELEASE} is already installed, skipping installation due to upgrade.disable=true"
                   exit 0
                 fi
