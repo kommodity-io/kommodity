@@ -1,0 +1,60 @@
+{{- range $name, $addon := .Values.kommodity.addons }}
+{{- if $addon.enabled }}
+{{- $addonNamespace := default $name $addon.namespace }}
+{{- $contents := "" }}
+{{- if $addon.manifest }}
+{{- $contents = tpl $addon.manifest $ }}
+{{- else }}
+{{- $addonTemplateName := printf "kommodity.addon.%s" $name }}
+{{- if hasKey $.Template $addonTemplateName }}
+{{- $contents = include $addonTemplateName $ }}
+{{- end }}
+{{- end }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $.Release.Name }}-{{ $name }}-manifests
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    cluster.x-k8s.io/cluster-name: {{ $.Release.Name }}
+    app.kubernetes.io/managed-by: kommodity
+type: addons.cluster.x-k8s.io/resource-set
+stringData:
+  {{- if $addon.namespace }}
+  namespace.yaml: |
+{{ include "kommodity.addon.namespace" (dict "namespace" $addon.namespace) | indent 4 }}
+  {{- end }}
+  {{- if $addon.initialExtraValues }}
+  extra-values.yaml: |
+{{ include "kommodity.addon.extra-values" (dict "name" $name "namespace" $addonNamespace "initialExtraValues" $addon.initialExtraValues) | indent 4 }}
+  {{- end }}
+  {{- if $contents }}
+  manifest.yaml: |
+{{ $contents | indent 4 }}
+  {{- end }}
+  installer.yaml: |
+{{ include "kommodity.addon.installer" (dict "name" $name "addon" $addon) | indent 4 }}
+{{- end }}
+{{- end }}
+{{- range $name, $addon := .Values.kommodity.addons }}
+{{- if $addon.enabled }}
+---
+apiVersion: addons.cluster.x-k8s.io/v1beta1
+kind: ClusterResourceSet
+metadata:
+  name: {{ $.Release.Name }}-{{ $name }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: kommodity
+    cluster.x-k8s.io/cluster-name: {{ $.Release.Name }}
+spec:
+  strategy: Reconcile
+  clusterSelector:
+    matchLabels:
+      cluster.x-k8s.io/cluster-name: {{ $.Release.Name }}
+  resources:
+    - kind: Secret
+      name: {{ $.Release.Name }}-{{ $name }}-manifests
+{{- end }}
+{{- end }}

@@ -1,61 +1,3 @@
-{{- $anyAddonEnabled := false }}
-{{- if .Values.kommodity.addons -}}
-{{- range $name, $addon := .Values.kommodity.addons }}
-  {{- if $addon.enabled }}
-    {{- $anyAddonEnabled = true }}
-  {{- end }}
-{{- end }}
-{{- end }}
-
-{{/*
-Output inline manifest items for enabled addons as YAML text.
-This preserves proper YAML block scalar formatting for multi-line contents.
-*/}}
-{{- define "kommodity.addonsInlineManifests" -}}
-{{- $root := . -}}
-{{- range $name, $addon := $root.Values.kommodity.addons }}
-{{- if $addon.enabled }}
-  {{- $contents := "" }}
-  {{- if $addon.manifest }}
-    {{- $contents = tpl $addon.manifest $root }}
-  {{- else }}
-    {{- $addonTemplateName := printf "kommodity.addon.%s" $name }}
-    {{- if hasKey $.Template $addonTemplateName }}
-      {{- $contents = include $addonTemplateName $root }}
-    {{- else }}
-      {{- $contents = "" }}
-    {{- end }}
-    {{- if $addon.initialExtraValues }}
-- name: {{ $name }}-extra-values
-  contents: |
-{{ include "kommodity.addon.extra-values" (dict
-  "name"               $name
-  "namespace"          (default .name $addon.namespace)
-  "initialExtraValues" $addon.initialExtraValues
-) | indent 4 }}
-    {{- end }}
-    {{- if $addon.namespace }}
-- name: {{ $name }}-namespace
-  contents: |
-{{ include "kommodity.addon.namespace" (dict
-  "namespace"  $addon.namespace
-) | indent 4 }}
-    {{- end }}
-{{- if $contents }}
-- name: {{ $name }}
-  contents: |
-{{ $contents | indent 4 }}
-{{- end }}
-- name: {{ $name }}-installer
-  contents: |
-{{ include "kommodity.addon.installer" (dict
-  "name"  $name
-  "addon" $addon
-) | indent 4 }}
-  {{- end }}
-{{- end }}
-{{- end }}
-{{- end }}
 ---
 apiVersion: controlplane.cluster.x-k8s.io/v1alpha3
 kind: TalosControlPlane
@@ -121,20 +63,12 @@ spec:
         "disableProxy" $.Values.talos.disableKubeProxy
         "ccmEnabled" (dig "provider" "cloudControllerManager" "enabled" false $.Values.kommodity)
       ) | trim -}}
-      {{- $hasInlineManifests := $anyAddonEnabled }}
-      {{- $needsStrategicPatches := or (not (empty $mergedPatch)) $hasInlineManifests $.Values.kommodity.kms.enabled (not $.Values.kommodity.network.ipv4.public) $.Values.talos.autoBootstrap.enabled $.Values.kommodity.security.enabled }}
+      {{- $needsStrategicPatches := or (not (empty $mergedPatch)) $.Values.kommodity.kms.enabled (not $.Values.kommodity.network.ipv4.public) $.Values.talos.autoBootstrap.enabled $.Values.kommodity.security.enabled }}
       {{- if $needsStrategicPatches }}
       strategicPatches:
       {{- /* Merged MachineConfig patch (labels, taints, annotations, env, installer, OIDC, CNI, proxy, CCM, user patches) */ -}}
       {{- if not (empty $mergedPatch) }}
 {{ $mergedPatch | nindent 6 }}
-      {{- end }}
-      {{- /* Inline manifests as a separate strategic patch to preserve block scalar formatting */ -}}
-      {{- if $hasInlineManifests }}
-      - |
-        cluster:
-          inlineManifests:
-{{- include "kommodity.addonsInlineManifests" . | trim | nindent 12 }}
       {{- end }}
       {{- if $.Values.kommodity.kms.enabled }}
       {{- /* VolumeConfig for disk encryption (Talos v1.12+) */ -}}

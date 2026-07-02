@@ -1,0 +1,269 @@
+suite: test addon ClusterResourceSet migration from inline manifests
+release:
+  name: test-cluster
+  namespace: default
+templates:
+  - templates/*
+tests:
+  - it: should not render any addon CRS resources when all addons are disabled
+    template: templates/addons/crs.yaml
+    set:
+      kommodity.addons.cilium.enabled: false
+      kommodity.addons.talos-cluster-proxy.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render payload Secret and ClusterResourceSet for cilium
+    template: templates/addons/crs.yaml
+    set:
+      kommodity.addons.talos-cluster-proxy.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 2
+      - containsDocument:
+          kind: Secret
+          apiVersion: v1
+          name: test-cluster-cilium-manifests
+          namespace: default
+        documentIndex: 0
+      - containsDocument:
+          kind: ClusterResourceSet
+          apiVersion: addons.cluster.x-k8s.io/v1beta1
+          name: test-cluster-cilium
+          namespace: default
+        documentIndex: 1
+
+  - it: should render payload Secret and ClusterResourceSet for argocd when enabled
+    template: templates/addons/crs.yaml
+    set:
+      kommodity.addons.cilium.enabled: false
+      kommodity.addons.talos-cluster-proxy.enabled: false
+      kommodity.addons.argocd.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 2
+      - containsDocument:
+          kind: Secret
+          apiVersion: v1
+          name: test-cluster-argocd-manifests
+          namespace: default
+        documentIndex: 0
+      - containsDocument:
+          kind: ClusterResourceSet
+          apiVersion: addons.cluster.x-k8s.io/v1beta1
+          name: test-cluster-argocd
+          namespace: default
+        documentIndex: 1
+
+  - it: should render one Secret and CRS per enabled addon
+    template: templates/addons/crs.yaml
+    set:
+      kommodity.addons.argocd.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 6
+
+  - it: should set payload Secret type to ClusterResourceSetSecretType
+    template: templates/addons/crs.yaml
+    set:
+      kommodity.addons.talos-cluster-proxy.enabled: false
+    documentSelector:
+      path: kind
+      value: Secret
+    asserts:
+      - equal:
+          path: type
+          value: addons.cluster.x-k8s.io/resource-set
+
+  - it: should label the payload Secret with cluster name and managed-by
+    template: templates/addons/crs.yaml
+    set:
+      kommodity.addons.talos-cluster-proxy.enabled: false
+    documentSelector:
+      path: metadata.name
+      value: test-cluster-cilium-manifests
+    asserts:
+      - equal:
+          path: metadata.labels["cluster.x-k8s.io/cluster-name"]
+          value: test-cluster
+      - equal:
+          path: metadata.labels["app.kubernetes.io/managed-by"]
+          value: kommodity
+
+  - it: should set CRS strategy to Reconcile and select by cluster-name label
+    template: templates/addons/crs.yaml
+    set:
+      kommodity.addons.talos-cluster-proxy.enabled: false
+    documentSelector:
+      path: metadata.name
+      value: test-cluster-cilium
+    asserts:
+      - equal:
+          path: spec.strategy
+          value: Reconcile
+      - equal:
+          path: spec.clusterSelector.matchLabels["cluster.x-k8s.io/cluster-name"]
+          value: test-cluster
+
+  - it: should reference the payload Secret as CRS resource
+    template: templates/addons/crs.yaml
+    set:
+      kommodity.addons.talos-cluster-proxy.enabled: false
+    documentSelector:
+      path: metadata.name
+      value: test-cluster-cilium
+    asserts:
+      - contains:
+          path: spec.resources
+          content:
+            kind: Secret
+            name: test-cluster-cilium-manifests
+
+  - it: should embed namespace manifest in stringData
+    template: templates/addons/crs.yaml
+    set:
+      kommodity.addons.talos-cluster-proxy.enabled: false
+    documentSelector:
+      path: metadata.name
+      value: test-cluster-cilium-manifests
+    asserts:
+      - matchRegex:
+          path: stringData["namespace.yaml"]
+          pattern: "kind: Namespace"
+
+  - it: should embed extra-values Secret manifest in stringData
+    template: templates/addons/crs.yaml
+    set:
+      kommodity.addons.talos-cluster-proxy.enabled: false
+    documentSelector:
+      path: metadata.name
+      value: test-cluster-cilium-manifests
+    asserts:
+      - matchRegex:
+          path: stringData["extra-values.yaml"]
+          pattern: "kind: Secret"
+
+  - it: should embed installer Job manifest in stringData
+    template: templates/addons/crs.yaml
+    set:
+      kommodity.addons.talos-cluster-proxy.enabled: false
+    documentSelector:
+      path: metadata.name
+      value: test-cluster-cilium-manifests
+    asserts:
+      - matchRegex:
+          path: stringData["installer.yaml"]
+          pattern: "kind: Job"
+
+  - it: should embed the installer image in the Job manifest
+    template: templates/addons/crs.yaml
+    set:
+      kommodity.addons.talos-cluster-proxy.enabled: false
+    documentSelector:
+      path: metadata.name
+      value: test-cluster-cilium-manifests
+    asserts:
+      - matchRegex:
+          path: stringData["installer.yaml"]
+          pattern: "image: alpine/k8s:1.34.1"
+
+  - it: should embed the chart repository and version in the Job script
+    template: templates/addons/crs.yaml
+    set:
+      kommodity.addons.talos-cluster-proxy.enabled: false
+    documentSelector:
+      path: metadata.name
+      value: test-cluster-cilium-manifests
+    asserts:
+      - matchRegex:
+          path: stringData["installer.yaml"]
+          pattern: 'REPOSITORY="https://helm.cilium.io/"'
+      - matchRegex:
+          path: stringData["installer.yaml"]
+          pattern: 'VERSION="1.18.4"'
+
+  - it: should embed hostNetwork for kube-system addons
+    template: templates/addons/crs.yaml
+    set:
+      kommodity.addons.talos-cluster-proxy.enabled: false
+    documentSelector:
+      path: metadata.name
+      value: test-cluster-cilium-manifests
+    asserts:
+      - matchRegex:
+          path: stringData["installer.yaml"]
+          pattern: "hostNetwork: true"
+
+  - it: should not embed hostNetwork for non-kube-system addons
+    template: templates/addons/crs.yaml
+    set:
+      kommodity.addons.cilium.enabled: false
+      kommodity.addons.talos-cluster-proxy.enabled: false
+      kommodity.addons.argocd.enabled: true
+    documentSelector:
+      path: metadata.name
+      value: test-cluster-argocd-manifests
+    asserts:
+      - notMatchRegex:
+          path: stringData["installer.yaml"]
+          pattern: "hostNetwork: true"
+
+  - it: should not produce inlineManifests in TalosControlPlane
+    template: templates/talos/controlplane.yaml
+    values:
+      - ../values.kubevirt.yaml
+    set:
+      kommodity.addons.argocd.enabled: true
+    asserts:
+      - notMatchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[0]
+          pattern: "inlineManifests"
+      - notMatchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "inlineManifests"
+      - notExists:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[2]
+
+  - it: should render talos-cluster-proxy CRS by default
+    template: templates/addons/crs.yaml
+    set:
+      kommodity.addons.cilium.enabled: false
+    documentSelector:
+      path: metadata.name
+      value: test-cluster-talos-cluster-proxy
+    asserts:
+      - equal:
+          path: kind
+          value: ClusterResourceSet
+      - equal:
+          path: spec.strategy
+          value: Reconcile
+
+  - it: should embed the OCI chart reference for argocd installer
+    template: templates/addons/crs.yaml
+    set:
+      kommodity.addons.cilium.enabled: false
+      kommodity.addons.talos-cluster-proxy.enabled: false
+      kommodity.addons.argocd.enabled: true
+    documentSelector:
+      path: metadata.name
+      value: test-cluster-argocd-manifests
+    asserts:
+      - matchRegex:
+          path: stringData["installer.yaml"]
+          pattern: 'REPOSITORY="oci://ghcr.io/argoproj/argo-helm"'
+
+  - it: should include KubectlApply mode for argocd installer
+    template: templates/addons/crs.yaml
+    set:
+      kommodity.addons.cilium.enabled: false
+      kommodity.addons.talos-cluster-proxy.enabled: false
+      kommodity.addons.argocd.enabled: true
+    documentSelector:
+      path: metadata.name
+      value: test-cluster-argocd-manifests
+    asserts:
+      - matchRegex:
+          path: stringData["installer.yaml"]
+          pattern: 'INSTALL_MODE="KubectlApply"'
