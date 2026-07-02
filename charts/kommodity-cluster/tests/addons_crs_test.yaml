@@ -155,6 +155,12 @@ tests:
       - matchRegex:
           path: stringData["installer.yaml"]
           pattern: "kind: Job"
+      - matchRegex:
+          path: stringData["installer.yaml"]
+          pattern: "manualSelector: true"
+      - matchRegex:
+          path: stringData["installer.yaml"]
+          pattern: 'app.kubernetes.io/app: cilium-1-18-4-install'
 
   - it: should embed the installer image in the Job manifest
     template: templates/addons/crs.yaml

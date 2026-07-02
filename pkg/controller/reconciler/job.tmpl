@@ -26,6 +26,7 @@ metadata:
 spec:
   backoffLimit: 10
   ttlSecondsAfterFinished: 3600
+  manualSelector: true
   selector:
     matchLabels:
       app.kubernetes.io/app: {{ getFullName }}-install
