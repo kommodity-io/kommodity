@@ -29,6 +29,10 @@ metadata:
 spec:
   backoffLimit: 10
   ttlSecondsAfterFinished: 3600
+  manualSelector: true
+  selector:
+    matchLabels:
+      app.kubernetes.io/app: {{ $addonFullName }}-install
   template:
     metadata:
       labels:
@@ -183,7 +187,7 @@ spec:
                     --namespace "${NAMESPACE}" \
                     --version "${VERSION}" \
                     ${HELM_EXTRA_VALUES} \
-                  | kubectl apply -f -
+                  | kubectl apply --server-side -f -
                 else
                   # Non-OCI: use --repo
                   echo "Rendering chart ${CHART} from repo ${REPOSITORY} and applying with kubectl"
@@ -192,7 +196,7 @@ spec:
                     --repo "${REPOSITORY}" \
                     --version "${VERSION}" \
                     ${HELM_EXTRA_VALUES} \
-                  | kubectl apply -f -
+                  | kubectl apply --server-side -f -
                 fi
               else
                 # Default: HelmInstall (helm upgrade --install)
