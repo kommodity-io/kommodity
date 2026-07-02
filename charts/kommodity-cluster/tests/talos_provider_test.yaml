@@ -263,7 +263,7 @@ tests:
       - exists:
           path: spec.controlPlaneConfig.controlplane.strategicPatches
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[2]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
           pattern: "name: kommodity-autobootstrap"
 
   - it: should include autoBootstrap extension when autoBootstrap.enabled value is true
@@ -276,7 +276,7 @@ tests:
       - exists:
           path: spec.controlPlaneConfig.controlplane.strategicPatches
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[2]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
           pattern: "name: kommodity-autobootstrap"
 
   - it: should not include autoBootstrap extension when kommodity.network.ipv4.public is true and talos.autoBootstrap.enabled is not set
@@ -293,12 +293,8 @@ tests:
         matchRegex:
           path: spec.controlPlaneConfig.controlplane.strategicPatches[0]
           pattern: "kommodity-autobootstrap"
-      - not: true
-        matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
-          pattern: "kommodity-autobootstrap"
       - notExists:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[2]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
 
   # Kubernetes version precedence test
   - it: should make sure Kubernetes version defined in controlplane's config takes precedence
