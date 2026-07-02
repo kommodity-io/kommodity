@@ -1,14 +1,11 @@
-{{- range $name, $addon := .Values.kommodity.addons }}
+{{- $addonNames := keys .Values.kommodity.addons | sortAlpha -}}
+{{- range $name := $addonNames -}}
+{{- $addon := index $.Values.kommodity.addons $name -}}
 {{- if $addon.enabled }}
 {{- $addonNamespace := default $name $addon.namespace }}
 {{- $contents := "" }}
 {{- if $addon.manifest }}
 {{- $contents = tpl $addon.manifest $ }}
-{{- else }}
-{{- $addonTemplateName := printf "kommodity.addon.%s" $name }}
-{{- if hasKey $.Template $addonTemplateName }}
-{{- $contents = include $addonTemplateName $ }}
-{{- end }}
 {{- end }}
 ---
 apiVersion: v1
@@ -37,7 +34,8 @@ stringData:
 {{ include "kommodity.addon.installer" (dict "name" $name "addon" $addon) | indent 4 }}
 {{- end }}
 {{- end }}
-{{- range $name, $addon := .Values.kommodity.addons }}
+{{- range $name := $addonNames -}}
+{{- $addon := index $.Values.kommodity.addons $name -}}
 {{- if $addon.enabled }}
 ---
 apiVersion: addons.cluster.x-k8s.io/v1beta1
