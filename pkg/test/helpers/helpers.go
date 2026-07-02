@@ -185,9 +185,17 @@ func FindRepoRoot() (string, error) {
 func (e TestEnvironment) Teardown() {
 	ctx := context.Background()
 
-	_ = e.Postgres.Terminate(ctx)
-	_ = e.Kommodity.Terminate(ctx)
-	_ = e.Network.Remove(ctx)
+	if e.Postgres != nil {
+		_ = e.Postgres.Terminate(ctx)
+	}
+
+	if e.Kommodity != nil {
+		_ = e.Kommodity.Terminate(ctx)
+	}
+
+	if e.Network != nil {
+		_ = e.Network.Remove(ctx)
+	}
 }
 
 // WriteKommodityLogsToFile retrieves the logs from the Kommodity container and writes them to the specified file.
