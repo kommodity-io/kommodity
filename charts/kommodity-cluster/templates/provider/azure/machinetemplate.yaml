@@ -16,7 +16,9 @@ spec:
       vmSize: {{ .Values.kommodity.controlplane.sku }}
       image:
         {{- include "kommodity.azure.image" . | nindent 8 }}
-      sshPublicKey: {{ if .Values.azure }}{{ default "c3NoLWVkMjU1MTkgQUFBQUMzTnphQzFsWkRJMU5URTVBQUFBSUZLeGlkQ1FxTzZZU3JKUHpKNlNPa1loRk9yZVpSb0JCNlZPVlVGNEtHb1ogdGFsb3Mta2V5Cg==" .Values.azure.sshPublicKey }}{{ else }}c3NoLWVkMjU1MTkgQUFBQUMzTnphQzFsWkRJMU5URTVBQUFBSUZLeGlkQ1FxTzZZU3JKUHpKNlNPa1loRk9yZVpSb0JCNlZPVlVGNEtHb1ogdGFsb3Mta2V5Cg=={{ end }}
+      {{- if not (and .Values.azure .Values.azure.disableSSHPublicKey) }}
+      sshPublicKey: {{ dig "sshPublicKey" "" (.Values.azure | default dict) | quote }}
+      {{- end }}
       disableExtensionOperations: {{ if and .Values.azure (hasKey .Values.azure "disableExtensionOperations") }}{{ .Values.azure.disableExtensionOperations }}{{ else }}true{{ end }}
       osDisk:
         diskSizeGB: {{ .Values.kommodity.controlplane.os.disk.size }}
@@ -39,7 +41,9 @@ spec:
       vmSize: {{ $np.sku }}
       image:
         {{- include "kommodity.azure.image" $ | nindent 8 }}
-      sshPublicKey: {{ if $.Values.azure }}{{ default "c3NoLWVkMjU1MTkgQUFBQUMzTnphQzFsWkRJMU5URTVBQUFBSUZLeGlkQ1FxTzZZU3JKUHpKNlNPa1loRk9yZVpSb0JCNlZPVlVGNEtHb1ogdGFsb3Mta2V5Cg==" $.Values.azure.sshPublicKey }}{{ else }}c3NoLWVkMjU1MTkgQUFBQUMzTnphQzFsWkRJMU5URTVBQUFBSUZLeGlkQ1FxTzZZU3JKUHpKNlNPa1loRk9yZVpSb0JCNlZPVlVGNEtHb1ogdGFsb3Mta2V5Cg=={{ end }}
+      {{- if not (and $.Values.azure $.Values.azure.disableSSHPublicKey) }}
+      sshPublicKey: {{ dig "sshPublicKey" "" ($.Values.azure | default dict) | quote }}
+      {{- end }}
       disableExtensionOperations: {{ if and $.Values.azure (hasKey $.Values.azure "disableExtensionOperations") }}{{ $.Values.azure.disableExtensionOperations }}{{ else }}true{{ end }}
       osDisk:
         diskSizeGB: {{ $np.os.disk.size }}
