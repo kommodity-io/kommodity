@@ -29,6 +29,9 @@ metadata:
 spec:
   backoffLimit: 10
   ttlSecondsAfterFinished: 3600
+  selector:
+    matchLabels:
+      app.kubernetes.io/app: {{ $addonFullName }}-install
   template:
     metadata:
       labels:
