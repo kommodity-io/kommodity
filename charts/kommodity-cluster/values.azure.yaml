@@ -258,3 +258,17 @@ talos:
   #     offer: talos
   #     sku: talos
   #     version: 1.13.0
+
+# Azure-specific overrides applied to the generated AzureMachineTemplates.
+# azure:
+#   # SSH public key (base64-encoded) injected into the VM osProfile. Defaults to
+#   # empty — Talos does not use Azure's provisioning agent, so no key is needed.
+#   sshPublicKey: <BASE64_ENCODED_PUBLIC_KEY>
+#   # Omit sshPublicKey entirely. REQUIRED when booting from a Shared Image Gallery
+#   # image definition with osState: Specialized (correct for Talos VHDs, which are
+#   # not generalized): any sshPublicKey makes CAPZ send an osProfile, which Azure
+#   # rejects for specialized images with
+#   # "Parameter OSProfile is not allowed with a specialized image."
+#   disableSSHPublicKey: true
+#   # Set spec.disableExtensionOperations on the AzureMachineTemplate (defaults to true).
+#   disableExtensionOperations: true

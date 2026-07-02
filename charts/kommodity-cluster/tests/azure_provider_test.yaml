@@ -407,6 +407,45 @@ tests:
           value: false
         documentIndex: 1
 
+  - it: should render an empty sshPublicKey by default
+    template: templates/provider/azure/machinetemplate.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.sshPublicKey
+          value: ""
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.sshPublicKey
+          value: ""
+        documentIndex: 1
+
+  - it: should omit sshPublicKey when disableSSHPublicKey is set
+    template: templates/provider/azure/machinetemplate.yaml
+    set:
+      azure.disableSSHPublicKey: true
+    asserts:
+      - notExists:
+          path: spec.template.spec.sshPublicKey
+        documentIndex: 0
+      - notExists:
+          path: spec.template.spec.sshPublicKey
+        documentIndex: 1
+
+  - it: should still render sshPublicKey when disableSSHPublicKey is false
+    template: templates/provider/azure/machinetemplate.yaml
+    set:
+      azure.disableSSHPublicKey: false
+      azure.sshPublicKey: my-key
+    asserts:
+      - equal:
+          path: spec.template.spec.sshPublicKey
+          value: my-key
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.sshPublicKey
+          value: my-key
+        documentIndex: 1
+
   - it: should not render AzureMachineTemplates for non-Azure providers
     template: templates/provider/azure/machinetemplate.yaml
     set:
