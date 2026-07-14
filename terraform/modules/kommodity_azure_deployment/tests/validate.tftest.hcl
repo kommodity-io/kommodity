@@ -28,3 +28,16 @@ variables {
 run "validate" {
   command = plan
 }
+
+run "env_vars" {
+  command = plan
+
+  variables {
+    kommodity_container = {
+      env_vars = {
+        KINE_DATASTORE_MAX_OPEN_CONNECTIONS    = "50"
+        KINE_DATASTORE_CONNECTION_MAX_LIFETIME = "30m"
+      }
+    }
+  }
+}
