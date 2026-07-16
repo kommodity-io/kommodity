@@ -8,6 +8,12 @@ replace github.com/google/cel-go => github.com/google/cel-go v0.22.0
 
 replace k8s.io/kube-controller-manager => k8s.io/kube-controller-manager v0.32.6
 
+// k8s.io/kubernetes's go.mod replaces this with its own staging directory
+// (./staging/src/k8s.io/cri-client), which is unavailable to external
+// consumers; pin it to the published version matching our k8s.io/kubernetes
+// v1.32.6 dependency instead.
+replace k8s.io/cri-client => k8s.io/cri-client v0.32.6
+
 require (
 	github.com/Masterminds/sprig/v3 v3.3.0
 	github.com/go-logr/logr v1.4.3
@@ -48,6 +54,8 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.7.0
 	sigs.k8s.io/yaml v1.6.0
 )
+
+require github.com/robfig/cron/v3 v3.0.1 // indirect
 
 require (
 	4d63.com/gocheckcompilerdirectives v1.3.0 // indirect
@@ -464,7 +472,6 @@ require (
 	k8s.io/cluster-bootstrap v0.32.3 // indirect
 	k8s.io/component-helpers v0.32.6 // indirect
 	k8s.io/controller-manager v0.32.6
-	k8s.io/gengo/v2 v2.0.0-20240911193312-2b36238f13e9 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
 	k8s.io/kms v0.32.6 // indirect
 	k8s.io/kube-controller-manager v0.32.6 // indirect
