@@ -15,6 +15,25 @@ repository.
 > resource the server exposes. Put a TLS-terminating, authenticating proxy in
 > front of it before exposing it outside a trusted network.
 
+## Limitations
+
+`libkapi` is meant to eventually become the core that Kommodity itself runs
+on, but it isn't ready to take on that role yet. Known fundamentals to
+improve before Kommodity could adopt it:
+
+- No TLS and no authentication by default (anonymous + always-allow) — needs
+  pluggable authn/authz before it can sit anywhere other than behind a fully
+  trusted network.
+- Only each standard API group's GA version is wired (a few beta/alpha-only
+  resources like `IPAddress`, `VolumeAttributesClass` aren't exposed yet) —
+  see the [Supported API groups](#supported-api-groups) section.
+- Relies on extending `k8s.io/kubernetes`'s `legacyscheme.Scheme` global
+  singleton to reuse upstream registry storage providers, which constrains
+  how a caller can customize the scheme for the groups it wires.
+- No support yet for the extra API groups (`rbac`'s bootstrap-roles behavior
+  aside) or CRD/webhook conventions Kommodity's providers currently depend on
+  (e.g. `admissionregistration.k8s.io`).
+
 ## Installation
 
 ```sh
