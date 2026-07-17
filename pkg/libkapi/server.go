@@ -14,18 +14,12 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
+	aggregatorapiserver "k8s.io/kube-aggregator/pkg/apiserver"
 )
 
 // readHeaderTimeout bounds how long the HTTP server waits for request
 // headers, guarding against Slowloris-style connection exhaustion.
 const readHeaderTimeout = 10 * time.Second
-
-// runner is satisfied by the prepared aggregator server New returns from
-// PrepareRun(); it is declared here, rather than named directly, because
-// k8s.io/kube-aggregator's own type for it is unexported.
-type runner interface {
-	Run(ctx context.Context) error
-}
 
 // Server is a built, not-yet-started libkapi server. Construct one with New.
 type Server struct {
@@ -35,9 +29,13 @@ type Server struct {
 	// run loop, so a separate started bool would only ever agree with it.
 	cancelRun context.CancelFunc
 
+	// runWg tracks the apiserver run-loop goroutine started in
+	// ListenAndServe, so Shutdown can wait for it to actually exit.
+	runWg sync.WaitGroup
+
 	addr         string
 	httpServer   *http.Server
-	prepared     runner
+	aggregator   *aggregatorapiserver.APIAggregator
 	storageClose func()
 	logger       *slog.Logger
 }
@@ -107,7 +105,7 @@ func buildServer(cfg Config, addr string, storage *storageHandle, logger *slog.L
 		return nil, err
 	}
 
-	prepared, mux, err := buildDelegationChain(cfg, genericServerConfig, codecs, groups, storage.endpoints)
+	aggregator, mux, err := buildDelegationChain(cfg, genericServerConfig, codecs, groups, storage.endpoints)
 	if err != nil {
 		return nil, err
 	}
@@ -119,14 +117,14 @@ func buildServer(cfg Config, addr string, storage *storageHandle, logger *slog.L
 			Handler:           mux,
 			ReadHeaderTimeout: readHeaderTimeout,
 		},
-		prepared:     prepared,
+		aggregator:   aggregator,
 		storageClose: storage.close,
 		logger:       logger,
 	}, nil
 }
 
 // buildDelegationChain builds the CRD server -> standard-API delegate ->
-// aggregator delegation chain and returns its prepared run loop plus the
+// aggregator delegation chain and returns the aggregator plus the
 // caller-facing mux (custom handlers layered over the aggregator's Handler).
 func buildDelegationChain(
 	cfg Config,
@@ -134,7 +132,7 @@ func buildDelegationChain(
 	codecs serializer.CodecFactory,
 	groups []standardAPIGroup,
 	storageEndpoints []string,
-) (runner, *http.ServeMux, error) {
+) (*aggregatorapiserver.APIAggregator, *http.ServeMux, error) {
 	crdServer, err := newAPIExtensionServer(
 		genericServerConfig, codecs, storageEndpoints, genericapiserver.NewEmptyDelegate())
 	if err != nil {
@@ -158,7 +156,7 @@ func buildDelegationChain(
 		return nil, nil, err
 	}
 
-	prepared, err := aggregatorServer.PrepareRun()
+	_, err = aggregatorServer.PrepareRun()
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to prepare aggregator server: %w", err)
 	}
@@ -168,11 +166,12 @@ func buildDelegationChain(
 		return nil, nil, err
 	}
 
-	return prepared, mux, nil
+	return aggregatorServer, mux, nil
 }
 
 // ListenAndServe binds the listener and blocks until ctx is canceled,
-// Shutdown is called, or an unrecoverable error occurs.
+// Shutdown is called, or an unrecoverable error occurs. Canceling ctx
+// gracefully shuts down both the HTTP server and the apiserver run loop.
 func (s *Server) ListenAndServe(ctx context.Context) error {
 	s.mu.Lock()
 	if s.cancelRun != nil {
@@ -189,16 +188,57 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 
 	listener, err := listenConfig.Listen(ctx, "tcp", s.addr)
 	if err != nil {
+		s.mu.Lock()
+		s.cancelRun = nil
+		s.mu.Unlock()
+
 		cancel()
 
 		return fmt.Errorf("failed to listen on %q: %w", s.addr, err)
 	}
 
+	// NonBlockingRunWithContext starts the apiserver's post-start hooks
+	// (controllers, informers, auto-registration) and returns immediately.
+	// We use this instead of RunWithContext because RunWithContext blocks
+	// forever on nil stoppedCh/listenerStoppedCh channels when
+	// SecureServingInfo is nil (our design), which would prevent Shutdown
+	// from ever completing. The context passed here controls when the
+	// post-start hooks' goroutines are stopped.
+	// PrepareRun is called again on the underlying GenericAPIServer; this is
+	// safe because it is idempotent (route installation overwrites existing
+	// handlers, and lifecycle signal setup is a no-op on repeat).
+	prepared := s.aggregator.GenericAPIServer.PrepareRun()
+
+	_, _, err = prepared.NonBlockingRunWithContext(runCtx, readHeaderTimeout)
+	if err != nil {
+		s.mu.Lock()
+		s.cancelRun = nil
+		s.mu.Unlock()
+
+		cancel()
+
+		return fmt.Errorf("failed to start apiserver: %w", err)
+	}
+
+	// The run loop goroutine waits for the context to be canceled, so
+	// Shutdown can track it with runWg and know the apiserver's background
+	// work has been signaled to stop before returning.
+	s.runWg.Go(func() {
+		<-runCtx.Done()
+	})
+
+	// If the caller's ctx is canceled (rather than Shutdown being called
+	// explicitly), gracefully shut down the HTTP server so Serve unblocks
+	// instead of serving indefinitely. The shutdown context is derived
+	// from context.Background (via WithoutCancel) because runCtx is
+	// already canceled at that point.
 	go func() {
-		err := s.prepared.Run(runCtx)
-		if err != nil && !errors.Is(err, context.Canceled) {
-			s.logger.Error("apiserver run loop exited", "error", err)
-		}
+		<-runCtx.Done()
+
+		shutdownCtx, shutdownCancel := context.WithCancel(context.WithoutCancel(runCtx))
+		defer shutdownCancel()
+
+		_ = s.httpServer.Shutdown(shutdownCtx)
 	}()
 
 	err = s.httpServer.Serve(listener)
@@ -215,6 +255,7 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 func (s *Server) Shutdown(ctx context.Context) error {
 	s.mu.Lock()
 	cancel := s.cancelRun
+	s.cancelRun = nil
 	s.mu.Unlock()
 
 	if cancel == nil {
@@ -224,6 +265,15 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	cancel()
 
 	err := s.httpServer.Shutdown(ctx)
+
+	s.runWg.Wait()
+
+	preShutdownErr := s.aggregator.GenericAPIServer.RunPreShutdownHooks()
+	if preShutdownErr != nil {
+		s.logger.Error("pre-shutdown hooks failed", "error", preShutdownErr)
+	}
+
+	s.aggregator.GenericAPIServer.Destroy()
 
 	s.storageClose()
 

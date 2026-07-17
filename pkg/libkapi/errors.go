@@ -15,4 +15,6 @@ var (
 	ErrServerNotStarted = errors.New("server not started")
 	// ErrNotImplemented is returned for optional config fields that are reserved but not yet implemented.
 	ErrNotImplemented = errors.New("not implemented")
+	// ErrEmptyStorageEndpoint is returned when an etcd:// or unix:// connection string has no host or path.
+	ErrEmptyStorageEndpoint = errors.New("connection string must specify a host or path")
 )

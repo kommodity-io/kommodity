@@ -135,13 +135,19 @@ func mergedOpenAPIDefinitions(ref openapicommon.ReferenceCallback) map[string]op
 // No TLS, no bearer token: AuthorizeClientBearerToken is a no-op on an empty
 // token (see k8s.io/apiserver@v0.32.6 pkg/server/config.go:1159-1184), so this
 // is safe to use unconditionally in a server that never enables TLS.
+//
+// If the server is bound to an unspecified address (0.0.0.0, [::], or empty),
+// the loopback client is pointed at 127.0.0.1 instead, since connecting to an
+// unspecified address fails on most platforms and would break the aggregator
+// and CRD controllers that rely on LoopbackClientConfig.
 func newLoopbackClientConfig(addr string) (*restclient.Config, error) {
 	host, port, err := net.SplitHostPort(addr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to split listener address %q into host and port: %w", addr, err)
 	}
 
-	if host == "" {
+	switch host {
+	case "", "0.0.0.0", "::", "[::]":
 		host = "127.0.0.1"
 	}
 

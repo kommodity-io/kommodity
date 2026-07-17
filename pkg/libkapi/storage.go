@@ -53,11 +53,19 @@ func resolveStorage(ctx context.Context, connStr string) (*storageHandle, error)
 	case isKineDSNScheme(parsed.Scheme):
 		return resolveKineStorage(ctx, connStr)
 	case parsed.Scheme == "etcd":
+		if parsed.Host == "" {
+			return nil, fmt.Errorf("%w: %q", ErrEmptyStorageEndpoint, connStr)
+		}
+
 		return &storageHandle{
 			endpoints: []string{"http://" + parsed.Host},
 			close:     func() {},
 		}, nil
 	case parsed.Scheme == "unix":
+		if parsed.Path == "" {
+			return nil, fmt.Errorf("%w: %q", ErrEmptyStorageEndpoint, connStr)
+		}
+
 		return &storageHandle{
 			endpoints: []string{connStr},
 			close:     func() {},
