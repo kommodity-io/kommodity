@@ -2,6 +2,7 @@ package libkapi
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
@@ -174,5 +175,31 @@ func setupAPIAggregatorConfig(
 
 	return &aggregatorapiserver.Config{
 		GenericConfig: aggregatorGenericConfig,
+		ExtraConfig: aggregatorapiserver.ExtraConfig{
+			// libkapi wires no Service or Endpoints resources (see README's
+			// "Supported API groups" section). The RemoteAvailableConditionController
+			// watches both to probe remote aggregated API servers; with no
+			// Service/Endpoints storage, its list/watch calls fail every few
+			// seconds forever. Disable it — all libkapi APIServices are local
+			// (Spec.Service == nil), so the remote controller has nothing to
+			// reconcile anyway. The local availability controller still runs.
+			DisableRemoteAvailableConditionController: true,
+			// ServiceResolver is only invoked when proxying to a remote
+			// APIService (Spec.Service != nil). All libkapi APIServices are
+			// local, so this is never called; the no-op defends against a
+			// nil-pointer if an APIService with a Service ref is ever created.
+			ServiceResolver: noopServiceResolver{},
+		},
 	}
+}
+
+// noopServiceResolver implements aggregatorapiserver.ServiceResolver by
+// returning an error for every ResolveEndpoint call. It is never invoked
+// in libkapi because all APIServices are local (Spec.Service == nil), but
+// defends against a nil-pointer dereference if a remote APIService is ever
+// created.
+type noopServiceResolver struct{}
+
+func (noopServiceResolver) ResolveEndpoint(string, string, int32) (*url.URL, error) {
+	return nil, fmt.Errorf("service resolution is not supported in libkapi: no Service or Endpoints resources are wired")
 }
