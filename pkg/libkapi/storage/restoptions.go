@@ -1,4 +1,4 @@
-package libkapi
+package storage
 
 import (
 	"k8s.io/apimachinery/pkg/runtime"
@@ -29,11 +29,11 @@ func (g *restOptionsGetter) GetRESTOptions(resource schema.GroupResource,
 	}, nil
 }
 
-// newRESTOptionsGetter builds a RESTOptionsGetter for an etcd3-compatible
+// NewRESTOptionsGetter builds a RESTOptionsGetter for an etcd3-compatible
 // storage endpoint (a real etcd cluster, or a Kine instance speaking the
 // etcd3 client protocol), using codec to (de)serialize the resources this
 // getter is used for.
-func newRESTOptionsGetter(codec runtime.Codec, endpoints []string) genericregistry.RESTOptionsGetter {
+func NewRESTOptionsGetter(codec runtime.Codec, endpoints []string) genericregistry.RESTOptionsGetter {
 	return &restOptionsGetter{
 		storageConfig: storagebackend.Config{
 			Type:   storagebackend.StorageTypeETCD3,

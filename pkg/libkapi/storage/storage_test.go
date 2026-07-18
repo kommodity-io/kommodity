@@ -1,4 +1,4 @@
-package libkapi //nolint:testpackage // exercises the unexported resolveStorage directly
+package storage_test
 
 import (
 	"context"
@@ -11,27 +11,29 @@ import (
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+
+	"github.com/kommodity-io/kommodity/pkg/libkapi/storage"
 )
 
-// TestResolveStorageKineLifecycle validates the second highest-risk design
+// TestResolveKineLifecycle validates the second highest-risk design
 // decision: driving Kine through k3s-io/kine/pkg/endpoint.Listen directly
-// (see storage_kine.go) starts a real, reachable etcd3 endpoint, and that
+// (see kine.go) starts a real, reachable etcd3 endpoint, and that
 // canceling its context cleanly stops it - proving no subprocess is needed
 // and shutdown is not "fire and forget" the way pkg/kine/server.go's
 // CLI-wrapper-based StartKine is today.
-func TestResolveStorageKineLifecycle(t *testing.T) {
+func TestResolveKineLifecycle(t *testing.T) {
 	t.Parallel()
 
 	dbPath := filepath.Join(t.TempDir(), "libkapi.db")
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	handle, err := resolveStorage(ctx, "sqlite://"+dbPath)
+	handle, err := storage.Resolve(ctx, "sqlite://"+dbPath)
 	require.NoError(t, err)
-	require.NotEmpty(t, handle.endpoints, "expected at least one resolved endpoint")
+	require.NotEmpty(t, handle.Endpoints(), "expected at least one resolved endpoint")
 
 	client, err := clientv3.New(clientv3.Config{
-		Endpoints:   handle.endpoints,
+		Endpoints:   handle.Endpoints(),
 		DialTimeout: 5 * time.Second,
 		DialOptions: []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())},
 	})
@@ -52,7 +54,7 @@ func TestResolveStorageKineLifecycle(t *testing.T) {
 	done := make(chan struct{})
 
 	go func() {
-		handle.close()
+		handle.Close()
 		close(done)
 	}()
 
@@ -61,6 +63,6 @@ func TestResolveStorageKineLifecycle(t *testing.T) {
 	select {
 	case <-done:
 	case <-time.After(5 * time.Second):
-		assert.Fail(t, "handle.close() did not return within 5s of context cancellation")
+		assert.Fail(t, "handle.Close() did not return within 5s of context cancellation")
 	}
 }

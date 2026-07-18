@@ -12,6 +12,8 @@ import (
 	genericregistry "k8s.io/apiserver/pkg/registry/generic"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	webhookutil "k8s.io/apiserver/pkg/util/webhook"
+
+	"github.com/kommodity-io/kommodity/pkg/libkapi/storage"
 )
 
 // dispatchingRESTOptionsGetter routes apiextensions.k8s.io/* storage to a
@@ -57,8 +59,8 @@ func setupAPIExtensionConfig(
 ) *apiextensionsapiserver.Config {
 	noConv := serializer.WithoutConversionCodecFactory{CodecFactory: codecs}
 
-	crdROG := newRESTOptionsGetter(noConv.LegacyCodec(apiextensionsv1.SchemeGroupVersion), storageEndpoints)
-	crROG := newRESTOptionsGetter(unstructured.UnstructuredJSONScheme, storageEndpoints)
+	crdROG := storage.NewRESTOptionsGetter(noConv.LegacyCodec(apiextensionsv1.SchemeGroupVersion), storageEndpoints)
+	crROG := storage.NewRESTOptionsGetter(unstructured.UnstructuredJSONScheme, storageEndpoints)
 
 	restOptionsGetter := dispatchingRESTOptionsGetter{crd: crdROG, cr: crROG}
 

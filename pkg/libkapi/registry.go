@@ -24,6 +24,8 @@ import (
 	networkingrest "k8s.io/kubernetes/pkg/registry/networking/rest"
 	rbacrest "k8s.io/kubernetes/pkg/registry/rbac/rest"
 	storagerest "k8s.io/kubernetes/pkg/registry/storage/rest"
+
+	"github.com/kommodity-io/kommodity/pkg/libkapi/storage"
 )
 
 // defaultEventTTL matches upstream kube-apiserver's default --event-ttl.
@@ -129,7 +131,7 @@ func installStandardAPIGroups(
 	noConv := serializer.WithoutConversionCodecFactory{CodecFactory: codecs}
 
 	for _, group := range groups {
-		rog := newRESTOptionsGetter(noConv.LegacyCodec(group.version), storageEndpoints)
+		rog := storage.NewRESTOptionsGetter(noConv.LegacyCodec(group.version), storageEndpoints)
 
 		info, err := group.provider.NewRESTStorage(resourceConfig, rog)
 		if err != nil {

@@ -15,6 +15,8 @@ import (
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	aggregatorapiserver "k8s.io/kube-aggregator/pkg/apiserver"
+
+	"github.com/kommodity-io/kommodity/pkg/libkapi/storage"
 )
 
 // readHeaderTimeout bounds how long the HTTP server waits for request
@@ -54,9 +56,9 @@ func New(ctx context.Context, cfg Config) (*Server, error) {
 	addr := cfg.resolvedAddr()
 	logger := cfg.resolvedLogger()
 
-	storage, err := resolveStorage(ctx, cfg.Storage)
+	handle, err := storage.Resolve(ctx, cfg.Storage)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to resolve storage backend: %w", err)
 	}
 
 	// buildServer's own chain eventually registers a PostStartHookFunc
@@ -65,9 +67,9 @@ func New(ctx context.Context, cfg Config) (*Server, error) {
 	// runtime when the hook actually runs - it is not, and should not be,
 	// derived from this constructor's ctx.
 	//nolint:contextcheck
-	server, err := buildServer(cfg, addr, storage, logger)
+	server, err := buildServer(cfg, addr, handle, logger)
 	if err != nil {
-		storage.close()
+		handle.Close()
 
 		return nil, err
 	}
@@ -77,7 +79,7 @@ func New(ctx context.Context, cfg Config) (*Server, error) {
 	return server, nil
 }
 
-func buildServer(cfg Config, addr string, storage *storageHandle, logger *slog.Logger) (*Server, error) {
+func buildServer(cfg Config, addr string, handle *storage.Handle, logger *slog.Logger) (*Server, error) {
 	scheme, codecs, err := newScheme(cfg.Scheme)
 	if err != nil {
 		return nil, err
@@ -105,7 +107,7 @@ func buildServer(cfg Config, addr string, storage *storageHandle, logger *slog.L
 		return nil, err
 	}
 
-	aggregator, mux, err := buildDelegationChain(cfg, genericServerConfig, codecs, groups, storage.endpoints)
+	aggregator, mux, err := buildDelegationChain(cfg, genericServerConfig, codecs, groups, handle.Endpoints())
 	if err != nil {
 		return nil, err
 	}
@@ -118,7 +120,7 @@ func buildServer(cfg Config, addr string, storage *storageHandle, logger *slog.L
 			ReadHeaderTimeout: readHeaderTimeout,
 		},
 		aggregator:   aggregator,
-		storageClose: storage.close,
+		storageClose: handle.Close,
 		logger:       logger,
 	}, nil
 }

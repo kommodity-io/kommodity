@@ -1,4 +1,4 @@
-package libkapi
+package storage
 
 import (
 	"context"

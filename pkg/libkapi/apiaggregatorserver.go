@@ -20,6 +20,8 @@ import (
 	"k8s.io/kube-aggregator/pkg/controllers/autoregister"
 	"k8s.io/kubernetes/pkg/controlplane/controller/crdregistration"
 
+	"github.com/kommodity-io/kommodity/pkg/libkapi/storage"
+
 	// Used to register the apiregistration API schemes to force init() to be called.
 	_ "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/scheme"
 )
@@ -165,7 +167,7 @@ func setupAPIAggregatorConfig(
 	noConv := serializer.WithoutConversionCodecFactory{CodecFactory: codecs}
 
 	aggregatorGenericConfig := newDelegateConfig(genericServerConfig, codecs)
-	aggregatorGenericConfig.RESTOptionsGetter = newRESTOptionsGetter(
+	aggregatorGenericConfig.RESTOptionsGetter = storage.NewRESTOptionsGetter(
 		noConv.LegacyCodec(apiregistrationv1.SchemeGroupVersion), storageEndpoints)
 	aggregatorGenericConfig.SkipOpenAPIInstallation = true
 	aggregatorGenericConfig.FeatureGate = genericServerConfig.FeatureGate

@@ -1,4 +1,4 @@
-package libkapi
+package storage
 
 import (
 	"context"
@@ -7,10 +7,10 @@ import (
 	"sync"
 )
 
-// isKineDSNScheme reports whether scheme is a connection-string scheme Kine's
+// IsKineDSNScheme reports whether scheme is a connection-string scheme Kine's
 // upstream driver dispatch understands (SQL dialects plus NATS), requiring an
 // embedded Kine endpoint to translate it into the etcd3 client protocol.
-func isKineDSNScheme(scheme string) bool {
+func IsKineDSNScheme(scheme string) bool {
 	switch scheme {
 	case "postgres", "postgresql", "mysql", "sqlite", "nats":
 		return true
@@ -19,27 +19,39 @@ func isKineDSNScheme(scheme string) bool {
 	}
 }
 
-// storageHandle is the resolved, running storage backend for a Server: the
+// Handle is the resolved, running storage backend for a Server: the
 // etcd3-compatible endpoints to hand to RESTOptionsGetters, plus however this
 // backend needs to be torn down.
 //
-// close has its own lifecycle, independent of the context resolveStorage was
-// called with: it must be safe to call on any error path, even one that runs
-// long before (or without) the caller ever canceling their own context - an
+// Close has its own lifecycle, independent of the context Resolve was called
+// with: it must be safe to call on any error path, even one that runs long
+// before (or without) the caller ever canceling their own context - an
 // embedded Kine endpoint tied directly to the caller's context would
 // otherwise deadlock a "clean up on error" call, since nothing would ever
 // cancel that context to unblock the wait.
-type storageHandle struct {
+type Handle struct {
 	endpoints []string
 	close     func()
 }
 
-// resolveStorage dispatches cfg.Storage by URL scheme to the right backend:
+// Endpoints returns the etcd3-compatible endpoints this backend exposes.
+func (h *Handle) Endpoints() []string {
+	return h.endpoints
+}
+
+// Close stops the backend if Resolve spawned one (e.g. an in-process Kine
+// endpoint), and is a no-op for backends that talk to an already-running
+// endpoint (etcd://, unix://).
+func (h *Handle) Close() {
+	h.close()
+}
+
+// Resolve dispatches connStr by URL scheme to the right backend:
 //   - Kine DSN schemes (postgres/mysql/sqlite/nats) spawn an in-process Kine
 //     endpoint via startKine, on its own cancelable context derived from ctx.
 //   - "etcd" and "unix" talk directly to an already-running etcd3-compatible
 //     endpoint; nothing is spawned, so close is a no-op.
-func resolveStorage(ctx context.Context, connStr string) (*storageHandle, error) {
+func Resolve(ctx context.Context, connStr string) (*Handle, error) {
 	if connStr == "" {
 		return nil, ErrEmptyConnectionString
 	}
@@ -50,14 +62,14 @@ func resolveStorage(ctx context.Context, connStr string) (*storageHandle, error)
 	}
 
 	switch {
-	case isKineDSNScheme(parsed.Scheme):
+	case IsKineDSNScheme(parsed.Scheme):
 		return resolveKineStorage(ctx, connStr)
 	case parsed.Scheme == "etcd":
 		if parsed.Host == "" {
 			return nil, fmt.Errorf("%w: %q", ErrEmptyStorageEndpoint, connStr)
 		}
 
-		return &storageHandle{
+		return &Handle{
 			endpoints: []string{"http://" + parsed.Host},
 			close:     func() {},
 		}, nil
@@ -66,7 +78,7 @@ func resolveStorage(ctx context.Context, connStr string) (*storageHandle, error)
 			return nil, fmt.Errorf("%w: %q", ErrEmptyStorageEndpoint, connStr)
 		}
 
-		return &storageHandle{
+		return &Handle{
 			endpoints: []string{connStr},
 			close:     func() {},
 		}, nil
@@ -75,7 +87,7 @@ func resolveStorage(ctx context.Context, connStr string) (*storageHandle, error)
 	}
 }
 
-func resolveKineStorage(ctx context.Context, connStr string) (*storageHandle, error) {
+func resolveKineStorage(ctx context.Context, connStr string) (*Handle, error) {
 	kineCtx, cancel := context.WithCancel(ctx)
 
 	var kineWaitGroup sync.WaitGroup
@@ -87,7 +99,7 @@ func resolveKineStorage(ctx context.Context, connStr string) (*storageHandle, er
 		return nil, err
 	}
 
-	return &storageHandle{
+	return &Handle{
 		endpoints: endpoints,
 		close: func() {
 			cancel()
