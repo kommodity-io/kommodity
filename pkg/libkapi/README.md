@@ -142,6 +142,28 @@ if err := server.Shutdown(shutdownCtx); err != nil {
 `Server.Shutdown` waits for any endpoint it spawned to actually finish before
 returning.
 
+### Logging
+
+`Config.Logger` is the single logging entry point: pass a `*slog.Logger` and
+all log output — libkapi's own messages **and** klog output from the embedded
+Kubernetes packages (apiserver, apiextensions-apiserver, kube-aggregator,
+client-go) — is routed through it. `New` bridges klog to the slog logger
+automatically via `InstallKlogAdapter`, so the consumer never needs to
+configure klog separately.
+
+```go
+cfg := libkapi.Config{
+    Logger: slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+        Level: slog.LevelInfo,
+    })),
+    // ...
+}
+```
+
+The bridge is process-global (klog has a single backing logger), so the last
+`New` call wins. Callers that need a different klog configuration can call
+`libkapi.InstallKlogAdapter(logger)` themselves, before or after `New`.
+
 ### Supported API groups
 
 The following standard Kubernetes API groups are wired using upstream
@@ -174,13 +196,21 @@ layer, wired to the standard Kubernetes API groups and backed by
 `cfg.Storage`, plus any caller-supplied HTTP handlers. The server is **not**
 started until `ListenAndServe` is called.
 
+### `func InstallKlogAdapter(logger *slog.Logger)`
+
+Bridges klog output to the consumer's slog logger so that the embedded
+Kubernetes packages route their log output through `logger` instead of
+klog's default stderr writer. Called automatically by `New`; also safe to
+call independently. If `logger` is nil, `slog.Default()` is used. The
+bridge is process-global (klog has a single backing logger).
+
 ### `type Config struct`
 
 | Field | Type | Description |
 | --- | --- | --- |
 | `Addr` | `string` | Listener address, e.g. `":8080"`. Defaults to `":"+$PORT`, falling back to `":8080"` if `PORT` is unset or invalid. |
 | `Storage` | `string` | Polymorphic connection string. See [Storage](#storage). |
-| `Logger` | `*slog.Logger` | Receives libkapi's internal log output. Defaults to `slog.Default()` if nil. |
+| `Logger` | `*slog.Logger` | Receives libkapi's internal log output, including klog output from the embedded Kubernetes packages. Defaults to `slog.Default()` if nil. See [Logging](#logging). |
 | `TLS` | `*TLSConfig` | Reserved for future use. Must be `nil` in this version — setting it makes `New` return `ErrNotImplemented`. |
 | `Handlers` | `[]HTTPHandlerFactory` | Mount additional routes onto the server's shared mux, alongside the built API server. |
 | `Scheme` | `*runtime.Scheme` | Lets the caller register additional types beyond the standard API groups libkapi wires by default. |

@@ -56,6 +56,12 @@ func New(ctx context.Context, cfg Config) (*Server, error) {
 	addr := cfg.resolvedAddr()
 	logger := cfg.resolvedLogger()
 
+	// Bridge klog to the consumer's slog logger before any k8s package
+	// starts logging. The Kubernetes packages libkapi embeds use klog
+	// internally; without this, their output goes to klog's default stderr
+	// writer instead of the consumer's logger.
+	InstallKlogAdapter(logger)
+
 	handle, err := storage.Resolve(ctx, cfg.Storage)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve storage backend: %w", err)
