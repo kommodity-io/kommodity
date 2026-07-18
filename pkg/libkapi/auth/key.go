@@ -139,8 +139,11 @@ func LoadOrCreateSigningKey(
 	client corev1client.CoreV1Interface,
 	keyPersistence *KeyPersistenceConfig,
 ) (*rsa.PrivateKey, error) {
+	namespace := ResolveSigningKeyNamespace(keyPersistence)
+	secretName := ResolveSigningKeySecretName(keyPersistence)
+
 	// Try to load from existing Secret.
-	key, err := LoadSigningKeyFromSecret(ctx, client, keyPersistence.Namespace, keyPersistence.SecretName)
+	key, err := LoadSigningKeyFromSecret(ctx, client, namespace, secretName)
 	if err == nil {
 		return key, nil
 	}
@@ -157,10 +160,10 @@ func LoadOrCreateSigningKey(
 
 	// Create the Secret. If a race caused it to be created between our
 	// load and create, fall back to loading the existing key.
-	err = CreateSigningKeySecret(ctx, client, newKey, keyPersistence.Namespace, keyPersistence.SecretName)
+	err = CreateSigningKeySecret(ctx, client, newKey, namespace, secretName)
 	if err != nil {
 		if apierrors.IsAlreadyExists(err) {
-			return LoadSigningKeyFromSecret(ctx, client, keyPersistence.Namespace, keyPersistence.SecretName)
+			return LoadSigningKeyFromSecret(ctx, client, namespace, secretName)
 		}
 
 		return nil, err

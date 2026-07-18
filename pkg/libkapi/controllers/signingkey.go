@@ -90,13 +90,17 @@ func SetupSigningKeyRotation(
 ) {
 	keyPersistence := saCfg.KeyPersistence
 	tokenSecretsNamespace := ResolveTokenSecretsNamespace(keyPersistence)
+	signingKeyNamespace := auth.ResolveSigningKeyNamespace(keyPersistence)
+	signingKeySecretName := auth.ResolveSigningKeySecretName(keyPersistence)
 
 	_, _ = secretInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		UpdateFunc: func(oldObj, newObj any) {
-			HandleSecretUpdate(oldObj, newObj, coreClient, keyPersistence, tokenSecretsNamespace, logger)
+			HandleSecretUpdate(oldObj, newObj, coreClient, keyPersistence,
+				tokenSecretsNamespace, signingKeyNamespace, signingKeySecretName, logger)
 		},
 		DeleteFunc: func(obj any) {
-			HandleSecretDelete(obj, coreClient, keyPersistence, tokenSecretsNamespace, logger, signingKey)
+			HandleSecretDelete(obj, coreClient, keyPersistence,
+				tokenSecretsNamespace, signingKeyNamespace, signingKeySecretName, logger, signingKey)
 		},
 	})
 }
@@ -118,6 +122,8 @@ func HandleSecretUpdate(
 	coreClient corev1client.CoreV1Interface,
 	keyPersistence *auth.KeyPersistenceConfig,
 	tokenSecretsNamespace string,
+	signingKeyNamespace string,
+	signingKeySecretName string,
 	logger *slog.Logger,
 ) {
 	oldSecret, ok1 := oldObj.(*corev1.Secret)
@@ -127,7 +133,7 @@ func HandleSecretUpdate(
 		return
 	}
 
-	if newSecret.Namespace != keyPersistence.Namespace || newSecret.Name != keyPersistence.SecretName {
+	if newSecret.Namespace != signingKeyNamespace || newSecret.Name != signingKeySecretName {
 		return
 	}
 
@@ -146,6 +152,8 @@ func HandleSecretDelete(
 	coreClient corev1client.CoreV1Interface,
 	keyPersistence *auth.KeyPersistenceConfig,
 	tokenSecretsNamespace string,
+	signingKeyNamespace string,
+	signingKeySecretName string,
 	logger *slog.Logger,
 	signingKey *rsa.PrivateKey,
 ) {
@@ -154,14 +162,14 @@ func HandleSecretDelete(
 		return
 	}
 
-	if deletedSecret.Namespace != keyPersistence.Namespace || deletedSecret.Name != keyPersistence.SecretName {
+	if deletedSecret.Namespace != signingKeyNamespace || deletedSecret.Name != signingKeySecretName {
 		return
 	}
 
 	ctx := context.Background()
 
 	err := auth.PersistSigningKey(ctx, coreClient, signingKey,
-		keyPersistence.Namespace, keyPersistence.SecretName)
+		signingKeyNamespace, signingKeySecretName)
 	if err != nil {
 		logger.Error("Failed to persist regenerated signing key", "error", err)
 

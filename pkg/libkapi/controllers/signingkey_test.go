@@ -59,23 +59,24 @@ func TestHandleSecretUpdate_KeyDataChanged_TriggersRotation(t *testing.T) {
 	client := fake.NewSimpleClientset(saTokenSecret)
 	coreClient := client.CoreV1()
 
-	keyPersistence := &auth.KeyPersistenceConfig{
-		Namespace:  "kommodity-system",
-		SecretName: "sa-signing-key",
-	}
+	signingKeyNamespace := auth.DefaultSigningKeyNamespace
+	signingKeySecretName := auth.DefaultSigningKeySecretName
 
 	oldSecret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{Name: "sa-signing-key", Namespace: "kommodity-system"},
+		ObjectMeta: metav1.ObjectMeta{Name: signingKeySecretName, Namespace: signingKeyNamespace},
 		Data:       map[string][]byte{controllers.SigningKeyDataKey: []byte("old-key")},
 	}
 
 	newSecret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{Name: "sa-signing-key", Namespace: "kommodity-system"},
+		ObjectMeta: metav1.ObjectMeta{Name: signingKeySecretName, Namespace: signingKeyNamespace},
 		Data:       map[string][]byte{controllers.SigningKeyDataKey: []byte("new-key")},
 	}
 
+	keyPersistence := &auth.KeyPersistenceConfig{}
+
 	controllers.HandleSecretUpdate(
-		oldSecret, newSecret, coreClient, keyPersistence, "kube-system", slog.Default())
+		oldSecret, newSecret, coreClient, keyPersistence, "kube-system",
+		signingKeyNamespace, signingKeySecretName, slog.Default())
 
 	// The SA token secret should have been deleted and recreated.
 	got, err := coreClient.Secrets("kube-system").Get(ctx, "sa-token-1", metav1.GetOptions{})
@@ -107,23 +108,22 @@ func TestHandleSecretUpdate_KeyDataUnchanged_NoRotation(t *testing.T) {
 	client := fake.NewSimpleClientset(saTokenSecret)
 	coreClient := client.CoreV1()
 
-	keyPersistence := &auth.KeyPersistenceConfig{
-		Namespace:  "kommodity-system",
-		SecretName: "sa-signing-key",
-	}
+	signingKeyNamespace := auth.DefaultSigningKeyNamespace
+	signingKeySecretName := auth.DefaultSigningKeySecretName
 
 	oldSecret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{Name: "sa-signing-key", Namespace: "kommodity-system"},
+		ObjectMeta: metav1.ObjectMeta{Name: signingKeySecretName, Namespace: signingKeyNamespace},
 		Data:       map[string][]byte{controllers.SigningKeyDataKey: []byte("same-key")},
 	}
 
 	newSecret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{Name: "sa-signing-key", Namespace: "kommodity-system"},
+		ObjectMeta: metav1.ObjectMeta{Name: signingKeySecretName, Namespace: signingKeyNamespace},
 		Data:       map[string][]byte{controllers.SigningKeyDataKey: []byte("same-key")},
 	}
 
 	controllers.HandleSecretUpdate(
-		oldSecret, newSecret, coreClient, keyPersistence, "kube-system", slog.Default())
+		oldSecret, newSecret, coreClient, &auth.KeyPersistenceConfig{}, "kube-system",
+		signingKeyNamespace, signingKeySecretName, slog.Default())
 
 	// The SA token secret should NOT have been rotated — its data should
 	// still contain the original token.
@@ -153,11 +153,6 @@ func TestHandleSecretUpdate_DifferentSecret_NoRotation(t *testing.T) {
 	client := fake.NewSimpleClientset(saTokenSecret)
 	coreClient := client.CoreV1()
 
-	keyPersistence := &auth.KeyPersistenceConfig{
-		Namespace:  "kommodity-system",
-		SecretName: "sa-signing-key",
-	}
-
 	// Update a different secret entirely.
 	oldSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{Name: "some-other-secret", Namespace: "default"},
@@ -170,7 +165,8 @@ func TestHandleSecretUpdate_DifferentSecret_NoRotation(t *testing.T) {
 	}
 
 	controllers.HandleSecretUpdate(
-		oldSecret, newSecret, coreClient, keyPersistence, "kube-system", slog.Default())
+		oldSecret, newSecret, coreClient, &auth.KeyPersistenceConfig{}, "kube-system",
+		auth.DefaultSigningKeyNamespace, auth.DefaultSigningKeySecretName, slog.Default())
 
 	// SA token secret should not have been touched.
 	got, err := coreClient.Secrets("kube-system").Get(context.Background(), "sa-token-1", metav1.GetOptions{})
@@ -186,14 +182,10 @@ func TestHandleSecretUpdate_NonSecretType_NoOp(t *testing.T) {
 	client := fake.NewSimpleClientset()
 	coreClient := client.CoreV1()
 
-	keyPersistence := &auth.KeyPersistenceConfig{
-		Namespace:  "kommodity-system",
-		SecretName: "sa-signing-key",
-	}
-
 	// Pass non-Secret objects — should be a no-op, not a panic.
 	controllers.HandleSecretUpdate(
-		"not-a-secret", "also-not-a-secret", coreClient, keyPersistence, "kube-system", slog.Default())
+		"not-a-secret", "also-not-a-secret", coreClient, &auth.KeyPersistenceConfig{}, "kube-system",
+		auth.DefaultSigningKeyNamespace, auth.DefaultSigningKeySecretName, slog.Default())
 }
 
 // TestRotateServiceAccountTokenSecret_CallsOnTokenRotated verifies that

@@ -346,8 +346,8 @@ func registerKeyHooks(
 	persistenceHook, err := controllers.NewCreateKeyHook(
 		controllers.CreateKeyHookConfig{
 			SigningKey: signingKey,
-			Namespace:  saCfg.KeyPersistence.Namespace,
-			SecretName: saCfg.KeyPersistence.SecretName,
+			Namespace:  auth.ResolveSigningKeyNamespace(saCfg.KeyPersistence),
+			SecretName: auth.ResolveSigningKeySecretName(saCfg.KeyPersistence),
 		},
 		genericServerConfig.LoopbackClientConfig,
 	)

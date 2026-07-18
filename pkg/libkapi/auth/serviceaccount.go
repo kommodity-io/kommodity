@@ -18,6 +18,18 @@ import (
 // defaultSAIssuer matches serviceaccount.LegacyIssuer.
 const defaultSAIssuer = "kubernetes/serviceaccount"
 
+const (
+	// DefaultSigningKeyNamespace is the default namespace where the
+	// service account signing key Secret is stored.
+	DefaultSigningKeyNamespace = "kube-system"
+
+	// DefaultSigningKeySecretName is the default name of the Secret that
+	// stores the service account signing key.
+	//
+	//nolint:gosec // G101 — this is a Secret name, not a credential.
+	DefaultSigningKeySecretName = "libkapi-service-account-signing-key"
+)
+
 // ServiceAccountTokenGetter provides access to ServiceAccount, Pod, Secret,
 // and Node objects for token validation. It mirrors
 // k8s.io/kubernetes/pkg/serviceaccount.ServiceAccountTokenGetter — existing
@@ -42,11 +54,11 @@ type SecretsGetter interface {
 // libkapi.New and passing it as ServiceAccountConfig.SigningKey).
 type KeyPersistenceConfig struct {
 	// Namespace is where the signing key Secret is stored.
-	// e.g. "kommodity-system". Created if it doesn't exist.
+	// Default: "kube-system". Created if it doesn't exist.
 	Namespace string
 
 	// SecretName is the name of the signing key Secret.
-	// e.g. "service-account-signing-key".
+	// Default: "libkapi-service-account-signing-key".
 	SecretName string
 
 	// TokenSecretsNamespace is where SA token secrets are listed for
@@ -223,6 +235,26 @@ func ResolveSigningKey(cfg *ServiceAccountConfig) (*rsa.PrivateKey, error) {
 	}
 
 	return GenerateRSAPrivateKey()
+}
+
+// ResolveSigningKeyNamespace returns the namespace for the signing key
+// Secret, defaulting to DefaultSigningKeyNamespace if not set.
+func ResolveSigningKeyNamespace(kp *KeyPersistenceConfig) string {
+	if kp.Namespace != "" {
+		return kp.Namespace
+	}
+
+	return DefaultSigningKeyNamespace
+}
+
+// ResolveSigningKeySecretName returns the secret name for the signing key
+// Secret, defaulting to DefaultSigningKeySecretName if not set.
+func ResolveSigningKeySecretName(kp *KeyPersistenceConfig) string {
+	if kp.SecretName != "" {
+		return kp.SecretName
+	}
+
+	return DefaultSigningKeySecretName
 }
 
 // errNotSupportedInLibkapi is returned for resources that libkapi doesn't store.

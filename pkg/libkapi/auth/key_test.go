@@ -67,8 +67,8 @@ func TestLoadOrCreateSigningKey_SecretExists_LoadsKey(t *testing.T) {
 
 	existingSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "sa-signing-key",
-			Namespace: "kommodity-system",
+			Name:      auth.DefaultSigningKeySecretName,
+			Namespace: auth.DefaultSigningKeyNamespace,
 		},
 		Data: map[string][]byte{
 			auth.SigningKeyDataKey: keyPEM,
@@ -79,15 +79,15 @@ func TestLoadOrCreateSigningKey_SecretExists_LoadsKey(t *testing.T) {
 
 	// Namespace must exist for the LoadOrCreate call to proceed.
 	_, err = client.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{Name: "kommodity-system"},
+		ObjectMeta: metav1.ObjectMeta{Name: auth.DefaultSigningKeyNamespace},
 	}, metav1.CreateOptions{})
 	if err != nil {
 		require.Contains(t, err.Error(), "already exists")
 	}
 
 	keyPersistence := &auth.KeyPersistenceConfig{
-		Namespace:  "kommodity-system",
-		SecretName: "sa-signing-key",
+		Namespace:  auth.DefaultSigningKeyNamespace,
+		SecretName: auth.DefaultSigningKeySecretName,
 	}
 
 	loadedKey, err := auth.LoadOrCreateSigningKey(ctx, client.CoreV1(), keyPersistence)
@@ -109,8 +109,8 @@ func TestLoadOrCreateSigningKey_SecretDoesNotExist_CreatesKey(t *testing.T) {
 	client := fake.NewSimpleClientset()
 
 	keyPersistence := &auth.KeyPersistenceConfig{
-		Namespace:  "kommodity-system",
-		SecretName: "sa-signing-key",
+		Namespace:  auth.DefaultSigningKeyNamespace,
+		SecretName: auth.DefaultSigningKeySecretName,
 	}
 
 	createdKey, err := auth.LoadOrCreateSigningKey(ctx, client.CoreV1(), keyPersistence)
@@ -118,7 +118,8 @@ func TestLoadOrCreateSigningKey_SecretDoesNotExist_CreatesKey(t *testing.T) {
 	require.NotNil(t, createdKey)
 
 	// The Secret should now exist with the key data.
-	secret, err := client.CoreV1().Secrets("kommodity-system").Get(ctx, "sa-signing-key", metav1.GetOptions{})
+	secret, err := client.CoreV1().Secrets(auth.DefaultSigningKeyNamespace).Get(
+		ctx, auth.DefaultSigningKeySecretName, metav1.GetOptions{})
 	require.NoError(t, err)
 
 	keyPEM, ok := secret.Data[auth.SigningKeyDataKey]
@@ -142,8 +143,8 @@ func TestLoadOrCreateSigningKey_IsIdempotent(t *testing.T) {
 	client := fake.NewSimpleClientset()
 
 	keyPersistence := &auth.KeyPersistenceConfig{
-		Namespace:  "kommodity-system",
-		SecretName: "sa-signing-key",
+		Namespace:  auth.DefaultSigningKeyNamespace,
+		SecretName: auth.DefaultSigningKeySecretName,
 	}
 
 	key1, err := auth.LoadOrCreateSigningKey(ctx, client.CoreV1(), keyPersistence)
@@ -165,8 +166,8 @@ func TestLoadOrCreateSigningKey_MissingKeyData_ReturnsError(t *testing.T) {
 
 	existingSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "sa-signing-key",
-			Namespace: "kommodity-system",
+			Name:      auth.DefaultSigningKeySecretName,
+			Namespace: auth.DefaultSigningKeyNamespace,
 		},
 		Data: map[string][]byte{},
 	}
@@ -174,20 +175,82 @@ func TestLoadOrCreateSigningKey_MissingKeyData_ReturnsError(t *testing.T) {
 	client := fake.NewSimpleClientset(existingSecret)
 
 	_, err := client.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{Name: "kommodity-system"},
+		ObjectMeta: metav1.ObjectMeta{Name: auth.DefaultSigningKeyNamespace},
 	}, metav1.CreateOptions{})
 	if err != nil {
 		require.Contains(t, err.Error(), "already exists")
 	}
 
 	keyPersistence := &auth.KeyPersistenceConfig{
-		Namespace:  "kommodity-system",
-		SecretName: "sa-signing-key",
+		Namespace:  auth.DefaultSigningKeyNamespace,
+		SecretName: auth.DefaultSigningKeySecretName,
 	}
 
 	_, err = auth.LoadOrCreateSigningKey(ctx, client.CoreV1(), keyPersistence)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, auth.ErrSigningKeyDataMissing)
+}
+
+// TestLoadOrCreateSigningKey_EmptyNamespaceAndSecretName_UsesDefaults
+// verifies that LoadOrCreateSigningKey uses the default namespace and
+// secret name when KeyPersistenceConfig leaves them empty.
+func TestLoadOrCreateSigningKey_EmptyNamespaceAndSecretName_UsesDefaults(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	client := fake.NewSimpleClientset()
+
+	keyPersistence := &auth.KeyPersistenceConfig{}
+
+	createdKey, err := auth.LoadOrCreateSigningKey(ctx, client.CoreV1(), keyPersistence)
+	require.NoError(t, err)
+	require.NotNil(t, createdKey)
+
+	// The Secret should exist in the default namespace with the default name.
+	secret, err := client.CoreV1().Secrets(auth.DefaultSigningKeyNamespace).Get(
+		ctx, auth.DefaultSigningKeySecretName, metav1.GetOptions{})
+	require.NoError(t, err)
+
+	keyPEM, ok := secret.Data[auth.SigningKeyDataKey]
+	require.True(t, ok, "secret should contain key data")
+	assert.NotEmpty(t, keyPEM)
+}
+
+// TestResolveSigningKeyNamespace_DefaultsToKubeSystem verifies that
+// ResolveSigningKeyNamespace returns "kube-system" when unset.
+func TestResolveSigningKeyNamespace_DefaultsToKubeSystem(t *testing.T) {
+	t.Parallel()
+
+	keyPersistence := &auth.KeyPersistenceConfig{}
+	assert.Equal(t, auth.DefaultSigningKeyNamespace, auth.ResolveSigningKeyNamespace(keyPersistence))
+}
+
+// TestResolveSigningKeyNamespace_UsesConfigured verifies that
+// ResolveSigningKeyNamespace respects a custom Namespace.
+func TestResolveSigningKeyNamespace_UsesConfigured(t *testing.T) {
+	t.Parallel()
+
+	keyPersistence := &auth.KeyPersistenceConfig{Namespace: "custom-ns"}
+	assert.Equal(t, "custom-ns", auth.ResolveSigningKeyNamespace(keyPersistence))
+}
+
+// TestResolveSigningKeySecretName_DefaultsToLibkapi verifies that
+// ResolveSigningKeySecretName returns the default secret name when unset.
+func TestResolveSigningKeySecretName_DefaultsToLibkapi(t *testing.T) {
+	t.Parallel()
+
+	keyPersistence := &auth.KeyPersistenceConfig{}
+	assert.Equal(t, auth.DefaultSigningKeySecretName, auth.ResolveSigningKeySecretName(keyPersistence))
+}
+
+// TestResolveSigningKeySecretName_UsesConfigured verifies that
+// ResolveSigningKeySecretName respects a custom SecretName.
+func TestResolveSigningKeySecretName_UsesConfigured(t *testing.T) {
+	t.Parallel()
+
+	keyPersistence := &auth.KeyPersistenceConfig{SecretName: "custom-key"}
+	assert.Equal(t, "custom-key", auth.ResolveSigningKeySecretName(keyPersistence))
 }
 
 // TestCreateSigningKeySecret_CreatesSecret verifies that
