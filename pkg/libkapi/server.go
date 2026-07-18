@@ -63,13 +63,19 @@ func New(ctx context.Context, cfg Config, opts ...auth.Option) (*Server, error) 
 	addr := cfg.resolvedAddr()
 	logger := cfg.resolvedLogger()
 
-	// Bridge klog to the consumer's slog logger before any k8s package
-	// starts logging. The Kubernetes packages libkapi embeds use klog
-	// internally; without this, their output goes to klog's default stderr
-	// writer instead of the consumer's logger. Must happen before
-	// auth.Resolve and buildServer so that resolution and construction
-	// logs are also captured.
+	// Bridge klog and gRPC loggers to the consumer's slog logger before
+	// any k8s or gRPC package starts logging. The Kubernetes packages
+	// libkapi embeds use klog internally; gRPC (used by the etcd3
+	// client and kine) uses grpclog. Without these bridges, their output
+	// goes to klog/grpclog's default stderr writer instead of the
+	// consumer's logger. Must happen before auth.Resolve, storage.Resolve,
+	// and buildServer so that resolution and construction logs are also
+	// captured. The gRPC adapter additionally suppresses INFO-level
+	// connection lifecycle messages (e.g., "addrConn.createTransport
+	// failed to connect") that gRPC emits when many etcd3 clients dial
+	// the kine socket simultaneously during storage initialization.
 	InstallKlogAdapter(logger)
+	InstallGRPCLogAdapter(logger)
 
 	// Create subloggers with a component field so log output is attributable
 	// to the subsystem that produced it.
