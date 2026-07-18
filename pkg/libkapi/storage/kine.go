@@ -14,7 +14,6 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/k3s-io/kine/pkg/endpoint"
-	"github.com/sirupsen/logrus"
 )
 
 const kineSocketFileName = "kine.sock"
@@ -58,24 +57,6 @@ const (
 	// gRPC server is accepting connections and the backend is wired.
 	kineHealthCheckKey = "health-check"
 )
-
-// neutralizeKineFatalExit overrides logrus's process-wide ExitFunc so
-// that logrus.Fatalf — called by kine's MustCommit and MustRollback
-// (pkg/drivers/generic/tx.go:41,53) when a compaction transaction fails
-// — logs and returns instead of calling os.Exit(1).
-//
-// Without this, a momentary DB outage that coincides with a compaction
-// window (every kineCompactInterval, default 5 min) kills the entire
-// process. With the override, the failed compaction cycle is skipped
-// and the compactor goroutine retries on the next interval. The
-// database/sql connection pool transparently reconnects when the DB
-// returns, so reads, writes, and watches all recover without restart.
-//
-// This is safe because kine is the only logrus user in the process;
-// kommodity itself uses slog/klog.
-func neutralizeKineFatalExit() {
-	logrus.StandardLogger().ExitFunc = func(int) {}
-}
 
 // startKine spawns an in-process Kine endpoint that speaks the etcd3 client
 // protocol on a private, per-instance unix socket, translating it into SQL

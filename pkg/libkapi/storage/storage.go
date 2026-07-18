@@ -88,10 +88,6 @@ func Resolve(ctx context.Context, connStr string) (*Handle, error) {
 }
 
 func resolveKineStorage(ctx context.Context, connStr string) (*Handle, error) {
-	// Must run before startKine: kine's compaction transaction handlers
-	// call logrus.Fatalf on DB errors, which calls os.Exit(1) by default.
-	neutralizeKineFatalExit()
-
 	kineCtx, cancel := context.WithCancel(ctx)
 
 	var kineWaitGroup sync.WaitGroup
