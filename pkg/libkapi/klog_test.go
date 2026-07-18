@@ -41,6 +41,8 @@ func TestInstallKlogAdapter_BridgesKlogToSlog(t *testing.T) {
 
 	output := buf.String()
 	assert.Contains(t, output, msg, "klog.Info output should appear in the slog logger")
+	assert.Contains(t, output, "component=apiserver",
+		"klog output should be tagged with component=apiserver")
 }
 
 // TestInstallKlogAdapter_NilLoggerFallsBackToDefault verifies that passing

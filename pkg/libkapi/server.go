@@ -83,6 +83,7 @@ func New(ctx context.Context, cfg Config, opts ...auth.Option) (*Server, error) 
 
 	// Create subloggers with a component field so log output is attributable
 	// to the subsystem that produced it.
+	serverLogger := logger.With("component", "server")
 	authLogger := logger.With("component", "auth")
 	controllersLogger := logger.With("component", "controllers")
 
@@ -102,14 +103,14 @@ func New(ctx context.Context, cfg Config, opts ...auth.Option) (*Server, error) 
 	// runtime when the hook actually runs - it is not, and should not be,
 	// derived from this constructor's ctx.
 	//nolint:contextcheck
-	server, err := buildServer(cfg, addr, handle, authCfg, controllersLogger, logger)
+	server, err := buildServer(cfg, addr, handle, authCfg, controllersLogger, serverLogger)
 	if err != nil {
 		handle.Close()
 
 		return nil, err
 	}
 
-	logger.Info("Built libkapi server", "addr", addr)
+	serverLogger.Info("Built libkapi server", "addr", addr)
 
 	return server, nil
 }

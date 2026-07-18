@@ -13,10 +13,13 @@ import (
 // of klog's default stderr writer.
 //
 // After this call, every klog.Info, klog.Warning, klog.Error, and
-// contextual klog.FromContext / klog.Background call is forwarded to the
-// slog handler backing logger. klog's own file/stderr output is suppressed
-// (klog.SetSlogLogger installs a backing logr.Logger and redirects all
-// traditional klog calls to it).
+// contextual klog.FromContext / klog.Background call is forwarded to
+// the slog handler backing logger. klog's own file/stderr output is
+// suppressed (klog.SetSlogLogger installs a backing logr.Logger and
+// redirects all traditional klog calls to it). Output is tagged with
+// component=apiserver, matching the embedded Kubernetes packages
+// (apiserver, apiextensions-apiserver, kube-aggregator, client-go)
+// that produce it.
 //
 // The bridge installs a process-wide global: klog has a single backing
 // logger, so the last call wins. New calls InstallKlogAdapter during
@@ -31,5 +34,5 @@ func InstallKlogAdapter(logger *slog.Logger) {
 		logger = slog.Default()
 	}
 
-	klog.SetSlogLogger(logger)
+	klog.SetSlogLogger(logger.With("component", "apiserver"))
 }
