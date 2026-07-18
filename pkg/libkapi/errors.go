@@ -38,4 +38,9 @@ var (
 	ErrServerNotStarted = errors.New("server not started")
 	// ErrNotImplemented is returned for optional config fields that are reserved but not yet implemented.
 	ErrNotImplemented = errors.New("not implemented")
+	// ErrServiceResolutionUnsupported is returned by the noopServiceResolver when
+	// a remote APIService (Spec.Service != nil) is created, which libkapi does
+	// not support.
+	ErrServiceResolutionUnsupported = errors.New(
+		"service resolution is not supported in libkapi: no Service or Endpoints resources are wired")
 )

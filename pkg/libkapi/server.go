@@ -403,11 +403,12 @@ func buildDelegationChain(
 		return nil, nil, err
 	}
 
-	_, err = aggregatorServer.PrepareRun()
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to prepare aggregator server: %w", err)
-	}
-
+	// PrepareRun is not called here: it installs /healthz, /livez, /readyz
+	// and OpenAPI routes on the PathRecorderMux, and calling it twice (once
+	// here, once in ListenAndServe) produces "duplicate path registration"
+	// errors. The Handler is already populated by NewWithDelegate, so
+	// buildMux can mount it before PrepareRun runs. ListenAndServe calls
+	// PrepareRun exactly once before NonBlockingRunWithContext.
 	mux, err := buildMux(cfg.Handlers, aggregatorServer.GenericAPIServer.Handler)
 	if err != nil {
 		return nil, nil, err
@@ -451,9 +452,9 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 	// SecureServingInfo is nil (our design), which would prevent Shutdown
 	// from ever completing. The context passed here controls when the
 	// post-start hooks' goroutines are stopped.
-	// PrepareRun is called again on the underlying GenericAPIServer; this is
-	// safe because it is idempotent (route installation overwrites existing
-	// handlers, and lifecycle signal setup is a no-op on repeat).
+	// PrepareRun installs /healthz, /livez, /readyz and OpenAPI routes on
+	// the PathRecorderMux; it must be called exactly once (calling it
+	// twice produces "duplicate path registration" errors).
 	prepared := s.aggregator.GenericAPIServer.PrepareRun()
 
 	_, _, err = prepared.NonBlockingRunWithContext(runCtx, readHeaderTimeout)

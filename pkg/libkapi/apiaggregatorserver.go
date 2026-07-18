@@ -201,5 +201,5 @@ func setupAPIAggregatorConfig(
 type noopServiceResolver struct{}
 
 func (noopServiceResolver) ResolveEndpoint(string, string, int32) (*url.URL, error) {
-	return nil, fmt.Errorf("service resolution is not supported in libkapi: no Service or Endpoints resources are wired")
+	return nil, ErrServiceResolutionUnsupported
 }
