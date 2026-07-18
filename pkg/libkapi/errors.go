@@ -18,6 +18,9 @@ var (
 	ErrEmptyConnectionString = storage.ErrEmptyConnectionString
 	// ErrEmptyStorageEndpoint is returned when an etcd:// or unix:// connection string has no host or path.
 	ErrEmptyStorageEndpoint = storage.ErrEmptyStorageEndpoint
+	// ErrKineNotReady is returned when the embedded Kine endpoint does not
+	// become ready to accept connections within the readiness timeout.
+	ErrKineNotReady = storage.ErrKineNotReady
 
 	// Auth errors — re-aliased from pkg/libkapi/auth.
 

@@ -88,6 +88,10 @@ func Resolve(ctx context.Context, connStr string) (*Handle, error) {
 }
 
 func resolveKineStorage(ctx context.Context, connStr string) (*Handle, error) {
+	// Must run before startKine: kine's compaction transaction handlers
+	// call logrus.Fatalf on DB errors, which calls os.Exit(1) by default.
+	neutralizeKineFatalExit()
+
 	kineCtx, cancel := context.WithCancel(ctx)
 
 	var kineWaitGroup sync.WaitGroup
@@ -95,6 +99,19 @@ func resolveKineStorage(ctx context.Context, connStr string) (*Handle, error) {
 	endpoints, cleanup, err := startKine(kineCtx, connStr, &kineWaitGroup)
 	if err != nil {
 		cancel()
+
+		return nil, err
+	}
+
+	// Block until Kine's gRPC server is accepting connections on the
+	// unix socket. Without this gate, controllers and informers fired
+	// by the apiserver's post-start hooks race the socket and produce
+	// gRPC "dial unix …: operation was canceled" errors at startup.
+	err = waitForKineReady(ctx, endpoints)
+	if err != nil {
+		cancel()
+		kineWaitGroup.Wait()
+		cleanup()
 
 		return nil, err
 	}

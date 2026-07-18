@@ -3,12 +3,18 @@ package storage
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
 
+	clientv3 "go.etcd.io/etcd/client/v3"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+
 	"github.com/k3s-io/kine/pkg/endpoint"
+	"github.com/sirupsen/logrus"
 )
 
 const kineSocketFileName = "kine.sock"
@@ -29,6 +35,47 @@ const (
 	kineCompactBatchSize      = 1000
 	kinePollBatchSize         = 500
 )
+
+// Readiness probe constants. endpoint.Listen returns the unix-socket
+// endpoint as soon as Kine is configured, but its gRPC server goroutine
+// may not yet be accept()-ing connections. waitForKineReady bridges that
+// gap by polling the socket with an etcd3 client until it responds, so
+// that callers (controllers, informers, auto-registration) never dial a
+// half-up socket.
+const (
+	// kineDialTimeout is the per-attempt dial timeout for the etcd3
+	// health-check client.
+	kineDialTimeout = 2 * time.Second
+	// kinePollInterval is the delay between readiness probes.
+	kinePollInterval = 500 * time.Millisecond
+	// kineReadyTimeout is the overall deadline for Kine to become
+	// ready. It bounds New()'s blocking on a backend that never
+	// connects (e.g. unreachable PostgreSQL) so the caller gets a
+	// timely error instead of hanging forever.
+	kineReadyTimeout = 30 * time.Second
+	// kineHealthCheckKey is the etcd3 key fetched by the readiness
+	// probe. The value is irrelevant — a successful Get proves the
+	// gRPC server is accepting connections and the backend is wired.
+	kineHealthCheckKey = "health-check"
+)
+
+// neutralizeKineFatalExit overrides logrus's process-wide ExitFunc so
+// that logrus.Fatalf — called by kine's MustCommit and MustRollback
+// (pkg/drivers/generic/tx.go:41,53) when a compaction transaction fails
+// — logs and returns instead of calling os.Exit(1).
+//
+// Without this, a momentary DB outage that coincides with a compaction
+// window (every kineCompactInterval, default 5 min) kills the entire
+// process. With the override, the failed compaction cycle is skipped
+// and the compactor goroutine retries on the next interval. The
+// database/sql connection pool transparently reconnects when the DB
+// returns, so reads, writes, and watches all recover without restart.
+//
+// This is safe because kine is the only logrus user in the process;
+// kommodity itself uses slog/klog.
+func neutralizeKineFatalExit() {
+	logrus.StandardLogger().ExitFunc = func(int) {}
+}
 
 // startKine spawns an in-process Kine endpoint that speaks the etcd3 client
 // protocol on a private, per-instance unix socket, translating it into SQL
@@ -51,13 +98,13 @@ func startKine(ctx context.Context,
 		return nil, nil, fmt.Errorf("failed to create temp dir for kine socket: %w", err)
 	}
 
-	cleanup = func() {
+	cleanupFn := func() {
 		_ = os.RemoveAll(tmpDir)
 	}
 
 	defer func() {
 		if rerr != nil {
-			cleanup()
+			cleanupFn()
 		}
 	}()
 
@@ -70,15 +117,72 @@ func startKine(ctx context.Context,
 		NotifyInterval:        kineNotifyInterval,
 		EmulatedETCDVersion:   kineEmulatedETCDVersion,
 		CompactInterval:       kineCompactInterval,
-		CompactIntervalJitter: kineCompactIntervalJitter,
+		CompactIntervalJitter:  kineCompactIntervalJitter,
 		CompactTimeout:        kineCompactTimeout,
-		CompactMinRetain:      kineCompactMinRetain,
-		CompactBatchSize:      kineCompactBatchSize,
-		PollBatchSize:         kinePollBatchSize,
+		CompactMinRetain:       kineCompactMinRetain,
+		CompactBatchSize:       kineCompactBatchSize,
+		PollBatchSize:          kinePollBatchSize,
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to start embedded kine endpoint: %w", err)
 	}
 
-	return etcdConfig.Endpoints, cleanup, nil
+	return etcdConfig.Endpoints, cleanupFn, nil
+}
+
+// waitForKineReady blocks until the embedded Kine endpoint is accepting
+// etcd3 client connections on endpoints, or readyCtx expires. It probes
+// the socket by creating a throwaway etcd3 client and issuing a Get; a
+// successful response means Kine's gRPC server is live and its backend
+// is wired.
+//
+// The parent ctx is wrapped in a WithTimeout so that callers passing
+// context.Background (no deadline) still get a bounded wait; callers that
+// already carry a shorter deadline are respected.
+func waitForKineReady(ctx context.Context, endpoints []string) error {
+	logger := slog.Default().With("component", "storage")
+
+	readyCtx, cancel := context.WithTimeout(ctx, kineReadyTimeout)
+	defer cancel()
+
+	for {
+		ready, err := probeKineEndpoint(readyCtx, endpoints)
+		if ready {
+			return nil
+		}
+
+		logger.Info("Waiting for kine to be ready", "error", err)
+
+		select {
+		case <-readyCtx.Done():
+			return fmt.Errorf("%w: %w", ErrKineNotReady, readyCtx.Err())
+		case <-time.After(kinePollInterval):
+		}
+	}
+}
+
+// probeKineEndpoint issues a single etcd3 Get against endpoints to
+// determine whether Kine's gRPC server is accepting connections. It
+// returns (true, nil) on success and (false, err) on any failure (dial,
+// Get, or close).
+func probeKineEndpoint(ctx context.Context, endpoints []string) (bool, error) {
+	cli, err := clientv3.New(clientv3.Config{
+		Endpoints:   endpoints,
+		DialTimeout: kineDialTimeout,
+		DialOptions: []grpc.DialOption{
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+		},
+	})
+	if err != nil {
+		return false, fmt.Errorf("failed to create etcd3 health-check client: %w", err)
+	}
+
+	_, err = cli.Get(ctx, kineHealthCheckKey)
+	_ = cli.Close()
+
+	if err != nil {
+		return false, fmt.Errorf("failed to probe kine endpoint: %w", err)
+	}
+
+	return true, nil
 }

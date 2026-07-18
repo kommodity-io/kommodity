@@ -21,6 +21,10 @@ import (
 // canceling its context cleanly stops it - proving no subprocess is needed
 // and shutdown is not "fire and forget" the way pkg/kine/server.go's
 // CLI-wrapper-based StartKine is today.
+//
+// Since Resolve now blocks until Kine's gRPC socket is accepting
+// connections (waitForKineReady), the client.Get below succeeds on the
+// first attempt — no retry needed.
 func TestResolveKineLifecycle(t *testing.T) {
 	t.Parallel()
 
@@ -65,4 +69,22 @@ func TestResolveKineLifecycle(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		assert.Fail(t, "handle.Close() did not return within 5s of context cancellation")
 	}
+}
+
+// TestResolveCanceledContext validates that Resolve returns an error
+// (rather than blocking or panicking) when the caller's context is
+// already canceled. Depending on timing, the error may originate from
+// startKine (if endpoint.Listen rejects the canceled context) or from
+// the readiness gate (ErrKineNotReady). Either way, Resolve must not
+// hang.
+func TestResolveCanceledContext(t *testing.T) {
+	t.Parallel()
+
+	dbPath := filepath.Join(t.TempDir(), "libkapi.db")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := storage.Resolve(ctx, "sqlite://"+dbPath)
+	require.Error(t, err)
 }
