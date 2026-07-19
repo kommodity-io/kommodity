@@ -21,32 +21,51 @@ func HealthPaths() []string {
 
 // AdminAuthorizerConfig configures the admin authorizer.
 type AdminAuthorizerConfig struct {
-	// AdminGroup is the group allowed full access (e.g. "corti-admin").
-	// Required.
-	AdminGroup string
+	// AdminGroups is a comma-delimited list of groups allowed full access
+	// (e.g. "corti-admin" or "corti-admin,corti-sre"). Surrounding
+	// whitespace around each group is trimmed. At least one group is
+	// required.
+	AdminGroups string
 }
 
 // WithAdminAuthorizer sets an authorizer that allows health check endpoints
-// (anonymous), system:masters, the configured AdminGroup, and
+// (anonymous), system:masters, the configured AdminGroups, and
 // system:serviceaccounts; denies everything else.
 //
 // Mirrors pkg/server/auth.go's adminAuthorizer (lines 107-152).
-func WithAdminAuthorizer(cfg AdminAuthorizerConfig) Option {
-	return func(_ context.Context, o *config) error {
-		if cfg.AdminGroup == "" {
+func WithAdminAuthorizer(adminCfg AdminAuthorizerConfig) Option {
+	return func(_ context.Context, cfg *config) error {
+		groups := parseAdminGroups(adminCfg.AdminGroups)
+		if len(groups) == 0 {
 			return ErrAdminGroupRequired
 		}
 
-		o.authorizer = &AdminAuthorizer{Cfg: cfg}
+		cfg.authorizer = &AdminAuthorizer{Groups: groups}
 
 		return nil
 	}
 }
 
-// AdminAuthorizer allows health endpoints, system:masters, the configured
-// admin group, and system:serviceaccounts; denies everything else.
+// parseAdminGroups splits a comma-delimited list of group names, trimming
+// whitespace and discarding empty entries.
+func parseAdminGroups(raw string) []string {
+	var groups []string
+
+	for group := range strings.SplitSeq(raw, ",") {
+		group = strings.TrimSpace(group)
+		if group != "" {
+			groups = append(groups, group)
+		}
+	}
+
+	return groups
+}
+
+// AdminAuthorizer allows health endpoints, system:masters, any of the
+// configured admin groups, and system:serviceaccounts; denies everything
+// else.
 type AdminAuthorizer struct {
-	Cfg AdminAuthorizerConfig
+	Groups []string
 }
 
 // Authorize decides whether to allow the request based on health path,
@@ -70,7 +89,7 @@ func (a AdminAuthorizer) Authorize(_ context.Context, attrs auth.Attributes) (au
 		return auth.DecisionAllow, "allowed: user is in system:masters group", nil
 	}
 
-	if slices.Contains(user.GetGroups(), a.Cfg.AdminGroup) {
+	if containsAny(user.GetGroups(), a.Groups) {
 		return auth.DecisionAllow, "allowed: user is in admin group", nil
 	}
 
@@ -80,4 +99,15 @@ func (a AdminAuthorizer) Authorize(_ context.Context, attrs auth.Attributes) (au
 	}
 
 	return auth.DecisionDeny, "forbidden: user is not in admin group, system:masters group, or a service account", nil
+}
+
+// containsAny reports whether groups contains any element of candidates.
+func containsAny(groups []string, candidates []string) bool {
+	for _, candidate := range candidates {
+		if slices.Contains(groups, candidate) {
+			return true
+		}
+	}
+
+	return false
 }

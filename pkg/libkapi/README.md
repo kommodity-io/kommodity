@@ -186,7 +186,8 @@ server, err := libkapi.New(ctx, cfg,
         },
     }),
     libkapi.WithAdminAuthorizer(libkapi.AdminAuthorizerConfig{
-        AdminGroup: "my-admin-group",
+        // Comma-delimited; a user in any listed group is allowed.
+        AdminGroups: "my-admin-group,my-other-admin-group",
     }),
 )
 ```
@@ -197,7 +198,7 @@ server, err := libkapi.New(ctx, cfg,
 | --- | --- |
 | `WithOIDC(cfg OIDCConfig)` | Adds an OIDC bearer-token authenticator. Fetches the issuer's discovery document at `IssuerURL/.well-known/openid-configuration` during `New`. |
 | `WithServiceAccount(cfg ServiceAccountConfig)` | Adds a ServiceAccount token authenticator and starts the SA token controller (issues tokens for ServiceAccounts). Optionally persists the signing key to a Secret and watches for key rotation. |
-| `WithAdminAuthorizer(cfg AdminAuthorizerConfig)` | Sets an authorizer that allows health endpoints (anonymous), `system:masters`, the configured `AdminGroup`, and `system:serviceaccounts`; denies everything else. |
+| `WithAdminAuthorizer(cfg AdminAuthorizerConfig)` | Sets an authorizer that allows health endpoints (anonymous), `system:masters`, any group listed in the configured comma-delimited `AdminGroups`, and `system:serviceaccounts`; denies everything else. |
 | `WithAuthorizer(a Authorizer)` | Sets a custom authorizer. Use this to plug in any `k8s.io/apiserver` authorizer. |
 
 #### OIDC
@@ -346,4 +347,4 @@ was never called.
 | `ErrNotImplemented` | `Config.TLS` is non-nil. |
 | `ErrOIDCIssuerRequired` | `WithOIDC` is called with an empty `IssuerURL`. |
 | `ErrOIDCClientIDRequired` | `WithOIDC` is called with an empty `ClientID`. |
-| `ErrAdminGroupRequired` | `WithAdminAuthorizer` is called with an empty `AdminGroup`. |
+| `ErrAdminGroupRequired` | `WithAdminAuthorizer` is called with an `AdminGroups` that contains no non-empty group after splitting on commas. |

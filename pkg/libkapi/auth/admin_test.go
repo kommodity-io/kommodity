@@ -15,14 +15,30 @@ import (
 )
 
 // TestWithAdminAuthorizer_MissingAdminGroup_ReturnsError verifies that
-// WithAdminAuthorizer returns ErrAdminGroupRequired when AdminGroup is empty.
+// WithAdminAuthorizer returns ErrAdminGroupRequired when AdminGroups is
+// empty.
 func TestWithAdminAuthorizer_MissingAdminGroup_ReturnsError(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
 
 	_, err := auth.Resolve(ctx, []auth.Option{
-		auth.WithAdminAuthorizer(auth.AdminAuthorizerConfig{AdminGroup: ""}),
+		auth.WithAdminAuthorizer(auth.AdminAuthorizerConfig{AdminGroups: ""}),
+	}, slog.Default())
+
+	require.ErrorIs(t, err, auth.ErrAdminGroupRequired)
+}
+
+// TestWithAdminAuthorizer_BlankGroupList_ReturnsError verifies that
+// WithAdminAuthorizer returns ErrAdminGroupRequired when AdminGroups
+// contains only commas and whitespace.
+func TestWithAdminAuthorizer_BlankGroupList_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	_, err := auth.Resolve(ctx, []auth.Option{
+		auth.WithAdminAuthorizer(auth.AdminAuthorizerConfig{AdminGroups: " , ,"}),
 	}, slog.Default())
 
 	require.ErrorIs(t, err, auth.ErrAdminGroupRequired)
@@ -36,7 +52,7 @@ func TestWithAdminAuthorizer_SetsAuthorizer(t *testing.T) {
 	ctx := context.Background()
 
 	resolved, err := auth.Resolve(ctx, []auth.Option{
-		auth.WithAdminAuthorizer(auth.AdminAuthorizerConfig{AdminGroup: "my-admins"}),
+		auth.WithAdminAuthorizer(auth.AdminAuthorizerConfig{AdminGroups: "my-admins"}),
 	}, slog.Default())
 	require.NoError(t, err)
 
@@ -51,7 +67,7 @@ func resolveAdminAuthorizer(t *testing.T, adminGroup string) authorizer.Authoriz
 	ctx := context.Background()
 
 	resolved, err := auth.Resolve(ctx, []auth.Option{
-		auth.WithAdminAuthorizer(auth.AdminAuthorizerConfig{AdminGroup: adminGroup}),
+		auth.WithAdminAuthorizer(auth.AdminAuthorizerConfig{AdminGroups: adminGroup}),
 	}, slog.Default())
 	require.NoError(t, err)
 
@@ -128,6 +144,21 @@ func TestAdminAuthorizer_AllowsAdminGroup(t *testing.T) {
 	assert.Equal(t, authorizer.DecisionAllow, decision)
 }
 
+// TestAdminAuthorizer_AllowsAnyConfiguredGroup verifies that a comma-
+// delimited AdminGroups list allows a user in any one of the listed
+// groups, tolerating surrounding whitespace around each entry.
+func TestAdminAuthorizer_AllowsAnyConfiguredGroup(t *testing.T) {
+	t.Parallel()
+
+	authz := resolveAdminAuthorizer(t, "corti-admin, corti-sre ,corti-oncall")
+	adminUser := &user.DefaultInfo{Name: "user@example.com", Groups: []string{"corti-sre"}}
+	attrs := &fakeAttributes{path: "/api/v1/pods", user: adminUser}
+
+	decision, _, err := authz.Authorize(context.Background(), attrs)
+	require.NoError(t, err)
+	assert.Equal(t, authorizer.DecisionAllow, decision)
+}
+
 // TestAdminAuthorizer_AllowsServiceAccounts verifies that
 // system:serviceaccounts group is allowed.
 func TestAdminAuthorizer_AllowsServiceAccounts(t *testing.T) {
@@ -179,7 +210,7 @@ func TestAdminAuthorizer_OverridesDefault(t *testing.T) {
 	ctx := context.Background()
 
 	resolved, err := auth.Resolve(ctx, []auth.Option{
-		auth.WithAdminAuthorizer(auth.AdminAuthorizerConfig{AdminGroup: "my-admins"}),
+		auth.WithAdminAuthorizer(auth.AdminAuthorizerConfig{AdminGroups: "my-admins"}),
 	}, slog.Default())
 	require.NoError(t, err)
 
