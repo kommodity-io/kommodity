@@ -112,25 +112,9 @@ func resolveKineStorage(ctx context.Context, connStr string) (*Handle, error) {
 		return nil, err
 	}
 
-	// Pre-cache the kine endpoint in the apiserver's
-	// FeatureSupportChecker so the apiserver's own CheckClient calls
-	// skip their background goroutine. Without this, each etcd3 client
-	// the apiserver creates spawns a goroutine that logs a spurious
-	// "Failed to check if RequestWatchProgress is supported" error
-	// when the client is closed during shutdown.
-	featureCleanup, err := prewarmFeatureCheck(ctx, endpoints)
-	if err != nil {
-		cancel()
-		kineWaitGroup.Wait()
-		cleanup()
-
-		return nil, fmt.Errorf("failed to pre-warm feature check: %w", err)
-	}
-
 	return &Handle{
 		endpoints: endpoints,
 		close: func() {
-			featureCleanup()
 			cancel()
 			kineWaitGroup.Wait()
 			cleanup()

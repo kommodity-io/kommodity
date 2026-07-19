@@ -14,8 +14,6 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/k3s-io/kine/pkg/endpoint"
-	apiserverstorage "k8s.io/apiserver/pkg/storage"
-	"k8s.io/apiserver/pkg/storage/feature"
 )
 
 const kineSocketFileName = "kine.sock"
@@ -168,73 +166,4 @@ func probeKineEndpoint(ctx context.Context, endpoints []string) (bool, error) {
 	}
 
 	return true, nil
-}
-
-// prewarmFeatureCheck pre-caches the kine endpoint in the apiserver's
-// global FeatureSupportChecker so that the apiserver's own
-// CheckClient calls — fired later from each etcd3 storage client
-// during buildDelegationChain — skip their background goroutine
-// entirely (the endpoint is already in checkingEndpoint).
-//
-// Without this pre-warm, each etcd3 client the apiserver creates
-// (CRD server, generic server, aggregator — one per API group)
-// spawns a goroutine that calls c.Status(ctx, endpoint) to check
-// whether the etcd server supports RequestWatchProgress. Those
-// goroutines use the etcd3 client's internal context (c.Ctx()),
-// which is canceled when the client is closed during shutdown.
-// The cancellation produces a spurious
-//   "Failed to check if RequestWatchProgress is supported by etcd
-//    after retrying"
-// error at shutdown.
-//
-// By calling CheckClient ourselves with context.Background (never
-// canceled), the goroutine we spawn succeeds cleanly and exits
-// without error. The endpoint is cached, so the apiserver's later
-// calls skip. The client we create here must outlive the goroutine
-// (which completes in milliseconds since kine is already ready);
-// it is closed via the returned cleanup function during shutdown,
-// long after the goroutine has exited.
-//
-// If the Status RPC fails (e.g., kine's SQLite backend doesn't
-// implement the dbstat table), the pre-warm is skipped — the
-// apiserver will do its own check (the existing behavior).
-func prewarmFeatureCheck(ctx context.Context, endpoints []string) (func(), error) {
-	cli, err := clientv3.New(clientv3.Config{
-		Endpoints:   endpoints,
-		DialTimeout: kineDialTimeout,
-		DialOptions: []grpc.DialOption{
-			grpc.WithTransportCredentials(insecure.NewCredentials()),
-		},
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create feature-check client: %w", err)
-	}
-
-	// Verify the Status RPC works before calling CheckClient. Kine's
-	// SQLite backend doesn't implement the dbstat table the Status
-	// RPC needs, so c.Status returns an error. If we called
-	// CheckClient with context.Background (never canceled) anyway,
-	// the goroutine would retry forever, leaking resources.
-	statusCtx, cancel := context.WithTimeout(ctx, kineDialTimeout)
-
-	_, statusErr := cli.Status(statusCtx, endpoints[0])
-
-	cancel()
-
-	if statusErr != nil {
-		_ = cli.Close()
-
-		logger := slog.Default().With("component", "storage")
-		logger.Debug("Skipping RequestWatchProgress feature pre-warm", "error", statusErr)
-
-		return func() {}, nil
-	}
-
-	// Use context.Background for CheckClient: the goroutine must
-	// outlive the caller's context so it isn't canceled on shutdown.
-	//nolint:contextcheck // intentional — goroutine must not be canceled by caller's context
-	feature.DefaultFeatureSupportChecker.CheckClient(
-		context.Background(), cli, apiserverstorage.RequestWatchProgress)
-
-	return func() { _ = cli.Close() }, nil
 }
