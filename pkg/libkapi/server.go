@@ -45,6 +45,19 @@ type Server struct {
 	logger       *slog.Logger
 }
 
+// newMu serializes New() across concurrent calls. Constructing a Server
+// mutates several process-wide globals in the Kubernetes packages libkapi
+// embeds - klog's contextual logger (InstallKlogAdapter) and the
+// legacyscheme.Scheme singleton the upstream REST storage providers in
+// registry.go are hard-wired to (see scheme.go's schemeMu doc) - none of
+// which are safe for concurrent writers. Two Servers built at once without
+// this lock race on that shared state, up to and including a fatal
+// "concurrent map writes" crash. The cost is that one Server's construction
+// can't overlap another's; ListenAndServe and everything after New returns
+// is unaffected.
+//nolint:gochecknoglobals // guards several k8s.io package-level singletons New touches.
+var newMu sync.Mutex
+
 // New builds a full generic apiserver + apiextensions (CRD) server +
 // aggregation layer, wired to the standard Kubernetes API groups (core v1,
 // apps/v1, batch/v1, rbac.authorization.k8s.io/v1, networking.k8s.io,
@@ -56,6 +69,9 @@ type Server struct {
 // authorization (custom or admin authorizer). If no options are passed, the
 // server defaults to anonymous authentication and always-allow authorization.
 func New(ctx context.Context, cfg Config, opts ...auth.Option) (*Server, error) {
+	newMu.Lock()
+	defer newMu.Unlock()
+
 	if cfg.TLS != nil {
 		return nil, fmt.Errorf("Config.TLS: %w", ErrNotImplemented)
 	}

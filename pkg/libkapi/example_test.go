@@ -13,6 +13,7 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextensionsclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
@@ -86,6 +87,63 @@ func TestServerEndToEnd(t *testing.T) {
 	assertAppsV1(ctx, t, kubeClient)
 	assertRBACV1(ctx, t, kubeClient)
 	assertCRDServerLive(ctx, t, restConfig)
+}
+
+// TestServerEndToEnd_WithAdminAuthorizer verifies that once an authorizer
+// denies anonymous requests, libkapi's own internal loopback client (used by
+// post-start hooks like bootstrap-default-namespace, and by the CRD/
+// APIService informers) still authenticates as a privileged user, while an
+// unauthenticated external caller is denied.
+//
+// Regression test: the loopback client used to carry no bearer token, so it
+// authenticated as system:anonymous exactly like any other caller and was
+// denied by AdminAuthorizer along with everyone else. A failing post-start
+// hook makes k8s.io/apiserver call klog.Fatal (see
+// k8s.io/apiserver@v0.32.6 pkg/server/hooks.go's runPostStartHook - "if the
+// hook intentionally wants to kill server, let it"), so before the fix this
+// test would crash the whole process instead of ever reaching the assertion
+// below.
+func TestServerEndToEnd_WithAdminAuthorizer(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	addr := libkapi.FreeAddr(t)
+	dbPath := filepath.Join(t.TempDir(), "libkapi-admin.db")
+
+	cfg := libkapi.Config{
+		Addr:    addr,
+		Storage: "sqlite://" + dbPath,
+		Logger:  slog.Default(),
+	}
+
+	server, err := libkapi.New(ctx, cfg, libkapi.WithAdminAuthorizer(libkapi.AdminAuthorizerConfig{
+		AdminGroups: "test-admins",
+	}))
+	require.NoError(t, err)
+
+	go func() {
+		_ = server.ListenAndServe(ctx)
+	}()
+
+	t.Cleanup(func() {
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer shutdownCancel()
+
+		_ = server.Shutdown(shutdownCtx)
+	})
+
+	baseURL := "http://" + addr
+
+	libkapi.WaitForHealthz(t, baseURL+"/healthz")
+
+	kubeClient, err := kubernetes.NewForConfig(&restclient.Config{Host: baseURL})
+	require.NoError(t, err)
+
+	_, err = kubeClient.CoreV1().Namespaces().Get(ctx, "default", metav1.GetOptions{})
+	require.Error(t, err)
+	assert.True(t, apierrors.IsForbidden(err), "expected anonymous request to be forbidden, got: %v", err)
 }
 
 func assertCoreV1(ctx context.Context, t *testing.T, kubeClient *kubernetes.Clientset) {

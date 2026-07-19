@@ -6,6 +6,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/google/uuid"
 	apiextensionsopenapi "k8s.io/apiextensions-apiserver/pkg/generated/openapi"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -131,10 +132,24 @@ func mergedOpenAPIDefinitions(ref openapicommon.ReferenceCallback) map[string]op
 	return defs
 }
 
-// newLoopbackClientConfig builds a plain-HTTP loopback client config for addr.
-// No TLS, no bearer token: AuthorizeClientBearerToken is a no-op on an empty
-// token (see k8s.io/apiserver@v0.32.6 pkg/server/config.go:1159-1184), so this
-// is safe to use unconditionally in a server that never enables TLS.
+// newLoopbackClientConfig builds a plain-HTTP loopback client config for addr,
+// carrying a random bearer token that identifies the client as the server
+// itself.
+//
+// The token isn't checked here: each delegate's own genericapiserver.Config
+// (built by newDelegateConfig) independently calls AuthorizeClientBearerToken
+// during its own Config.Complete() (see server.go, apiextensionsserver.go,
+// apiaggregatorserver.go). That upstream helper is a no-op on an empty token
+// (k8s.io/apiserver@v0.32.6 pkg/server/config.go:1159-1184); with a non-empty
+// one, it unions in a token authenticator that maps this token to
+// system:masters. Every internal consumer of LoopbackClientConfig — the
+// aggregator's and CRD server's own informers/post-start hooks included —
+// authenticates as system:anonymous otherwise, so with an authorizer that
+// denies anonymous requests (e.g. AdminAuthorizer), those internal clients
+// would be denied along with everyone else. AdminAuthorizer already allows
+// system:masters, so no authorizer changes are needed to make this work; a
+// caller-supplied WithAuthorizer that doesn't allow system:masters would
+// still deny the loopback client, matching plain kube-apiserver's contract.
 //
 // If the server is bound to an unspecified address (0.0.0.0, [::], or empty),
 // the loopback client is pointed at 127.0.0.1 instead, since connecting to an
@@ -152,6 +167,7 @@ func newLoopbackClientConfig(addr string) (*restclient.Config, error) {
 	}
 
 	return &restclient.Config{
-		Host: "http://" + net.JoinHostPort(host, port),
+		Host:        "http://" + net.JoinHostPort(host, port),
+		BearerToken: uuid.New().String(),
 	}, nil
 }

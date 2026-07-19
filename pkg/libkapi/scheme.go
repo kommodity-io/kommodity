@@ -2,6 +2,7 @@ package libkapi
 
 import (
 	"fmt"
+	"sync"
 
 	apiextensionsinternal "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -33,6 +34,17 @@ import (
 	_ "k8s.io/kubernetes/pkg/apis/storage/install"
 )
 
+// schemeMu serializes mutation of the legacyscheme.Scheme singleton.
+// runtime.Scheme's AddKnownTypeWithName isn't safe for concurrent callers
+// (it writes directly into the scheme's internal maps), and
+// legacyscheme.Scheme itself is shared across every newScheme call (see the
+// import comment below), so the lock must be package-level too. server.go's
+// newMu already serializes newScheme's only production caller (New), but
+// spike_test.go also calls newScheme directly, bypassing that lock - keeping
+// this one here makes newScheme safe on its own regardless of caller.
+//nolint:gochecknoglobals // guards legacyscheme.Scheme, itself a package-level singleton.
+var schemeMu sync.Mutex
+
 // newScheme returns the shared runtime.Scheme and CodecFactory used across the
 // entire delegation chain: the standard-API delegate, the CRD server, and the
 // aggregator.
@@ -42,6 +54,9 @@ import (
 // apiregistration types the CRD and aggregation layers need, plus any extra
 // types the caller supplied via Config.Scheme.
 func newScheme(extra *runtime.Scheme) (*runtime.Scheme, serializer.CodecFactory, error) {
+	schemeMu.Lock()
+	defer schemeMu.Unlock()
+
 	scheme := legacyscheme.Scheme
 
 	addFuncs := []struct {
