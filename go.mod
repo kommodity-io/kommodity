@@ -2,7 +2,10 @@ module github.com/kommodity-io/kommodity
 
 go 1.26.1
 
-tool github.com/golangci/golangci-lint/v2/cmd/golangci-lint
+tool (
+	github.com/golangci/golangci-lint/v2/cmd/golangci-lint
+	k8s.io/kube-openapi/cmd/openapi-gen
+)
 
 replace github.com/google/cel-go => github.com/google/cel-go v0.22.0
 
@@ -56,7 +59,10 @@ require (
 	sigs.k8s.io/yaml v1.6.0
 )
 
-require github.com/robfig/cron/v3 v3.0.1 // indirect
+require (
+	github.com/robfig/cron/v3 v3.0.1 // indirect
+	k8s.io/gengo/v2 v2.0.0-20240911193312-2b36238f13e9 // indirect
+)
 
 require (
 	4d63.com/gocheckcompilerdirectives v1.3.0 // indirect
