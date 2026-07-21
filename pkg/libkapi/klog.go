@@ -27,8 +27,8 @@ import (
 // need a different klog configuration can call this function again after
 // New returns (the swap is safe while no other goroutine is logging).
 //
-// If logger is nil, slog.Default() is used, matching Config.Logger's
-// fallback behavior.
+// If logger is nil, slog.Default() is used, matching WithLogger's fallback
+// behavior.
 func InstallKlogAdapter(logger *slog.Logger) {
 	if logger == nil {
 		logger = slog.Default()

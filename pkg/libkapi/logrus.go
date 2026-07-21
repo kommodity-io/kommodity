@@ -31,8 +31,8 @@ import (
 // last call wins. New calls this before storage.Resolve and buildServer
 // so that all logrus output from kine and its drivers is captured.
 //
-// If logger is nil, slog.Default() is used, matching Config.Logger's
-// fallback behavior.
+// If logger is nil, slog.Default() is used, matching WithLogger's fallback
+// behavior.
 func InstallLogrusAdapter(logger *slog.Logger) {
 	if logger == nil {
 		logger = slog.Default()

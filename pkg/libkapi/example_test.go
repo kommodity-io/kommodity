@@ -43,22 +43,18 @@ func TestServerEndToEnd(t *testing.T) {
 	addr := libkapi.FreeAddr(t)
 	dbPath := filepath.Join(t.TempDir(), "libkapi.db")
 
-	cfg := libkapi.Config{
-		Addr:    addr,
-		Storage: "sqlite://" + dbPath,
-		Logger:  slog.Default(),
-		Handlers: []libkapi.HTTPHandlerFactory{
-			func(mux *http.ServeMux) error {
-				mux.HandleFunc("GET /hello", func(w http.ResponseWriter, _ *http.Request) {
-					_, _ = w.Write([]byte("hello"))
-				})
+	server, err := libkapi.New(ctx,
+		libkapi.WithAddr(addr),
+		libkapi.WithStorage("sqlite://"+dbPath),
+		libkapi.WithLogger(slog.Default()),
+		libkapi.WithHTTPHandlerFactory(func(mux *http.ServeMux) error {
+			mux.HandleFunc("GET /hello", func(w http.ResponseWriter, _ *http.Request) {
+				_, _ = w.Write([]byte("hello"))
+			})
 
-				return nil
-			},
-		},
-	}
-
-	server, err := libkapi.New(ctx, cfg)
+			return nil
+		}),
+	)
 	require.NoError(t, err)
 
 	go func() {
@@ -112,15 +108,14 @@ func TestServerEndToEnd_WithAdminAuthorizer(t *testing.T) {
 	addr := libkapi.FreeAddr(t)
 	dbPath := filepath.Join(t.TempDir(), "libkapi-admin.db")
 
-	cfg := libkapi.Config{
-		Addr:    addr,
-		Storage: "sqlite://" + dbPath,
-		Logger:  slog.Default(),
-	}
-
-	server, err := libkapi.New(ctx, cfg, libkapi.WithAdminAuthorizer(libkapi.AdminAuthorizerConfig{
-		AdminGroups: "test-admins",
-	}))
+	server, err := libkapi.New(ctx,
+		libkapi.WithAddr(addr),
+		libkapi.WithStorage("sqlite://"+dbPath),
+		libkapi.WithLogger(slog.Default()),
+		libkapi.WithAdminAuthorizer(libkapi.AdminAuthorizerConfig{
+			AdminGroups: "test-admins",
+		}),
+	)
 	require.NoError(t, err)
 
 	go func() {

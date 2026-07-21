@@ -60,11 +60,11 @@ import (
 func main() {
 	ctx := context.Background()
 
-	server, err := libkapi.New(ctx, libkapi.Config{
-		Addr:    ":8080",                              // defaults to ":"+$PORT, then ":8080"
-		Storage: "postgres://user:pass@localhost/kapi", // see "Storage" below for other schemes
-		Logger:  slog.Default(),
-	})
+	server, err := libkapi.New(ctx,
+		libkapi.WithAddr(":8080"), // defaults to ":"+$PORT, then ":8080"
+		libkapi.WithStorage("postgres://user:pass@localhost/kapi"), // see "Storage" below for other schemes
+		libkapi.WithLogger(slog.Default()),
+	)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -85,22 +85,21 @@ kubectl --server=http://127.0.0.1:8080 apply -f my-deployment.yaml
 
 ### Mounting custom HTTP handlers
 
-`Config.Handlers` lets you mount your own routes alongside the built API
-server, on the same address and port:
+`WithHTTPHandlerFactory` lets you mount your own routes alongside the built
+API server, on the same address and port. Pass it more than once to mount
+several factories; they run in the order given:
 
 ```go
-cfg := libkapi.Config{
-	Storage: "sqlite://local.db",
-	Handlers: []libkapi.HTTPHandlerFactory{
-		func(mux *http.ServeMux) error {
-			mux.HandleFunc("GET /healthz/custom", func(w http.ResponseWriter, r *http.Request) {
-				w.WriteHeader(http.StatusOK)
-			})
+server, err := libkapi.New(ctx,
+	libkapi.WithStorage("sqlite://local.db"),
+	libkapi.WithHTTPHandlerFactory(func(mux *http.ServeMux) error {
+		mux.HandleFunc("GET /healthz/custom", func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		})
 
-			return nil
-		},
-	},
-}
+		return nil
+	}),
+)
 ```
 
 Every unmatched request still falls through to the Kubernetes API server's
@@ -111,7 +110,7 @@ own handler.
 ```go
 ctx, cancel := context.WithCancel(context.Background())
 
-server, err := libkapi.New(ctx, cfg)
+server, err := libkapi.New(ctx, libkapi.WithStorage("sqlite://local.db"))
 if err != nil {
 	log.Fatal(err)
 }
@@ -133,33 +132,30 @@ if err := server.Shutdown(shutdownCtx); err != nil {
 
 ### Storage
 
-`Config.Storage` is a polymorphic connection string, dispatched by URL scheme:
+`WithStorage` takes a polymorphic connection string, dispatched by URL scheme:
 
-| Scheme | Behavior |
-| --- | --- |
+| Scheme                                                             | Behavior                                                                                                                                                                                                                |
+| ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `postgres://`, `postgresql://`, `mysql://`, `sqlite://`, `nats://` | Spawns an in-process [Kine](https://github.com/k3s-io/kine) endpoint (via `k3s-io/kine/pkg/endpoint.Listen`, as a goroutine — no subprocess) that translates the etcd3 client protocol into the given SQL/NATS dialect. |
-| `etcd://host:port` | Talks directly to an already-running etcd3-compatible endpoint. Nothing is spawned. |
-| `unix:///path/to/socket` | Talks directly to an already-running etcd3-compatible endpoint over a Unix socket (for example, a Kine instance you started yourself). Nothing is spawned. |
+| `etcd://host:port`                                                 | Talks directly to an already-running etcd3-compatible endpoint. Nothing is spawned.                                                                                                                                     |
+| `unix:///path/to/socket`                                           | Talks directly to an already-running etcd3-compatible endpoint over a Unix socket (for example, a Kine instance you started yourself). Nothing is spawned.                                                              |
 
 `Server.Shutdown` waits for any endpoint it spawned to actually finish before
 returning.
 
 ### Logging
 
-`Config.Logger` is the single logging entry point: pass a `*slog.Logger` and
-all log output — libkapi's own messages **and** klog output from the embedded
+`WithLogger` is the single logging entry point: pass a `*slog.Logger` and all
+log output — libkapi's own messages **and** klog output from the embedded
 Kubernetes packages (apiserver, apiextensions-apiserver, kube-aggregator,
 client-go) — is routed through it. `New` bridges klog to the slog logger
 automatically via `InstallKlogAdapter`, so the consumer never needs to
 configure klog separately.
 
 ```go
-cfg := libkapi.Config{
-    Logger: slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
-        Level: slog.LevelInfo,
-    })),
-    // ...
-}
+libkapi.WithLogger(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+    Level: slog.LevelInfo,
+})))
 ```
 
 The bridge is process-global (klog has a single backing logger), so the last
@@ -168,12 +164,14 @@ The bridge is process-global (klog has a single backing logger), so the last
 
 ### Authentication
 
-`New` accepts variadic `Option` values that configure authentication and
-authorization. If no options are passed, the server defaults to anonymous
-authentication and always-allow authorization.
+`New` accepts variadic `Option` values — the same `Option` type used for
+addr/storage/logger/handlers/scheme — that configure authentication and
+authorization. If no auth options are passed, the server defaults to
+anonymous authentication and always-allow authorization.
 
 ```go
-server, err := libkapi.New(ctx, cfg,
+server, err := libkapi.New(ctx,
+    libkapi.WithStorage("sqlite://local.db"),
     libkapi.WithOIDC(libkapi.OIDCConfig{
         IssuerURL:   "https://accounts.google.com",
         ClientID:    "my-client",
@@ -194,55 +192,64 @@ server, err := libkapi.New(ctx, cfg,
 
 #### Available options
 
-| Option | Description |
-| --- | --- |
-| `WithOIDC(cfg OIDCConfig)` | Adds an OIDC bearer-token authenticator. Fetches the issuer's discovery document at `IssuerURL/.well-known/openid-configuration` during `New`. |
-| `WithServiceAccount(cfg ServiceAccountConfig)` | Adds a ServiceAccount token authenticator and starts the SA token controller (issues tokens for ServiceAccounts). Optionally persists the signing key to a Secret and watches for key rotation. |
+`New`'s `Option` type is shared by every option below, general and
+auth-specific alike — pass any combination, in any order.
+
+| Option                                           | Description                                                                                                                                                                                            |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `WithAddr(addr string)`                          | Sets the listener address, e.g. `":8080"`. Defaults to `":"+$PORT`, falling back to `":8080"` if `PORT` is unset or invalid.                                                                           |
+| `WithStorage(storage string)`                    | Sets the storage connection string. See [Storage](#storage).                                                                                                                                           |
+| `WithLogger(logger *slog.Logger)`                | Sets the logger for libkapi's own output and the bridged klog/gRPC/logrus output. See [Logging](#logging). Defaults to `slog.Default()`.                                                               |
+| `WithHTTPHandlerFactory(f HTTPHandlerFactory)`   | Mounts an extra set of routes. See [Mounting custom HTTP handlers](#mounting-custom-http-handlers). Repeatable.                                                                                        |
+| `WithScheme(scheme *runtime.Scheme)`             | Registers additional types beyond the standard API groups libkapi wires by default.                                                                                                                    |
+| `WithTLS(cfg TLSConfig)`                         | Reserved for future use; passing it makes `New` return `ErrNotImplemented`.                                                                                                                            |
+| `WithOIDC(cfg OIDCConfig)`                       | Adds an OIDC bearer-token authenticator. Fetches the issuer's discovery document at `IssuerURL/.well-known/openid-configuration` during `New`.                                                         |
+| `WithServiceAccount(cfg ServiceAccountConfig)`   | Adds a ServiceAccount token authenticator and starts the SA token controller (issues tokens for ServiceAccounts). Optionally persists the signing key to a Secret and watches for key rotation.        |
 | `WithAdminAuthorizer(cfg AdminAuthorizerConfig)` | Sets an authorizer that allows health endpoints (anonymous), `system:masters`, any group listed in the configured comma-delimited `AdminGroups`, and `system:serviceaccounts`; denies everything else. |
-| `WithAuthorizer(a Authorizer)` | Sets a custom authorizer. Use this to plug in any `k8s.io/apiserver` authorizer. |
+| `WithAuthorizer(a Authorizer)`                   | Sets a custom authorizer. Use this to plug in any `k8s.io/apiserver` authorizer.                                                                                                                       |
 
 #### OIDC
 
 `OIDCConfig` fields:
 
-| Field | Default | Description |
-| --- | --- | --- |
-| `IssuerURL` | (required) | OIDC issuer URL. |
-| `ClientID` | (required) | OAuth 2.0 client ID (token audience). |
-| `UsernameClaim` | `"email"` | JWT claim used as the username. |
-| `GroupsClaim` | `"groups"` | JWT claim used for group membership. |
-| `ExtraScopes` | none | Additional OAuth 2.0 scopes. |
-| `SigningAlgs` | `["RS256"]` | Accepted JWT signing algorithms. |
+| Field           | Default     | Description                           |
+| --------------- | ----------- | ------------------------------------- |
+| `IssuerURL`     | (required)  | OIDC issuer URL.                      |
+| `ClientID`      | (required)  | OAuth 2.0 client ID (token audience). |
+| `UsernameClaim` | `"email"`   | JWT claim used as the username.       |
+| `GroupsClaim`   | `"groups"`  | JWT claim used for group membership.  |
+| `ExtraScopes`   | none        | Additional OAuth 2.0 scopes.          |
+| `SigningAlgs`   | `["RS256"]` | Accepted JWT signing algorithms.      |
 
 #### ServiceAccount
 
 `ServiceAccountConfig` fields:
 
-| Field | Default | Description |
-| --- | --- | --- |
-| `Issuer` | `"kubernetes/serviceaccount"` | Issuer for SA tokens. |
-| `SigningKey` | (generated) | RSA private key for token signing/verification. If nil, a 4096-bit key is generated in-memory. |
-| `KeyPersistence` | nil | If set, the signing key is persisted to a Secret (see below). |
-| `RootCA` | nil | CA certificate included in token secrets as `ca.crt`. |
-| `TokenGetter` | (loopback) | Validates SA existence. If nil, built from the server's loopback client. |
-| `SecretsGetter` | (loopback) | Validates Secret existence. If nil, built from the server's loopback client. |
+| Field            | Default                       | Description                                                                                    |
+| ---------------- | ----------------------------- | ---------------------------------------------------------------------------------------------- |
+| `Issuer`         | `"kubernetes/serviceaccount"` | Issuer for SA tokens.                                                                          |
+| `SigningKey`     | (generated)                   | RSA private key for token signing/verification. If nil, a 4096-bit key is generated in-memory. |
+| `KeyPersistence` | nil                           | If set, the signing key is persisted to a Secret (see below).                                  |
+| `RootCA`         | nil                           | CA certificate included in token secrets as `ca.crt`.                                          |
+| `TokenGetter`    | (loopback)                    | Validates SA existence. If nil, built from the server's loopback client.                       |
+| `SecretsGetter`  | (loopback)                    | Validates Secret existence. If nil, built from the server's loopback client.                   |
 
 `KeyPersistenceConfig` fields:
 
-| Field | Default | Description |
-| --- | --- | --- |
-| `Namespace` | (required) | Namespace for the signing key Secret. Created if it doesn't exist. |
-| `SecretName` | (required) | Name of the signing key Secret. |
-| `TokenSecretsNamespace` | `"kube-system"` | Namespace where SA token secrets are listed for rotation. |
-| `OnTokenRotated` | nil | Callback called for each SA token secret rotated during key rotation. Use this for side effects like updating autoscaler ConfigMaps. |
+| Field                   | Default         | Description                                                                                                                          |
+| ----------------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `Namespace`             | (required)      | Namespace for the signing key Secret. Created if it doesn't exist.                                                                   |
+| `SecretName`            | (required)      | Name of the signing key Secret.                                                                                                      |
+| `TokenSecretsNamespace` | `"kube-system"` | Namespace where SA token secrets are listed for rotation.                                                                            |
+| `OnTokenRotated`        | nil             | Callback called for each SA token secret rotated during key rotation. Use this for side effects like updating autoscaler ConfigMaps. |
 
 #### Security posture
 
-| Options passed | Authenticator | Authorizer |
-| --- | --- | --- |
-| None | anonymous | always-allow |
+| Options passed                                          | Authenticator                            | Authorizer                    |
+| ------------------------------------------------------- | ---------------------------------------- | ----------------------------- |
+| None                                                    | anonymous                                | always-allow                  |
 | Auth options, no `WithAuthorizer`/`WithAdminAuthorizer` | union of strategies + anonymous fallback | always-allow (logged warning) |
-| Auth options + `WithAuthorizer`/`WithAdminAuthorizer` | union of strategies + anonymous fallback | caller's authorizer |
+| Auth options + `WithAuthorizer`/`WithAdminAuthorizer`   | union of strategies + anonymous fallback | caller's authorizer           |
 
 ### Supported API groups
 
@@ -250,7 +257,7 @@ The following standard Kubernetes API groups are wired using upstream
 `k8s.io/kubernetes` registry storage providers — not hand-written REST
 storage — at each group's GA version:
 
-- `` (core) `v1` — `Namespace`, `Secret`, `ConfigMap`, `ServiceAccount`, `Event`, `ResourceQuota` (no `Pod`, `Service`, `Node`, `PersistentVolume(Claim)`, `ReplicationController`, or `PodTemplate` — those come from a much heavier upstream provider that also wires kubelet clients and Service IP/port allocators, out of scope for this library)
+- `(core) v1` — `Namespace`, `Secret`, `ConfigMap`, `ServiceAccount`, `Event`, `ResourceQuota`(no`Pod`, `Service`, `Node`, `PersistentVolume(Claim)`, `ReplicationController`, or `PodTemplate` — those come from a much heavier upstream provider that also wires kubelet clients and Service IP/port allocators, out of scope for this library)
 - `apps/v1` — `Deployment`, `StatefulSet`, `DaemonSet`, `ReplicaSet`, `ControllerRevision`
 - `batch/v1` — `Job`, `CronJob`
 - `rbac.authorization.k8s.io/v1` — `Role`, `RoleBinding`, `ClusterRole`, `ClusterRoleBinding`
@@ -269,16 +276,16 @@ a caller needing more would need to extend `libkapi` itself.
 
 ## Reference
 
-### `func New(ctx context.Context, cfg Config, opts ...Option) (*Server, error)`
+### `func New(ctx context.Context, opts ...Option) (*Server, error)`
 
 Builds a full generic apiserver + apiextensions (CRD) server + aggregation
-layer, wired to the standard Kubernetes API groups and backed by
-`cfg.Storage`, plus any caller-supplied HTTP handlers. The server is **not**
-started until `ListenAndServe` is called.
+layer, wired to the standard Kubernetes API groups and backed by the storage
+configured via `WithStorage`, plus any caller-supplied HTTP handlers. The
+server is **not** started until `ListenAndServe` is called.
 
-`opts` configure authentication and authorization (see
-[Authentication](#authentication)). If none are passed, the server defaults to
-anonymous authentication and always-allow authorization.
+`opts` configure everything — see [Available options](#available-options).
+If no auth options are passed, the server defaults to anonymous
+authentication and always-allow authorization.
 
 ### `func InstallKlogAdapter(logger *slog.Logger)`
 
@@ -288,34 +295,24 @@ klog's default stderr writer. Called automatically by `New`; also safe to
 call independently. If `logger` is nil, `slog.Default()` is used. The
 bridge is process-global (klog has a single backing logger).
 
-### `type Config struct`
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `Addr` | `string` | Listener address, e.g. `":8080"`. Defaults to `":"+$PORT`, falling back to `":8080"` if `PORT` is unset or invalid. |
-| `Storage` | `string` | Polymorphic connection string. See [Storage](#storage). |
-| `Logger` | `*slog.Logger` | Receives libkapi's internal log output, including klog output from the embedded Kubernetes packages. Defaults to `slog.Default()` if nil. See [Logging](#logging). |
-| `TLS` | `*TLSConfig` | Reserved for future use. Must be `nil` in this version — setting it makes `New` return `ErrNotImplemented`. |
-| `Handlers` | `[]HTTPHandlerFactory` | Mount additional routes onto the server's shared mux, alongside the built API server. |
-| `Scheme` | `*runtime.Scheme` | Lets the caller register additional types beyond the standard API groups libkapi wires by default. |
-
 ### `type TLSConfig struct`
 
 Reserved for future external TLS support. Not implemented in this version;
 exists so the public API won't need a breaking change once TLS support is
 added.
 
-| Field | Type |
-| --- | --- |
+| Field      | Type     |
+| ---------- | -------- |
 | `CertFile` | `string` |
-| `KeyFile` | `string` |
+| `KeyFile`  | `string` |
 
 ### `type HTTPHandlerFactory func(*http.ServeMux) error`
 
-libkapi's extension-point type. Each factory in `Config.Handlers` is called
-with the server's shared `*http.ServeMux` during `New`; register whatever
-routes you need on it. Any request that doesn't match a registered route
-falls through to the built API server's own handler.
+libkapi's extension-point type. Each factory passed via
+`WithHTTPHandlerFactory` is called with the server's shared `*http.ServeMux`
+during `New`; register whatever routes you need on it. Any request that
+doesn't match a registered route falls through to the built API server's own
+handler.
 
 ### `type Server struct`
 
@@ -330,21 +327,21 @@ more than once.
 #### `func (s *Server) Shutdown(ctx context.Context) error`
 
 Gracefully stops the HTTP listener, the apiserver's background run loop, and
-(if `Config.Storage` spawned one) the embedded Kine endpoint, waiting for
+(if `WithStorage` spawned one) the embedded Kine endpoint, waiting for
 each to actually finish. Returns `ErrServerNotStarted` if `ListenAndServe`
 was never called.
 
 ### Errors
 
-| Sentinel | Returned when |
-| --- | --- |
-| `ErrUnsupportedConnectionScheme` | `Config.Storage`'s scheme has no known storage backend. |
-| `ErrEmptyConnectionString` | `Config.Storage` is empty. |
-| `ErrEmptyStorageEndpoint` | An `etcd://` or `unix://` connection string has no host or path. |
-| `ErrGroupVersionNotRegistered` | A standard API group has no version registered in the scheme (should not happen with the default scheme). |
-| `ErrServerAlreadyStarted` | `ListenAndServe` is called more than once on the same `*Server`. |
-| `ErrServerNotStarted` | `Shutdown` is called before `ListenAndServe`. |
-| `ErrNotImplemented` | `Config.TLS` is non-nil. |
-| `ErrOIDCIssuerRequired` | `WithOIDC` is called with an empty `IssuerURL`. |
-| `ErrOIDCClientIDRequired` | `WithOIDC` is called with an empty `ClientID`. |
-| `ErrAdminGroupRequired` | `WithAdminAuthorizer` is called with an `AdminGroups` that contains no non-empty group after splitting on commas. |
+| Sentinel                         | Returned when                                                                                                     |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `ErrUnsupportedConnectionScheme` | `WithStorage`'s scheme has no known storage backend.                                                              |
+| `ErrEmptyConnectionString`       | `WithStorage` is empty or never called.                                                                           |
+| `ErrEmptyStorageEndpoint`        | An `etcd://` or `unix://` connection string has no host or path.                                                  |
+| `ErrGroupVersionNotRegistered`   | A standard API group has no version registered in the scheme (should not happen with the default scheme).         |
+| `ErrServerAlreadyStarted`        | `ListenAndServe` is called more than once on the same `*Server`.                                                  |
+| `ErrServerNotStarted`            | `Shutdown` is called before `ListenAndServe`.                                                                     |
+| `ErrNotImplemented`              | `WithTLS` is used.                                                                                                |
+| `ErrOIDCIssuerRequired`          | `WithOIDC` is called with an empty `IssuerURL`.                                                                   |
+| `ErrOIDCClientIDRequired`        | `WithOIDC` is called with an empty `ClientID`.                                                                    |
+| `ErrAdminGroupRequired`          | `WithAdminAuthorizer` is called with an `AdminGroups` that contains no non-empty group after splitting on commas. |

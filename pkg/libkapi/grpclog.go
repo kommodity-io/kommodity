@@ -34,8 +34,8 @@ import (
 // storage.Resolve and buildServer), so all gRPC logs from kine, the
 // etcd3 client, and the apiserver's storage layer are captured.
 //
-// If logger is nil, slog.Default() is used, matching Config.Logger's
-// fallback behavior.
+// If logger is nil, slog.Default() is used, matching WithLogger's fallback
+// behavior.
 func InstallGRPCLogAdapter(logger *slog.Logger) {
 	if logger == nil {
 		logger = slog.Default()

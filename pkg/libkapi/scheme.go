@@ -42,6 +42,7 @@ import (
 // newMu already serializes newScheme's only production caller (New), but
 // spike_test.go also calls newScheme directly, bypassing that lock - keeping
 // this one here makes newScheme safe on its own regardless of caller.
+//
 //nolint:gochecknoglobals // guards legacyscheme.Scheme, itself a package-level singleton.
 var schemeMu sync.Mutex
 
@@ -52,7 +53,7 @@ var schemeMu sync.Mutex
 // It extends legacyscheme.Scheme (already populated with core/apps/batch/rbac/
 // networking/storage by the blank imports above) with the apiextensions and
 // apiregistration types the CRD and aggregation layers need, plus any extra
-// types the caller supplied via Config.Scheme.
+// types the caller supplied via WithScheme.
 func newScheme(extra *runtime.Scheme) (*runtime.Scheme, serializer.CodecFactory, error) {
 	schemeMu.Lock()
 	defer schemeMu.Unlock()

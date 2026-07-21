@@ -55,25 +55,37 @@ type Server struct {
 // "concurrent map writes" crash. The cost is that one Server's construction
 // can't overlap another's; ListenAndServe and everything after New returns
 // is unaffected.
+//
 //nolint:gochecknoglobals // guards several k8s.io package-level singletons New touches.
 var newMu sync.Mutex
 
 // New builds a full generic apiserver + apiextensions (CRD) server +
 // aggregation layer, wired to the standard Kubernetes API groups (core v1,
 // apps/v1, batch/v1, rbac.authorization.k8s.io/v1, networking.k8s.io,
-// storage.k8s.io) and backed by cfg.Storage, plus any caller-supplied HTTP
-// handlers mounted alongside it. The server is not started until
-// ListenAndServe is called.
+// storage.k8s.io) and backed by the storage configured via WithStorage, plus
+// any caller-supplied HTTP handlers mounted alongside it. The server is not
+// started until ListenAndServe is called.
 //
-// Auth options configure authentication (OIDC, ServiceAccount) and
-// authorization (custom or admin authorizer). If no options are passed, the
-// server defaults to anonymous authentication and always-allow authorization.
-func New(ctx context.Context, cfg Config, opts ...auth.Option) (*Server, error) {
+// Options configure everything: listener address, storage, logging, extra
+// HTTP handlers, scheme, plus authentication (OIDC, ServiceAccount) and
+// authorization (custom or admin authorizer). If no auth options are passed,
+// the server defaults to anonymous authentication and always-allow
+// authorization.
+func New(ctx context.Context, opts ...Option) (*Server, error) {
 	newMu.Lock()
 	defer newMu.Unlock()
 
-	if cfg.TLS != nil {
-		return nil, fmt.Errorf("Config.TLS: %w", ErrNotImplemented)
+	cfg := config{}
+
+	for _, opt := range opts {
+		err := opt(ctx, &cfg)
+		if err != nil {
+			return nil, fmt.Errorf("failed to apply option: %w", err)
+		}
+	}
+
+	if cfg.tls != nil {
+		return nil, fmt.Errorf("WithTLS: %w", ErrNotImplemented)
 	}
 
 	addr := cfg.resolvedAddr()
@@ -103,12 +115,12 @@ func New(ctx context.Context, cfg Config, opts ...auth.Option) (*Server, error) 
 	authLogger := logger.With("component", "auth")
 	controllersLogger := logger.With("component", "controllers")
 
-	authCfg, err := auth.Resolve(ctx, opts, authLogger)
+	authCfg, err := auth.Resolve(ctx, cfg.authOpts, authLogger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to configure authentication: %w", err)
 	}
 
-	handle, err := storage.Resolve(ctx, cfg.Storage)
+	handle, err := storage.Resolve(ctx, cfg.storage)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve storage backend: %w", err)
 	}
@@ -131,10 +143,10 @@ func New(ctx context.Context, cfg Config, opts ...auth.Option) (*Server, error) 
 	return server, nil
 }
 
-func buildServer(cfg Config, addr string, handle *storage.Handle,
+func buildServer(cfg config, addr string, handle *storage.Handle,
 	authCfg *auth.ResolvedConfig, controllersLogger *slog.Logger,
 	logger *slog.Logger) (*Server, error) {
-	scheme, codecs, err := newScheme(cfg.Scheme)
+	scheme, codecs, err := newScheme(cfg.scheme)
 	if err != nil {
 		return nil, err
 	}
@@ -401,7 +413,7 @@ func registerKeyHooks(
 // aggregator delegation chain and returns the aggregator plus the
 // caller-facing mux (custom handlers layered over the aggregator's Handler).
 func buildDelegationChain(
-	cfg Config,
+	cfg config,
 	genericServerConfig *genericapiserver.RecommendedConfig,
 	codecs serializer.CodecFactory,
 	groups []standardAPIGroup,
@@ -436,7 +448,7 @@ func buildDelegationChain(
 	// errors. The Handler is already populated by NewWithDelegate, so
 	// buildMux can mount it before PrepareRun runs. ListenAndServe calls
 	// PrepareRun exactly once before NonBlockingRunWithContext.
-	mux, err := buildMux(cfg.Handlers, aggregatorServer.GenericAPIServer.Handler)
+	mux, err := buildMux(cfg.handlers, aggregatorServer.GenericAPIServer.Handler)
 	if err != nil {
 		return nil, nil, err
 	}
