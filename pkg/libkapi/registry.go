@@ -6,6 +6,7 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
+	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -20,6 +21,7 @@ import (
 	"k8s.io/apiserver/pkg/authorization/authorizer"
 	appsrest "k8s.io/kubernetes/pkg/registry/apps/rest"
 	batchrest "k8s.io/kubernetes/pkg/registry/batch/rest"
+	coordinationrest "k8s.io/kubernetes/pkg/registry/coordination/rest"
 	corerest "k8s.io/kubernetes/pkg/registry/core/rest"
 	networkingrest "k8s.io/kubernetes/pkg/registry/networking/rest"
 	rbacrest "k8s.io/kubernetes/pkg/registry/rbac/rest"
@@ -53,8 +55,9 @@ type standardAPIGroup struct {
 
 // standardAPIGroups returns the standard Kubernetes API groups
 // installStandardAPIGroups wires storage for: core v1, apps/v1, batch/v1,
-// rbac.authorization.k8s.io/v1, networking.k8s.io, storage.k8s.io. Each
-// provider comes from an upstream k8s.io/kubernetes/pkg/registry/<group>/rest
+// rbac.authorization.k8s.io/v1, networking.k8s.io, storage.k8s.io,
+// coordination.k8s.io. Each provider comes from an upstream
+// k8s.io/kubernetes/pkg/registry/<group>/rest
 // aggregator instead of hand-written REST storage (see the PRD's "Reusing
 // upstream registry storage" section). That upstream code is built against
 // the k8s.io/kubernetes/pkg/api/legacyscheme global (populated in
@@ -79,6 +82,10 @@ func standardAPIGroups(authz authorizer.Authorizer) []standardAPIGroup {
 		},
 		{displayName: "networking.k8s.io", groupName: networkingv1.GroupName, provider: networkingrest.RESTStorageProvider{}},
 		{displayName: "storage.k8s.io", groupName: storagev1.GroupName, provider: storagerest.RESTStorageProvider{}},
+		{
+			displayName: "coordination.k8s.io", groupName: coordinationv1.GroupName,
+			provider: coordinationrest.RESTStorageProvider{},
+		},
 	}
 }
 

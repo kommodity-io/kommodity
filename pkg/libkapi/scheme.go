@@ -24,6 +24,8 @@ import (
 	_ "k8s.io/kubernetes/pkg/apis/apps/install"
 	// Registers batch/v1 types (Job, CronJob) into legacyscheme.Scheme.
 	_ "k8s.io/kubernetes/pkg/apis/batch/install"
+	// Registers coordination.k8s.io/v1 types (Lease) into legacyscheme.Scheme.
+	_ "k8s.io/kubernetes/pkg/apis/coordination/install"
 	// Registers core/v1 types (Namespace, Secret, ConfigMap, ...) into legacyscheme.Scheme.
 	_ "k8s.io/kubernetes/pkg/apis/core/install"
 	// Registers networking.k8s.io types (NetworkPolicy, Ingress, ...) into legacyscheme.Scheme.

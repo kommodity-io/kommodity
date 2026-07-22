@@ -98,11 +98,11 @@ func startKine(ctx context.Context,
 		NotifyInterval:        kineNotifyInterval,
 		EmulatedETCDVersion:   kineEmulatedETCDVersion,
 		CompactInterval:       kineCompactInterval,
-		CompactIntervalJitter:  kineCompactIntervalJitter,
+		CompactIntervalJitter: kineCompactIntervalJitter,
 		CompactTimeout:        kineCompactTimeout,
-		CompactMinRetain:       kineCompactMinRetain,
-		CompactBatchSize:       kineCompactBatchSize,
-		PollBatchSize:          kinePollBatchSize,
+		CompactMinRetain:      kineCompactMinRetain,
+		CompactBatchSize:      kineCompactBatchSize,
+		PollBatchSize:         kinePollBatchSize,
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to start embedded kine endpoint: %w", err)

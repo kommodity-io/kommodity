@@ -207,6 +207,9 @@ auth-specific alike — pass any combination, in any order.
 | `WithServiceAccount(cfg ServiceAccountConfig)`   | Adds a ServiceAccount token authenticator and starts the SA token controller (issues tokens for ServiceAccounts). Optionally persists the signing key to a Secret and watches for key rotation.        |
 | `WithAdminAuthorizer(cfg AdminAuthorizerConfig)` | Sets an authorizer that allows health endpoints (anonymous), `system:masters`, any group listed in the configured comma-delimited `AdminGroups`, and `system:serviceaccounts`; denies everything else. |
 | `WithAuthorizer(a Authorizer)`                   | Sets a custom authorizer. Use this to plug in any `k8s.io/apiserver` authorizer.                                                                                                                       |
+| `WithController(c Controller)`                   | Registers a `Controller` against the server's own privileged loopback identity. See [Controllers](#controllers). Repeatable.                                                                          |
+| `WithLeaderElection(cfg LeaderElectionConfig)`   | Enables manager-wide leader election via a `coordination.k8s.io` `Lease`. See [Controllers](#controllers).                                                                                             |
+| `WithWebhookServer(cfg WebhookConfig)`           | Enables the manager's webhook server, on its own port. See [Controllers](#controllers).                                                                                                                |
 
 #### OIDC
 
@@ -251,6 +254,85 @@ auth-specific alike — pass any combination, in any order.
 | Auth options, no `WithAuthorizer`/`WithAdminAuthorizer` | union of strategies + anonymous fallback | always-allow (logged warning) |
 | Auth options + `WithAuthorizer`/`WithAdminAuthorizer`   | union of strategies + anonymous fallback | caller's authorizer           |
 
+### Controllers
+
+`WithController` registers reconcilers and/or runnables against a single
+[controller-runtime](https://github.com/kubernetes-sigs/controller-runtime)
+`Manager` that libkapi builds, owns, and runs for the life of the `Server`,
+using the server's own privileged (`system:masters`-equivalent) loopback
+identity — the same one libkapi uses internally for its own SA token
+controller and signing-key rotation. `SetupWithManager` is called once per
+`Controller`, synchronously, during `New` — before the server starts
+serving, so it should only *register* work (reconcilers via
+`ctrl.NewControllerManagedBy(mgr)`, `Runnable`s via `mgr.Add`, webhook
+handlers via `mgr.GetWebhookServer().Register`); making an actual API call
+via `mgr.GetClient()` at that point fails, since nothing is listening on the
+network yet. Do that from a `Runnable`'s `Start` or a reconciler's
+`Reconcile` instead — both only run after `ListenAndServe` binds the
+listener.
+
+```go
+type Controller interface {
+	SetupWithManager(mgr Manager) error
+}
+```
+
+`Manager` is a re-export of `ctrl.Manager` — implementing `Controller`
+doesn't require importing `sigs.k8s.io/controller-runtime` directly.
+
+```go
+server, err := libkapi.New(ctx,
+	libkapi.WithAddr(cfg.Addr),
+	libkapi.WithStorage(cfg.Storage),
+	libkapi.WithScheme(scheme), // register MyType's GVK first
+	libkapi.WithController(myController),
+)
+```
+
+A registered `Controller`'s error (from `Reconcile` or a `Runnable.Start`)
+is logged, not fatal to the server. On `Shutdown`, the manager is stopped
+- and given a real chance to finish its own cleanup - *before* the API
+server's listener closes: a `Runnable` that watches `ctx.Done()`, does
+cleanup with a fresh `context.Background()`-derived context, and then
+returns (e.g. deleting its own registered object) will have that call
+actually land instead of racing a closed socket.
+
+#### Leader election
+
+`WithLeaderElection` enables manager-wide leader election backed by a
+`coordination.k8s.io/v1` `Lease`, using the server's own privileged loopback
+identity. Without it (the default), every registered `Controller` runs
+unmodified on every replica — they must be written to tolerate that.
+
+| Field       | Default     | Description                                     |
+| ----------- | ----------- | ------------------------------------------------ |
+| `ID`        | (required)  | Name of the `Lease` object contenders coordinate on. |
+| `Namespace` | `"default"` | The `Lease`'s namespace.                          |
+
+#### Webhooks
+
+`WithWebhookServer` enables the manager's webhook server, bound to
+`127.0.0.1` only. Any registered `Controller` can call
+`mgr.GetWebhookServer().Register(path, handler)` in its own
+`SetupWithManager` — no change to the `Controller` interface. The server
+only ever needs to answer admission/conversion calls made by the API server
+built into this same process, never a Service or any other host, so there's
+no cluster networking to configure — `WebhookConfig{}` is a valid, complete
+config on its own.
+
+| Field      | Default       | Description                                                                                                       |
+| ---------- | ------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `Port`     | `9443`        | Port the webhook server listens on.                                                                                |
+| `DNSNames` | `["localhost"]` | Subject Alternative Names embedded in the self-signed certificate `New` generates. The default matches the only hostname a caller dialing `127.0.0.1` from this host would ever use. |
+
+`New` provisions a self-signed serving certificate on startup at the fixed
+path `os.TempDir()/k8s-webhook-server/serving-certs` (controller-runtime's
+own default `CertDir`) **only if one isn't already there** — restarts reuse
+the same certificate instead of invalidating whatever `caBundle` was
+registered on a `Validating`/`MutatingWebhookConfiguration`. libkapi does
+not rotate this certificate or support supplying your own CA — both are
+natural follow-ups, not implemented in this version.
+
 ### Supported API groups
 
 The following standard Kubernetes API groups are wired using upstream
@@ -263,16 +345,17 @@ storage — at each group's GA version:
 - `rbac.authorization.k8s.io/v1` — `Role`, `RoleBinding`, `ClusterRole`, `ClusterRoleBinding`
 - `networking.k8s.io/v1` — `NetworkPolicy`, `Ingress`, `IngressClass`
 - `storage.k8s.io/v1` — `StorageClass`, `VolumeAttachment`, `CSINode`, `CSIDriver`, `CSIStorageCapacity`
+- `coordination.k8s.io/v1` — `Lease` (used by `WithLeaderElection`; see [Controllers](#controllers))
 
 Plus full `CustomResourceDefinition` support via `apiextensions-apiserver`
 and API aggregation via `kube-aggregator`.
 
 Only each group's GA version is wired; a few beta/alpha-only resources
 (for example `networking.k8s.io/v1beta1`'s `IPAddress`, `storage.k8s.io`'s
-`VolumeAttributesClass`) are not exposed. Groups beyond the six listed above
-(`admissionregistration.k8s.io`, `authorization.k8s.io`,
-`coordination.k8s.io`, `discovery.k8s.io`, and so on) are not wired at all —
-a caller needing more would need to extend `libkapi` itself.
+`VolumeAttributesClass`) are not exposed. Groups beyond the seven listed
+above (`admissionregistration.k8s.io`, `authorization.k8s.io`,
+`discovery.k8s.io`, and so on) are not wired at all — a caller needing more
+would need to extend `libkapi` itself.
 
 ## Reference
 
@@ -345,3 +428,4 @@ was never called.
 | `ErrOIDCIssuerRequired`          | `WithOIDC` is called with an empty `IssuerURL`.                                                                   |
 | `ErrOIDCClientIDRequired`        | `WithOIDC` is called with an empty `ClientID`.                                                                    |
 | `ErrAdminGroupRequired`          | `WithAdminAuthorizer` is called with an `AdminGroups` that contains no non-empty group after splitting on commas. |
+| `ErrLeaderElectionIDRequired`    | `WithLeaderElection` is called with an empty `ID`.                                                                |

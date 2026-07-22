@@ -4,10 +4,10 @@ import (
 	"context"
 	"net/http"
 
-	"k8s.io/apiserver/pkg/authentication/authenticator"
-	"k8s.io/apiserver/pkg/authentication/user"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apiserver/pkg/authentication/authenticator"
+	"k8s.io/apiserver/pkg/authentication/user"
 	"k8s.io/apiserver/pkg/authorization/authorizer"
 )
 
@@ -52,23 +52,23 @@ type fakeAttributes struct {
 	namespace  string
 }
 
-func (a *fakeAttributes) GetUser() user.Info            { return a.user }
-func (a *fakeAttributes) GetVerb() string                { return a.verb }
+func (a *fakeAttributes) GetUser() user.Info { return a.user }
+func (a *fakeAttributes) GetVerb() string    { return a.verb }
 func (a *fakeAttributes) IsReadOnly() bool {
 	return a.verb == "get" || a.verb == "list" || a.verb == "watch"
 }
 
-func (a *fakeAttributes) GetNamespace() string          { return a.namespace }
-func (a *fakeAttributes) GetResource() string            { return a.resource }
-func (a *fakeAttributes) GetSubresource() string        { return "" }
-func (a *fakeAttributes) GetName() string                { return "" }
-func (a *fakeAttributes) GetAPIGroup() string             { return "" }
-func (a *fakeAttributes) GetAPIVersion() string          { return "" }
-func (a *fakeAttributes) IsResourceRequest() bool         { return a.isResource }
-func (a *fakeAttributes) GetPath() string                 { return a.path }
-func (a *fakeAttributes) GetHTTPRequest() *http.Request   { return nil }
+func (a *fakeAttributes) GetNamespace() string                           { return a.namespace }
+func (a *fakeAttributes) GetResource() string                            { return a.resource }
+func (a *fakeAttributes) GetSubresource() string                         { return "" }
+func (a *fakeAttributes) GetName() string                                { return "" }
+func (a *fakeAttributes) GetAPIGroup() string                            { return "" }
+func (a *fakeAttributes) GetAPIVersion() string                          { return "" }
+func (a *fakeAttributes) IsResourceRequest() bool                        { return a.isResource }
+func (a *fakeAttributes) GetPath() string                                { return a.path }
+func (a *fakeAttributes) GetHTTPRequest() *http.Request                  { return nil }
 func (a *fakeAttributes) GetFieldSelector() (fields.Requirements, error) { return nil, nil }
-func (a *fakeAttributes) GetLabelSelector() (labels.Requirements, error)  { return nil, nil }
+func (a *fakeAttributes) GetLabelSelector() (labels.Requirements, error) { return nil, nil }
 
 // Ensure the interfaces are satisfied.
 var (

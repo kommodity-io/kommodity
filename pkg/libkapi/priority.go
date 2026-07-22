@@ -17,9 +17,9 @@ type apiServicePriority struct {
 // versions libkapi actually installs (see standardAPIGroups and
 // setupAPIExtensionConfig) - unlike upstream k8s.io/kube-aggregator's own
 // table, which also covers built-in groups this library doesn't wire
-// (events.k8s.io, coordination.k8s.io, flowcontrol.apiserver.k8s.io, ...).
-// makeAPIService silently skips registering any group-version missing here,
-// so add an entry whenever installStandardAPIGroups grows a new group.
+// (events.k8s.io, flowcontrol.apiserver.k8s.io, ...). makeAPIService
+// silently skips registering any group-version missing here, so add an
+// entry whenever installStandardAPIGroups grows a new group.
 //
 //nolint:mnd // Priority values copied from k8s.io/kube-aggregator/pkg/apiserver/priority.go
 func defaultGenericAPIServicePriorities() map[schema.GroupVersion]apiServicePriority {
@@ -30,6 +30,7 @@ func defaultGenericAPIServicePriorities() map[schema.GroupVersion]apiServicePrio
 		{Group: "rbac.authorization.k8s.io", Version: "v1"}: {Group: 17000, Version: 15},
 		{Group: "networking.k8s.io", Version: "v1"}:         {Group: 17200, Version: 15},
 		{Group: "apiextensions.k8s.io", Version: "v1"}:      {Group: 16700, Version: 15},
+		{Group: "coordination.k8s.io", Version: "v1"}:       {Group: 16500, Version: 15},
 		{Group: "storage.k8s.io", Version: "v1"}:            {Group: 15700, Version: 9},
 	}
 }

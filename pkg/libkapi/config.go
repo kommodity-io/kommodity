@@ -30,13 +30,16 @@ type TLSConfig struct {
 // config holds resolved state from all applied Options. Unexported: callers
 // build it up via New's variadic Option list, never directly.
 type config struct {
-	addr     string
-	storage  string
-	logger   *slog.Logger
-	tls      *TLSConfig
-	handlers []HTTPHandlerFactory
-	scheme   *runtime.Scheme
-	authOpts []auth.Option
+	addr           string
+	storage        string
+	logger         *slog.Logger
+	tls            *TLSConfig
+	handlers       []HTTPHandlerFactory
+	scheme         *runtime.Scheme
+	authOpts       []auth.Option
+	controllers    []Controller
+	leaderElection *LeaderElectionConfig
+	webhook        *WebhookConfig
 }
 
 // resolvedAddr returns cfg.addr, or a PORT-env-var/default-derived fallback.

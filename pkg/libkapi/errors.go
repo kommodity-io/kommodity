@@ -46,4 +46,6 @@ var (
 	// not support.
 	ErrServiceResolutionUnsupported = errors.New(
 		"service resolution is not supported in libkapi: no Service or Endpoints resources are wired")
+	// ErrLeaderElectionIDRequired is returned when WithLeaderElection is called with an empty ID.
+	ErrLeaderElectionIDRequired = errors.New("leader election ID is required when using WithLeaderElection")
 )

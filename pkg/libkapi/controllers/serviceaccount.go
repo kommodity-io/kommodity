@@ -41,13 +41,13 @@ type ServiceAccountSetupHookConfig struct {
 }
 
 // NewServiceAccountSetupHook builds a PostStartHookFunc that:
-// 1. Resolves the signing key by loading it from the persisted Secret, or
-//    generating a new key and creating the Secret if it doesn't exist.
-// 2. Builds the SA authenticator with the resolved key.
-// 3. Swaps in the final union authenticator (OIDC + SA + anonymous) via
-//    SetAuthenticator.
-// 4. Starts the SA token controller.
-// 5. Sets up signing key rotation watch (if KeyPersistence is set).
+//  1. Resolves the signing key by loading it from the persisted Secret, or
+//     generating a new key and creating the Secret if it doesn't exist.
+//  2. Builds the SA authenticator with the resolved key.
+//  3. Swaps in the final union authenticator (OIDC + SA + anonymous) via
+//     SetAuthenticator.
+//  4. Starts the SA token controller.
+//  5. Sets up signing key rotation watch (if KeyPersistence is set).
 //
 // This hook is used when SigningKey is nil and KeyPersistence is set,
 // so the key can be loaded from the persisted Secret after the server

@@ -16,6 +16,7 @@ import (
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	aggregatorapiserver "k8s.io/kube-aggregator/pkg/apiserver"
+	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/kommodity-io/kommodity/pkg/libkapi/auth"
 	"github.com/kommodity-io/kommodity/pkg/libkapi/controllers"
@@ -43,6 +44,13 @@ type Server struct {
 	aggregator   *aggregatorapiserver.APIAggregator
 	storageClose func()
 	logger       *slog.Logger
+
+	// mgr is nil unless at least one Controller was registered via
+	// WithController. mgrCancel and mgrDone are set by ListenAndServe, only
+	// when mgr is non-nil - see the Manager lifecycle doc on ListenAndServe.
+	mgr       ctrl.Manager
+	mgrCancel context.CancelFunc
+	mgrDone   chan struct{}
 }
 
 // newMu serializes New() across concurrent calls. Constructing a Server
@@ -114,6 +122,7 @@ func New(ctx context.Context, opts ...Option) (*Server, error) {
 	serverLogger := logger.With("component", "server")
 	authLogger := logger.With("component", "auth")
 	controllersLogger := logger.With("component", "controllers")
+	managerLogger := logger.With("component", "controller-manager")
 
 	authCfg, err := auth.Resolve(ctx, cfg.authOpts, authLogger)
 	if err != nil {
@@ -131,7 +140,7 @@ func New(ctx context.Context, opts ...Option) (*Server, error) {
 	// runtime when the hook actually runs - it is not, and should not be,
 	// derived from this constructor's ctx.
 	//nolint:contextcheck
-	server, err := buildServer(cfg, addr, handle, authCfg, controllersLogger, serverLogger)
+	server, err := buildServer(cfg, addr, handle, authCfg, controllersLogger, managerLogger, serverLogger)
 	if err != nil {
 		handle.Close()
 
@@ -145,7 +154,7 @@ func New(ctx context.Context, opts ...Option) (*Server, error) {
 
 func buildServer(cfg config, addr string, handle *storage.Handle,
 	authCfg *auth.ResolvedConfig, controllersLogger *slog.Logger,
-	logger *slog.Logger) (*Server, error) {
+	managerLogger *slog.Logger, logger *slog.Logger) (*Server, error) {
 	scheme, codecs, err := newScheme(cfg.scheme)
 	if err != nil {
 		return nil, err
@@ -179,6 +188,13 @@ func buildServer(cfg config, addr string, handle *storage.Handle,
 		return nil, err
 	}
 
+	// buildManager uses the exact same scheme and loopback identity as the
+	// REST layer above - see the Manager lifecycle doc on ListenAndServe.
+	mgr, err := buildManager(cfg, genericServerConfig.LoopbackClientConfig, scheme, managerLogger)
+	if err != nil {
+		return nil, err
+	}
+
 	aggregator, mux, err := buildDelegationChain(cfg, genericServerConfig, codecs, groups, handle.Endpoints())
 	if err != nil {
 		return nil, err
@@ -194,6 +210,7 @@ func buildServer(cfg config, addr string, handle *storage.Handle,
 		aggregator:   aggregator,
 		storageClose: handle.Close,
 		logger:       logger,
+		mgr:          mgr,
 	}, nil
 }
 
@@ -253,12 +270,12 @@ func resolveDeferredSAAuth(
 
 	setupHook, err := controllers.NewServiceAccountSetupHook(
 		controllers.ServiceAccountSetupHookConfig{
-			SACfg:           authCfg.SAConfig,
-			OIDCAuth:        authCfg.OIDCAuthenticator,
+			SACfg:            authCfg.SAConfig,
+			OIDCAuth:         authCfg.OIDCAuthenticator,
 			SetAuthenticator: dynAuth.Set,
-			LoopbackConfig:  genericServerConfig.LoopbackClientConfig,
-			InformerFactory: genericServerConfig.SharedInformerFactory,
-			Logger:          controllersLogger,
+			LoopbackConfig:   genericServerConfig.LoopbackClientConfig,
+			InformerFactory:  genericServerConfig.SharedInformerFactory,
+			Logger:           controllersLogger,
 		},
 	)
 	if err != nil {
@@ -458,7 +475,10 @@ func buildDelegationChain(
 
 // ListenAndServe binds the listener and blocks until ctx is canceled,
 // Shutdown is called, or an unrecoverable error occurs. Canceling ctx
-// gracefully shuts down both the HTTP server and the apiserver run loop.
+// gracefully shuts down both the HTTP server and the apiserver run loop. If
+// any Controller was registered via WithController, this also starts the
+// controller manager (reconcilers, Runnables, and - if configured - the
+// webhook server and leader election).
 func (s *Server) ListenAndServe(ctx context.Context) error {
 	s.mu.Lock()
 	if s.cancelRun != nil {
@@ -483,6 +503,10 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 
 		return fmt.Errorf("failed to listen on %q: %w", s.addr, err)
 	}
+
+	// startManager's mgrCtx is intentionally not derived from ctx - see its doc.
+	//nolint:contextcheck
+	s.startManager()
 
 	// NonBlockingRunWithContext starts the apiserver's post-start hooks
 	// (controllers, informers, auto-registration) and returns immediately.
@@ -536,9 +560,12 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 	return nil
 }
 
-// Shutdown gracefully stops the HTTP listener, the apiserver's background run
-// loop, and (if cfg.Storage spawned one) the embedded Kine endpoint, waiting
-// for each to actually finish.
+// Shutdown gracefully stops the controller manager (if any Controller was
+// registered), the HTTP listener, the apiserver's background run loop, and
+// (if cfg.Storage spawned one) the embedded Kine endpoint, waiting for each
+// to actually finish, in that order - the manager is stopped, and given a
+// real chance to finish its own cleanup, before the API server listener
+// closes underneath it.
 func (s *Server) Shutdown(ctx context.Context) error {
 	s.mu.Lock()
 	cancel := s.cancelRun
@@ -547,6 +574,19 @@ func (s *Server) Shutdown(ctx context.Context) error {
 
 	if cancel == nil {
 		return ErrServerNotStarted
+	}
+
+	// Stop the controller manager, and wait for it to fully finish, before
+	// touching the API server or its listener - see the ordering rationale
+	// on ListenAndServe. Bounded by ctx so Shutdown doesn't hang forever if
+	// the caller's ctx already carries a short deadline.
+	if s.mgr != nil {
+		s.mgrCancel()
+
+		select {
+		case <-s.mgrDone:
+		case <-ctx.Done():
+		}
 	}
 
 	cancel()
@@ -569,4 +609,31 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// startManager starts the controller manager, if any Controller was
+// registered via WithController, once the listener is bound. mgrCtx is
+// deliberately derived from context.Background(), not ListenAndServe's own
+// runCtx/ctx: Shutdown cancels it and waits for mgr.Start to return *before*
+// tearing down the API server listener, so a Controller's own shutdown
+// cleanup (e.g. deleting its own object, watching ctx.Done() and using a
+// fresh context) has a real chance to land instead of racing a closed
+// socket.
+func (s *Server) startManager() {
+	if s.mgr == nil {
+		return
+	}
+
+	mgrCtx, mgrCancel := context.WithCancel(context.Background())
+	s.mgrCancel = mgrCancel
+	s.mgrDone = make(chan struct{})
+
+	go func() {
+		defer close(s.mgrDone)
+
+		mgrErr := s.mgr.Start(mgrCtx)
+		if mgrErr != nil {
+			s.logger.Error("Controller manager exited with an error", "error", mgrErr)
+		}
+	}()
 }
