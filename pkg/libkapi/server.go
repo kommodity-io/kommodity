@@ -111,14 +111,19 @@ func New(ctx context.Context, opts ...Option) (*Server, error) {
 	addr := cfg.resolvedAddr()
 	logger := cfg.resolvedLogger()
 
-	// Bridge klog, gRPC, and logrus loggers to the consumer's slog
-	// logger before any k8s, gRPC, or kine package starts logging. The
-	// Kubernetes packages libkapi embeds use klog internally; gRPC (used
-	// by the etcd3 client and kine) uses grpclog; kine uses logrus.
-	// Without these bridges, their output goes to their default stderr
-	// writers instead of the consumer's logger. Must happen before
-	// auth.Resolve, storage.Resolve, and buildServer so that resolution
-	// and construction logs are also captured.
+	// Bridge klog, gRPC, logrus, and controller-runtime loggers to the
+	// consumer's slog logger before any k8s, gRPC, kine, or
+	// controller-runtime package starts logging. The Kubernetes packages
+	// libkapi embeds use klog internally; gRPC (used by the etcd3 client
+	// and kine) uses grpclog; kine uses logrus; sigs.k8s.io/controller-runtime
+	// (used by WithController's Manager, and by any consumer calling it
+	// directly, e.g. a plain client.New(...)) uses its own global logr
+	// sink. Without these bridges, their output goes to their default
+	// stderr writers - or, for controller-runtime specifically, is
+	// silently discarded with a one-time "log.SetLogger(...) was never
+	// called" warning - instead of the consumer's logger. Must happen
+	// before auth.Resolve, storage.Resolve, and buildServer so that
+	// resolution and construction logs are also captured.
 	//
 	// The gRPC adapter demotes INFO/WARNING to slog.Debug so connection
 	// lifecycle messages don't clutter normal output. The logrus
@@ -128,6 +133,7 @@ func New(ctx context.Context, opts ...Option) (*Server, error) {
 	InstallKlogAdapter(logger)
 	InstallGRPCLogAdapter(logger)
 	InstallLogrusAdapter(logger)
+	InstallControllerRuntimeLogAdapter(logger)
 
 	// Create subloggers with a component field so log output is attributable
 	// to the subsystem that produced it.

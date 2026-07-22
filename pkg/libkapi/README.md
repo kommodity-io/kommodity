@@ -146,11 +146,12 @@ returning.
 ### Logging
 
 `WithLogger` is the single logging entry point: pass a `*slog.Logger` and all
-log output — libkapi's own messages **and** klog output from the embedded
+log output — libkapi's own messages, klog output from the embedded
 Kubernetes packages (apiserver, apiextensions-apiserver, kube-aggregator,
-client-go) — is routed through it. `New` bridges klog to the slog logger
-automatically via `InstallKlogAdapter`, so the consumer never needs to
-configure klog separately.
+client-go), and `sigs.k8s.io/controller-runtime`'s own log output — is
+routed through it. `New` bridges all of these to the slog logger
+automatically via `InstallKlogAdapter` and `InstallControllerRuntimeLogAdapter`,
+so the consumer never needs to configure either separately.
 
 ```go
 libkapi.WithLogger(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
@@ -158,9 +159,19 @@ libkapi.WithLogger(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
 })))
 ```
 
-The bridge is process-global (klog has a single backing logger), so the last
-`New` call wins. Callers that need a different klog configuration can call
-`libkapi.InstallKlogAdapter(logger)` themselves, before or after `New`.
+The klog bridge is process-global (klog has a single backing logger), so the
+last `New` call wins; callers that need a different klog configuration can
+call `libkapi.InstallKlogAdapter(logger)` themselves, before or after `New`.
+
+The controller-runtime bridge is also process-global, but — unlike klog —
+`sigs.k8s.io/controller-runtime/pkg/log.SetLogger` only takes effect on its
+*first* call for the life of the process; later calls (including a second
+`New`) are silently ignored by upstream. Without this bridge, any
+`sigs.k8s.io/controller-runtime` usage in the process — not just libkapi's
+own `WithController` manager, but also a consumer calling
+`sigs.k8s.io/controller-runtime/pkg/client.New` directly — prints a one-time
+`log.SetLogger(...) was never called; logs will not be displayed` warning
+and discards its log output.
 
 ### Authentication
 
@@ -409,6 +420,18 @@ Kubernetes packages route their log output through `logger` instead of
 klog's default stderr writer. Called automatically by `New`; also safe to
 call independently. If `logger` is nil, `slog.Default()` is used. The
 bridge is process-global (klog has a single backing logger).
+
+### `func InstallControllerRuntimeLogAdapter(logger *slog.Logger)`
+
+Bridges `sigs.k8s.io/controller-runtime`'s global logr sink to the
+consumer's slog logger, so any controller-runtime usage in the process —
+`WithController`'s manager, or a consumer calling
+`sigs.k8s.io/controller-runtime/pkg/client.New` directly — logs through
+`logger` instead of printing a one-time `log.SetLogger(...) was never
+called` warning and discarding its output. Called automatically by `New`.
+If `logger` is nil, `slog.Default()` is used. The bridge is process-global
+and takes effect only on its first call for the life of the process — see
+[Logging](#logging).
 
 ### `type TLSConfig struct`
 
