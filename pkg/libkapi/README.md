@@ -210,6 +210,8 @@ auth-specific alike — pass any combination, in any order.
 | `WithController(c Controller)`                   | Registers a `Controller` against the server's own privileged loopback identity. See [Controllers](#controllers). Repeatable.                                                                          |
 | `WithLeaderElection(cfg LeaderElectionConfig)`   | Enables manager-wide leader election via a `coordination.k8s.io` `Lease`. See [Controllers](#controllers).                                                                                             |
 | `WithWebhookServer(cfg WebhookConfig)`           | Enables the manager's webhook server, on its own port. See [Controllers](#controllers).                                                                                                                |
+| `WithPostStartHook(fn PostStartHookFunc)`        | Registers a function to run once the listener is bound, before the controller manager starts. See [Post-start and pre-shutdown hooks](#post-start-and-pre-shutdown-hooks). Repeatable.                |
+| `WithPreShutdownHook(fn PreShutdownHookFunc)`    | Registers a function to run once during `Shutdown`, before the listener closes. See [Post-start and pre-shutdown hooks](#post-start-and-pre-shutdown-hooks). Repeatable.                               |
 
 #### OIDC
 
@@ -332,6 +334,36 @@ the same certificate instead of invalidating whatever `caBundle` was
 registered on a `Validating`/`MutatingWebhookConfiguration`. libkapi does
 not rotate this certificate or support supplying your own CA — both are
 natural follow-ups, not implemented in this version.
+
+### Post-start and pre-shutdown hooks
+
+`WithPostStartHook` and `WithPreShutdownHook` are a lighter-weight
+alternative to [`WithController`](#controllers) for simple background work
+(e.g. a heartbeat loop) that needs the server's privileged loopback identity
+but not a full `Controller`/`Manager` — no scheme registration, no
+reconciler/`Runnable` boilerplate, just a function.
+
+```go
+type PostStartHookFunc func(ctx context.Context, loopbackConfig *rest.Config) error
+type PreShutdownHookFunc func(ctx context.Context, loopbackConfig *rest.Config) error
+```
+
+- `WithPostStartHook` registrations run once, synchronously, in registration
+  order, after `ListenAndServe`'s listener is bound and before the
+  controller manager (if any) starts. A hook's error fails `ListenAndServe`
+  with an ordinary Go error — unlike a failing `k8s.io/apiserver`-native
+  post-start hook, which calls `klog.Fatal` and kills the process.
+- `WithPreShutdownHook` registrations run once, synchronously, in
+  registration order, during `Shutdown` — after the controller manager (if
+  any) has stopped, but before the listener closes, so a hook still has a
+  real chance to make one last privileged API call. Bounded by `Shutdown`'s
+  own `ctx`, the same way the controller manager's stop is: a hook that
+  ignores `ctx` only delays `Shutdown`, it never hangs it forever. A hook's
+  error is logged, not fatal.
+
+Both are passed the same privileged (`system:masters`-equivalent)
+`loopbackConfig` `Controller`/`Manager` use internally, so a hook can build
+whatever client it needs (`kubernetes.NewForConfig`, `client.New`, etc.).
 
 ### Supported API groups
 

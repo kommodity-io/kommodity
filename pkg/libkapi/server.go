@@ -14,6 +14,7 @@ import (
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	genericapiserver "k8s.io/apiserver/pkg/server"
+	restclient "k8s.io/client-go/rest"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	aggregatorapiserver "k8s.io/kube-aggregator/pkg/apiserver"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -51,6 +52,17 @@ type Server struct {
 	mgr       ctrl.Manager
 	mgrCancel context.CancelFunc
 	mgrDone   chan struct{}
+
+	// loopbackConfig is the server's own privileged (system:masters-equivalent)
+	// identity, handed to each PostStartHookFunc/PreShutdownHookFunc - the
+	// same config Controller/Manager use internally (see buildManager).
+	loopbackConfig *restclient.Config
+
+	// postStartHooks and preShutdownHooks are the WithPostStartHook/
+	// WithPreShutdownHook registrations, run by ListenAndServe and Shutdown
+	// respectively - see their own docs.
+	postStartHooks   []PostStartHookFunc
+	preShutdownHooks []PreShutdownHookFunc
 }
 
 // newMu serializes New() across concurrent calls. Constructing a Server
@@ -207,10 +219,13 @@ func buildServer(cfg config, addr string, handle *storage.Handle,
 			Handler:           mux,
 			ReadHeaderTimeout: readHeaderTimeout,
 		},
-		aggregator:   aggregator,
-		storageClose: handle.Close,
-		logger:       logger,
-		mgr:          mgr,
+		aggregator:       aggregator,
+		storageClose:     handle.Close,
+		logger:           logger,
+		mgr:              mgr,
+		loopbackConfig:   genericServerConfig.LoopbackClientConfig,
+		postStartHooks:   cfg.postStartHooks,
+		preShutdownHooks: cfg.preShutdownHooks,
 	}, nil
 }
 
@@ -475,10 +490,12 @@ func buildDelegationChain(
 
 // ListenAndServe binds the listener and blocks until ctx is canceled,
 // Shutdown is called, or an unrecoverable error occurs. Canceling ctx
-// gracefully shuts down both the HTTP server and the apiserver run loop. If
-// any Controller was registered via WithController, this also starts the
-// controller manager (reconcilers, Runnables, and - if configured - the
-// webhook server and leader election).
+// gracefully shuts down both the HTTP server and the apiserver run loop.
+// Once the listener is bound, any WithPostStartHook registrations run, in
+// order; a hook's error fails ListenAndServe. If any Controller was
+// registered via WithController, this also starts the controller manager
+// (reconcilers, Runnables, and - if configured - the webhook server and
+// leader election).
 func (s *Server) ListenAndServe(ctx context.Context) error {
 	s.mu.Lock()
 	if s.cancelRun != nil {
@@ -495,54 +512,17 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 
 	listener, err := listenConfig.Listen(ctx, "tcp", s.addr)
 	if err != nil {
-		s.mu.Lock()
-		s.cancelRun = nil
-		s.mu.Unlock()
-
-		cancel()
-
-		return fmt.Errorf("failed to listen on %q: %w", s.addr, err)
+		return s.abortListenAndServe(cancel, fmt.Errorf("failed to listen on %q: %w", s.addr, err))
 	}
-
-	// startManager's mgrCtx is intentionally not derived from ctx - see its doc.
-	//nolint:contextcheck
-	s.startManager()
-
-	// NonBlockingRunWithContext starts the apiserver's post-start hooks
-	// (controllers, informers, auto-registration) and returns immediately.
-	// We use this instead of RunWithContext because RunWithContext blocks
-	// forever on nil stoppedCh/listenerStoppedCh channels when
-	// SecureServingInfo is nil (our design), which would prevent Shutdown
-	// from ever completing. The context passed here controls when the
-	// post-start hooks' goroutines are stopped.
-	// PrepareRun installs /healthz, /livez, /readyz and OpenAPI routes on
-	// the PathRecorderMux; it must be called exactly once (calling it
-	// twice produces "duplicate path registration" errors).
-	prepared := s.aggregator.GenericAPIServer.PrepareRun()
-
-	_, _, err = prepared.NonBlockingRunWithContext(runCtx, readHeaderTimeout)
-	if err != nil {
-		s.mu.Lock()
-		s.cancelRun = nil
-		s.mu.Unlock()
-
-		cancel()
-
-		return fmt.Errorf("failed to start apiserver: %w", err)
-	}
-
-	// The run loop goroutine waits for the context to be canceled, so
-	// Shutdown can track it with runWg and know the apiserver's background
-	// work has been signaled to stop before returning.
-	s.runWg.Go(func() {
-		<-runCtx.Done()
-	})
 
 	// If the caller's ctx is canceled (rather than Shutdown being called
 	// explicitly), gracefully shut down the HTTP server so Serve unblocks
 	// instead of serving indefinitely. The shutdown context is derived
 	// from context.Background (via WithoutCancel) because runCtx is
-	// already canceled at that point.
+	// already canceled at that point. Registered before Serve even starts,
+	// so any of the early-return failure paths below (which all cancel
+	// runCtx to unwind) reliably stop the Serve goroutine too, instead of
+	// leaking it.
 	go func() {
 		<-runCtx.Done()
 
@@ -552,7 +532,65 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 		_ = s.httpServer.Shutdown(shutdownCtx)
 	}()
 
-	err = s.httpServer.Serve(listener)
+	// Serve must actually be running - not just listener bound - before
+	// anything (a WithPostStartHook, a Controller's Runnable) can reach this
+	// server over the network: the listener being bound only means the OS
+	// will accept the TCP handshake into its backlog, nothing reads or
+	// responds on it until Serve's Accept loop is running. So Serve starts
+	// here, in its own goroutine, before post-start hooks, the apiserver's
+	// own internal post-start hooks, and the manager - all of which may need
+	// to call back into this same server - rather than being called
+	// synchronously at the very end as it used to be.
+	serveErr := make(chan error, 1)
+
+	go func() {
+		serveErr <- s.httpServer.Serve(listener)
+	}()
+
+	// Run any WithPostStartHook registrations - in registration order,
+	// synchronously - before NonBlockingRunWithContext below starts the
+	// apiserver's own internal post-start hooks (informers, auto-
+	// registration) and before the controller manager starts. Deliberately
+	// placed before NonBlockingRunWithContext, not after: canceling runCtx
+	// to unwind a failed hook (below) would otherwise race those
+	// already-running internal hooks, which treat runCtx cancellation
+	// exactly like a timeout and call klog.Fatal on it (see
+	// PostStartHookFunc's doc) - the very crash this whole mechanism exists
+	// to let callers avoid.
+	err = s.runPostStartHooks(runCtx)
+	if err != nil {
+		return s.abortListenAndServe(cancel, fmt.Errorf("post-start hook failed: %w", err))
+	}
+
+	// NonBlockingRunWithContext starts the apiserver's own internal
+	// post-start hooks (controllers, informers, auto-registration) and
+	// returns immediately. We use this instead of RunWithContext because
+	// RunWithContext blocks forever on nil stoppedCh/listenerStoppedCh
+	// channels when SecureServingInfo is nil (our design), which would
+	// prevent Shutdown from ever completing. The context passed here
+	// controls when the post-start hooks' goroutines are stopped.
+	// PrepareRun installs /healthz, /livez, /readyz and OpenAPI routes on
+	// the PathRecorderMux; it must be called exactly once (calling it
+	// twice produces "duplicate path registration" errors).
+	prepared := s.aggregator.GenericAPIServer.PrepareRun()
+
+	_, _, err = prepared.NonBlockingRunWithContext(runCtx, readHeaderTimeout)
+	if err != nil {
+		return s.abortListenAndServe(cancel, fmt.Errorf("failed to start apiserver: %w", err))
+	}
+
+	// The run loop goroutine waits for the context to be canceled, so
+	// Shutdown can track it with runWg and know the apiserver's background
+	// work has been signaled to stop before returning.
+	s.runWg.Go(func() {
+		<-runCtx.Done()
+	})
+
+	// startManager's mgrCtx is intentionally not derived from ctx - see its doc.
+	//nolint:contextcheck
+	s.startManager()
+
+	err = <-serveErr
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return fmt.Errorf("http server exited: %w", err)
 	}
@@ -561,15 +599,18 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 }
 
 // Shutdown gracefully stops the controller manager (if any Controller was
-// registered), the HTTP listener, the apiserver's background run loop, and
-// (if cfg.Storage spawned one) the embedded Kine endpoint, waiting for each
-// to actually finish, in that order - the manager is stopped, and given a
-// real chance to finish its own cleanup, before the API server listener
-// closes underneath it.
+// registered), runs any WithPreShutdownHook registrations, the HTTP
+// listener, the apiserver's background run loop, and (if cfg.Storage
+// spawned one) the embedded Kine endpoint, waiting for each to actually
+// finish, in that order - the manager is stopped and the pre-shutdown hooks
+// run, each given a real chance to finish its own cleanup, before the API
+// server listener closes underneath them.
 func (s *Server) Shutdown(ctx context.Context) error {
 	s.mu.Lock()
 	cancel := s.cancelRun
 	s.cancelRun = nil
+	mgrCancel := s.mgrCancel
+	mgrDone := s.mgrDone
 	s.mu.Unlock()
 
 	if cancel == nil {
@@ -578,16 +619,26 @@ func (s *Server) Shutdown(ctx context.Context) error {
 
 	// Stop the controller manager, and wait for it to fully finish, before
 	// touching the API server or its listener - see the ordering rationale
-	// on ListenAndServe. Bounded by ctx so Shutdown doesn't hang forever if
-	// the caller's ctx already carries a short deadline.
-	if s.mgr != nil {
-		s.mgrCancel()
+	// on ListenAndServe. mgrCancel/mgrDone are still nil if ListenAndServe
+	// hasn't reached startManager yet (e.g. it's still running a slow
+	// WithPostStartHook) - nothing to stop in that case; cancel() below
+	// still unblocks a well-behaved hook that's watching runCtx. Bounded by
+	// ctx so Shutdown doesn't hang forever if the caller's ctx already
+	// carries a short deadline.
+	if mgrCancel != nil {
+		mgrCancel()
 
 		select {
-		case <-s.mgrDone:
+		case <-mgrDone:
 		case <-ctx.Done():
 		}
 	}
+
+	// Run any WithPreShutdownHook registrations - in registration order,
+	// while the listener is still open - before touching it. Bounded by ctx
+	// the same way the manager's own stop is, above: a hook that ignores ctx
+	// only delays Shutdown, it never hangs it forever.
+	s.runPreShutdownHooks(ctx)
 
 	cancel()
 
@@ -611,6 +662,21 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	return nil
 }
 
+// abortListenAndServe unwinds a failed startup attempt: clears cancelRun so
+// a later ListenAndServe/Shutdown call doesn't see a stale started state,
+// then cancels runCtx - unblocking the shutdown-watcher goroutine already
+// registered in ListenAndServe by this point, so the listener and Serve
+// goroutine it started don't leak - before returning err.
+func (s *Server) abortListenAndServe(cancel context.CancelFunc, err error) error {
+	s.mu.Lock()
+	s.cancelRun = nil
+	s.mu.Unlock()
+
+	cancel()
+
+	return err
+}
+
 // startManager starts the controller manager, if any Controller was
 // registered via WithController, once the listener is bound. mgrCtx is
 // deliberately derived from context.Background(), not ListenAndServe's own
@@ -625,15 +691,71 @@ func (s *Server) startManager() {
 	}
 
 	mgrCtx, mgrCancel := context.WithCancel(context.Background())
+	mgrDone := make(chan struct{})
+
+	// mgrCancel/mgrDone are written under s.mu because Shutdown may read
+	// them concurrently, from a different goroutine, at any time after
+	// ListenAndServe starts - including before startManager has run.
+	s.mu.Lock()
 	s.mgrCancel = mgrCancel
-	s.mgrDone = make(chan struct{})
+	s.mgrDone = mgrDone
+	s.mu.Unlock()
 
 	go func() {
-		defer close(s.mgrDone)
+		defer close(mgrDone)
 
 		mgrErr := s.mgr.Start(mgrCtx)
 		if mgrErr != nil {
 			s.logger.Error("Controller manager exited with an error", "error", mgrErr)
 		}
 	}()
+}
+
+// runPostStartHooks runs each WithPostStartHook registration, in
+// registration order, synchronously - unlike k8s.io/apiserver's own
+// PostStartHook mechanism, which runs all of its hooks concurrently, in
+// unspecified order, and calls klog.Fatal on error (see PostStartHookFunc's
+// doc). A failing hook here returns an ordinary error instead, so
+// ListenAndServe can fail startup without crashing the process.
+func (s *Server) runPostStartHooks(ctx context.Context) error {
+	for i, hook := range s.postStartHooks {
+		err := hook(ctx, s.loopbackConfig)
+		if err != nil {
+			return fmt.Errorf("post-start hook %d failed: %w", i, err)
+		}
+	}
+
+	return nil
+}
+
+// runPreShutdownHooks runs each WithPreShutdownHook registration, in
+// registration order, in its own goroutine, while the API server's listener
+// is still open - giving each hook a real chance to make one last
+// privileged API call. Bounded by ctx, the same way Shutdown bounds its wait
+// for the controller manager: a hook that ignores ctx only delays Shutdown,
+// it never hangs it forever. A hook's error is logged, not fatal - Shutdown
+// must still finish tearing down the rest of the server regardless of any
+// one cleanup step's failure.
+func (s *Server) runPreShutdownHooks(ctx context.Context) {
+	if len(s.preShutdownHooks) == 0 {
+		return
+	}
+
+	done := make(chan struct{})
+
+	go func() {
+		defer close(done)
+
+		for i, hook := range s.preShutdownHooks {
+			err := hook(ctx, s.loopbackConfig)
+			if err != nil {
+				s.logger.Error("Pre-shutdown hook failed", "index", i, "error", err)
+			}
+		}
+	}()
+
+	select {
+	case <-done:
+	case <-ctx.Done():
+	}
 }
