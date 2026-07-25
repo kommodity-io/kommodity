@@ -2,11 +2,20 @@ module github.com/kommodity-io/kommodity
 
 go 1.26.1
 
-tool github.com/golangci/golangci-lint/v2/cmd/golangci-lint
+tool (
+	github.com/golangci/golangci-lint/v2/cmd/golangci-lint
+	k8s.io/kube-openapi/cmd/openapi-gen
+)
 
 replace github.com/google/cel-go => github.com/google/cel-go v0.22.0
 
 replace k8s.io/kube-controller-manager => k8s.io/kube-controller-manager v0.32.6
+
+// k8s.io/kubernetes's go.mod replaces this with its own staging directory
+// (./staging/src/k8s.io/cri-client), which is unavailable to external
+// consumers; pin it to the published version matching our k8s.io/kubernetes
+// v1.32.6 dependency instead.
+replace k8s.io/cri-client => k8s.io/cri-client v0.32.6
 
 require (
 	github.com/Masterminds/sprig/v3 v3.3.0
@@ -34,6 +43,7 @@ require (
 	k8s.io/apiserver v0.32.6
 	k8s.io/client-go v0.32.6
 	k8s.io/component-base v0.32.6
+	k8s.io/klog/v2 v2.130.1
 	k8s.io/kube-aggregator v0.32.3
 	k8s.io/kube-openapi v0.0.0-20250701173324-9bd5c66d9911
 	k8s.io/kubernetes v1.32.6
@@ -47,6 +57,11 @@ require (
 	sigs.k8s.io/controller-runtime v0.20.4
 	sigs.k8s.io/structured-merge-diff/v4 v4.7.0
 	sigs.k8s.io/yaml v1.6.0
+)
+
+require (
+	github.com/robfig/cron/v3 v3.0.1 // indirect
+	k8s.io/gengo/v2 v2.0.0-20240911193312-2b36238f13e9 // indirect
 )
 
 require (
@@ -369,7 +384,7 @@ require (
 	github.com/siderolabs/go-pointer v1.0.1 // indirect
 	github.com/siderolabs/net v0.4.0 // indirect
 	github.com/siderolabs/protoenc v0.2.4 // indirect
-	github.com/sirupsen/logrus v1.9.4 // indirect
+	github.com/sirupsen/logrus v1.9.4
 	github.com/sivchari/containedctx v1.0.3 // indirect
 	github.com/soheilhy/cmux v0.1.5 // indirect
 	github.com/sonatard/noctx v0.5.1 // indirect
@@ -464,8 +479,6 @@ require (
 	k8s.io/cluster-bootstrap v0.32.3 // indirect
 	k8s.io/component-helpers v0.32.6 // indirect
 	k8s.io/controller-manager v0.32.6
-	k8s.io/gengo/v2 v2.0.0-20240911193312-2b36238f13e9 // indirect
-	k8s.io/klog/v2 v2.130.1 // indirect
 	k8s.io/kms v0.32.6 // indirect
 	k8s.io/kube-controller-manager v0.32.6 // indirect
 	k8s.io/kubectl v0.32.3 // indirect
