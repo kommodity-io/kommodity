@@ -1,10 +1,10 @@
-package libkapi_test
+package logging_test
 
 import (
 	"log/slog"
 	"testing"
 
-	"github.com/kommodity-io/kommodity/pkg/libkapi"
+	"github.com/kommodity-io/kommodity/pkg/libkapi/logging"
 	"github.com/stretchr/testify/require"
 )
 
@@ -26,7 +26,7 @@ func TestInstallControllerRuntimeLogAdapter_NilLoggerFallsBackToDefault(t *testi
 	t.Parallel()
 
 	require.NotPanics(t, func() {
-		libkapi.InstallControllerRuntimeLogAdapter(nil)
+		logging.InstallControllerRuntimeLogAdapter(nil)
 	})
 }
 
@@ -40,7 +40,7 @@ func TestInstallControllerRuntimeLogAdapter_SafeToCallRepeatedly(t *testing.T) {
 	logger := slog.Default()
 
 	require.NotPanics(t, func() {
-		libkapi.InstallControllerRuntimeLogAdapter(logger)
-		libkapi.InstallControllerRuntimeLogAdapter(logger)
+		logging.InstallControllerRuntimeLogAdapter(logger)
+		logging.InstallControllerRuntimeLogAdapter(logger)
 	})
 }

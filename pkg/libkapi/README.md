@@ -150,8 +150,9 @@ log output — libkapi's own messages, klog output from the embedded
 Kubernetes packages (apiserver, apiextensions-apiserver, kube-aggregator,
 client-go), and `sigs.k8s.io/controller-runtime`'s own log output — is
 routed through it. `New` bridges all of these to the slog logger
-automatically via `InstallKlogAdapter` and `InstallControllerRuntimeLogAdapter`,
-so the consumer never needs to configure either separately.
+automatically via `logging.InstallKlogAdapter` and
+`logging.InstallControllerRuntimeLogAdapter`, so the consumer never needs to
+configure either separately.
 
 ```go
 libkapi.WithLogger(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
@@ -161,7 +162,9 @@ libkapi.WithLogger(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
 
 The klog bridge is process-global (klog has a single backing logger), so the
 last `New` call wins; callers that need a different klog configuration can
-call `libkapi.InstallKlogAdapter(logger)` themselves, before or after `New`.
+call `logging.InstallKlogAdapter(logger)` themselves (from
+`github.com/kommodity-io/kommodity/pkg/libkapi/logging`), before or after
+`New`.
 
 The controller-runtime bridge is also process-global, but — unlike klog —
 `sigs.k8s.io/controller-runtime/pkg/log.SetLogger` only takes effect on its
@@ -413,7 +416,7 @@ server is **not** started until `ListenAndServe` is called.
 If no auth options are passed, the server defaults to anonymous
 authentication and always-allow authorization.
 
-### `func InstallKlogAdapter(logger *slog.Logger)`
+### `func logging.InstallKlogAdapter(logger *slog.Logger)`
 
 Bridges klog output to the consumer's slog logger so that the embedded
 Kubernetes packages route their log output through `logger` instead of
@@ -421,7 +424,7 @@ klog's default stderr writer. Called automatically by `New`; also safe to
 call independently. If `logger` is nil, `slog.Default()` is used. The
 bridge is process-global (klog has a single backing logger).
 
-### `func InstallControllerRuntimeLogAdapter(logger *slog.Logger)`
+### `func logging.InstallControllerRuntimeLogAdapter(logger *slog.Logger)`
 
 Bridges `sigs.k8s.io/controller-runtime`'s global logr sink to the
 consumer's slog logger, so any controller-runtime usage in the process —

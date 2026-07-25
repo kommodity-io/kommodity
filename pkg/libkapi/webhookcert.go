@@ -42,7 +42,7 @@ var webhookCertDir = filepath.Join(os.TempDir(), "k8s-webhook-server", "serving-
 // ensureSelfSignedWebhookCert writes tls.crt/tls.key under webhookCertDir if
 // they don't already exist there, using k8s.io/client-go/util/cert's
 // GenerateSelfSignedCertKey — the same helper k8s.io/apiserver's own
-// loopback-client cert generation uses (see apiserver.go's
+// loopback-client cert generation uses (see apiserver/apiserver.go's
 // newLoopbackClientConfig doc) — so repeated New calls against the same
 // /tmp reuse one certificate instead of generating (and orphaning) a new
 // one every time.

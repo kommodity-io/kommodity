@@ -1,4 +1,4 @@
-package libkapi
+package apiserver
 
 import (
 	"fmt"
@@ -29,7 +29,7 @@ import (
 
 const bootstrapNamespace = "default"
 
-// newAPIAggregatorServer wraps delegationTarget with the aggregation layer:
+// NewAPIAggregatorServer wraps delegationTarget with the aggregation layer:
 // discovery aggregation plus the autoregister/crdregistration controllers
 // that keep built-in API groups and CRD-backed groups registered as
 // APIServices. Unlike pkg/server/apiaggregatorserver.go, it registers no
@@ -37,7 +37,7 @@ const bootstrapNamespace = "default"
 // ServiceAccount token controller, no signing-key persistence, no provider
 // CRD application) - those are consumers of a Kubernetes-API-compatible
 // server, not part of building one.
-func newAPIAggregatorServer(
+func NewAPIAggregatorServer(
 	genericServerConfig *genericapiserver.RecommendedConfig,
 	codecs serializer.CodecFactory,
 	storageEndpoints []string,

@@ -1,4 +1,4 @@
-package libkapi
+package apiserver
 
 import (
 	"fmt"
@@ -35,8 +35,8 @@ func (d dispatchingRESTOptionsGetter) GetRESTOptions(resource schema.GroupResour
 	return d.cr.GetRESTOptions(resource, example)
 }
 
-// newAPIExtensionServer builds the apiextensions (CRD) delegate server.
-func newAPIExtensionServer(
+// NewAPIExtensionServer builds the apiextensions (CRD) delegate server.
+func NewAPIExtensionServer(
 	genericServerConfig *genericapiserver.RecommendedConfig,
 	codecs serializer.CodecFactory,
 	storageEndpoints []string,

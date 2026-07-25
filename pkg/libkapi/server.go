@@ -19,8 +19,10 @@ import (
 	aggregatorapiserver "k8s.io/kube-aggregator/pkg/apiserver"
 	ctrl "sigs.k8s.io/controller-runtime"
 
+	"github.com/kommodity-io/kommodity/pkg/libkapi/apiserver"
 	"github.com/kommodity-io/kommodity/pkg/libkapi/auth"
 	"github.com/kommodity-io/kommodity/pkg/libkapi/controllers"
+	"github.com/kommodity-io/kommodity/pkg/libkapi/logging"
 	"github.com/kommodity-io/kommodity/pkg/libkapi/storage"
 )
 
@@ -76,9 +78,10 @@ type Server struct {
 
 // newMu serializes New() across concurrent calls. Constructing a Server
 // mutates several process-wide globals in the Kubernetes packages libkapi
-// embeds - klog's contextual logger (InstallKlogAdapter) and the
+// embeds - klog's contextual logger (logging.InstallKlogAdapter) and the
 // legacyscheme.Scheme singleton the upstream REST storage providers in
-// registry.go are hard-wired to (see scheme.go's schemeMu doc) - none of
+// apiserver/registry.go are hard-wired to (see apiserver/scheme.go's
+// schemeMu doc) - none of
 // which are safe for concurrent writers. Two Servers built at once without
 // this lock race on that shared state, up to and including a fatal
 // "concurrent map writes" crash. The cost is that one Server's construction
@@ -139,10 +142,10 @@ func New(ctx context.Context, opts ...Option) (*Server, error) {
 	// adapter additionally neutralizes logrus.Fatalf (called by kine's
 	// compaction transaction on DB errors) so a momentary DB outage
 	// logs and recovers instead of killing the process via os.Exit(1).
-	InstallKlogAdapter(logger)
-	InstallGRPCLogAdapter(logger)
-	InstallLogrusAdapter(logger)
-	InstallControllerRuntimeLogAdapter(logger)
+	logging.InstallKlogAdapter(logger)
+	logging.InstallGRPCLogAdapter(logger)
+	logging.InstallLogrusAdapter(logger)
+	logging.InstallControllerRuntimeLogAdapter(logger)
 
 	// Create subloggers with a component field so log output is attributable
 	// to the subsystem that produced it.
@@ -182,32 +185,32 @@ func New(ctx context.Context, opts ...Option) (*Server, error) {
 func buildServer(cfg config, addr string, handle *storage.Handle,
 	authCfg *auth.ResolvedConfig, controllersLogger *slog.Logger,
 	managerLogger *slog.Logger, logger *slog.Logger) (*Server, error) {
-	scheme, codecs, err := newScheme(cfg.scheme)
+	scheme, codecs, err := apiserver.NewScheme(cfg.scheme)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to build scheme: %w", err)
 	}
 
-	// Authorizer is resolved early: standardAPIGroups needs it for RBAC's
+	// Authorizer is resolved early: StandardAPIGroups needs it for RBAC's
 	// bootstrap-roles wiring, and it must be the same instance the server uses.
 	authz := authCfg.Authorizer
 
-	groups := standardAPIGroups(authz)
+	groups := apiserver.StandardAPIGroups(authz)
 
-	err = resolveStandardGroupVersions(scheme, groups)
+	err = apiserver.ResolveStandardGroupVersions(scheme, groups)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to resolve standard API group versions: %w", err)
 	}
 
-	allGroupVersions := append(groupVersions(groups),
+	allGroupVersions := append(apiserver.GroupVersions(groups),
 		apiextensionsv1.SchemeGroupVersion, apiregistrationv1.SchemeGroupVersion)
 
 	// Pass nil for authn — the SA authenticator needs LoopbackClientConfig
-	// (available after setupAPIServerConfig), so the final union authenticator
+	// (available after SetupAPIServerConfig), so the final union authenticator
 	// is assembled and set in resolveAndSetAuth.
-	genericServerConfig, err := setupAPIServerConfig(
+	genericServerConfig, err := apiserver.SetupAPIServerConfig(
 		addr, scheme, codecs, allGroupVersions, nil, authz)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to set up API server config: %w", err)
 	}
 
 	err = resolveAndSetAuth(authCfg, genericServerConfig, controllersLogger)
@@ -463,13 +466,13 @@ func buildDelegationChain(
 	cfg config,
 	genericServerConfig *genericapiserver.RecommendedConfig,
 	codecs serializer.CodecFactory,
-	groups []standardAPIGroup,
+	groups []apiserver.StandardAPIGroup,
 	storageEndpoints []string,
 ) (*aggregatorapiserver.APIAggregator, *http.ServeMux, error) {
-	crdServer, err := newAPIExtensionServer(
+	crdServer, err := apiserver.NewAPIExtensionServer(
 		genericServerConfig, codecs, storageEndpoints, genericapiserver.NewEmptyDelegate())
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("failed to build delegation chain: %w", err)
 	}
 
 	genericServer, err := genericServerConfig.Complete().New("libkapi", crdServer.GenericAPIServer)
@@ -477,16 +480,17 @@ func buildDelegationChain(
 		return nil, nil, fmt.Errorf("failed to build the generic api server: %w", err)
 	}
 
-	err = installStandardAPIGroups(
+	err = apiserver.InstallStandardAPIGroups(
 		genericServer, groups, codecs, genericServerConfig.MergedResourceConfig, storageEndpoints)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("failed to build delegation chain: %w", err)
 	}
 
-	aggregatorServer, err := newAPIAggregatorServer(genericServerConfig, codecs, storageEndpoints, genericServer,
+	aggregatorServer, err := apiserver.NewAPIAggregatorServer(
+		genericServerConfig, codecs, storageEndpoints, genericServer,
 		crdServer.Informers.Apiextensions().V1().CustomResourceDefinitions())
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("failed to build delegation chain: %w", err)
 	}
 
 	// PrepareRun is not called here: it installs /healthz, /livez, /readyz

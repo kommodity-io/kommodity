@@ -40,7 +40,8 @@ func WithStorage(storage string) Option {
 // This is the single logging entry point: all log output — libkapi's own
 // messages and klog output from the embedded Kubernetes packages (apiserver,
 // apiextensions-apiserver, kube-aggregator, client-go) — is routed through
-// it. New bridges klog to it automatically via InstallKlogAdapter, so the
+// it. New bridges klog to it automatically via logging.InstallKlogAdapter,
+// so the
 // caller never needs to configure klog separately.
 func WithLogger(logger *slog.Logger) Option {
 	return func(_ context.Context, cfg *config) error {
