@@ -10,7 +10,10 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	apiextensionsclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
 
@@ -146,6 +149,122 @@ func TestServerEndToEnd_WithPostStartHook(t *testing.T) {
 
 	assert.Equal(t, []string{"first", "second", "runnable"}, tracker.snapshot(),
 		"post-start hooks must run in registration order, before the controller manager's Runnables")
+}
+
+// crdEstablishedHook returns a PostStartHookFunc that creates a CRD named
+// crdName and blocks until it becomes Established, then closes established -
+// see TestServerEndToEnd_WithPostStartHook_WaitsForCRDEstablishment's doc
+// for why that's the pattern under test.
+func crdEstablishedHook(
+	crdName, group, plural, singular, kind string, established chan<- struct{},
+) func(context.Context, *restclient.Config) error {
+	return func(ctx context.Context, loopbackConfig *restclient.Config) error {
+		apiextensionsClient, err := apiextensionsclientset.NewForConfig(loopbackConfig)
+		if err != nil {
+			return fmt.Errorf("failed to build apiextensions client: %w", err)
+		}
+
+		crd := &apiextensionsv1.CustomResourceDefinition{
+			ObjectMeta: metav1.ObjectMeta{Name: crdName},
+			Spec: apiextensionsv1.CustomResourceDefinitionSpec{
+				Group: group,
+				Names: apiextensionsv1.CustomResourceDefinitionNames{
+					Plural: plural, Singular: singular, Kind: kind, ListKind: kind + "List",
+				},
+				Scope: apiextensionsv1.NamespaceScoped,
+				Versions: []apiextensionsv1.CustomResourceDefinitionVersion{
+					{
+						Name: "v1", Served: true, Storage: true,
+						Schema: &apiextensionsv1.CustomResourceValidation{
+							OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
+								Type: "object", XPreserveUnknownFields: new(true),
+							},
+						},
+					},
+				},
+			},
+		}
+
+		_, err = apiextensionsClient.ApiextensionsV1().CustomResourceDefinitions().Create(ctx, crd, metav1.CreateOptions{})
+		if err != nil {
+			return fmt.Errorf("failed to create CRD %q: %w", crdName, err)
+		}
+
+		err = wait.PollUntilContextTimeout(ctx, 100*time.Millisecond, 10*time.Second, true,
+			func(ctx context.Context) (bool, error) {
+				got, getErr := apiextensionsClient.ApiextensionsV1().
+					CustomResourceDefinitions().Get(ctx, crdName, metav1.GetOptions{})
+				if getErr != nil {
+					return false, nil //nolint:nilerr // keep polling on transient errors
+				}
+
+				for _, cond := range got.Status.Conditions {
+					if cond.Type == apiextensionsv1.Established && cond.Status == apiextensionsv1.ConditionTrue {
+						return true, nil
+					}
+				}
+
+				return false, nil
+			})
+		if err != nil {
+			return fmt.Errorf("CRD %q never became established: %w", crdName, err)
+		}
+
+		close(established)
+
+		return nil
+	}
+}
+
+// TestServerEndToEnd_WithPostStartHook_WaitsForCRDEstablishment is a
+// regression test for a real deadlock reported from a consumer: a
+// WithPostStartHook that creates a CRD and waits for it to become
+// Established - the pattern needed before a WithController reconciler can
+// safely Watch that CRD, since controller-runtime's source.Kind.Start fails
+// immediately if the CRD isn't already in the RESTMapper - used to hang
+// forever. WithPostStartHook ran before NonBlockingRunWithContext ever
+// started the apiserver's own internal CRD-establishing controllers
+// (EstablishingController et al.), so the controller the hook was waiting
+// on was never running. ListenAndServe now starts those internal
+// controllers first (see its own doc), so the hook can actually observe
+// establishment.
+func TestServerEndToEnd_WithPostStartHook_WaitsForCRDEstablishment(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	addr := libkapi.FreeAddr(t)
+	dbPath := filepath.Join(t.TempDir(), "libkapi-crd-establish.db")
+	established := make(chan struct{})
+
+	server, err := libkapi.New(ctx,
+		libkapi.WithAddr(addr),
+		libkapi.WithStorage("sqlite://"+dbPath),
+		libkapi.WithPostStartHook(
+			crdEstablishedHook("gadgets.libkapi.test", "libkapi.test", "gadgets", "gadget", "Gadget", established)),
+	)
+	require.NoError(t, err)
+
+	go func() {
+		_ = server.ListenAndServe(ctx)
+	}()
+
+	t.Cleanup(func() {
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer shutdownCancel()
+
+		_ = server.Shutdown(shutdownCtx)
+	})
+
+	select {
+	case <-established:
+	case <-time.After(15 * time.Second):
+		require.FailNow(t, "WithPostStartHook never observed CRD establishment - "+
+			"the apiserver's internal CRD-establishing controllers likely never started before it ran")
+	}
+
+	libkapi.WaitForHealthz(t, "http://"+addr+"/healthz")
 }
 
 // TestServerListenAndServe_PostStartHookErrorFailsStart verifies that a

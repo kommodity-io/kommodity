@@ -53,6 +53,15 @@ type Server struct {
 	mgrCancel context.CancelFunc
 	mgrDone   chan struct{}
 
+	// internalHooksCancel cancels the context ListenAndServe passes to
+	// NonBlockingRunWithContext, which drives the apiserver's OWN internal
+	// post-start hooks (CRD establishing/naming/nonstructural-schema
+	// controllers, autoregister, informer sync) - not the
+	// WithPostStartHook/WithPreShutdownHook registrations below. Set by
+	// ListenAndServe; deliberately never canceled anywhere but Shutdown -
+	// see the doc on ListenAndServe's NonBlockingRunWithContext call.
+	internalHooksCancel context.CancelFunc
+
 	// loopbackConfig is the server's own privileged (system:masters-equivalent)
 	// identity, handed to each PostStartHookFunc/PreShutdownHookFunc - the
 	// same config Controller/Manager use internally (see buildManager).
@@ -497,11 +506,13 @@ func buildDelegationChain(
 // ListenAndServe binds the listener and blocks until ctx is canceled,
 // Shutdown is called, or an unrecoverable error occurs. Canceling ctx
 // gracefully shuts down both the HTTP server and the apiserver run loop.
-// Once the listener is bound, any WithPostStartHook registrations run, in
-// order; a hook's error fails ListenAndServe. If any Controller was
-// registered via WithController, this also starts the controller manager
-// (reconcilers, Runnables, and - if configured - the webhook server and
-// leader election).
+// Once the listener is bound, the apiserver's own internal post-start hooks
+// start, followed by any WithPostStartHook registrations, in order; a
+// hook's error fails ListenAndServe. If any Controller was registered via
+// WithController, this also starts the controller manager (reconcilers,
+// Runnables, and - if configured - the webhook server and leader election).
+//
+//nolint:contextcheck // internalHooksCtx is deliberately not derived from ctx - see its own doc, below.
 func (s *Server) ListenAndServe(ctx context.Context) error {
 	s.mu.Lock()
 	if s.cancelRun != nil {
@@ -512,31 +523,24 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 
 	runCtx, cancel := context.WithCancel(ctx)
 	s.cancelRun = cancel
+
+	// internalHooksCtx is deliberately not derived from ctx - see its own
+	// doc, below, for why.
+	internalHooksCtx, internalHooksCancel := context.WithCancel(context.Background())
+	s.internalHooksCancel = internalHooksCancel
 	s.mu.Unlock()
 
 	var listenConfig net.ListenConfig
 
 	listener, err := listenConfig.Listen(ctx, "tcp", s.addr)
 	if err != nil {
-		return s.abortListenAndServe(cancel, fmt.Errorf("failed to listen on %q: %w", s.addr, err))
+		return s.abortListenAndServe(cancel, internalHooksCancel, fmt.Errorf("failed to listen on %q: %w", s.addr, err))
 	}
 
-	// If the caller's ctx is canceled (rather than Shutdown being called
-	// explicitly), gracefully shut down the HTTP server so Serve unblocks
-	// instead of serving indefinitely. The shutdown context is derived
-	// from context.Background (via WithoutCancel) because runCtx is
-	// already canceled at that point. Registered before Serve even starts,
-	// so any of the early-return failure paths below (which all cancel
-	// runCtx to unwind) reliably stop the Serve goroutine too, instead of
-	// leaking it.
-	go func() {
-		<-runCtx.Done()
-
-		shutdownCtx, shutdownCancel := context.WithCancel(context.WithoutCancel(runCtx))
-		defer shutdownCancel()
-
-		_ = s.httpServer.Shutdown(shutdownCtx)
-	}()
+	// Registered before Serve even starts, so any of the early-return
+	// failure paths below (which all cancel runCtx to unwind) reliably stop
+	// the Serve goroutine too, instead of leaking it.
+	s.registerShutdownWatcher(runCtx)
 
 	// Serve must actually be running - not just listener bound - before
 	// anything (a WithPostStartHook, a Controller's Runnable) can reach this
@@ -553,43 +557,58 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 		serveErr <- s.httpServer.Serve(listener)
 	}()
 
-	// Run any WithPostStartHook registrations - in registration order,
-	// synchronously - before NonBlockingRunWithContext below starts the
-	// apiserver's own internal post-start hooks (informers, auto-
-	// registration) and before the controller manager starts. Deliberately
-	// placed before NonBlockingRunWithContext, not after: canceling runCtx
-	// to unwind a failed hook (below) would otherwise race those
-	// already-running internal hooks, which treat runCtx cancellation
-	// exactly like a timeout and call klog.Fatal on it (see
-	// PostStartHookFunc's doc) - the very crash this whole mechanism exists
-	// to let callers avoid.
-	err = s.runPostStartHooks(runCtx)
-	if err != nil {
-		return s.abortListenAndServe(cancel, fmt.Errorf("post-start hook failed: %w", err))
-	}
-
 	// NonBlockingRunWithContext starts the apiserver's own internal
-	// post-start hooks (controllers, informers, auto-registration) and
-	// returns immediately. We use this instead of RunWithContext because
+	// post-start hooks (EstablishingController, NamingConditionController,
+	// autoregister, informer sync, ...) and returns immediately - it just
+	// spawns a goroutine per hook and returns, it does not wait for any of
+	// them to finish. We use this instead of RunWithContext because
 	// RunWithContext blocks forever on nil stoppedCh/listenerStoppedCh
 	// channels when SecureServingInfo is nil (our design), which would
-	// prevent Shutdown from ever completing. The context passed here
-	// controls when the post-start hooks' goroutines are stopped.
-	// PrepareRun installs /healthz, /livez, /readyz and OpenAPI routes on
-	// the PathRecorderMux; it must be called exactly once (calling it
-	// twice produces "duplicate path registration" errors).
+	// prevent Shutdown from ever completing. PrepareRun installs /healthz,
+	// /livez, /readyz and OpenAPI routes on the PathRecorderMux; it must be
+	// called exactly once (calling it twice produces "duplicate path
+	// registration" errors).
+	//
+	// Deliberately placed before runPostStartHooks below, not after: a
+	// WithPostStartHook that depends on one of these internal controllers
+	// converging - e.g. creating a CRD and waiting for it to become
+	// Established and resolvable via the RESTMapper before a
+	// WithController reconciler tries to watch it - needs
+	// EstablishingController etc. already running concurrently, or it
+	// deadlocks forever waiting on a controller that was never started.
+	//
+	// internalHooksCtx is deliberately its own context, not runCtx: these
+	// internal hooks treat their context being canceled before they finish
+	// exactly like a timeout and call klog.Fatal (see PostStartHookFunc's
+	// doc), so it must never be canceled while one might still be
+	// in-flight - only Shutdown ever cancels it (see abortListenAndServe's
+	// doc for why the failure paths below deliberately don't).
 	prepared := s.aggregator.GenericAPIServer.PrepareRun()
 
-	_, _, err = prepared.NonBlockingRunWithContext(runCtx, readHeaderTimeout)
+	//nolint:contextcheck // internalHooksCtx is deliberately not derived from ctx - see its doc above.
+	_, _, err = prepared.NonBlockingRunWithContext(internalHooksCtx, readHeaderTimeout)
 	if err != nil {
-		return s.abortListenAndServe(cancel, fmt.Errorf("failed to start apiserver: %w", err))
+		return s.abortListenAndServe(cancel, internalHooksCancel, fmt.Errorf("failed to start apiserver: %w", err))
 	}
 
-	// The run loop goroutine waits for the context to be canceled, so
-	// Shutdown can track it with runWg and know the apiserver's background
-	// work has been signaled to stop before returning.
+	// Run any WithPostStartHook registrations - in registration order,
+	// synchronously - now that the internal hooks above are running and can
+	// be depended on. A failing hook aborts ListenAndServe through
+	// abortAfterInternalHooksStarted, not abortListenAndServe - see its doc
+	// for why internalHooksCtx needs different handling once internal hooks
+	// are actually running.
+	err = s.runPostStartHooks(runCtx)
+	if err != nil {
+		//nolint:contextcheck // abortAfterInternalHooksStarted deliberately bounds its own wait - see its doc.
+		return s.abortAfterInternalHooksStarted(cancel, internalHooksCancel, listener.Addr().String(),
+			fmt.Errorf("post-start hook failed: %w", err))
+	}
+
+	// The run loop goroutine waits for the apiserver's internal hooks'
+	// context to be canceled, so Shutdown can track it with runWg and know
+	// that background work has been signaled to stop before returning.
 	s.runWg.Go(func() {
-		<-runCtx.Done()
+		<-internalHooksCtx.Done()
 	})
 
 	// startManager's mgrCtx is intentionally not derived from ctx - see its doc.
@@ -617,6 +636,7 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	s.cancelRun = nil
 	mgrCancel := s.mgrCancel
 	mgrDone := s.mgrDone
+	internalHooksCancel := s.internalHooksCancel
 	s.mu.Unlock()
 
 	if cancel == nil {
@@ -647,6 +667,7 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	s.runPreShutdownHooks(ctx)
 
 	cancel()
+	internalHooksCancel()
 
 	err := s.httpServer.Shutdown(ctx)
 
@@ -668,19 +689,124 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	return nil
 }
 
-// abortListenAndServe unwinds a failed startup attempt: clears cancelRun so
-// a later ListenAndServe/Shutdown call doesn't see a stale started state,
-// then cancels runCtx - unblocking the shutdown-watcher goroutine already
+// registerShutdownWatcher starts a goroutine that gracefully shuts down the
+// HTTP server once runCtx is canceled - whether by the caller's own ctx
+// being canceled, or by Shutdown - so Serve unblocks instead of serving
+// indefinitely. The shutdown context is derived from context.Background
+// (via WithoutCancel) because runCtx is already canceled at that point.
+func (s *Server) registerShutdownWatcher(runCtx context.Context) {
+	go func() {
+		<-runCtx.Done()
+
+		shutdownCtx, shutdownCancel := context.WithCancel(context.WithoutCancel(runCtx))
+		defer shutdownCancel()
+
+		_ = s.httpServer.Shutdown(shutdownCtx)
+	}()
+}
+
+// internalHooksHealthyTimeout bounds how long
+// abortAfterInternalHooksStarted waits for /healthz to confirm the
+// apiserver's internal post-start hooks have all finished before canceling
+// their context regardless. In practice these hooks (informer sync, a
+// single namespace-create call, ...) finish within milliseconds; this only
+// matters as a ceiling for a genuinely broken configuration.
+const internalHooksHealthyTimeout = 5 * time.Second
+
+// healthzPollInterval is how often waitForInternalHooksHealthy retries
+// GET /healthz while waiting for it to report healthy.
+const healthzPollInterval = 50 * time.Millisecond
+
+// abortListenAndServe unwinds a startup attempt that failed before
+// NonBlockingRunWithContext ever ran - a listener bind failure, or
+// NonBlockingRunWithContext's own (in our configuration, unreachable, since
+// SecureServingInfo is always nil - see its call site's doc) synchronous
+// error. Nothing depends on internalHooksCtx yet in either case, so it's
+// safe to cancel immediately alongside runCtx. Clears cancelRun so a later
+// ListenAndServe/Shutdown call doesn't see a stale started state, then
+// cancels both contexts - unblocking the shutdown-watcher goroutine already
 // registered in ListenAndServe by this point, so the listener and Serve
-// goroutine it started don't leak - before returning err.
-func (s *Server) abortListenAndServe(cancel context.CancelFunc, err error) error {
+// goroutine it started don't leak - and closes storage, since a failed
+// ListenAndServe leaves a Server the caller won't call Shutdown on (it
+// never started), before returning err.
+func (s *Server) abortListenAndServe(
+	cancel context.CancelFunc, internalHooksCancel context.CancelFunc, err error,
+) error {
 	s.mu.Lock()
 	s.cancelRun = nil
+	s.internalHooksCancel = nil
 	s.mu.Unlock()
 
 	cancel()
+	internalHooksCancel()
+	s.storageClose()
 
 	return err
+}
+
+// abortAfterInternalHooksStarted unwinds a startup attempt that failed
+// after NonBlockingRunWithContext already started the apiserver's internal
+// post-start hooks - currently, a failing WithPostStartHook. Unlike
+// abortListenAndServe, it can't cancel internalHooksCancel immediately:
+// some of those internal hooks (e.g. apiextensions' "crd-informer-synced")
+// treat their context being canceled before they finish exactly like a
+// timeout and call klog.Fatal, crashing the whole process - not just this
+// Server - which would defeat the entire point of WithPostStartHook
+// returning an ordinary error instead of doing that itself. /healthz only
+// reports healthy once every one of those hooks has already returned
+// successfully (see k8s.io/apiserver/pkg/server/hooks.go's
+// postStartHookHealthz), so it's the one generic signal available that
+// canceling is now safe - this waits for it, bounded by
+// internalHooksHealthyTimeout, before canceling, closing storage (see
+// abortListenAndServe's doc for why), and returning err. addr is the bound
+// listener's actual address (not s.addr, which may be a wildcard/ephemeral
+// ":0" the OS resolved when binding).
+func (s *Server) abortAfterInternalHooksStarted(
+	cancel context.CancelFunc, internalHooksCancel context.CancelFunc, addr string, err error,
+) error {
+	healthyCtx, healthyCancel := context.WithTimeout(context.Background(), internalHooksHealthyTimeout)
+	defer healthyCancel()
+
+	waitForInternalHooksHealthy(healthyCtx, addr)
+
+	s.mu.Lock()
+	s.cancelRun = nil
+	s.internalHooksCancel = nil
+	s.mu.Unlock()
+
+	internalHooksCancel()
+	cancel()
+	s.storageClose()
+
+	return err
+}
+
+// waitForInternalHooksHealthy polls the local /healthz endpoint until it
+// reports healthy or ctx is done - see abortAfterInternalHooksStarted's doc
+// for why that's the signal being waited on.
+func waitForInternalHooksHealthy(ctx context.Context, addr string) {
+	client := http.Client{Timeout: time.Second}
+	url := "http://" + addr + "/healthz"
+
+	for {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+		if err == nil {
+			resp, doErr := client.Do(req)
+			if doErr == nil {
+				_ = resp.Body.Close()
+
+				if resp.StatusCode == http.StatusOK {
+					return
+				}
+			}
+		}
+
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(healthzPollInterval):
+		}
+	}
 }
 
 // startManager starts the controller manager, if any Controller was
