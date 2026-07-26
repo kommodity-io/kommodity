@@ -51,4 +51,12 @@ var (
 	ErrNotImplemented = errors.New("not implemented")
 	// ErrLeaderElectionIDRequired is returned when WithLeaderElection is called with an empty ID.
 	ErrLeaderElectionIDRequired = errors.New("leader election ID is required when using WithLeaderElection")
+
+	// Garbage collector errors — see WithGarbageCollector.
+
+	// ErrGarbageCollectorClientBuild is returned when constructing the typed,
+	// metadata, or discovery client for the garbage collector fails.
+	ErrGarbageCollectorClientBuild = errors.New("failed to build garbage collector client")
+	// ErrGarbageCollectorInit is returned when the garbage collector fails to initialize.
+	ErrGarbageCollectorInit = errors.New("failed to initialize garbage collector")
 )
