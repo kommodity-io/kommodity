@@ -249,6 +249,40 @@ tests:
           value: ReadWrite
         documentIndex: 1
 
+  - it: should create dataDisks for controlplane when configured
+    template: templates/provider/azure/machinetemplate.yaml
+    set:
+      kommodity.controlplane.dataDisks:
+        - nameSuffix: data
+          diskSizeGB: 64
+          lun: 0
+          storageAccountType: Premium_LRS
+          cachingType: ReadWrite
+    asserts:
+      - equal:
+          path: spec.template.spec.dataDisks[0].nameSuffix
+          value: data
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.dataDisks[0].diskSizeGB
+          value: 64
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.dataDisks[0].lun
+          value: 0
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.dataDisks[0].managedDisk.storageAccountType
+          value: Premium_LRS
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.dataDisks[0].cachingType
+          value: ReadWrite
+        documentIndex: 0
+      - notExists:
+          path: spec.template.spec.dataDisks
+        documentIndex: 1
+
   - it: should create multiple AzureMachineTemplates for multiple nodepools
     template: templates/provider/azure/machinetemplate.yaml
     set:

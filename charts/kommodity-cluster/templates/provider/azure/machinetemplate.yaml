@@ -25,6 +25,19 @@ spec:
         osType: Linux
         managedDisk:
           storageAccountType: {{ default "Premium_LRS" .Values.kommodity.controlplane.os.disk.type }}
+      {{- if .Values.kommodity.controlplane.dataDisks }}
+      dataDisks:
+        {{- range .Values.kommodity.controlplane.dataDisks }}
+        - nameSuffix: {{ .nameSuffix }}
+          diskSizeGB: {{ .diskSizeGB }}
+          lun: {{ .lun }}
+          managedDisk:
+            storageAccountType: {{ default "Premium_LRS" .storageAccountType }}
+          {{- if .cachingType }}
+          cachingType: {{ .cachingType }}
+          {{- end }}
+        {{- end }}
+      {{- end }}
 
 {{- range $name, $np := .Values.kommodity.nodepools }}
 ---
