@@ -32,7 +32,7 @@ spec:
           diskSizeGB: {{ .size }}
           lun: {{ .lun }}
           managedDisk:
-            storageAccountType: {{ default "Premium_LRS" .storageAccountType }}
+            storageAccountType: {{ default "Premium_LRS" .storageClassName }}
           {{- if .cachingType }}
           cachingType: {{ .cachingType }}
           {{- end }}
@@ -70,7 +70,7 @@ spec:
           diskSizeGB: {{ .size }}
           lun: {{ .lun }}
           managedDisk:
-            storageAccountType: {{ default "Premium_LRS" .storageAccountType }}
+            storageAccountType: {{ default "Premium_LRS" .storageClassName }}
           {{- if .cachingType }}
           cachingType: {{ .cachingType }}
           {{- end }}
