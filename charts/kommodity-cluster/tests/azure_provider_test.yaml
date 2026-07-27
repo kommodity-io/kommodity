@@ -215,12 +215,12 @@ tests:
           value: Standard_LRS
         documentIndex: 1
 
-  - it: should create dataDisks for worker when configured
+  - it: should create dataDisks for worker when additionalVolumes configured
     template: templates/provider/azure/machinetemplate.yaml
     set:
-      kommodity.nodepools.default.dataDisks:
+      kommodity.nodepools.default.additionalVolumes:
         - nameSuffix: data
-          diskSizeGB: 100
+          size: 100
           lun: 0
           storageAccountType: Premium_LRS
           cachingType: ReadWrite
@@ -249,12 +249,12 @@ tests:
           value: ReadWrite
         documentIndex: 1
 
-  - it: should create dataDisks for controlplane when configured
+  - it: should create dataDisks for controlplane when additionalVolumes configured
     template: templates/provider/azure/machinetemplate.yaml
     set:
-      kommodity.controlplane.dataDisks:
+      kommodity.controlplane.additionalVolumes:
         - nameSuffix: data
-          diskSizeGB: 64
+          size: 64
           lun: 0
           storageAccountType: Premium_LRS
           cachingType: ReadWrite
@@ -281,6 +281,19 @@ tests:
         documentIndex: 0
       - notExists:
           path: spec.template.spec.dataDisks
+        documentIndex: 1
+
+  - it: should mint a new AzureMachineTemplate when additionalVolumes change
+    template: templates/provider/azure/machinetemplate.yaml
+    set:
+      kommodity.nodepools.default.additionalVolumes:
+        - nameSuffix: data
+          size: 100
+          lun: 0
+    asserts:
+      - matchRegex:
+          path: metadata.name
+          pattern: ^test-cluster-worker-default-[a-f0-9]{6}$
         documentIndex: 1
 
   - it: should create multiple AzureMachineTemplates for multiple nodepools

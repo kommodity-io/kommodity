@@ -199,9 +199,6 @@ Any values that should trigger a new Machine template when changed should be add
 {{- with (dig "additionalVolumes" "" .poolValues) -}}
 	{{- $_ := set $data "additionalVolumes" . -}}
 {{- end -}}
-{{- with (dig "dataDisks" "" .poolValues) -}}
-	{{- $_ := set $data "dataDisks" . -}}
-{{- end -}}
 {{- $_ := set $data "publicNetworkEnabled" .allValues.kommodity.network.ipv4.public -}}
 {{- $zones := include "kommodity-cluster.poolZones" .poolValues | fromJsonArray -}}
 {{- if gt (len $zones) 0 -}}

@@ -25,11 +25,11 @@ spec:
         osType: Linux
         managedDisk:
           storageAccountType: {{ default "Premium_LRS" .Values.kommodity.controlplane.os.disk.type }}
-      {{- if .Values.kommodity.controlplane.dataDisks }}
+      {{- if .Values.kommodity.controlplane.additionalVolumes }}
       dataDisks:
-        {{- range .Values.kommodity.controlplane.dataDisks }}
+        {{- range .Values.kommodity.controlplane.additionalVolumes }}
         - nameSuffix: {{ .nameSuffix }}
-          diskSizeGB: {{ .diskSizeGB }}
+          diskSizeGB: {{ .size }}
           lun: {{ .lun }}
           managedDisk:
             storageAccountType: {{ default "Premium_LRS" .storageAccountType }}
@@ -63,11 +63,11 @@ spec:
         osType: Linux
         managedDisk:
           storageAccountType: {{ default "Premium_LRS" $np.os.disk.type }}
-      {{- if $np.dataDisks }}
+      {{- if $np.additionalVolumes }}
       dataDisks:
-        {{- range $np.dataDisks }}
+        {{- range $np.additionalVolumes }}
         - nameSuffix: {{ .nameSuffix }}
-          diskSizeGB: {{ .diskSizeGB }}
+          diskSizeGB: {{ .size }}
           lun: {{ .lun }}
           managedDisk:
             storageAccountType: {{ default "Premium_LRS" .storageAccountType }}
