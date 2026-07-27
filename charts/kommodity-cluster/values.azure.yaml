@@ -216,12 +216,15 @@ kommodity:
           size: 30
           # Azure disk types: Standard_LRS, Premium_LRS, StandardSSD_LRS, UltraSSD_LRS
           type: Premium_LRS
-      # dataDisks:
-      #   # Optional: Additional data disks for the node
+      # additionalVolumes:
+      #   # Optional: additional data disks attached to the node. The
+      #   # Azure template maps `size` (GB) to the CAPZ `diskSizeGB` field.
+      #   # Azure-specific extras: nameSuffix (required by CAPZ), lun,
+      #   # storageClassName (defaults to Premium_LRS), cachingType (optional).
       #   - nameSuffix: data
-      #     diskSizeGB: 100
+      #     size: 100
       #     lun: 0
-      #     storageAccountType: Premium_LRS
+      #     storageClassName: Premium_LRS
       #     cachingType: ReadWrite
       labels:
         my-label: my-value
