@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"google.golang.org/grpc"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	genericapiserver "k8s.io/apiserver/pkg/server"
@@ -45,6 +46,7 @@ type Server struct {
 	addr         string
 	httpServer   *http.Server
 	aggregator   *aggregatorapiserver.APIAggregator
+	grpcServer   *grpc.Server
 	storageClose func()
 	logger       *slog.Logger
 
@@ -225,7 +227,8 @@ func buildServer(cfg config, addr string, handle *storage.Handle,
 		return nil, err
 	}
 
-	aggregator, mux, err := buildDelegationChain(cfg, genericServerConfig, codecs, groups, handle.Endpoints())
+	aggregator, grpcServer, handler, err := buildDelegationChain(
+		cfg, genericServerConfig, codecs, groups, handle.Endpoints())
 	if err != nil {
 		return nil, err
 	}
@@ -234,10 +237,11 @@ func buildServer(cfg config, addr string, handle *storage.Handle,
 		addr: addr,
 		httpServer: &http.Server{
 			Addr:              addr,
-			Handler:           mux,
+			Handler:           handler,
 			ReadHeaderTimeout: readHeaderTimeout,
 		},
 		aggregator:       aggregator,
+		grpcServer:       grpcServer,
 		storageClose:     handle.Close,
 		logger:           logger,
 		mgr:              mgr,
@@ -461,36 +465,38 @@ func registerKeyHooks(
 
 // buildDelegationChain builds the CRD server -> standard-API delegate ->
 // aggregator delegation chain and returns the aggregator plus the
-// caller-facing mux (custom handlers layered over the aggregator's Handler).
+// caller-facing gRPC server (nil unless WithGRPCServerFactory was used) and
+// handler (custom HTTP handlers and, if any, gRPC routing layered over the
+// aggregator's own Handler).
 func buildDelegationChain(
 	cfg config,
 	genericServerConfig *genericapiserver.RecommendedConfig,
 	codecs serializer.CodecFactory,
 	groups []apiserver.StandardAPIGroup,
 	storageEndpoints []string,
-) (*aggregatorapiserver.APIAggregator, *http.ServeMux, error) {
+) (*aggregatorapiserver.APIAggregator, *grpc.Server, http.Handler, error) {
 	crdServer, err := apiserver.NewAPIExtensionServer(
 		genericServerConfig, codecs, storageEndpoints, genericapiserver.NewEmptyDelegate())
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to build delegation chain: %w", err)
+		return nil, nil, nil, fmt.Errorf("failed to build delegation chain: %w", err)
 	}
 
 	genericServer, err := genericServerConfig.Complete().New("libkapi", crdServer.GenericAPIServer)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to build the generic api server: %w", err)
+		return nil, nil, nil, fmt.Errorf("failed to build the generic api server: %w", err)
 	}
 
 	err = apiserver.InstallStandardAPIGroups(
 		genericServer, groups, codecs, genericServerConfig.MergedResourceConfig, storageEndpoints)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to build delegation chain: %w", err)
+		return nil, nil, nil, fmt.Errorf("failed to build delegation chain: %w", err)
 	}
 
 	aggregatorServer, err := apiserver.NewAPIAggregatorServer(
 		genericServerConfig, codecs, storageEndpoints, genericServer,
 		crdServer.Informers.Apiextensions().V1().CustomResourceDefinitions())
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to build delegation chain: %w", err)
+		return nil, nil, nil, fmt.Errorf("failed to build delegation chain: %w", err)
 	}
 
 	// PrepareRun is not called here: it installs /healthz, /livez, /readyz
@@ -501,10 +507,15 @@ func buildDelegationChain(
 	// PrepareRun exactly once before NonBlockingRunWithContext.
 	mux, err := buildMux(cfg.handlers, aggregatorServer.GenericAPIServer.Handler)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
-	return aggregatorServer, mux, nil
+	grpcServer, handler, err := buildHandler(cfg.grpcFactories, mux)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	return aggregatorServer, grpcServer, handler, nil
 }
 
 // ListenAndServe binds the listener and blocks until ctx is canceled,
@@ -673,6 +684,8 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	cancel()
 	internalHooksCancel()
 
+	s.shutdownGRPCServer(ctx)
+
 	err := s.httpServer.Shutdown(ctx)
 
 	s.runWg.Wait()
@@ -691,6 +704,32 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// shutdownGRPCServer gracefully stops s.grpcServer (if WithGRPCServerFactory
+// was used), waiting for in-flight RPCs to finish. Bounded by ctx, the same
+// way Shutdown bounds its wait for the controller manager: if ctx is done
+// before GracefulStop returns, it falls back to Stop, which closes
+// connections immediately rather than letting Shutdown hang forever on a
+// client holding a stream open. A no-op when grpcServer is nil.
+func (s *Server) shutdownGRPCServer(ctx context.Context) {
+	if s.grpcServer == nil {
+		return
+	}
+
+	stopped := make(chan struct{})
+
+	go func() {
+		defer close(stopped)
+
+		s.grpcServer.GracefulStop()
+	}()
+
+	select {
+	case <-stopped:
+	case <-ctx.Done():
+		s.grpcServer.Stop()
+	}
 }
 
 // registerShutdownWatcher starts a goroutine that gracefully shuts down the

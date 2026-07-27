@@ -35,6 +35,7 @@ type config struct {
 	logger           *slog.Logger
 	tls              *TLSConfig
 	handlers         []HTTPHandlerFactory
+	grpcFactories    []GRPCServerFactory
 	scheme           *runtime.Scheme
 	authOpts         []auth.Option
 	controllers      []Controller

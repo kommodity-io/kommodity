@@ -105,6 +105,33 @@ server, err := libkapi.New(ctx,
 Every unmatched request still falls through to the Kubernetes API server's
 own handler.
 
+### Mounting a gRPC server
+
+`WithGRPCServerFactory` lets you register gRPC services alongside the built
+API server, multiplexed onto the same address and port as everything else.
+Requests are routed by Content-Type: anything starting with
+`application/grpc` goes to the gRPC server, everything else goes to the HTTP
+mux (built API server plus any `WithHTTPHandlerFactory` routes). Pass it
+more than once to register several factories against the same
+`*grpc.Server`; they run in the order given. Reflection is registered
+automatically.
+
+```go
+server, err := libkapi.New(ctx,
+	libkapi.WithStorage("sqlite://local.db"),
+	libkapi.WithGRPCServerFactory(func(grpcServer *grpc.Server) error {
+		myservicepb.RegisterMyServiceServer(grpcServer, &myServiceImpl{})
+
+		return nil
+	}),
+)
+```
+
+Registering at least one factory switches the listener to serve h2c (HTTP/2
+over plaintext), since gRPC requires HTTP/2 and `WithTLS` is not yet
+implemented. Servers that never call `WithGRPCServerFactory` are unaffected
+and stay on plain HTTP/1.1.
+
 ### Graceful shutdown
 
 ```go
@@ -215,6 +242,7 @@ auth-specific alike — pass any combination, in any order.
 | `WithStorage(storage string)`                    | Sets the storage connection string. See [Storage](#storage).                                                                                                                                           |
 | `WithLogger(logger *slog.Logger)`                | Sets the logger for libkapi's own output and the bridged klog/gRPC/logrus output. See [Logging](#logging). Defaults to `slog.Default()`.                                                               |
 | `WithHTTPHandlerFactory(f HTTPHandlerFactory)`   | Mounts an extra set of routes. See [Mounting custom HTTP handlers](#mounting-custom-http-handlers). Repeatable.                                                                                        |
+| `WithGRPCServerFactory(f GRPCServerFactory)`     | Registers gRPC services, multiplexed onto the same address and port. See [Mounting a gRPC server](#mounting-a-grpc-server). Repeatable.                                                                |
 | `WithScheme(scheme *runtime.Scheme)`             | Registers additional types beyond the standard API groups libkapi wires by default.                                                                                                                    |
 | `WithTLS(cfg TLSConfig)`                         | Reserved for future use; passing it makes `New` return `ErrNotImplemented`.                                                                                                                            |
 | `WithOIDC(cfg OIDCConfig)`                       | Adds an OIDC bearer-token authenticator. Fetches the issuer's discovery document at `IssuerURL/.well-known/openid-configuration` during `New`.                                                         |
