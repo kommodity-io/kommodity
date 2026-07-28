@@ -221,6 +221,8 @@ kommodity:
       #   # Azure template maps `size` (GB) to the CAPZ `diskSizeGB` field.
       #   # Azure-specific extras: nameSuffix (required by CAPZ), lun,
       #   # storageClassName (defaults to Premium_LRS), cachingType (optional).
+      #   # nameSuffix is also used as the Talos UserVolumeConfig name — the
+      #   # disk is auto-mounted at /var/mnt/<nameSuffix> with partition label u-<nameSuffix>.
       #   - nameSuffix: data
       #     size: 100
       #     lun: 0

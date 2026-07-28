@@ -308,3 +308,101 @@ tests:
       - equal:
           path: spec.version
           value: "controlplane-kubernetes-version"
+
+  # UserVolumeConfig tests
+  - it: should emit UserVolumeConfig for controlplane additionalVolumes
+    template: templates/talos/controlplane.yaml
+    set:
+      kommodity.controlplane.additionalVolumes:
+        - nameSuffix: data
+          size: 64
+          lun: 0
+    asserts:
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "kind: UserVolumeConfig"
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "name: data"
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "volumeType: disk"
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "maxSize: 64GiB"
+
+  - it: should emit UserVolumeConfig for worker additionalVolumes
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.nodepools.default.additionalVolumes:
+        - nameSuffix: data
+          size: 64
+          lun: 0
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "kind: UserVolumeConfig"
+
+  - it: should emit multiple UserVolumeConfig documents for multiple volumes
+    template: templates/talos/controlplane.yaml
+    set:
+      kommodity.controlplane.additionalVolumes:
+        - nameSuffix: data
+          size: 64
+          lun: 0
+        - nameSuffix: logs
+          size: 32
+          lun: 1
+    asserts:
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "name: data"
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[2]
+          pattern: "name: logs"
+
+  - it: should not emit UserVolumeConfig when additionalVolumes is unset
+    template: templates/talos/controlplane.yaml
+    asserts:
+      - not: true
+        matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[0]
+          pattern: "UserVolumeConfig"
+      - not: true
+        matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "UserVolumeConfig"
+      - not: true
+        matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[2]
+          pattern: "UserVolumeConfig"
+
+  - it: should emit KMS encryption on UserVolumeConfig when kms is enabled
+    template: templates/talos/controlplane.yaml
+    set:
+      kommodity.kms.enabled: true
+      kommodity.controlplane.additionalVolumes:
+        - nameSuffix: data
+          size: 64
+          lun: 0
+    asserts:
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
+          pattern: "provider: luks2"
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
+          pattern: "endpoint: \"https://kms.example.com\""
+
+  - it: should not emit encryption when kms is disabled
+    template: templates/talos/controlplane.yaml
+    set:
+      kommodity.kms.enabled: false
+      kommodity.controlplane.additionalVolumes:
+        - nameSuffix: data
+          size: 64
+          lun: 0
+    asserts:
+      - not: true
+        matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "luks2"

@@ -23,7 +23,7 @@ spec:
         "logLevel" $.Values.kommodity.logLevel
         "ccmEnabled" (dig "provider" "cloudControllerManager" "enabled" false $.Values.kommodity)
       ) | trim -}}
-      {{- $needsStrategicPatches := or (not (empty $mergedPatch)) $.Values.kommodity.kms.enabled $.Values.kommodity.security.enabled (gt (len (dig "additionalVolumes" list $np)) 0) }}
+      {{- $needsStrategicPatches := or (not (empty $mergedPatch)) $.Values.kommodity.kms.enabled $.Values.kommodity.security.enabled (gt (len (default list $np.additionalVolumes)) 0) }}
       {{- if $needsStrategicPatches }}
       strategicPatches:
       {{- if not (empty $mergedPatch) }}
@@ -33,9 +33,11 @@ spec:
       {{- /* VolumeConfig for KMS disk encryption*/}}
 {{- include "kommodity.talos.volumeEncryption" (dict "endpoint" $.Values.kommodity.kms.endpoint) | nindent 6 }}
       {{- end }}
-      {{- if gt (len (dig "additionalVolumes" list $np)) 0 }}
+      {{- if $np.additionalVolumes }}
       {{- /* UserVolumeConfig for data disks (Talos v1.13+) */ -}}
-{{- include "kommodity.talos.userVolumes" (dict "additionalVolumes" $np.additionalVolumes) | nindent 6 }}
+{{- $kmsEndpoint := "" -}}
+{{- if $.Values.kommodity.kms.enabled }}{{- $kmsEndpoint = $.Values.kommodity.kms.endpoint -}}{{- end -}}
+{{- include "kommodity.talos.userVolumes" (dict "additionalVolumes" $np.additionalVolumes "kmsEndpoint" $kmsEndpoint) | nindent 6 }}
       {{- end }}
       {{- if $.Values.kommodity.security.enabled }}
       {{- /* ExtensionServiceConfig for kommodity-attestation extension */ -}}

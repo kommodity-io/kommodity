@@ -1,40 +1,46 @@
 {{/*
 UserVolumeConfig documents for additional data volumes.
 Emitted from the same `additionalVolumes` list that drives the provider's
-dataDisks (Azure) or extra disks (other providers), so a single values entry
-provisions the cloud disk AND the Talos mount — no manual machine.disks
-strategic patch needed.
+dataDisks, so a single values entry provisions the cloud disk AND the Talos
+mount — no manual machine.disks strategic patch needed.
 
 UserVolumeConfig (Talos v1.13+) auto-mounts at /var/mnt/<name> with a
 partition labelled u-<name>. This replaces the deprecated machine.disks field.
 
-The diskSelector uses `!system_disk` to select the first non-OS disk. With
-a single data disk per node (the common case), this is unambiguous. If
-multiple data disks are needed in the future, add a diskSize-based selector
-or LUN-specific matching.
+nameSuffix is required on every additionalVolume entry. It is already used
+by the Azure provider (CAPZ requires it); other providers should adopt it
+too — it doubles as the UserVolumeConfig name and the mount path suffix.
+
+When KMS is enabled, each user volume is encrypted with luks2+KMS, matching
+the encryption applied to STATE and EPHEMERAL by volume-encryption.yaml.
 
 See: https://docs.siderolabs.com/talos/v1.13/reference/configuration/block/uservolumeconfig
 
-Usage: {{ include "kommodity.talos.userVolumes" (dict "additionalVolumes" .poolValues.additionalVolumes) }}
+Usage: {{ include "kommodity.talos.userVolumes" (dict "additionalVolumes" .additionalVolumes "kmsEndpoint" .kmsEndpoint) }}
 Returns empty string when additionalVolumes is not set or empty.
 */}}
 {{- define "kommodity.talos.userVolumes" -}}
 {{- $volumes := .additionalVolumes -}}
+{{- $kmsEndpoint := .kmsEndpoint -}}
 {{- if $volumes -}}
-{{- range $vol := $volumes -}}
+{{- range $vol := $volumes }}
 - |
   apiVersion: v1alpha1
   kind: UserVolumeConfig
-  name: {{ $vol.nameSuffix }}
+  name: {{ required "additionalVolumes[].nameSuffix is required (used as Talos volume name and /var/mnt/<name> mount path)" $vol.nameSuffix }}
   volumeType: disk
   provisioning:
     diskSelector:
-      match: '!system_disk'
-    {{- if $vol.size }}
+      match: 'system_disk == false && disk.size > {{ printf "%vGiB" (sub $vol.size 1) }}'
     maxSize: {{ printf "%vGiB" $vol.size }}
-    {{- end }}
-  filesystem:
-    type: xfs
-{{- end -}}
+  {{- if $kmsEndpoint }}
+  encryption:
+    provider: luks2
+    keys:
+      - slot: 0
+        kms:
+          endpoint: {{ $kmsEndpoint | quote }}
+  {{- end }}
+{{- end }}
 {{- end -}}
 {{- end -}}
