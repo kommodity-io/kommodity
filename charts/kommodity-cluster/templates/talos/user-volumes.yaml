@@ -1,0 +1,40 @@
+{{/*
+UserVolumeConfig documents for additional data volumes.
+Emitted from the same `additionalVolumes` list that drives the provider's
+dataDisks (Azure) or extra disks (other providers), so a single values entry
+provisions the cloud disk AND the Talos mount — no manual machine.disks
+strategic patch needed.
+
+UserVolumeConfig (Talos v1.13+) auto-mounts at /var/mnt/<name> with a
+partition labelled u-<name>. This replaces the deprecated machine.disks field.
+
+The diskSelector uses `!system_disk` to select the first non-OS disk. With
+a single data disk per node (the common case), this is unambiguous. If
+multiple data disks are needed in the future, add a diskSize-based selector
+or LUN-specific matching.
+
+See: https://docs.siderolabs.com/talos/v1.13/reference/configuration/block/uservolumeconfig
+
+Usage: {{ include "kommodity.talos.userVolumes" (dict "additionalVolumes" .poolValues.additionalVolumes) }}
+Returns empty string when additionalVolumes is not set or empty.
+*/}}
+{{- define "kommodity.talos.userVolumes" -}}
+{{- $volumes := .additionalVolumes -}}
+{{- if $volumes -}}
+{{- range $vol := $volumes -}}
+- |
+  apiVersion: v1alpha1
+  kind: UserVolumeConfig
+  name: {{ $vol.nameSuffix }}
+  volumeType: disk
+  provisioning:
+    diskSelector:
+      match: '!system_disk'
+    {{- if $vol.size }}
+    maxSize: {{ printf "%vGiB" $vol.size }}
+    {{- end }}
+  filesystem:
+    type: xfs
+{{- end -}}
+{{- end -}}
+{{- end -}}
