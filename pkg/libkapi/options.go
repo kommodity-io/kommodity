@@ -62,17 +62,6 @@ func WithTLS(tls TLSConfig) Option {
 	}
 }
 
-// WithHTTPHandlerFactory mounts an additional set of routes onto the
-// server's shared mux, alongside the built API server. Can be passed more
-// than once; factories run in the order given.
-func WithHTTPHandlerFactory(factory HTTPHandlerFactory) Option {
-	return func(_ context.Context, cfg *config) error {
-		cfg.handlers = append(cfg.handlers, factory)
-
-		return nil
-	}
-}
-
 // WithScheme lets the caller register additional types beyond the standard
 // API groups libkapi wires by default.
 func WithScheme(scheme *runtime.Scheme) Option {

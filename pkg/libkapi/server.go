@@ -485,9 +485,9 @@ func registerKeyHooks(
 
 // buildDelegationChain builds the CRD server -> standard-API delegate ->
 // aggregator delegation chain and returns the aggregator plus the
-// caller-facing gRPC server (nil unless WithGRPCServerFactory was used) and
-// handler (custom HTTP handlers and, if any, gRPC routing layered over the
-// aggregator's own Handler).
+// caller-facing gRPC server (nil unless some ServerFactory called
+// Ctx.GRPCServer) and handler (custom HTTP handlers and, if any, gRPC
+// routing layered over the aggregator's own Handler).
 func buildDelegationChain(
 	cfg config,
 	genericServerConfig *genericapiserver.RecommendedConfig,
@@ -523,14 +523,10 @@ func buildDelegationChain(
 	// and OpenAPI routes on the PathRecorderMux, and calling it twice (once
 	// here, once in ListenAndServe) produces "duplicate path registration"
 	// errors. The Handler is already populated by NewWithDelegate, so
-	// buildMux can mount it before PrepareRun runs. ListenAndServe calls
-	// PrepareRun exactly once before NonBlockingRunWithContext.
-	mux, err := buildMux(cfg.handlers, aggregatorServer.GenericAPIServer.Handler)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	grpcServer, handler, err := buildHandler(cfg.grpcFactories, mux)
+	// runServerFactories can mount it before PrepareRun runs. ListenAndServe
+	// calls PrepareRun exactly once before NonBlockingRunWithContext.
+	grpcServer, handler, err := runServerFactories(
+		cfg.serverFactories, genericServerConfig.LoopbackClientConfig, aggregatorServer.GenericAPIServer.Handler)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -735,10 +731,10 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	return nil
 }
 
-// shutdownGRPCServer gracefully stops s.grpcServer (if WithGRPCServerFactory
-// was used), waiting for in-flight RPCs to finish. Bounded by ctx, the same
-// way Shutdown bounds its wait for the controller manager: if ctx is done
-// before GracefulStop returns, it falls back to Stop, which closes
+// shutdownGRPCServer gracefully stops s.grpcServer (if some ServerFactory
+// called Ctx.GRPCServer), waiting for in-flight RPCs to finish. Bounded by
+// ctx, the same way Shutdown bounds its wait for the controller manager: if
+// ctx is done before GracefulStop returns, it falls back to Stop, which closes
 // connections immediately rather than letting Shutdown hang forever on a
 // client holding a stream open. A no-op when grpcServer is nil.
 func (s *Server) shutdownGRPCServer(ctx context.Context) {
