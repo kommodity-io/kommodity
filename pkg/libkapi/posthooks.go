@@ -18,10 +18,13 @@ import (
 // newLoopbackClientConfig doc for the crash a failing post-start hook used
 // to cause before the loopback client had a privileged identity).
 //
-// loopbackConfig is the server's own privileged (system:masters-equivalent)
-// identity - the same one Controller/Manager use - so a hook can build
-// whatever client it needs without requiring a full Controller/Manager for
-// simple background work (e.g. a heartbeat loop).
+// loopbackConfig is a fresh copy of the server's own privileged
+// (system:masters-equivalent) identity - the same one Controller/Manager
+// use - so a hook can build whatever client it needs without requiring a
+// full Controller/Manager for simple background work (e.g. a heartbeat
+// loop). It is a copy, not the shared config itself, so a hook customizing
+// QPS/Burst/UserAgent/RateLimiter for its own client can't affect the
+// Manager, other hooks, or Ctx.LoopbackConfig - see that method's own doc.
 type PostStartHookFunc func(ctx context.Context, loopbackConfig *restclient.Config) error
 
 // WithPostStartHook registers fn to run once, after ListenAndServe's
@@ -41,7 +44,8 @@ func WithPostStartHook(fn PostStartHookFunc) Option {
 // server's listener closes - so it still has a real chance to make one last
 // privileged API call (e.g. deleting an object a PostStartHook created).
 // Bounded by Shutdown's own ctx, the same window the controller manager's
-// own stop gets.
+// own stop gets. loopbackConfig is a fresh copy, for the same reason given
+// on PostStartHookFunc.
 type PreShutdownHookFunc func(ctx context.Context, loopbackConfig *restclient.Config) error
 
 // WithPreShutdownHook registers fn to run once during Shutdown, before the

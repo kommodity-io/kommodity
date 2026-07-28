@@ -67,8 +67,10 @@ type Server struct {
 	internalHooksCancel context.CancelFunc
 
 	// loopbackConfig is the server's own privileged (system:masters-equivalent)
-	// identity, handed to each PostStartHookFunc/PreShutdownHookFunc - the
-	// same config Controller/Manager use internally (see buildManager).
+	// identity - the same config Controller/Manager use internally (see
+	// buildManager). A copy (see runPostStartHooks/runPreShutdownHooks) is
+	// handed to each PostStartHookFunc/PreShutdownHookFunc, never this field
+	// itself, so a hook can't mutate it out from under other consumers.
 	loopbackConfig *restclient.Config
 
 	// postStartHooks and preShutdownHooks are the WithPostStartHook/
@@ -919,7 +921,7 @@ func (s *Server) startManager() {
 // ListenAndServe can fail startup without crashing the process.
 func (s *Server) runPostStartHooks(ctx context.Context) error {
 	for i, hook := range s.postStartHooks {
-		err := hook(ctx, s.loopbackConfig)
+		err := hook(ctx, restclient.CopyConfig(s.loopbackConfig))
 		if err != nil {
 			return fmt.Errorf("post-start hook %d failed: %w", i, err)
 		}
@@ -947,7 +949,7 @@ func (s *Server) runPreShutdownHooks(ctx context.Context) {
 		defer close(done)
 
 		for i, hook := range s.preShutdownHooks {
-			err := hook(ctx, s.loopbackConfig)
+			err := hook(ctx, restclient.CopyConfig(s.loopbackConfig))
 			if err != nil {
 				s.logger.Error("Pre-shutdown hook failed", "index", i, "error", err)
 			}
