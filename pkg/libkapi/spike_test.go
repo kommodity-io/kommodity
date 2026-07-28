@@ -1,4 +1,4 @@
-package libkapi //nolint:testpackage // exercises unexported internals directly (setupAPIServerConfig, newScheme, ...)
+package libkapi //nolint:testpackage // defines FreeAddr/WaitForHealthz, shared with libkapi_test's tests
 
 import (
 	"context"
@@ -13,6 +13,9 @@ import (
 	genericapiserver "k8s.io/apiserver/pkg/server"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/kommodity-io/kommodity/pkg/libkapi/apiserver"
+	"github.com/kommodity-io/kommodity/pkg/libkapi/auth"
 )
 
 const spikeReadHeaderTimeout = 10 * time.Second
@@ -79,13 +82,13 @@ func TestDirectMountServingSpike(t *testing.T) {
 func buildBareGenericServer(t *testing.T, addr string) *genericapiserver.GenericAPIServer {
 	t.Helper()
 
-	scheme, codecs, err := newScheme(nil)
+	scheme, codecs, err := apiserver.NewScheme(nil)
 	require.NoError(t, err)
 
 	groupVersions := []schema.GroupVersion{metav1.SchemeGroupVersion}
 
-	genericServerConfig, err := setupAPIServerConfig(
-		addr, scheme, codecs, groupVersions, defaultAuthenticator(), defaultAuthorizer())
+	genericServerConfig, err := apiserver.SetupAPIServerConfig(
+		addr, scheme, codecs, groupVersions, auth.DefaultAuthenticator(), auth.DefaultAuthorizer())
 	require.NoError(t, err)
 
 	genericServer, err := genericServerConfig.Complete().New("libkapi-spike", genericapiserver.NewEmptyDelegate())

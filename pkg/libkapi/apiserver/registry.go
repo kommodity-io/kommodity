@@ -1,4 +1,4 @@
-package libkapi
+package apiserver
 
 import (
 	"fmt"
@@ -42,19 +42,19 @@ type restStorageProvider interface {
 		restOptionsGetter genericregistry.RESTOptionsGetter) (genericapiserver.APIGroupInfo, error)
 }
 
-// standardAPIGroup pairs an upstream restStorageProvider with the group name
+// StandardAPIGroup pairs an upstream restStorageProvider with the group name
 // used to pick its storage codec version and, for core v1, install path.
-type standardAPIGroup struct {
+type StandardAPIGroup struct {
 	displayName string
 	groupName   string
 	provider    restStorageProvider
 	legacy      bool
-	// version is filled in by resolveStandardGroupVersions.
+	// version is filled in by ResolveStandardGroupVersions.
 	version schema.GroupVersion
 }
 
-// standardAPIGroups returns the standard Kubernetes API groups
-// installStandardAPIGroups wires storage for: core v1, apps/v1, batch/v1,
+// StandardAPIGroups returns the standard Kubernetes API groups
+// InstallStandardAPIGroups wires storage for: core v1, apps/v1, batch/v1,
 // rbac.authorization.k8s.io/v1, networking.k8s.io, storage.k8s.io,
 // coordination.k8s.io. Each provider comes from an upstream
 // k8s.io/kubernetes/pkg/registry/<group>/rest
@@ -64,12 +64,12 @@ type standardAPIGroup struct {
 // scheme.go), not a scheme private to this Server - see the PRD's
 // "legacyscheme global singleton" risk note.
 //
-// authz is threaded in from the same instance setupAPIServerConfig assigns to
+// authz is threaded in from the same instance SetupAPIServerConfig assigns to
 // genericServerConfig.Authorization.Authorizer, so the rbac.authorization.k8s.io
 // group's bootstrap-roles behavior agrees with the server's actual authorizer
 // instead of independently constructing its own default.
-func standardAPIGroups(authz authorizer.Authorizer) []standardAPIGroup {
-	return []standardAPIGroup{
+func StandardAPIGroups(authz authorizer.Authorizer) []StandardAPIGroup {
+	return []StandardAPIGroup{
 		{
 			displayName: "core v1", groupName: corev1.GroupName,
 			provider: &corerest.GenericConfig{EventTTL: defaultEventTTL}, legacy: true,
@@ -89,7 +89,7 @@ func standardAPIGroups(authz authorizer.Authorizer) []standardAPIGroup {
 	}
 }
 
-// resolveStandardGroupVersions fills in each group's single GA (highest-
+// ResolveStandardGroupVersions fills in each group's single GA (highest-
 // priority) version from scheme, so callers resolve it exactly once instead
 // of every consumer re-querying the scheme per group.
 //
@@ -101,7 +101,7 @@ func standardAPIGroups(authz authorizer.Authorizer) []standardAPIGroup {
 // whichever version is first in the list, not the version it actually
 // exists at) that isn't worth working around for a first cut. Sticking to
 // one version per group keeps every codec unambiguous.
-func resolveStandardGroupVersions(scheme *runtime.Scheme, groups []standardAPIGroup) error {
+func ResolveStandardGroupVersions(scheme *runtime.Scheme, groups []StandardAPIGroup) error {
 	for groupIndex := range groups {
 		versions := scheme.PrioritizedVersionsForGroup(groups[groupIndex].groupName)
 		if len(versions) == 0 {
@@ -114,8 +114,8 @@ func resolveStandardGroupVersions(scheme *runtime.Scheme, groups []standardAPIGr
 	return nil
 }
 
-// groupVersions extracts each group's resolved version, in order.
-func groupVersions(groups []standardAPIGroup) []schema.GroupVersion {
+// GroupVersions extracts each group's resolved version, in order.
+func GroupVersions(groups []StandardAPIGroup) []schema.GroupVersion {
 	versions := make([]schema.GroupVersion, len(groups))
 	for i, group := range groups {
 		versions[i] = group.version
@@ -124,13 +124,13 @@ func groupVersions(groups []standardAPIGroup) []schema.GroupVersion {
 	return versions
 }
 
-// installStandardAPIGroups wires REST storage for every entry in groups onto
+// InstallStandardAPIGroups wires REST storage for every entry in groups onto
 // genericServer. Each group's storage codec is pinned to its resolved GA
-// version (see resolveStandardGroupVersions) - not every version the scheme
+// version (see ResolveStandardGroupVersions) - not every version the scheme
 // knows about - to keep encoding unambiguous.
-func installStandardAPIGroups(
+func InstallStandardAPIGroups(
 	genericServer *genericapiserver.GenericAPIServer,
-	groups []standardAPIGroup,
+	groups []StandardAPIGroup,
 	codecs serializer.CodecFactory,
 	resourceConfig apiserverstorage.APIResourceConfigSource,
 	storageEndpoints []string,

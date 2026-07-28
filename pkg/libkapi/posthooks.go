@@ -14,7 +14,7 @@ import (
 // deliberate differences: hooks here run strictly in registration order
 // (upstream dispatches all of its own hooks concurrently, in unspecified map
 // order), and a hook's error fails ListenAndServe with an ordinary Go error
-// instead of upstream's own klog.Fatal (see apiserver.go's
+// instead of upstream's own klog.Fatal (see apiserver/apiserver.go's
 // newLoopbackClientConfig doc for the crash a failing post-start hook used
 // to cause before the loopback client had a privileged identity).
 //

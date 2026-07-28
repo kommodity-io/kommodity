@@ -3,6 +3,7 @@ package libkapi
 import (
 	"errors"
 
+	"github.com/kommodity-io/kommodity/pkg/libkapi/apiserver"
 	"github.com/kommodity-io/kommodity/pkg/libkapi/auth"
 	"github.com/kommodity-io/kommodity/pkg/libkapi/storage"
 )
@@ -31,21 +32,31 @@ var (
 	// ErrAdminGroupRequired is returned when the admin authorizer is used without an admin group.
 	ErrAdminGroupRequired = auth.ErrAdminGroupRequired
 
-	// Server errors.
+	// API server errors — re-aliased from pkg/libkapi/apiserver.
 
 	// ErrGroupVersionNotRegistered is returned when a standard API group has no version registered in the scheme.
-	ErrGroupVersionNotRegistered = errors.New("no scheme version registered for group")
+	ErrGroupVersionNotRegistered = apiserver.ErrGroupVersionNotRegistered
+	// ErrServiceResolutionUnsupported is returned by the noopServiceResolver when
+	// a remote APIService (Spec.Service != nil) is created, which libkapi does
+	// not support.
+	ErrServiceResolutionUnsupported = apiserver.ErrServiceResolutionUnsupported
+
+	// Server errors.
+
 	// ErrServerAlreadyStarted is returned when ListenAndServe is called more than once.
 	ErrServerAlreadyStarted = errors.New("server already started")
 	// ErrServerNotStarted is returned when Shutdown is called before ListenAndServe.
 	ErrServerNotStarted = errors.New("server not started")
 	// ErrNotImplemented is returned for optional config fields that are reserved but not yet implemented.
 	ErrNotImplemented = errors.New("not implemented")
-	// ErrServiceResolutionUnsupported is returned by the noopServiceResolver when
-	// a remote APIService (Spec.Service != nil) is created, which libkapi does
-	// not support.
-	ErrServiceResolutionUnsupported = errors.New(
-		"service resolution is not supported in libkapi: no Service or Endpoints resources are wired")
 	// ErrLeaderElectionIDRequired is returned when WithLeaderElection is called with an empty ID.
 	ErrLeaderElectionIDRequired = errors.New("leader election ID is required when using WithLeaderElection")
+
+	// Garbage collector errors — see WithGarbageCollector.
+
+	// ErrGarbageCollectorClientBuild is returned when constructing the typed,
+	// metadata, or discovery client for the garbage collector fails.
+	ErrGarbageCollectorClientBuild = errors.New("failed to build garbage collector client")
+	// ErrGarbageCollectorInit is returned when the garbage collector fails to initialize.
+	ErrGarbageCollectorInit = errors.New("failed to initialize garbage collector")
 )

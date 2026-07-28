@@ -1,4 +1,4 @@
-package libkapi
+package apiserver
 
 import (
 	"fmt"
@@ -16,7 +16,7 @@ import (
 	// legacyscheme.Scheme is a package-level singleton that the blank imports
 	// below populate with the standard Kubernetes API groups as a side effect;
 	// registry.go wires REST storage for these groups using upstream aggregator
-	// functions built against this exact global scheme, so newScheme extends it
+	// functions built against this exact global scheme, so NewScheme extends it
 	// in place rather than maintaining a separate copy. See the PRD's
 	// "legacyscheme global singleton" risk note.
 	"k8s.io/kubernetes/pkg/api/legacyscheme"
@@ -39,16 +39,17 @@ import (
 // schemeMu serializes mutation of the legacyscheme.Scheme singleton.
 // runtime.Scheme's AddKnownTypeWithName isn't safe for concurrent callers
 // (it writes directly into the scheme's internal maps), and
-// legacyscheme.Scheme itself is shared across every newScheme call (see the
-// import comment below), so the lock must be package-level too. server.go's
-// newMu already serializes newScheme's only production caller (New), but
-// spike_test.go also calls newScheme directly, bypassing that lock - keeping
-// this one here makes newScheme safe on its own regardless of caller.
+// legacyscheme.Scheme itself is shared across every NewScheme call (see the
+// import comment below), so the lock must be package-level too. The parent
+// libkapi package's newMu already serializes NewScheme's only production
+// caller (libkapi.New), but its spike_test.go also calls NewScheme directly,
+// bypassing that lock - keeping this one here makes NewScheme safe on its
+// own regardless of caller.
 //
 //nolint:gochecknoglobals // guards legacyscheme.Scheme, itself a package-level singleton.
 var schemeMu sync.Mutex
 
-// newScheme returns the shared runtime.Scheme and CodecFactory used across the
+// NewScheme returns the shared runtime.Scheme and CodecFactory used across the
 // entire delegation chain: the standard-API delegate, the CRD server, and the
 // aggregator.
 //
@@ -56,7 +57,7 @@ var schemeMu sync.Mutex
 // networking/storage by the blank imports above) with the apiextensions and
 // apiregistration types the CRD and aggregation layers need, plus any extra
 // types the caller supplied via WithScheme.
-func newScheme(extra *runtime.Scheme) (*runtime.Scheme, serializer.CodecFactory, error) {
+func NewScheme(extra *runtime.Scheme) (*runtime.Scheme, serializer.CodecFactory, error) {
 	schemeMu.Lock()
 	defer schemeMu.Unlock()
 

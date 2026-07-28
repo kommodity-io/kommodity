@@ -1,4 +1,4 @@
-package libkapi
+package apiserver
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -14,12 +14,12 @@ type apiServicePriority struct {
 }
 
 // defaultGenericAPIServicePriorities carries priorities only for the group-
-// versions libkapi actually installs (see standardAPIGroups and
+// versions libkapi actually installs (see StandardAPIGroups and
 // setupAPIExtensionConfig) - unlike upstream k8s.io/kube-aggregator's own
 // table, which also covers built-in groups this library doesn't wire
 // (events.k8s.io, flowcontrol.apiserver.k8s.io, ...). makeAPIService
 // silently skips registering any group-version missing here, so add an
-// entry whenever installStandardAPIGroups grows a new group.
+// entry whenever InstallStandardAPIGroups grows a new group.
 //
 //nolint:mnd // Priority values copied from k8s.io/kube-aggregator/pkg/apiserver/priority.go
 func defaultGenericAPIServicePriorities() map[schema.GroupVersion]apiServicePriority {

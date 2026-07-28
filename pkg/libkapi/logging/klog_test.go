@@ -1,4 +1,4 @@
-package libkapi_test
+package logging_test
 
 import (
 	"bytes"
@@ -7,7 +7,7 @@ import (
 
 	"k8s.io/klog/v2"
 
-	"github.com/kommodity-io/kommodity/pkg/libkapi"
+	"github.com/kommodity-io/kommodity/pkg/libkapi/logging"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -34,7 +34,7 @@ func TestInstallKlogAdapter_BridgesKlogToSlog(t *testing.T) {
 		Level: slog.LevelDebug,
 	}))
 
-	libkapi.InstallKlogAdapter(logger)
+	logging.InstallKlogAdapter(logger)
 
 	const msg = "klog message routed through slog"
 	klog.Info(msg)
@@ -63,7 +63,7 @@ func TestInstallKlogAdapter_NilLoggerFallsBackToDefault(t *testing.T) {
 	})))
 
 	require.NotPanics(t, func() {
-		libkapi.InstallKlogAdapter(nil)
+		logging.InstallKlogAdapter(nil)
 	})
 
 	const msg = "nil-fallback klog message"
@@ -86,7 +86,7 @@ func TestInstallKlogAdapter_RespectsSlogLevel(t *testing.T) {
 		Level: slog.LevelError,
 	}))
 
-	libkapi.InstallKlogAdapter(logger)
+	logging.InstallKlogAdapter(logger)
 
 	klog.Info("this info should be filtered")
 	klog.Error("this error should pass through")

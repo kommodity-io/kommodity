@@ -1,4 +1,4 @@
-package libkapi
+package apiserver
 
 import (
 	"fmt"
@@ -29,7 +29,7 @@ import (
 // sharedInformerResyncPeriod matches pkg/server's own default.
 const sharedInformerResyncPeriod = 10 * time.Minute
 
-// setupAPIServerConfig builds the generic apiserver config shared by the
+// SetupAPIServerConfig builds the generic apiserver config shared by the
 // standard-API delegate, the CRD server, and the aggregator.
 //
 // It deliberately never sets SecureServing: k8s.io/apiserver's
@@ -41,8 +41,9 @@ const sharedInformerResyncPeriod = 10 * time.Minute
 // derive a port when ExternalAddress itself has none - see
 // k8s.io/apiserver@v0.32.6 pkg/server/config.go:699-709). The resulting
 // server's Handler is mounted directly on the caller's own http.Server by
-// server.go, with no internal TLS hop or reverse proxy.
-func setupAPIServerConfig(addr string,
+// the parent libkapi package's server.go, with no internal TLS hop or
+// reverse proxy.
+func SetupAPIServerConfig(addr string,
 	scheme *runtime.Scheme,
 	codecs serializer.CodecFactory,
 	groupVersions []schema.GroupVersion,
@@ -98,7 +99,7 @@ func setupAPIServerConfig(addr string,
 // with it. Both delegates need their own RecommendedConfig - each is a
 // distinct genericapiserver.Config - but all of them must agree on the
 // fields that make direct-mount serving and shared storage/auth work
-// (ExternalAddress in particular: see setupAPIServerConfig's doc comment).
+// (ExternalAddress in particular: see SetupAPIServerConfig's doc comment).
 // The caller sets whatever else is specific to its delegate (RESTOptionsGetter,
 // AdmissionControl, SkipOpenAPIInstallation, FeatureGate, ...).
 func newDelegateConfig(
