@@ -49,6 +49,7 @@ providers:
   - name: scw
     provider: scaleway
     repository: scaleway/cluster-api-provider-scaleway
+    release_tag: v0.1.5
     file_name: infrastructure-components.yaml
     filter: select(.kind == "CustomResourceDefinition")
     deny_list:
@@ -86,6 +87,8 @@ providers:
       - api/v1alpha1
       - api/v1beta1
       - exp/api/v1beta1
+    webhooks:
+      - config/webhook/manifests.yaml
   - name: aso-resources
     provider: azure
     go_module: github.com/Azure/azure-service-operator/v2
