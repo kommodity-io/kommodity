@@ -86,6 +86,8 @@ providers:
       - api/v1alpha1
       - api/v1beta1
       - exp/api/v1beta1
+    webhooks:
+      - config/webhook/manifests.yaml
   - name: aso-resources
     provider: azure
     go_module: github.com/Azure/azure-service-operator/v2

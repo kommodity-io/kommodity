@@ -42,19 +42,33 @@ kommodity:
         - 100.96.0.0/12
 
   extraSecrets: {}
-    # Examples of extra secrets to be created in the downstream cluster, type default to Opaque
-    # my-namespace:
-    #   my-string-data-secret:
-    #     type: Opaque
-    #     stringData:
-    #       my-other-key: my-other-value
-    #     labels:
-    #       my-label: my-label-value
-    # my-other-namespace:
-    #   my-data-secret:
-    #     data:
-    #       username: admin
-    #       password: secret
+  # Extra secrets to be applied to the downstream cluster (type default to Opaque).
+  # Example:
+  #   extraSecrets:
+  #     my-namespace:
+  #       my-string-data-secret:
+  #         type: Opaque
+  #         stringData:
+  #           my-other-key: my-other-value
+  #         labels:
+  #           my-label: my-label-value
+  #     my-other-namespace:
+  #       my-data-secret:
+  #         data:
+  #           username: admin
+  #           password: secret
+
+  extraManifests: {}
+  # Extra manifests to be applied to the downstream cluster via a ClusterResourceSet.
+  # Multi-document YAML is supported within a single entry (CAPI splits on ---).
+  # Example:
+  #   extraManifests:
+  #     my-namespace: |
+  #       ---
+  #       apiVersion: v1
+  #       kind: Namespace
+  #       metadata:
+  #         name: my-namespace
 
   addons:
     cilium:

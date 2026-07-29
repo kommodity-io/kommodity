@@ -1,0 +1,276 @@
+suite: test extra manifests delivered via ClusterResourceSet
+release:
+  name: test-cluster
+  namespace: default
+templates:
+  - templates/extra-manifests.yaml
+tests:
+  - it: should not render anything when extraManifests is empty
+    template: templates/extra-manifests.yaml
+    set:
+      kommodity.extraManifests: {}
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should not render anything when extraManifests is null
+    template: templates/extra-manifests.yaml
+    set:
+      kommodity.extraManifests: null
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render payload Secret and ClusterResourceSet
+    template: templates/extra-manifests.yaml
+    set:
+      kommodity.extraManifests.external-dns-namespace: |
+        ---
+        apiVersion: v1
+        kind: Namespace
+        metadata:
+          name: external-dns
+    asserts:
+      - hasDocuments:
+          count: 2
+      - containsDocument:
+          kind: Secret
+          apiVersion: v1
+          name: test-cluster-extra-manifests
+          namespace: default
+        documentIndex: 0
+      - containsDocument:
+          kind: ClusterResourceSet
+          apiVersion: addons.cluster.x-k8s.io/v1beta1
+          name: test-cluster-extra-manifests
+          namespace: default
+        documentIndex: 1
+
+  - it: should set payload Secret type to ClusterResourceSetSecretType
+    template: templates/extra-manifests.yaml
+    set:
+      kommodity.extraManifests.external-dns-namespace: |
+        ---
+        apiVersion: v1
+        kind: Namespace
+        metadata:
+          name: external-dns
+    documentSelector:
+      path: kind
+      value: Secret
+    asserts:
+      - equal:
+          path: type
+          value: addons.cluster.x-k8s.io/resource-set
+
+  - it: should use map key plus .yaml suffix as stringData key
+    template: templates/extra-manifests.yaml
+    set:
+      kommodity.extraManifests.external-dns-namespace: |
+        ---
+        apiVersion: v1
+        kind: Namespace
+        metadata:
+          name: external-dns
+    documentSelector:
+      path: kind
+      value: Secret
+    asserts:
+      - matchRegex:
+          path: stringData["external-dns-namespace.yaml"]
+          pattern: "kind: Namespace"
+
+  - it: should pass manifest through verbatim without Helm templating
+    template: templates/extra-manifests.yaml
+    set:
+      kommodity.extraManifests.literal-test: |
+        ---
+        apiVersion: v1
+        kind: Namespace
+        metadata:
+          name: {{ .Release.Name }}
+    documentSelector:
+      path: kind
+      value: Secret
+    asserts:
+      - matchRegex:
+          path: stringData["literal-test.yaml"]
+          pattern: 'name: \{\{ \.Release\.Name \}\}'
+
+  - it: should render multiple entries with sorted keys
+    template: templates/extra-manifests.yaml
+    set:
+      kommodity.extraManifests.zzz-entry: |
+        ---
+        kind: Z
+      kommodity.extraManifests.aaa-entry: |
+        ---
+        kind: A
+    documentSelector:
+      path: kind
+      value: Secret
+    asserts:
+      - matchRegex:
+          path: stringData["aaa-entry.yaml"]
+          pattern: "kind: A"
+      - matchRegex:
+          path: stringData["zzz-entry.yaml"]
+          pattern: "kind: Z"
+
+  - it: should skip entries with empty-string values
+    template: templates/extra-manifests.yaml
+    set:
+      kommodity.extraManifests.kept: |
+        ---
+        kind: A
+      kommodity.extraManifests.skipped: ""
+    documentSelector:
+      path: kind
+      value: Secret
+    asserts:
+      - matchRegex:
+          path: stringData["kept.yaml"]
+          pattern: "kind: A"
+      - notExists:
+          path: stringData["skipped.yaml"]
+
+  - it: should pass multi-document YAML through verbatim
+    template: templates/extra-manifests.yaml
+    set:
+      kommodity.extraManifests.multi-doc: |
+        ---
+        apiVersion: v1
+        kind: Namespace
+        metadata:
+          name: one
+        ---
+        apiVersion: v1
+        kind: ConfigMap
+        metadata:
+          name: two
+    documentSelector:
+      path: kind
+      value: Secret
+    asserts:
+      - matchRegex:
+          path: stringData["multi-doc.yaml"]
+          pattern: "kind: Namespace"
+      - matchRegex:
+          path: stringData["multi-doc.yaml"]
+          pattern: "kind: ConfigMap"
+
+  - it: should not render anything when all entries are empty
+    template: templates/extra-manifests.yaml
+    set:
+      kommodity.extraManifests.first: ""
+      kommodity.extraManifests.second: ""
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should label the payload Secret with cluster name and managed-by
+    template: templates/extra-manifests.yaml
+    set:
+      kommodity.extraManifests.external-dns-namespace: |
+        ---
+        apiVersion: v1
+        kind: Namespace
+        metadata:
+          name: external-dns
+    documentSelector:
+      path: kind
+      value: Secret
+    asserts:
+      - equal:
+          path: metadata.labels["cluster.x-k8s.io/cluster-name"]
+          value: test-cluster
+      - equal:
+          path: metadata.labels["app.kubernetes.io/managed-by"]
+          value: kommodity
+
+  - it: should label the ClusterResourceSet with cluster name and managed-by
+    template: templates/extra-manifests.yaml
+    set:
+      kommodity.extraManifests.external-dns-namespace: |
+        ---
+        apiVersion: v1
+        kind: Namespace
+        metadata:
+          name: external-dns
+    documentSelector:
+      path: kind
+      value: ClusterResourceSet
+    asserts:
+      - equal:
+          path: metadata.labels["cluster.x-k8s.io/cluster-name"]
+          value: test-cluster
+      - equal:
+          path: metadata.labels["app.kubernetes.io/managed-by"]
+          value: kommodity
+
+  - it: should set CRS strategy to Reconcile and select by cluster-name label
+    template: templates/extra-manifests.yaml
+    set:
+      kommodity.extraManifests.external-dns-namespace: |
+        ---
+        apiVersion: v1
+        kind: Namespace
+        metadata:
+          name: external-dns
+    documentSelector:
+      path: kind
+      value: ClusterResourceSet
+    asserts:
+      - equal:
+          path: spec.strategy
+          value: Reconcile
+      - equal:
+          path: spec.clusterSelector.matchLabels["cluster.x-k8s.io/cluster-name"]
+          value: test-cluster
+
+  - it: should reference the payload Secret as CRS resource
+    template: templates/extra-manifests.yaml
+    set:
+      kommodity.extraManifests.external-dns-namespace: |
+        ---
+        apiVersion: v1
+        kind: Namespace
+        metadata:
+          name: external-dns
+    documentSelector:
+      path: kind
+      value: ClusterResourceSet
+    asserts:
+      - contains:
+          path: spec.resources
+          content:
+            kind: Secret
+            name: test-cluster-extra-manifests
+
+  - it: should fail when an extraManifest value is not a string
+    template: templates/extra-manifests.yaml
+    set:
+      kommodity.extraManifests.bad:
+        nested: object
+    asserts:
+      - failedTemplate:
+          errorMessage: "kommodity.extraManifests.bad must be a string (block scalar), got map"
+
+  - it: should fail when extraManifests is not a map
+    template: templates/extra-manifests.yaml
+    set:
+      kommodity.extraManifests: "not-a-map"
+    asserts:
+      - failedTemplate:
+          errorMessage: "kommodity.extraManifests must be a map of name -> YAML string, got string"
+
+  - it: should fail when an entry name contains invalid Secret key characters
+    template: templates/extra-manifests.yaml
+    set:
+      kommodity.extraManifests:
+        "bad/name": |
+          ---
+          kind: A
+    asserts:
+      - failedTemplate:
+          errorMessage: 'kommodity.extraManifests.bad/name is not a valid Secret data key: must match ^[-._a-zA-Z0-9]+$'
