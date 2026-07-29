@@ -16,6 +16,11 @@ const (
 	connectDialTimeout = 30 * time.Second
 	// connectResponseEstablished is the HTTP response sent after a successful CONNECT.
 	connectResponseEstablished = "HTTP/1.1 200 Connection Established\r\n\r\n"
+	// maxTunnelRetries is the maximum number of full dial-and-handshake attempts
+	// before giving up. Each failed attempt removes the current tunnel so the
+	// next attempt builds a fresh one, recovering from transient SPDY stream
+	// failures (EOF, connection reset, 502 from the proxy pod).
+	maxTunnelRetries = 3
 )
 
 // ConnectHandler implements an HTTP CONNECT proxy that routes connections
@@ -156,49 +161,67 @@ func (h *ConnectHandler) dialDirect(ctx context.Context, targetAddr string) (net
 	return conn, nil
 }
 
+// dialTunnel attempts to establish a tunnelled connection through the
+// talos-cluster-proxy pod. It retries the full dial-and-handshake sequence
+// up to maxTunnelRetries times, removing the tunnel on each failure so the
+// next attempt builds a fresh one. This recovers from transient SPDY stream
+// failures (EOF, connection reset, 502 from the proxy pod) that would
+// otherwise deadlock control-plane rollouts.
 func (h *ConnectHandler) dialTunnel(
 	ctx context.Context,
 	entry *CIDREntry,
 	targetAddr string,
 ) (net.Conn, error) {
-	conn, err := h.dialTunnelOnce(ctx, entry)
-	if err != nil {
-		// Tunnel may be stale (e.g., talos-cluster-proxy pod was evicted during rollout).
-		// Remove it and retry once with a fresh tunnel for transparent recovery.
-		h.logger.Warn("Tunnel dial failed, retrying with fresh tunnel",
-			zap.String("cluster", entry.ClusterName),
-			zap.Error(err))
+	var lastErr error
 
-		h.tunnelPool.RemoveTunnel(entry.ClusterName)
-
-		conn, err = h.dialTunnelOnce(ctx, entry)
+	for attempt := 1; attempt <= maxTunnelRetries; attempt++ {
+		conn, err := h.dialTunnelOnce(ctx, entry)
 		if err != nil {
+			lastErr = err
+
+			h.logger.Warn("Tunnel dial failed",
+				zap.String("cluster", entry.ClusterName),
+				zap.Int("attempt", attempt),
+				zap.Int("maxAttempts", maxTunnelRetries),
+				zap.Error(err))
+
 			h.tunnelPool.RemoveTunnel(entry.ClusterName)
 
-			return nil, fmt.Errorf("failed to dial through fresh tunnel for cluster %s: %w", entry.ClusterName, err)
-		}
-	}
-
-	err = EstablishConnectTunnel(conn, targetAddr)
-	if err != nil {
-		closeErr := conn.Close()
-		if closeErr != nil {
-			h.logger.Debug("Failed to close tunnel connection after CONNECT handshake failure", zap.Error(closeErr))
+			continue
 		}
 
-		// Inner CONNECT handshake failure usually means the proxy pod is dead or
-		// terminating. Drop the tunnel so the next request rebuilds against a
-		// fresh pod instead of hammering the broken one for the idle-timeout window.
-		h.tunnelPool.RemoveTunnel(entry.ClusterName)
+		err = EstablishConnectTunnel(conn, targetAddr)
+		if err != nil {
+			closeErr := conn.Close()
+			if closeErr != nil {
+				h.logger.Debug("Failed to close tunnel connection after CONNECT handshake failure",
+					zap.Error(closeErr))
+			}
 
-		return nil, fmt.Errorf("failed to establish CONNECT tunnel: %w", err)
+			lastErr = err
+
+			h.logger.Warn("CONNECT handshake failed, retrying with fresh tunnel",
+				zap.String("cluster", entry.ClusterName),
+				zap.String("target", targetAddr),
+				zap.Int("attempt", attempt),
+				zap.Int("maxAttempts", maxTunnelRetries),
+				zap.Error(err))
+
+			h.tunnelPool.RemoveTunnel(entry.ClusterName)
+
+			continue
+		}
+
+		h.logger.Debug("Routed through tunnel",
+			zap.String("cluster", entry.ClusterName),
+			zap.String("target", targetAddr),
+			zap.Int("attempts", attempt))
+
+		return conn, nil
 	}
 
-	h.logger.Debug("Routed through tunnel",
-		zap.String("cluster", entry.ClusterName),
-		zap.String("target", targetAddr))
-
-	return conn, nil
+	return nil, fmt.Errorf("failed to establish tunnel for cluster %s after %d attempts: %w",
+		entry.ClusterName, maxTunnelRetries, lastErr)
 }
 
 func (h *ConnectHandler) dialTunnelOnce(

@@ -47,6 +47,9 @@ type Tunnel struct {
 	podName     string
 	activeConns atomic.Int64
 	onIdle      func()
+	// dialFunc overrides the default dial behavior for testing. When nil,
+	// Dial connects to the local port-forward port.
+	dialFunc func(ctx context.Context) (net.Conn, error)
 }
 
 // TunnelDeps holds the dependencies needed to create a tunnel.
@@ -73,6 +76,19 @@ func (t *Tunnel) Establish(ctx context.Context, kubeClient client.Client) error 
 
 	if t.closed {
 		return ErrTunnelClosed
+	}
+
+	// When a custom dial function is set (test mode), skip real port-forward
+	// establishment. The dial function provides connections directly.
+	if t.dialFunc != nil {
+		t.podName = "mock-tunnel"
+
+		logger := logging.FromContext(ctx)
+		logger.Info("Tunnel established (mock)",
+			zap.String("cluster", t.clusterName),
+			zap.String("pod", t.podName))
+
+		return nil
 	}
 
 	logger := logging.FromContext(ctx)
@@ -116,14 +132,26 @@ func (t *Tunnel) Dial(ctx context.Context) (net.Conn, error) {
 		return nil, ErrTunnelClosed
 	}
 
-	if t.localPort == 0 {
+	if t.localPort == 0 && t.dialFunc == nil {
 		t.mu.Unlock()
 
 		return nil, ErrTunnelNotReady
 	}
 
+	dialFunc := t.dialFunc
 	port := t.localPort
 	t.mu.Unlock()
+
+	if dialFunc != nil {
+		conn, err := dialFunc(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to dial tunnel for cluster %s: %w", t.clusterName, err)
+		}
+
+		t.AcquireConn()
+
+		return &trackedConn{Conn: conn, tunnel: t}, nil
+	}
 
 	dialer := net.Dialer{}
 

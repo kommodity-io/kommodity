@@ -3,6 +3,7 @@ package talosproxy
 import (
 	"context"
 	"fmt"
+	"net"
 	"sync"
 	"time"
 
@@ -30,6 +31,10 @@ type TunnelPool struct {
 	config       *config.TalosProxyConfig
 	client       client.Client
 	logger       *zap.Logger
+	// dialFunc, when set, is applied to all new tunnels created by the pool.
+	// This bypasses the real port-forward establishment, enabling tests to
+	// inject mock connections without a live Kubernetes API server.
+	dialFunc func(ctx context.Context) (net.Conn, error)
 }
 
 // NewTunnelPool creates a new tunnel pool.
@@ -108,6 +113,10 @@ func (p *TunnelPool) GetOrCreateTunnel(
 			Config:      p.config,
 			OnIdle:      func() { p.scheduleIdleClose(clusterName) },
 		})
+
+		if p.dialFunc != nil {
+			newTunnel.dialFunc = p.dialFunc
+		}
 
 		return p.doEstablish(ctx, clusterName, newTunnel, notifyChan)
 	}
