@@ -55,13 +55,19 @@ func (p *Proxy) CIDRRegistryForTest() *CIDRRegistry {
 // The provided function is called instead of dialing the local port-forward
 // port, allowing tests to return controllable net.Conn instances.
 func SetTunnelDialFunc(tunnel *Tunnel, fn func(ctx context.Context) (net.Conn, error)) {
+	tunnel.mu.Lock()
+	defer tunnel.mu.Unlock()
+
 	tunnel.dialFunc = fn
 }
 
 // SetPoolDialFunc sets a custom dial function on the TunnelPool. All new
 // tunnels created by the pool will use this function instead of real
 // port-forward connections, bypassing network establishment entirely.
-func SetPoolDialFunc(pool *TunnelPool, fn func(ctx context.Context) (net.Conn, error)) {
+func SetPoolDialFunc(pool *TunnelPool, fn func(context.Context) (net.Conn, error)) {
+	pool.mu.Lock()
+	defer pool.mu.Unlock()
+
 	pool.dialFunc = fn
 }
 

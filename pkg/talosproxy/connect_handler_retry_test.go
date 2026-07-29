@@ -49,6 +49,8 @@ func (m *mockProxyConn) handleConn(conn net.Conn) {
 
 		return
 	}
+
+	_ = conn.Close()
 }
 
 // poolDialFunc returns a dial function for the TunnelPool that creates
