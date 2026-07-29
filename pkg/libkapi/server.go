@@ -703,6 +703,14 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		return fmt.Errorf("failed to shut down http server: %w", err)
 	}
 
+	// The shutdown watcher (registerShutdownWatcher) may have already shut down
+	// the HTTP server with a fresh context before s.httpServer.Shutdown(ctx)
+	// ran, causing it to return nil even though ctx has expired. Surface the
+	// ctx error so callers see the deadline they set.
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return fmt.Errorf("failed to shut down http server: %w", ctxErr)
+	}
+
 	return nil
 }
 
