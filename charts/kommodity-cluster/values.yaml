@@ -63,12 +63,12 @@ kommodity:
   # Multi-document YAML is supported within a single entry (splits on ---).
   # Example:
   #   extraManifests:
-  #     external-dns-namespace: |
+  #     my-namespace: |
   #       ---
   #       apiVersion: v1
   #       kind: Namespace
   #       metadata:
-  #         name: external-dns
+  #         name: my-namespace
 
   addons:
     cilium:
