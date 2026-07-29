@@ -13,6 +13,8 @@ import (
 
 	"github.com/kommodity-io/kommodity/pkg/logging"
 	"go.uber.org/zap"
+	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/h2c"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
@@ -148,16 +150,11 @@ func (s *server) ListenAndServe(ctx context.Context) error {
 		}
 	})
 
-	// Create HTTP server with unencrypted HTTP/2 (h2c) support.
-	protocols := &http.Protocols{}
-	protocols.SetHTTP1(true)
-	protocols.SetUnencryptedHTTP2(true)
-
+	// Create HTTP server with h2c support for HTTP/2 without TLS
 	s.httpServer = &http.Server{
 		Addr:              ":" + strconv.Itoa(s.Port),
-		Handler:           mixedHandler,
+		Handler:           h2c.NewHandler(mixedHandler, &http2.Server{}),
 		ReadHeaderTimeout: 1 * time.Second,
-		Protocols:         protocols,
 	}
 
 	logger.Info("Starting combined HTTP/gRPC server", zap.Int("port", s.Port))

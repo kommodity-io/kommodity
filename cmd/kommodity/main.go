@@ -5,8 +5,6 @@ import (
 	"context"
 	"os"
 	"os/signal"
-	"slices"
-	"sync"
 	"syscall"
 
 	attestationserver "github.com/kommodity-io/kommodity/pkg/attestation"
@@ -39,8 +37,6 @@ func main() {
 	signal.NotifyContext(ctx, triggers...)
 
 	finalizers := make([]func(context.Context) error, 0)
-
-	var finalizersMu sync.Mutex
 
 	// Configure the zap OTEL logger.
 	zap.ReplaceGlobals(logger)
@@ -95,11 +91,7 @@ func main() {
 			return
 		}
 
-		finalizersMu.Lock()
-
 		finalizers = append(finalizers, server.Shutdown)
-
-		finalizersMu.Unlock()
 
 		err = server.ListenAndServe(ctx)
 		if err != nil {
@@ -119,12 +111,8 @@ func main() {
 	logger.Info("Received signal", zap.String("signal", sig.String()))
 
 	// Call the finalizers in reverse order.
-	finalizersMu.Lock()
-	snapshot := slices.Clone(finalizers)
-	finalizersMu.Unlock()
-
-	for _, fn := range slices.Backward(snapshot) {
-		err := fn(ctx)
+	for i := len(finalizers) - 1; i >= 0; i-- {
+		err := finalizers[i](ctx)
 		if err != nil {
 			logger.Error("Failed to shutdown", zap.Error(err))
 		}
