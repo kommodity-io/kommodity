@@ -60,7 +60,7 @@ kommodity:
 
   extraManifests: {}
   # Extra manifests to be applied to the downstream cluster.
-  # Multi-document YAML is supported within a single entry (splits on ---).
+  # Multi-document YAML is supported within a single entry (separate documents with ---).
   # Example:
   #   extraManifests:
   #     my-namespace: |
