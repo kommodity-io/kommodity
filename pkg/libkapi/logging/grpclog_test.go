@@ -1,4 +1,4 @@
-package libkapi_test
+package logging_test
 
 import (
 	"bytes"
@@ -7,7 +7,7 @@ import (
 
 	"google.golang.org/grpc/grpclog"
 
-	"github.com/kommodity-io/kommodity/pkg/libkapi"
+	"github.com/kommodity-io/kommodity/pkg/libkapi/logging"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -30,7 +30,7 @@ func TestInstallGRPCLogAdapter_DemotesInfoToDebug(t *testing.T) {
 		Level: slog.LevelDebug,
 	}))
 
-	libkapi.InstallGRPCLogAdapter(logger)
+	logging.InstallGRPCLogAdapter(logger)
 
 	grpclog.Info("connection established")
 	grpclog.Infoln("connection established")
@@ -56,7 +56,7 @@ func TestInstallGRPCLogAdapter_DemotesWarningToDebug(t *testing.T) {
 		Level: slog.LevelDebug,
 	}))
 
-	libkapi.InstallGRPCLogAdapter(logger)
+	logging.InstallGRPCLogAdapter(logger)
 
 	grpclog.Warning("connection degraded")
 	grpclog.Warningln("connection degraded")
@@ -81,7 +81,7 @@ func TestInstallGRPCLogAdapter_RoutesError(t *testing.T) {
 		Level: slog.LevelDebug,
 	}))
 
-	libkapi.InstallGRPCLogAdapter(logger)
+	logging.InstallGRPCLogAdapter(logger)
 
 	grpclog.Error("storage backend unreachable")
 	grpclog.Errorln("storage backend unreachable")
@@ -117,7 +117,7 @@ func TestInstallGRPCLogAdapter_FatalLogsAtError(t *testing.T) {
 		Level: slog.LevelDebug,
 	}))
 
-	libkapi.InstallGRPCLogAdapter(logger)
+	logging.InstallGRPCLogAdapter(logger)
 
 	// Verify Error-level routing works (Fatal uses the same
 	// a.logger.Error path in the adapter).
@@ -145,7 +145,7 @@ func TestInstallGRPCLogAdapter_NilLoggerFallsBackToDefault(t *testing.T) {
 	})))
 
 	require.NotPanics(t, func() {
-		libkapi.InstallGRPCLogAdapter(nil)
+		logging.InstallGRPCLogAdapter(nil)
 	})
 
 	grpclog.Error("nil-fallback error")
@@ -165,7 +165,7 @@ func TestInstallGRPCLogAdapter_InfoFilteredAtDefaultLevel(t *testing.T) {
 
 	logger := slog.New(slog.NewTextHandler(&buf, nil)) // default: Info level
 
-	libkapi.InstallGRPCLogAdapter(logger)
+	logging.InstallGRPCLogAdapter(logger)
 
 	grpclog.Info("this debug should be filtered")
 	grpclog.Warning("this debug should be filtered")

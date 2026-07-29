@@ -105,6 +105,33 @@ server, err := libkapi.New(ctx,
 Every unmatched request still falls through to the Kubernetes API server's
 own handler.
 
+### Mounting a gRPC server
+
+`WithGRPCServerFactory` lets you register gRPC services alongside the built
+API server, multiplexed onto the same address and port as everything else.
+Requests are routed by Content-Type: anything starting with
+`application/grpc` goes to the gRPC server, everything else goes to the HTTP
+mux (built API server plus any `WithHTTPHandlerFactory` routes). Pass it
+more than once to register several factories against the same
+`*grpc.Server`; they run in the order given. Reflection is registered
+automatically.
+
+```go
+server, err := libkapi.New(ctx,
+	libkapi.WithStorage("sqlite://local.db"),
+	libkapi.WithGRPCServerFactory(func(grpcServer *grpc.Server) error {
+		myservicepb.RegisterMyServiceServer(grpcServer, &myServiceImpl{})
+
+		return nil
+	}),
+)
+```
+
+Registering at least one factory switches the listener to serve h2c (HTTP/2
+over plaintext), since gRPC requires HTTP/2 and `WithTLS` is not yet
+implemented. Servers that never call `WithGRPCServerFactory` are unaffected
+and stay on plain HTTP/1.1.
+
 ### Graceful shutdown
 
 ```go
@@ -150,8 +177,9 @@ log output — libkapi's own messages, klog output from the embedded
 Kubernetes packages (apiserver, apiextensions-apiserver, kube-aggregator,
 client-go), and `sigs.k8s.io/controller-runtime`'s own log output — is
 routed through it. `New` bridges all of these to the slog logger
-automatically via `InstallKlogAdapter` and `InstallControllerRuntimeLogAdapter`,
-so the consumer never needs to configure either separately.
+automatically via `logging.InstallKlogAdapter` and
+`logging.InstallControllerRuntimeLogAdapter`, so the consumer never needs to
+configure either separately.
 
 ```go
 libkapi.WithLogger(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
@@ -161,7 +189,9 @@ libkapi.WithLogger(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
 
 The klog bridge is process-global (klog has a single backing logger), so the
 last `New` call wins; callers that need a different klog configuration can
-call `libkapi.InstallKlogAdapter(logger)` themselves, before or after `New`.
+call `logging.InstallKlogAdapter(logger)` themselves (from
+`github.com/kommodity-io/kommodity/pkg/libkapi/logging`), before or after
+`New`.
 
 The controller-runtime bridge is also process-global, but — unlike klog —
 `sigs.k8s.io/controller-runtime/pkg/log.SetLogger` only takes effect on its
@@ -212,6 +242,7 @@ auth-specific alike — pass any combination, in any order.
 | `WithStorage(storage string)`                    | Sets the storage connection string. See [Storage](#storage).                                                                                                                                           |
 | `WithLogger(logger *slog.Logger)`                | Sets the logger for libkapi's own output and the bridged klog/gRPC/logrus output. See [Logging](#logging). Defaults to `slog.Default()`.                                                               |
 | `WithHTTPHandlerFactory(f HTTPHandlerFactory)`   | Mounts an extra set of routes. See [Mounting custom HTTP handlers](#mounting-custom-http-handlers). Repeatable.                                                                                        |
+| `WithGRPCServerFactory(f GRPCServerFactory)`     | Registers gRPC services, multiplexed onto the same address and port. See [Mounting a gRPC server](#mounting-a-grpc-server). Repeatable.                                                                |
 | `WithScheme(scheme *runtime.Scheme)`             | Registers additional types beyond the standard API groups libkapi wires by default.                                                                                                                    |
 | `WithTLS(cfg TLSConfig)`                         | Reserved for future use; passing it makes `New` return `ErrNotImplemented`.                                                                                                                            |
 | `WithOIDC(cfg OIDCConfig)`                       | Adds an OIDC bearer-token authenticator. Fetches the issuer's discovery document at `IssuerURL/.well-known/openid-configuration` during `New`.                                                         |
@@ -413,7 +444,7 @@ server is **not** started until `ListenAndServe` is called.
 If no auth options are passed, the server defaults to anonymous
 authentication and always-allow authorization.
 
-### `func InstallKlogAdapter(logger *slog.Logger)`
+### `func logging.InstallKlogAdapter(logger *slog.Logger)`
 
 Bridges klog output to the consumer's slog logger so that the embedded
 Kubernetes packages route their log output through `logger` instead of
@@ -421,7 +452,7 @@ klog's default stderr writer. Called automatically by `New`; also safe to
 call independently. If `logger` is nil, `slog.Default()` is used. The
 bridge is process-global (klog has a single backing logger).
 
-### `func InstallControllerRuntimeLogAdapter(logger *slog.Logger)`
+### `func logging.InstallControllerRuntimeLogAdapter(logger *slog.Logger)`
 
 Bridges `sigs.k8s.io/controller-runtime`'s global logr sink to the
 consumer's slog logger, so any controller-runtime usage in the process —

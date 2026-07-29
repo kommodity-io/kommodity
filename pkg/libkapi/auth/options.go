@@ -5,10 +5,8 @@ import (
 	"log/slog"
 
 	"k8s.io/apiserver/pkg/authentication/authenticator"
-	"k8s.io/apiserver/pkg/authentication/request/anonymous"
 	authunion "k8s.io/apiserver/pkg/authentication/request/union"
 	"k8s.io/apiserver/pkg/authorization/authorizer"
-	"k8s.io/apiserver/pkg/authorization/authorizerfactory"
 )
 
 // Option configures authentication and authorization for a Server.
@@ -79,7 +77,7 @@ func resolveAuthorizer(cfg *config, logger *slog.Logger) authorizer.Authorizer {
 			"using always-allow authorizer")
 	}
 
-	return authorizerfactory.NewAlwaysAllowAuthorizer()
+	return DefaultAuthorizer()
 }
 
 // BuildUnionAuthenticator assembles the final union authenticator from the
@@ -98,12 +96,12 @@ func BuildUnionAuthenticator(oidcAuth authenticator.Request, saAuth authenticato
 	}
 
 	if len(authenticators) == 0 {
-		return anonymous.NewAuthenticator(nil)
+		return DefaultAuthenticator()
 	}
 
 	// Always append anonymous as the fallback so unrecognized tokens
 	// resolve to system:anonymous rather than failing.
-	authenticators = append(authenticators, anonymous.NewAuthenticator(nil))
+	authenticators = append(authenticators, DefaultAuthenticator())
 
 	return authunion.New(authenticators...)
 }

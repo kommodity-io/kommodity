@@ -1,4 +1,4 @@
-package libkapi_test
+package logging_test
 
 import (
 	"bytes"
@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/kommodity-io/kommodity/pkg/libkapi"
+	"github.com/kommodity-io/kommodity/pkg/libkapi/logging"
 )
 
 // These tests must NOT use t.Parallel: logrus's standard logger is
@@ -28,7 +28,7 @@ func TestInstallLogrusAdapter_RoutesInfo(t *testing.T) {
 		Level: slog.LevelDebug,
 	}))
 
-	libkapi.InstallLogrusAdapter(logger)
+	logging.InstallLogrusAdapter(logger)
 
 	logrus.Info("database tables are up to date")
 
@@ -49,7 +49,7 @@ func TestInstallLogrusAdapter_RoutesWarn(t *testing.T) {
 		Level: slog.LevelDebug,
 	}))
 
-	libkapi.InstallLogrusAdapter(logger)
+	logging.InstallLogrusAdapter(logger)
 
 	logrus.Warn("compaction took longer than expected")
 
@@ -70,7 +70,7 @@ func TestInstallLogrusAdapter_RoutesError(t *testing.T) {
 		Level: slog.LevelDebug,
 	}))
 
-	libkapi.InstallLogrusAdapter(logger)
+	logging.InstallLogrusAdapter(logger)
 
 	logrus.Error("failed to list latest changes")
 
@@ -93,7 +93,7 @@ func TestInstallLogrusAdapter_FatalDoesNotExit(t *testing.T) {
 		Level: slog.LevelDebug,
 	}))
 
-	libkapi.InstallLogrusAdapter(logger)
+	logging.InstallLogrusAdapter(logger)
 
 	require.NotPanics(t, func() {
 		logrus.Fatal("transaction commit failed")
@@ -125,7 +125,7 @@ func TestInstallLogrusAdapter_SuppressesOriginalOutput(t *testing.T) {
 		Level: slog.LevelDebug,
 	}))
 
-	libkapi.InstallLogrusAdapter(logger)
+	logging.InstallLogrusAdapter(logger)
 
 	logrus.Info("kine available at unix:///tmp/kine.sock")
 
@@ -148,7 +148,7 @@ func TestInstallLogrusAdapter_RoutesFields(t *testing.T) {
 		Level: slog.LevelDebug,
 	}))
 
-	libkapi.InstallLogrusAdapter(logger)
+	logging.InstallLogrusAdapter(logger)
 
 	logrus.WithField("endpoint", "postgres://localhost:5432").Info("connected")
 
@@ -173,7 +173,7 @@ func TestInstallLogrusAdapter_NilLoggerFallsBackToDefault(t *testing.T) {
 	})))
 
 	require.NotPanics(t, func() {
-		libkapi.InstallLogrusAdapter(nil)
+		logging.InstallLogrusAdapter(nil)
 	})
 
 	logrus.Info("nil-fallback info")

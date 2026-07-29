@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"google.golang.org/grpc"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	genericapiserver "k8s.io/apiserver/pkg/server"
@@ -19,8 +20,10 @@ import (
 	aggregatorapiserver "k8s.io/kube-aggregator/pkg/apiserver"
 	ctrl "sigs.k8s.io/controller-runtime"
 
+	"github.com/kommodity-io/kommodity/pkg/libkapi/apiserver"
 	"github.com/kommodity-io/kommodity/pkg/libkapi/auth"
 	"github.com/kommodity-io/kommodity/pkg/libkapi/controllers"
+	"github.com/kommodity-io/kommodity/pkg/libkapi/logging"
 	"github.com/kommodity-io/kommodity/pkg/libkapi/storage"
 )
 
@@ -43,6 +46,7 @@ type Server struct {
 	addr         string
 	httpServer   *http.Server
 	aggregator   *aggregatorapiserver.APIAggregator
+	grpcServer   *grpc.Server
 	storageClose func()
 	logger       *slog.Logger
 
@@ -76,9 +80,10 @@ type Server struct {
 
 // newMu serializes New() across concurrent calls. Constructing a Server
 // mutates several process-wide globals in the Kubernetes packages libkapi
-// embeds - klog's contextual logger (InstallKlogAdapter) and the
+// embeds - klog's contextual logger (logging.InstallKlogAdapter) and the
 // legacyscheme.Scheme singleton the upstream REST storage providers in
-// registry.go are hard-wired to (see scheme.go's schemeMu doc) - none of
+// apiserver/registry.go are hard-wired to (see apiserver/scheme.go's
+// schemeMu doc) - none of
 // which are safe for concurrent writers. Two Servers built at once without
 // this lock race on that shared state, up to and including a fatal
 // "concurrent map writes" crash. The cost is that one Server's construction
@@ -139,10 +144,10 @@ func New(ctx context.Context, opts ...Option) (*Server, error) {
 	// adapter additionally neutralizes logrus.Fatalf (called by kine's
 	// compaction transaction on DB errors) so a momentary DB outage
 	// logs and recovers instead of killing the process via os.Exit(1).
-	InstallKlogAdapter(logger)
-	InstallGRPCLogAdapter(logger)
-	InstallLogrusAdapter(logger)
-	InstallControllerRuntimeLogAdapter(logger)
+	logging.InstallKlogAdapter(logger)
+	logging.InstallGRPCLogAdapter(logger)
+	logging.InstallLogrusAdapter(logger)
+	logging.InstallControllerRuntimeLogAdapter(logger)
 
 	// Create subloggers with a component field so log output is attributable
 	// to the subsystem that produced it.
@@ -182,32 +187,32 @@ func New(ctx context.Context, opts ...Option) (*Server, error) {
 func buildServer(cfg config, addr string, handle *storage.Handle,
 	authCfg *auth.ResolvedConfig, controllersLogger *slog.Logger,
 	managerLogger *slog.Logger, logger *slog.Logger) (*Server, error) {
-	scheme, codecs, err := newScheme(cfg.scheme)
+	scheme, codecs, err := apiserver.NewScheme(cfg.scheme)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to build scheme: %w", err)
 	}
 
-	// Authorizer is resolved early: standardAPIGroups needs it for RBAC's
+	// Authorizer is resolved early: StandardAPIGroups needs it for RBAC's
 	// bootstrap-roles wiring, and it must be the same instance the server uses.
 	authz := authCfg.Authorizer
 
-	groups := standardAPIGroups(authz)
+	groups := apiserver.StandardAPIGroups(authz)
 
-	err = resolveStandardGroupVersions(scheme, groups)
+	err = apiserver.ResolveStandardGroupVersions(scheme, groups)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to resolve standard API group versions: %w", err)
 	}
 
-	allGroupVersions := append(groupVersions(groups),
+	allGroupVersions := append(apiserver.GroupVersions(groups),
 		apiextensionsv1.SchemeGroupVersion, apiregistrationv1.SchemeGroupVersion)
 
 	// Pass nil for authn — the SA authenticator needs LoopbackClientConfig
-	// (available after setupAPIServerConfig), so the final union authenticator
+	// (available after SetupAPIServerConfig), so the final union authenticator
 	// is assembled and set in resolveAndSetAuth.
-	genericServerConfig, err := setupAPIServerConfig(
+	genericServerConfig, err := apiserver.SetupAPIServerConfig(
 		addr, scheme, codecs, allGroupVersions, nil, authz)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to set up API server config: %w", err)
 	}
 
 	err = resolveAndSetAuth(authCfg, genericServerConfig, controllersLogger)
@@ -222,7 +227,8 @@ func buildServer(cfg config, addr string, handle *storage.Handle,
 		return nil, err
 	}
 
-	aggregator, mux, err := buildDelegationChain(cfg, genericServerConfig, codecs, groups, handle.Endpoints())
+	aggregator, grpcServer, handler, err := buildDelegationChain(
+		cfg, genericServerConfig, codecs, groups, handle.Endpoints())
 	if err != nil {
 		return nil, err
 	}
@@ -231,10 +237,11 @@ func buildServer(cfg config, addr string, handle *storage.Handle,
 		addr: addr,
 		httpServer: &http.Server{
 			Addr:              addr,
-			Handler:           mux,
+			Handler:           handler,
 			ReadHeaderTimeout: readHeaderTimeout,
 		},
 		aggregator:       aggregator,
+		grpcServer:       grpcServer,
 		storageClose:     handle.Close,
 		logger:           logger,
 		mgr:              mgr,
@@ -458,35 +465,38 @@ func registerKeyHooks(
 
 // buildDelegationChain builds the CRD server -> standard-API delegate ->
 // aggregator delegation chain and returns the aggregator plus the
-// caller-facing mux (custom handlers layered over the aggregator's Handler).
+// caller-facing gRPC server (nil unless WithGRPCServerFactory was used) and
+// handler (custom HTTP handlers and, if any, gRPC routing layered over the
+// aggregator's own Handler).
 func buildDelegationChain(
 	cfg config,
 	genericServerConfig *genericapiserver.RecommendedConfig,
 	codecs serializer.CodecFactory,
-	groups []standardAPIGroup,
+	groups []apiserver.StandardAPIGroup,
 	storageEndpoints []string,
-) (*aggregatorapiserver.APIAggregator, *http.ServeMux, error) {
-	crdServer, err := newAPIExtensionServer(
+) (*aggregatorapiserver.APIAggregator, *grpc.Server, http.Handler, error) {
+	crdServer, err := apiserver.NewAPIExtensionServer(
 		genericServerConfig, codecs, storageEndpoints, genericapiserver.NewEmptyDelegate())
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, fmt.Errorf("failed to build delegation chain: %w", err)
 	}
 
 	genericServer, err := genericServerConfig.Complete().New("libkapi", crdServer.GenericAPIServer)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to build the generic api server: %w", err)
+		return nil, nil, nil, fmt.Errorf("failed to build the generic api server: %w", err)
 	}
 
-	err = installStandardAPIGroups(
+	err = apiserver.InstallStandardAPIGroups(
 		genericServer, groups, codecs, genericServerConfig.MergedResourceConfig, storageEndpoints)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, fmt.Errorf("failed to build delegation chain: %w", err)
 	}
 
-	aggregatorServer, err := newAPIAggregatorServer(genericServerConfig, codecs, storageEndpoints, genericServer,
+	aggregatorServer, err := apiserver.NewAPIAggregatorServer(
+		genericServerConfig, codecs, storageEndpoints, genericServer,
 		crdServer.Informers.Apiextensions().V1().CustomResourceDefinitions())
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, fmt.Errorf("failed to build delegation chain: %w", err)
 	}
 
 	// PrepareRun is not called here: it installs /healthz, /livez, /readyz
@@ -497,10 +507,15 @@ func buildDelegationChain(
 	// PrepareRun exactly once before NonBlockingRunWithContext.
 	mux, err := buildMux(cfg.handlers, aggregatorServer.GenericAPIServer.Handler)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
-	return aggregatorServer, mux, nil
+	grpcServer, handler, err := buildHandler(cfg.grpcFactories, mux)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	return aggregatorServer, grpcServer, handler, nil
 }
 
 // ListenAndServe binds the listener and blocks until ctx is canceled,
@@ -669,6 +684,8 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	cancel()
 	internalHooksCancel()
 
+	s.shutdownGRPCServer(ctx)
+
 	err := s.httpServer.Shutdown(ctx)
 
 	s.runWg.Wait()
@@ -686,7 +703,42 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		return fmt.Errorf("failed to shut down http server: %w", err)
 	}
 
+	// The shutdown watcher (registerShutdownWatcher) may have already shut down
+	// the HTTP server with a fresh context before s.httpServer.Shutdown(ctx)
+	// ran, causing it to return nil even though ctx has expired. Surface the
+	// ctx error so callers see the deadline they set.
+	ctxErr := ctx.Err()
+	if ctxErr != nil {
+		return fmt.Errorf("failed to shut down http server: %w", ctxErr)
+	}
+
 	return nil
+}
+
+// shutdownGRPCServer gracefully stops s.grpcServer (if WithGRPCServerFactory
+// was used), waiting for in-flight RPCs to finish. Bounded by ctx, the same
+// way Shutdown bounds its wait for the controller manager: if ctx is done
+// before GracefulStop returns, it falls back to Stop, which closes
+// connections immediately rather than letting Shutdown hang forever on a
+// client holding a stream open. A no-op when grpcServer is nil.
+func (s *Server) shutdownGRPCServer(ctx context.Context) {
+	if s.grpcServer == nil {
+		return
+	}
+
+	stopped := make(chan struct{})
+
+	go func() {
+		defer close(stopped)
+
+		s.grpcServer.GracefulStop()
+	}()
+
+	select {
+	case <-stopped:
+	case <-ctx.Done():
+		s.grpcServer.Stop()
+	}
 }
 
 // registerShutdownWatcher starts a goroutine that gracefully shuts down the
