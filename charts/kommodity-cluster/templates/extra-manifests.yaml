@@ -1,4 +1,7 @@
 {{- $extra := $.Values.kommodity.extraManifests | default (dict) }}
+{{- if ne (kindOf $extra) "map" -}}
+{{- fail (printf "kommodity.extraManifests must be a map of name -> YAML string, got %s" (kindOf $extra)) -}}
+{{- end }}
 {{- $entries := dict -}}
 {{- range $name, $value := $extra -}}
 {{- if ne (kindOf $value) "string" -}}
@@ -21,7 +24,7 @@ metadata:
 type: addons.cluster.x-k8s.io/resource-set
 stringData:
 {{- range $name := $entries | keys | sortAlpha }}
-  {{ $name }}.yaml: |
+  "{{ $name }}.yaml": |
 {{ index $entries $name | indent 4 }}
 {{- end }}
 ---

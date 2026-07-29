@@ -59,8 +59,8 @@ kommodity:
   #           password: secret
 
   extraManifests: {}
-  # Extra manifests to be applied to the downstream cluster.
-  # Multi-document YAML is supported within a single entry (separate documents with ---).
+  # Extra manifests to be applied to the downstream cluster via a ClusterResourceSet.
+  # Multi-document YAML is supported within a single entry (CAPI splits on ---).
   # Example:
   #   extraManifests:
   #     my-namespace: |

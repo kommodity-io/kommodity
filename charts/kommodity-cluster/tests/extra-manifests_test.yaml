@@ -255,3 +255,11 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: "kommodity.extraManifests.bad must be a string (block scalar), got map"
+
+  - it: should fail when extraManifests is not a map
+    template: templates/extra-manifests.yaml
+    set:
+      kommodity.extraManifests: "not-a-map"
+    asserts:
+      - failedTemplate:
+          errorMessage: "kommodity.extraManifests must be a map of name -> YAML string, got string"
