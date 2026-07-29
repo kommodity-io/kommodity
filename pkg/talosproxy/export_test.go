@@ -79,6 +79,3 @@ func DialTunnelForTest(
 func LookupEntryForTest(registry *CIDRRegistry, ip string) (*CIDREntry, error) {
 	return registry.Lookup(net.ParseIP(ip))
 }
-
-// MaxTunnelRetriesForTest exposes the maxTunnelRetries constant for testing.
-const MaxTunnelRetriesForTest = maxTunnelRetries

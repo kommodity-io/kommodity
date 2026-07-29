@@ -16,11 +16,6 @@ const (
 	connectDialTimeout = 30 * time.Second
 	// connectResponseEstablished is the HTTP response sent after a successful CONNECT.
 	connectResponseEstablished = "HTTP/1.1 200 Connection Established\r\n\r\n"
-	// maxTunnelRetries is the maximum number of full dial-and-handshake attempts
-	// before giving up. Each failed attempt removes the current tunnel so the
-	// next attempt builds a fresh one, recovering from transient SPDY stream
-	// failures (EOF, connection reset, 502 from the proxy pod).
-	maxTunnelRetries = 3
 )
 
 // ConnectHandler implements an HTTP CONNECT proxy that routes connections
@@ -29,6 +24,7 @@ const (
 type ConnectHandler struct {
 	cidrRegistry *CIDRRegistry
 	tunnelPool   *TunnelPool
+	maxRetries   int
 	logger       *zap.Logger
 }
 
@@ -36,11 +32,13 @@ type ConnectHandler struct {
 func NewConnectHandler(
 	cidrRegistry *CIDRRegistry,
 	tunnelPool *TunnelPool,
+	maxRetries int,
 	logger *zap.Logger,
 ) *ConnectHandler {
 	return &ConnectHandler{
 		cidrRegistry: cidrRegistry,
 		tunnelPool:   tunnelPool,
+		maxRetries:   maxRetries,
 		logger:       logger,
 	}
 }
@@ -163,7 +161,7 @@ func (h *ConnectHandler) dialDirect(ctx context.Context, targetAddr string) (net
 
 // dialTunnel attempts to establish a tunnelled connection through the
 // talos-cluster-proxy pod. It retries the full dial-and-handshake sequence
-// up to maxTunnelRetries times, removing the tunnel on each failure so the
+// up to maxRetries times, removing the tunnel on each failure so the
 // next attempt builds a fresh one. This recovers from transient SPDY stream
 // failures (EOF, connection reset, 502 from the proxy pod) that would
 // otherwise deadlock control-plane rollouts.
@@ -174,7 +172,7 @@ func (h *ConnectHandler) dialTunnel(
 ) (net.Conn, error) {
 	var lastErr error
 
-	for attempt := 1; attempt <= maxTunnelRetries; attempt++ {
+	for attempt := 1; attempt <= h.maxRetries; attempt++ {
 		conn, err := h.dialTunnelOnce(ctx, entry)
 		if err != nil {
 			lastErr = err
@@ -182,7 +180,7 @@ func (h *ConnectHandler) dialTunnel(
 			h.logger.Warn("Tunnel dial failed",
 				zap.String("cluster", entry.ClusterName),
 				zap.Int("attempt", attempt),
-				zap.Int("maxAttempts", maxTunnelRetries),
+				zap.Int("maxAttempts", h.maxRetries),
 				zap.Error(err))
 
 			h.tunnelPool.RemoveTunnel(entry.ClusterName)
@@ -204,7 +202,7 @@ func (h *ConnectHandler) dialTunnel(
 				zap.String("cluster", entry.ClusterName),
 				zap.String("target", targetAddr),
 				zap.Int("attempt", attempt),
-				zap.Int("maxAttempts", maxTunnelRetries),
+				zap.Int("maxAttempts", h.maxRetries),
 				zap.Error(err))
 
 			h.tunnelPool.RemoveTunnel(entry.ClusterName)
@@ -221,7 +219,7 @@ func (h *ConnectHandler) dialTunnel(
 	}
 
 	return nil, fmt.Errorf("failed to establish tunnel for cluster %s after %d attempts: %w",
-		entry.ClusterName, maxTunnelRetries, lastErr)
+		entry.ClusterName, h.maxRetries, lastErr)
 }
 
 func (h *ConnectHandler) dialTunnelOnce(

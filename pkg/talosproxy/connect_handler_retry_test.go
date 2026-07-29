@@ -14,6 +14,8 @@ import (
 	"go.uber.org/zap"
 )
 
+const testMaxRetries = 3
+
 // mockProxyConn simulates the talos-cluster-proxy pod side of a CONNECT
 // handshake. When failCount > 0, the first failCount connections are closed
 // immediately (producing EOF on the client side). Subsequent connections
@@ -106,6 +108,7 @@ func newRetryTestPool(
 		Enabled:        true,
 		ListenPort:     0,
 		ProxyNamespace: "talos-cluster-proxy",
+		MaxRetries:     testMaxRetries,
 	}
 
 	logger := zap.NewNop()
@@ -141,7 +144,7 @@ func TestDialTunnel_RetriesOnHandshakeFailure(t *testing.T) {
 	mock := &mockProxyConn{failCount: 2}
 	pool := newRetryTestPool(t, poolDialFunc(mock))
 	registry := newRetryTestRegistry(t)
-	handler := talosproxy.NewConnectHandler(registry, pool, zap.NewNop())
+	handler := talosproxy.NewConnectHandler(registry, pool, testMaxRetries, zap.NewNop())
 
 	entry := lookupTestEntry(t, registry)
 
@@ -160,7 +163,7 @@ func TestDialTunnel_RetriesOnDialFailure(t *testing.T) {
 	mock := &mockProxyConn{failCount: 0}
 	pool := newRetryTestPool(t, flakyDialFunc(2, mock))
 	registry := newRetryTestRegistry(t)
-	handler := talosproxy.NewConnectHandler(registry, pool, zap.NewNop())
+	handler := talosproxy.NewConnectHandler(registry, pool, testMaxRetries, zap.NewNop())
 
 	entry := lookupTestEntry(t, registry)
 
@@ -178,7 +181,7 @@ func TestDialTunnel_ExhaustsRetries(t *testing.T) {
 
 	pool := newRetryTestPool(t, failingDialFunc())
 	registry := newRetryTestRegistry(t)
-	handler := talosproxy.NewConnectHandler(registry, pool, zap.NewNop())
+	handler := talosproxy.NewConnectHandler(registry, pool, testMaxRetries, zap.NewNop())
 
 	entry := lookupTestEntry(t, registry)
 
@@ -195,7 +198,7 @@ func TestDialTunnel_SucceedsOnFirstAttempt(t *testing.T) {
 	mock := &mockProxyConn{failCount: 0}
 	pool := newRetryTestPool(t, poolDialFunc(mock))
 	registry := newRetryTestRegistry(t)
-	handler := talosproxy.NewConnectHandler(registry, pool, zap.NewNop())
+	handler := talosproxy.NewConnectHandler(registry, pool, testMaxRetries, zap.NewNop())
 
 	entry := lookupTestEntry(t, registry)
 
@@ -213,7 +216,7 @@ func TestDialTunnel_RemovesTunnelAfterExhaustingRetries(t *testing.T) {
 
 	pool := newRetryTestPool(t, failingDialFunc())
 	registry := newRetryTestRegistry(t)
-	handler := talosproxy.NewConnectHandler(registry, pool, zap.NewNop())
+	handler := talosproxy.NewConnectHandler(registry, pool, testMaxRetries, zap.NewNop())
 
 	entry := lookupTestEntry(t, registry)
 
@@ -230,7 +233,7 @@ func TestDialTunnel_HandshakeAlwaysFails(t *testing.T) {
 	mock := &mockProxyConn{failCount: 99}
 	pool := newRetryTestPool(t, poolDialFunc(mock))
 	registry := newRetryTestRegistry(t)
-	handler := talosproxy.NewConnectHandler(registry, pool, zap.NewNop())
+	handler := talosproxy.NewConnectHandler(registry, pool, testMaxRetries, zap.NewNop())
 
 	entry := lookupTestEntry(t, registry)
 
@@ -238,8 +241,8 @@ func TestDialTunnel_HandshakeAlwaysFails(t *testing.T) {
 	require.Error(t, err)
 	require.Nil(t, conn)
 
-	assert.Equal(t, int32(talosproxy.MaxTunnelRetriesForTest), mock.calls.Load(),
-		"should attempt exactly maxTunnelRetries times")
+	assert.Equal(t, int32(testMaxRetries), mock.calls.Load(),
+		"should attempt exactly maxRetries times")
 
 	assert.Contains(t, err.Error(), "after 3 attempts")
 }

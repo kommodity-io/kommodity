@@ -109,7 +109,7 @@ func (p *Proxy) Start(ctx context.Context) error {
 		return ErrListenerNotBound
 	}
 
-	handler := NewConnectHandler(p.cidrRegistry, p.tunnelPool, logger)
+	handler := NewConnectHandler(p.cidrRegistry, p.tunnelPool, p.config.MaxRetries, logger)
 
 	p.mu.Lock()
 	p.httpServer = &http.Server{

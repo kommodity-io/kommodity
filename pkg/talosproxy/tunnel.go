@@ -16,6 +16,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/util/httpstream"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -369,11 +370,6 @@ func (t *Tunnel) createPortForwarder(
 	restConfig *rest.Config,
 	target *serviceTarget,
 ) (*portforward.PortForwarder, error) {
-	transport, upgrader, err := spdy.RoundTripperFor(restConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create SPDY round tripper: %w", err)
-	}
-
 	path := fmt.Sprintf("/api/v1/namespaces/%s/pods/%s/portforward",
 		t.config.ProxyNamespace, target.podName)
 	serverURL := restConfig.Host + path
@@ -383,6 +379,16 @@ func (t *Tunnel) createPortForwarder(
 		return nil, fmt.Errorf("failed to parse server URL: %w", err)
 	}
 
+	wsDialer, err := portforward.NewSPDYOverWebsocketDialer(parsedURL, restConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create WebSocket dialer: %w", err)
+	}
+
+	transport, upgrader, err := spdy.RoundTripperFor(restConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create SPDY round tripper: %w", err)
+	}
+
 	spdyDialer := spdy.NewDialer(
 		upgrader,
 		&http.Client{Transport: transport},
@@ -390,17 +396,18 @@ func (t *Tunnel) createPortForwarder(
 		parsedURL,
 	)
 
-	// Use port 0 to let the system assign a local port
+	dialer := portforward.NewFallbackDialer(wsDialer, spdyDialer, httpstream.IsUpgradeFailure)
+
 	ports := []string{fmt.Sprintf("0:%d", target.targetPort)}
 	readyChan := make(chan struct{})
 
 	forwarder, err := portforward.New(
-		spdyDialer,
+		dialer,
 		ports,
 		t.stopChan,
 		readyChan,
-		nil, // stdout
-		nil, // stderr
+		nil,
+		nil,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create port-forwarder: %w", err)

@@ -29,13 +29,14 @@ func newTestHandler(t *testing.T) *talosproxy.ConnectHandler {
 		Enabled:        true,
 		ListenPort:     0,
 		ProxyNamespace: "talos-cluster-proxy",
+		MaxRetries:     3,
 	}
 
 	registry := talosproxy.NewCIDRRegistry()
 	logger := zap.NewNop()
 	pool := talosproxy.NewTunnelPool(proxyConfig, nil, logger)
 
-	return talosproxy.NewConnectHandler(registry, pool, logger)
+	return talosproxy.NewConnectHandler(registry, pool, proxyConfig.MaxRetries, logger)
 }
 
 // startTestProxyServer starts an HTTP server using the handler and returns the listener.
@@ -171,13 +172,14 @@ func TestConnectHandler_TunnelDialFailure(t *testing.T) {
 		Enabled:        true,
 		ListenPort:     0,
 		ProxyNamespace: "talos-cluster-proxy",
+		MaxRetries:     3,
 	}
 
 	registry := talosproxy.NewCIDRRegistry()
 	logger := zap.NewNop()
 	pool := talosproxy.NewTunnelPool(proxyConfig, fake.NewClientBuilder().Build(), logger)
 
-	handler := talosproxy.NewConnectHandler(registry, pool, logger)
+	handler := talosproxy.NewConnectHandler(registry, pool, proxyConfig.MaxRetries, logger)
 
 	// Register a CIDR that matches 10.200.0.0/20
 	_, cidr, err := net.ParseCIDR("10.200.0.0/20")
