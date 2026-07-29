@@ -197,7 +197,7 @@ kommodity:
         install:
           mode: HelmInstall
         upgrade:
-          disable: true
+          disable: false
       chart:
         repository: oci://ghcr.io/kommodity-io/charts
         name: talos-cluster-proxy
