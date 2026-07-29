@@ -1,0 +1,44 @@
+{{- $extra := $.Values.kommodity.extraManifests | default (dict) }}
+{{- $entries := dict -}}
+{{- range $name, $value := $extra -}}
+{{- if ne (kindOf $value) "string" -}}
+{{- fail (printf "kommodity.extraManifests.%s must be a string (block scalar), got %s" $name (kindOf $value)) -}}
+{{- end -}}
+{{- if ne $value "" -}}
+{{- $_ := set $entries $name $value -}}
+{{- end -}}
+{{- end -}}
+{{- if gt (len $entries) 0 }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ .Release.Name }}-extra-manifests
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: kommodity
+    cluster.x-k8s.io/cluster-name: {{ .Release.Name }}
+type: addons.cluster.x-k8s.io/resource-set
+stringData:
+{{- range $name := $entries | keys | sortAlpha }}
+  {{ $name }}.yaml: |
+{{ index $entries $name | indent 4 }}
+{{- end }}
+---
+apiVersion: addons.cluster.x-k8s.io/v1beta1
+kind: ClusterResourceSet
+metadata:
+  name: {{ .Release.Name }}-extra-manifests
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: kommodity
+    cluster.x-k8s.io/cluster-name: {{ .Release.Name }}
+spec:
+  strategy: Reconcile
+  clusterSelector:
+    matchLabels:
+      cluster.x-k8s.io/cluster-name: {{ .Release.Name }}
+  resources:
+    - kind: Secret
+      name: {{ .Release.Name }}-extra-manifests
+{{- end }}
