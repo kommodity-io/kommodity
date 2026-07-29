@@ -81,6 +81,18 @@ Usage: {{ include "kommodity-cluster.zoneShare" (dict "total" 6 "count" 2 "index
 {{- end -}}
 
 {{/*
+Compute a short hash of an addon's initialExtraValues.
+Returns empty string when initialExtraValues is not set, so the Job name
+is unaffected for addons without extra values.
+Usage: {{ include "kommodity.addon.valuesHash" .addon }}
+*/}}
+{{- define "kommodity.addon.valuesHash" -}}
+{{- if .initialExtraValues }}
+{{- toYaml .initialExtraValues | sha256sum | trunc 8 -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Expand the name of the chart.
 */}}
 {{- define "kommodity-cluster.name" -}}
