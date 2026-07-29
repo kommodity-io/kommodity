@@ -59,7 +59,7 @@ const (
 	defaultTalosProxyPort                     = 15050
 	defaultTalosProxyNamespace                = "talos-cluster-proxy"
 	defaultTalosProxyServiceName              = "talos-cluster-proxy"
-	defaultTalosProxyIdleTimeout              = 5 * time.Minute
+	defaultTalosProxyIdleTimeout              = 1 * time.Minute
 	defaultTalosProxyMaxRetries               = 5
 	defaultGarbageCollectorEnabled            = true
 	defaultGarbageCollectorWorkers            = 5
