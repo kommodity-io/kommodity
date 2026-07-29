@@ -263,3 +263,14 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: "kommodity.extraManifests must be a map of name -> YAML string, got string"
+
+  - it: should fail when an entry name contains invalid Secret key characters
+    template: templates/extra-manifests.yaml
+    set:
+      kommodity.extraManifests:
+        "bad/name": |
+          ---
+          kind: A
+    asserts:
+      - failedTemplate:
+          errorMessage: 'kommodity.extraManifests.bad/name is not a valid Secret data key: must match ^[-._a-zA-Z0-9]+$'

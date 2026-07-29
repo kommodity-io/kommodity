@@ -4,6 +4,9 @@
 {{- end }}
 {{- $entries := dict -}}
 {{- range $name, $value := $extra -}}
+{{- if not (regexMatch "^[-._a-zA-Z0-9]+$" $name) -}}
+{{- fail (printf "kommodity.extraManifests.%s is not a valid Secret data key: must match ^[-._a-zA-Z0-9]+$" $name) -}}
+{{- end -}}
 {{- if ne (kindOf $value) "string" -}}
 {{- fail (printf "kommodity.extraManifests.%s must be a string (block scalar), got %s" $name (kindOf $value)) -}}
 {{- end -}}
