@@ -14,34 +14,29 @@ for i in $(seq 0 $((count - 1))); do
   file=$(yq ".providers[$i].file_name" "$yq_path")
   filter=$(yq -r ".providers[$i].filter" "$yq_path")
   development_mode=$(yq -r ".providers[$i].development_mode" "$yq_path")
-  release_tag=$(yq -r ".providers[$i].release_tag" "$yq_path")
 
   if [ "$development_mode" == "true" ] && [ "$KOMMODITY_DEVELOPMENT_MODE" != "true" ]; then
     echo "Skipping $name as it is only for development mode"
     continue
   fi
 
-  if [ "$release_tag" != "null" ] && [ -n "$release_tag" ]; then
-    version="$release_tag"
-  elif [ -n "$go_module" ] && [ "$go_module" != "null" ]; then
+  if [ -n "$go_module" ] && [ "$go_module" != "null" ]; then
     version=$(go mod graph | grep "$go_module" | head -n1 | awk -F'@' '{print $2}')
   else
     version=$(go mod graph | grep "$repo" | head -n1 | awk -F'@' '{print $2}')
   fi
-
+  
   # Fetch CRD manifests
   if [ "$file" == "null" ]; then
     echo "'file' field is null. Skipping CRD manifests for $name."
     continue
   fi
   url="https://github.com/${repo}/releases/download/${version}/$file"
-
+  
   echo "Fetching from $url with filter $filter"
 
-  if ! curl -sfL "$url" -o "pkg/provider/${name}.yaml"; then
-    echo "Error: failed to fetch $url" >&2
-    exit 1
-  fi
+  curl -sL "$url" -o "pkg/provider/${name}.yaml"
+  
 
   if [ -n "$filter" ]; then
     yq eval "$filter" "pkg/provider/${name}.yaml" | yq -s '"pkg/provider/crds/\(.spec.names.kind).yaml"'
@@ -67,14 +62,11 @@ for i in $(seq 0 $((count - 1))); do
 
       # Compose raw github URL for webhook manifest
       webhook_url="https://raw.githubusercontent.com/${repo}/refs/tags/${version}/${webhook_path}"
-
+      
       echo "Fetching webhook manifest from $webhook_url"
-
-      if ! curl -sfL "$webhook_url" -o "pkg/provider/${name}-webhook.yaml"; then
-        echo "Error: failed to fetch $webhook_url" >&2
-        exit 1
-      fi
-
+      
+      curl -sL "$webhook_url" -o "pkg/provider/${name}-webhook.yaml"
+      
       # Split webhook manifest into individual YAMLs
       yq '(.metadata.name |= "'${name}'-" + .)' "pkg/provider/${name}-webhook.yaml" | yq -s '"pkg/provider/webhooks/\(.metadata.name).yaml"'
 
