@@ -6,8 +6,6 @@ import (
 	"net/http"
 	"strings"
 
-	"golang.org/x/net/http2"
-	"golang.org/x/net/http2/h2c"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
@@ -34,7 +32,10 @@ type GRPCServerFactory func(*grpc.Server) error
 // Registering at least one factory switches the HTTP listener to serve h2c
 // (HTTP/2 over plaintext) so gRPC's own HTTP/2 requirement is met without
 // WithTLS (not yet implemented). Servers that never call this option are
-// unaffected: the listener stays on plain HTTP/1.1.
+// unaffected: the listener stays on plain HTTP/1.1. The h2c switch itself is
+// applied in server.go via http.Server.Protocols, not here, because
+// unencrypted HTTP/2 is a listener-level concern (the *http.Server), not a
+// handler-level one.
 func WithGRPCServerFactory(factory GRPCServerFactory) Option {
 	return func(_ context.Context, cfg *config) error {
 		cfg.grpcFactories = append(cfg.grpcFactories, factory)
@@ -44,9 +45,12 @@ func WithGRPCServerFactory(factory GRPCServerFactory) Option {
 }
 
 // buildHandler builds the gRPC server (if any factories were registered)
-// and wraps mux with gRPC routing and, if needed, h2c support. Returns the
-// gRPC server alongside the handler buildServer should actually serve - the
-// gRPC server is nil (and the handler is mux, unwrapped) when no
+// and returns it alongside a handler that routes gRPC requests to the
+// gRPC server and everything else to mux. The handler is returned
+// unwrapped; unencrypted HTTP/2 (h2c) support is configured on the
+// *http.Server in server.go when grpcServer is non-nil, via the Protocols
+// field (replaces the deprecated golang.org/x/net/http2/h2c handler
+// wrapper). Returns a nil gRPC server (and mux, unwrapped) when no
 // WithGRPCServerFactory calls were made.
 func buildHandler(factories []GRPCServerFactory, mux *http.ServeMux) (*grpc.Server, http.Handler, error) {
 	grpcServer, err := buildGRPCServer(factories)
@@ -54,14 +58,14 @@ func buildHandler(factories []GRPCServerFactory, mux *http.ServeMux) (*grpc.Serv
 		return nil, nil, err
 	}
 
-	return grpcServer, withH2C(grpcServer, muxHandler(grpcServer, mux)), nil
+	return grpcServer, muxHandler(grpcServer, mux), nil
 }
 
 // buildGRPCServer builds a *grpc.Server, registers reflection, then runs
 // every factory against it in order. Returns a nil server (and nil error)
 // when factories is empty, so callers only pay for gRPC - and the h2c
-// listener switch in withH2C - when WithGRPCServerFactory was actually
-// used.
+// listener switch applied in server.go - when WithGRPCServerFactory was
+// actually used.
 func buildGRPCServer(factories []GRPCServerFactory) (*grpc.Server, error) {
 	if len(factories) == 0 {
 		return nil, nil //nolint:nilnil // absence of a gRPC server is a valid, common outcome, not an error.
@@ -97,16 +101,4 @@ func muxHandler(grpcServer *grpc.Server, httpHandler http.Handler) http.Handler 
 
 		httpHandler.ServeHTTP(resp, req)
 	})
-}
-
-// withH2C wraps handler with h2c support (HTTP/2 over plaintext) when
-// grpcServer is non-nil - gRPC clients require HTTP/2, which a plain
-// http.Server only negotiates via TLS ALPN. Servers with no gRPC factories
-// are returned unchanged, so their behaviour (HTTP/1.1) is unaffected.
-func withH2C(grpcServer *grpc.Server, handler http.Handler) http.Handler {
-	if grpcServer == nil {
-		return handler
-	}
-
-	return h2c.NewHandler(handler, &http2.Server{})
 }

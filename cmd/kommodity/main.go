@@ -5,6 +5,7 @@ import (
 	"context"
 	"os"
 	"os/signal"
+	"slices"
 	"syscall"
 
 	attestationserver "github.com/kommodity-io/kommodity/pkg/attestation"
@@ -111,8 +112,8 @@ func main() {
 	logger.Info("Received signal", zap.String("signal", sig.String()))
 
 	// Call the finalizers in reverse order.
-	for i := len(finalizers) - 1; i >= 0; i-- {
-		err := finalizers[i](ctx)
+	for _, finalizer := range slices.Backward(finalizers) {
+		err := finalizer(ctx)
 		if err != nil {
 			logger.Error("Failed to shutdown", zap.Error(err))
 		}

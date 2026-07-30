@@ -234,21 +234,41 @@ func buildServer(cfg config, addr string, handle *storage.Handle,
 	}
 
 	return &Server{
-		addr: addr,
-		httpServer: &http.Server{
-			Addr:              addr,
-			Handler:           handler,
-			ReadHeaderTimeout: readHeaderTimeout,
-		},
-		aggregator:       aggregator,
-		grpcServer:       grpcServer,
-		storageClose:     handle.Close,
-		logger:           logger,
-		mgr:              mgr,
-		loopbackConfig:   genericServerConfig.LoopbackClientConfig,
-		postStartHooks:   cfg.postStartHooks,
+		addr:            addr,
+		httpServer:      newHTTPServer(addr, handler, grpcServer),
+		aggregator:      aggregator,
+		grpcServer:      grpcServer,
+		storageClose:    handle.Close,
+		logger:          logger,
+		mgr:             mgr,
+		loopbackConfig:  genericServerConfig.LoopbackClientConfig,
+		postStartHooks:  cfg.postStartHooks,
 		preShutdownHooks: cfg.preShutdownHooks,
 	}, nil
+}
+
+// newHTTPServer builds the *http.Server for the listener. When grpcServer is
+// non-nil the server is configured to accept unencrypted HTTP/2 (h2c) so gRPC
+// clients get the HTTP/2 framing they require without TLS, via the stdlib
+// Protocols field (replaces the deprecated golang.org/x/net/http2/h2c).
+func newHTTPServer(addr string, handler http.Handler, grpcServer *grpc.Server) *http.Server {
+	srv := &http.Server{
+		Addr:              addr,
+		Handler:           handler,
+		ReadHeaderTimeout: readHeaderTimeout,
+	}
+
+	if grpcServer == nil {
+		return srv
+	}
+
+	protocols := &http.Protocols{}
+	protocols.SetHTTP1(true)
+	protocols.SetHTTP2(true)
+	protocols.SetUnencryptedHTTP2(true)
+	srv.Protocols = protocols
+
+	return srv
 }
 
 // resolveAndSetAuth builds the SA authenticator (if configured), assembles
