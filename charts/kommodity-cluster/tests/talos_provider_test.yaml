@@ -406,3 +406,57 @@ tests:
         matchRegex:
           path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
           pattern: "luks2"
+
+  - it: should emit RawVolumeConfig when volumeType is raw
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.nodepools.default.additionalVolumes:
+        - nameSuffix: ceph-osd
+          size: 128
+          lun: 0
+          volumeType: raw
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "kind: RawVolumeConfig"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "name: ceph-osd"
+      - not: true
+        matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "volumeType"
+
+  - it: should emit UserVolumeConfig by default when volumeType is omitted
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.nodepools.default.additionalVolumes:
+        - nameSuffix: data
+          size: 64
+          lun: 0
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "kind: UserVolumeConfig"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "volumeType: disk"
+
+  - it: should emit both UserVolumeConfig and RawVolumeConfig for mixed volumes
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.nodepools.default.additionalVolumes:
+        - nameSuffix: data
+          size: 64
+          lun: 0
+        - nameSuffix: ceph-osd
+          size: 128
+          lun: 1
+          volumeType: raw
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "kind: UserVolumeConfig"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[2]
+          pattern: "kind: RawVolumeConfig"

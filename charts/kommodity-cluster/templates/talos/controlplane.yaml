@@ -75,10 +75,10 @@ spec:
 {{- include "kommodity.talos.volumeEncryption" (dict "endpoint" $.Values.kommodity.kms.endpoint) | nindent 6 }}
       {{- end }}
       {{- if $.Values.kommodity.controlplane.additionalVolumes }}
-      {{- /* UserVolumeConfig for data disks (Talos v1.13+) */ -}}
+      {{- /* Volume configs for data disks (Talos v1.13+) */ -}}
 {{- $kmsEndpoint := "" -}}
 {{- if $.Values.kommodity.kms.enabled }}{{- $kmsEndpoint = $.Values.kommodity.kms.endpoint -}}{{- end -}}
-{{- include "kommodity.talos.userVolumes" (dict "additionalVolumes" $.Values.kommodity.controlplane.additionalVolumes "kmsEndpoint" $kmsEndpoint) | nindent 6 }}
+{{- include "kommodity.talos.additionalVolumes" (dict "additionalVolumes" $.Values.kommodity.controlplane.additionalVolumes "kmsEndpoint" $kmsEndpoint) | nindent 6 }}
       {{- end }}
       {{- if or (not $.Values.kommodity.network.ipv4.public) $.Values.talos.autoBootstrap.enabled }}
       {{- /* ExtensionServiceConfig for kommodity-autobootstrap extension */ -}}
