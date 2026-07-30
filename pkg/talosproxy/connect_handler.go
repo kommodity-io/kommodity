@@ -16,6 +16,10 @@ const (
 	connectDialTimeout = 30 * time.Second
 	// connectResponseEstablished is the HTTP response sent after a successful CONNECT.
 	connectResponseEstablished = "HTTP/1.1 200 Connection Established\r\n\r\n"
+	// tunnelRetryDelay is the fixed delay between tunnel dial-and-handshake
+	// retry attempts, giving the proxy pod time to recover from transient
+	// SPDY stream failures.
+	tunnelRetryDelay = 10 * time.Second
 )
 
 // ConnectHandler implements an HTTP CONNECT proxy that routes connections
@@ -177,35 +181,16 @@ func (h *ConnectHandler) dialTunnel(
 		if err != nil {
 			lastErr = err
 
-			h.logger.Warn("Tunnel dial failed",
-				zap.String("cluster", entry.ClusterName),
-				zap.Int("attempt", attempt),
-				zap.Int("maxAttempts", h.maxRetries),
-				zap.Error(err))
-
-			h.tunnelPool.RemoveTunnel(entry.ClusterName)
+			h.handleDialFailure(ctx, entry, attempt, err)
 
 			continue
 		}
 
 		err = EstablishConnectTunnel(conn, targetAddr)
 		if err != nil {
-			closeErr := conn.Close()
-			if closeErr != nil {
-				h.logger.Debug("Failed to close tunnel connection after CONNECT handshake failure",
-					zap.Error(closeErr))
-			}
-
 			lastErr = err
 
-			h.logger.Warn("CONNECT handshake failed, removing tunnel",
-				zap.String("cluster", entry.ClusterName),
-				zap.String("target", targetAddr),
-				zap.Int("attempt", attempt),
-				zap.Int("maxAttempts", h.maxRetries),
-				zap.Error(err))
-
-			h.tunnelPool.RemoveTunnel(entry.ClusterName)
+			h.handleHandshakeFailure(ctx, entry, targetAddr, attempt, conn, err)
 
 			continue
 		}
@@ -220,6 +205,75 @@ func (h *ConnectHandler) dialTunnel(
 
 	return nil, fmt.Errorf("failed to establish tunnel for cluster %s after %d attempts: %w",
 		entry.ClusterName, h.maxRetries, lastErr)
+}
+
+// handleDialFailure logs the dial error, removes the stale tunnel, and
+// waits before the next retry attempt.
+func (h *ConnectHandler) handleDialFailure(
+	ctx context.Context,
+	entry *CIDREntry,
+	attempt int,
+	err error,
+) {
+	h.logger.Warn("Tunnel dial failed",
+		zap.String("cluster", entry.ClusterName),
+		zap.Int("attempt", attempt),
+		zap.Int("maxAttempts", h.maxRetries),
+		zap.Error(err))
+
+	h.tunnelPool.RemoveTunnel(entry.ClusterName)
+
+	h.waitBeforeRetry(ctx, entry.ClusterName, attempt)
+}
+
+// handleHandshakeFailure closes the failed connection, logs the handshake
+// error, removes the stale tunnel, and waits before the next retry attempt.
+func (h *ConnectHandler) handleHandshakeFailure(
+	ctx context.Context,
+	entry *CIDREntry,
+	targetAddr string,
+	attempt int,
+	conn net.Conn,
+	err error,
+) {
+	closeErr := conn.Close()
+	if closeErr != nil {
+		h.logger.Debug("Failed to close tunnel connection after CONNECT handshake failure",
+			zap.Error(closeErr))
+	}
+
+	h.logger.Warn("CONNECT handshake failed, removing tunnel",
+		zap.String("cluster", entry.ClusterName),
+		zap.String("target", targetAddr),
+		zap.Int("attempt", attempt),
+		zap.Int("maxAttempts", h.maxRetries),
+		zap.Error(err))
+
+	h.tunnelPool.RemoveTunnel(entry.ClusterName)
+
+	h.waitBeforeRetry(ctx, entry.ClusterName, attempt)
+}
+
+// waitBeforeRetry sleeps for tunnelRetryDelay before the next attempt,
+// unless this is the last attempt or the context is cancelled.
+func (h *ConnectHandler) waitBeforeRetry(
+	ctx context.Context,
+	clusterName string,
+	attempt int,
+) {
+	if attempt >= h.maxRetries {
+		return
+	}
+
+	h.logger.Debug("Waiting before retry",
+		zap.String("cluster", clusterName),
+		zap.Duration("delay", tunnelRetryDelay),
+		zap.Int("nextAttempt", attempt+1))
+
+	select {
+	case <-time.After(tunnelRetryDelay):
+	case <-ctx.Done():
+	}
 }
 
 func (h *ConnectHandler) dialTunnelOnce(
