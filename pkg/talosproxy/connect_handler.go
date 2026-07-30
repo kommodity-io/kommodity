@@ -198,12 +198,12 @@ func (h *ConnectHandler) dialTunnel(
 
 			lastErr = err
 
-		h.logger.Warn("CONNECT handshake failed, removing tunnel",
-			zap.String("cluster", entry.ClusterName),
-			zap.String("target", targetAddr),
-			zap.Int("attempt", attempt),
-			zap.Int("maxAttempts", h.maxRetries),
-			zap.Error(err))
+			h.logger.Warn("CONNECT handshake failed, removing tunnel",
+				zap.String("cluster", entry.ClusterName),
+				zap.String("target", targetAddr),
+				zap.Int("attempt", attempt),
+				zap.Int("maxAttempts", h.maxRetries),
+				zap.Error(err))
 
 			h.tunnelPool.RemoveTunnel(entry.ClusterName)
 
