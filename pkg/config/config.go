@@ -42,6 +42,7 @@ const (
 	envTalosProxyNamespace                = "KOMMODITY_TALOS_PROXY_NAMESPACE"
 	envTalosProxyServiceName              = "KOMMODITY_TALOS_PROXY_SERVICE_NAME"
 	envTalosProxyIdleTimeout              = "KOMMODITY_TALOS_PROXY_IDLE_TIMEOUT"
+	envTalosProxyMaxRetries                = "KOMMODITY_TALOS_PROXY_MAX_RETRIES"
 	//nolint:gosec // G101: env var name, not a credential
 	envAzureDefaultCredentialSecret = "KOMMODITY_AZURE_DEFAULT_CREDENTIAL_SECRET"
 	envAzureARMDeletionGracePeriod  = "KOMMODITY_AZURE_ARM_DELETION_GRACE_PERIOD"
@@ -59,6 +60,7 @@ const (
 	defaultTalosProxyNamespace                = "talos-cluster-proxy"
 	defaultTalosProxyServiceName              = "talos-cluster-proxy"
 	defaultTalosProxyIdleTimeout              = 1 * time.Minute
+	defaultTalosProxyMaxRetries               = 5
 	defaultGarbageCollectorEnabled            = true
 	defaultGarbageCollectorWorkers            = 5
 	defaultGarbageCollectorSyncPeriod         = 30 * time.Second
@@ -123,6 +125,7 @@ type TalosProxyConfig struct {
 	ProxyNamespace   string
 	ProxyServiceName string
 	IdleTimeout      time.Duration
+	MaxRetries       int
 }
 
 // AuthConfig holds the authentication configuration settings for the Kommodity API server.
@@ -519,6 +522,7 @@ func getTalosProxyConfig(ctx context.Context) *TalosProxyConfig {
 		ProxyNamespace:   getTalosProxyNamespace(ctx),
 		ProxyServiceName: getTalosProxyServiceName(ctx),
 		IdleTimeout:      getTalosProxyIdleTimeout(ctx),
+		MaxRetries:       getTalosProxyMaxRetries(ctx),
 	}
 }
 
@@ -625,6 +629,31 @@ func getTalosProxyIdleTimeout(ctx context.Context) time.Duration {
 	}
 
 	return duration
+}
+
+func getTalosProxyMaxRetries(ctx context.Context) int {
+	logger := logging.FromContext(ctx)
+
+	retries := os.Getenv(envTalosProxyMaxRetries)
+	if retries == "" {
+		logger.Info(configurationNotSpecified,
+			zap.String("envVar", envTalosProxyMaxRetries),
+			zap.Int("default", defaultTalosProxyMaxRetries))
+
+		return defaultTalosProxyMaxRetries
+	}
+
+	retriesInt, err := strconv.Atoi(retries)
+	if err != nil || retriesInt < 1 {
+		logger.Info("failed to convert talos proxy max retries to positive integer",
+			zap.String("envVar", envTalosProxyMaxRetries),
+			zap.String("value", retries),
+			zap.Int("default", defaultTalosProxyMaxRetries))
+
+		return defaultTalosProxyMaxRetries
+	}
+
+	return retriesInt
 }
 
 func getGarbageCollectorConfig(ctx context.Context) *GarbageCollectorConfig {

@@ -1,6 +1,7 @@
 package talosproxy
 
 import (
+	"context"
 	"net"
 
 	"go.uber.org/zap"
@@ -48,4 +49,39 @@ func PoolScheduleIdleClose(pool *TunnelPool, clusterName string) {
 // can assert registration/deregistration without going through dialUpstream.
 func (p *Proxy) CIDRRegistryForTest() *CIDRRegistry {
 	return p.cidrRegistry
+}
+
+// SetTunnelDialFunc overrides the Dial method of a Tunnel for testing.
+// The provided function is called instead of dialing the local port-forward
+// port, allowing tests to return controllable net.Conn instances.
+func SetTunnelDialFunc(tunnel *Tunnel, fn func(ctx context.Context) (net.Conn, error)) {
+	tunnel.mu.Lock()
+	defer tunnel.mu.Unlock()
+
+	tunnel.dialFunc = fn
+}
+
+// SetPoolDialFunc sets a custom dial function on the TunnelPool. All new
+// tunnels created by the pool will use this function instead of real
+// port-forward connections, bypassing network establishment entirely.
+func SetPoolDialFunc(pool *TunnelPool, fn func(context.Context) (net.Conn, error)) {
+	pool.mu.Lock()
+	defer pool.mu.Unlock()
+
+	pool.dialFunc = fn
+}
+
+// DialTunnelForTest exposes the private dialTunnel method for testing.
+func DialTunnelForTest(
+	ctx context.Context,
+	handler *ConnectHandler,
+	entry *CIDREntry,
+	targetAddr string,
+) (net.Conn, error) {
+	return handler.dialTunnel(ctx, entry, targetAddr)
+}
+
+// LookupEntryForTest exposes the private CIDRRegistry.Lookup for testing.
+func LookupEntryForTest(registry *CIDRRegistry, ip string) (*CIDREntry, error) {
+	return registry.Lookup(net.ParseIP(ip))
 }

@@ -1,5 +1,7 @@
 {{- define "kommodity.addon.installer" -}}
 {{- $addonFullName := printf "%s-%s" .name (.addon.chart.version | replace "." "-") -}}
+{{- $valuesHash := include "kommodity.addon.valuesHash" .addon -}}
+{{- $jobName := printf "%s-install%s" $addonFullName (ternary (printf "-%s" $valuesHash) "" (ne $valuesHash "")) -}}
 {{- $addonNamespace := default .name .addon.namespace -}}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -24,7 +26,7 @@ metadata:
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: {{ $addonFullName }}-install
+  name: {{ $jobName }}
   namespace: {{ $addonNamespace }}
 spec:
   backoffLimit: 10
@@ -32,14 +34,14 @@ spec:
   manualSelector: true
   selector:
     matchLabels:
-      app.kubernetes.io/app: {{ $addonFullName }}-install
+      app.kubernetes.io/app: {{ $jobName }}
   template:
     metadata:
       labels:
         kommodity.io/addon-name: {{ .name }}
         kommodity.io/addon-version: {{ .addon.chart.version | squote }}
         app.kubernetes.io/managed-by: kommodity
-        app.kubernetes.io/app: {{ $addonFullName }}-install
+        app.kubernetes.io/app: {{ $jobName }}
     spec:
       restartPolicy: OnFailure
       tolerations:
@@ -78,12 +80,12 @@ spec:
             secretName: {{ .name }}-extra-values
       {{- end }}
       containers:
-        - name: {{ $addonFullName }}-install
+        - name: {{ $jobName }}
           image: alpine/k8s:1.34.1
           {{- if .addon.initialExtraValues }}
           volumeMounts:
             - name: extra-values
-              mountPath: /etc/{{ $addonFullName }}
+              mountPath: /etc/{{ $jobName }}
           {{- end }}
           {{- $extraEnvs := .addon.extraEnvs }}
           {{- if or $extraEnvs (eq $addonNamespace "kube-system") }}
@@ -142,7 +144,7 @@ spec:
               CONDITION_DEFINED="false"
               {{- end }}
               
-              HELM_EXTRA_VALUES_FILE="/etc/{{ $addonFullName }}/values.yaml"
+              HELM_EXTRA_VALUES_FILE="/etc/{{ $jobName }}/values.yaml"
               HELM_EXTRA_VALUES=""
               if [ -f "${HELM_EXTRA_VALUES_FILE}" ]; then
                 HELM_EXTRA_VALUES="-f ${HELM_EXTRA_VALUES_FILE}"

@@ -197,12 +197,13 @@ kommodity:
         install:
           mode: HelmInstall
         upgrade:
-          disable: true
+          disable: false
       chart:
         repository: oci://ghcr.io/kommodity-io/charts
         name: talos-cluster-proxy
         version: 0.1.3
       initialExtraValues:
+        replicaCount: 2
         tolerations:
           - key: node.cloudprovider.kubernetes.io/uninitialized
             operator: Equal
