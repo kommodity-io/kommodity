@@ -98,11 +98,17 @@ the standard `system:masters`. For local development, set
 
 ### Audit Logging
 
-Native support for the Kubernetes
-[audit policy format](https://kubernetes.io/docs/tasks/debug/debug-cluster/audit/).
-Point `KOMMODITY_AUDIT_POLICY_FILE_PATH` at a policy file and every API request
-is captured with user, source IP, timestamp, and (optionally) request/response
-bodies.
+Audit logging is **enabled by default** using an embedded
+[Kubernetes audit policy](https://kubernetes.io/docs/tasks/debug/debug-cluster/audit/).
+Every API request is captured with user, source IP, timestamp, and (optionally)
+request/response bodies. Audit events are written to stdout as structured JSON,
+which is picked up by your container platform's log aggregator.
+
+The default policy logs `RequestResponse` for writes to core, RBAC, and Cluster
+API resources, `Metadata` for everything else, and suppresses health probes and
+kubelet lease heartbeats. Override by pointing `KOMMODITY_AUDIT_POLICY_FILE_PATH`
+at a custom policy file, or disable entirely with
+`KOMMODITY_AUDIT_DISABLED=true`.
 
 ### Hardware-Rooted Machine Trust
 
@@ -414,7 +420,8 @@ Kommodity is configured via environment variables.
 | `KOMMODITY_OIDC_GROUPS_CLAIM`                      | OIDC claim used for groups                                        | `groups`                |
 | `KOMMODITY_INFRASTRUCTURE_PROVIDERS`               | Comma-separated providers to enable                               | all                     |
 | `KOMMODITY_ATTESTATION_NONCE_TTL`                  | TTL for attestation nonces (e.g. `5m`, `1h`)                      | `5m`                    |
-| `KOMMODITY_AUDIT_POLICY_FILE_PATH`                 | Path to a Kubernetes audit policy file                            | (none)                  |
+| `KOMMODITY_AUDIT_POLICY_FILE_PATH`                 | Path to a custom Kubernetes audit policy file                     | embedded default        |
+| `KOMMODITY_AUDIT_DISABLED`                         | Disable audit logging entirely                                    | `false`                 |
 | `KOMMODITY_TALOS_PROXY_ENABLED`                    | Enable the HTTP CONNECT Talos gRPC proxy                          | `true`                  |
 | `KOMMODITY_TALOS_PROXY_PORT`                       | Local listen port for the proxy                                   | `15050`                 |
 | `KOMMODITY_TALOS_PROXY_NAMESPACE`                  | Namespace of the talos-cluster-proxy service in workload clusters | `talos-cluster-proxy`   |
