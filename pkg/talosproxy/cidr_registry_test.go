@@ -160,3 +160,46 @@ func TestCIDRRegistry_RejectsOverlappingReRegistration(t *testing.T) {
 	require.NoError(t, lookupErr)
 	assert.Equal(t, "cluster-a", entry.ClusterName)
 }
+
+func TestCIDRRegistry_RejectsSameNameDifferentNamespace(t *testing.T) {
+	t.Parallel()
+
+	registry := talosproxy.NewCIDRRegistry()
+	cidrA := mustParseCIDR(t, "10.200.0.0/20")
+	cidrB := mustParseCIDR(t, "10.201.0.0/20")
+
+	require.NoError(t, registry.Register("cluster-a", "ns-a", cidrA))
+
+	// Same name, different namespace must be rejected instead of silently
+	// overwriting the existing entry or bypassing the overlap check.
+	err := registry.Register("cluster-a", "ns-b", cidrB)
+	require.Error(t, err)
+	require.ErrorIs(t, err, talosproxy.ErrClusterNameConflict)
+
+	// The original entry must remain intact.
+	assert.Equal(t, 1, registry.Len())
+
+	entry, lookupErr := registry.Lookup(net.ParseIP("10.200.0.5"))
+	require.NoError(t, lookupErr)
+	assert.Equal(t, "cluster-a", entry.ClusterName)
+	assert.Equal(t, "ns-a", entry.Namespace)
+}
+
+func TestCIDRRegistry_SameNameSameNamespaceAllowsReRegistration(t *testing.T) {
+	t.Parallel()
+
+	registry := talosproxy.NewCIDRRegistry()
+	cidrOld := mustParseCIDR(t, "10.200.0.0/20")
+	cidrNew := mustParseCIDR(t, "10.201.0.0/20")
+
+	require.NoError(t, registry.Register("cluster-a", "ns-a", cidrOld))
+	require.NoError(t, registry.Register("cluster-a", "ns-a", cidrNew))
+
+	// New CIDR should match, old should not.
+	entry, err := registry.Lookup(net.ParseIP("10.201.0.5"))
+	require.NoError(t, err)
+	assert.Equal(t, "cluster-a", entry.ClusterName)
+
+	_, err = registry.Lookup(net.ParseIP("10.200.0.5"))
+	require.Error(t, err)
+}

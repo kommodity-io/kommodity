@@ -28,8 +28,10 @@ func NewCIDRRegistry() *CIDRRegistry {
 }
 
 // Register adds or updates a CIDR mapping for a cluster. It returns an error
-// if the CIDR overlaps a CIDR already registered for a different cluster;
-// re-registering the same cluster with a new CIDR is always allowed.
+// if the CIDR overlaps a CIDR already registered for a different cluster, or
+// if the cluster name is already registered under a different namespace.
+// Re-registering the same cluster (same name and namespace) with a new CIDR
+// is always allowed.
 func (r *CIDRRegistry) Register(
 	clusterName string,
 	namespace string,
@@ -40,7 +42,17 @@ func (r *CIDRRegistry) Register(
 
 	for existingCluster, entry := range r.entries {
 		if existingCluster == clusterName {
-			continue
+			// Same name and namespace: re-registration, skip overlap check.
+			if entry.Namespace == namespace {
+				continue
+			}
+
+			// Same cluster name in a different namespace would collide with
+			// the existing entry and bypass overlap detection. The tunnel
+			// pool and kubeconfig fetch key by cluster name only, so cluster
+			// names must be globally unique; reject instead of overwriting.
+			return fmt.Errorf("%w: cluster %q already registered in namespace %q",
+				ErrClusterNameConflict, clusterName, entry.Namespace)
 		}
 
 		if cidrsOverlap(entry.CIDR, cidr) {
