@@ -24,6 +24,12 @@ rules:
       - group: "coordination.k8s.io"
         resources: ["leases"]
 
+  # Downgrade Secrets to Metadata — never log credential bodies.
+  - level: Metadata
+    resources:
+      - group: ""
+        resources: ["secrets"]
+
   # Log full request AND response bodies for writes to core, RBAC, and CAPI resources.
   - level: RequestResponse
     verbs: ["create", "update", "patch", "delete"]

@@ -85,11 +85,14 @@ func getPolicyBackend(ctx context.Context) audit.Backend {
 }
 
 // newAuditLogger creates a production zap.Logger pinned to Info level so audit
-// events are never silenced by a higher global LOG_LEVEL.
+// events are never silenced by a higher global LOG_LEVEL. Output goes to stdout
+// and sampling is disabled to ensure no audit events are dropped under load.
 func newAuditLogger(ctx context.Context) *zap.Logger {
 	config := zap.NewProductionConfig()
 	config.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
 	config.Level = zap.NewAtomicLevelAt(zapcore.InfoLevel)
+	config.OutputPaths = []string{"stdout"}
+	config.Sampling = nil
 
 	logger, err := config.Build()
 	if err != nil {
