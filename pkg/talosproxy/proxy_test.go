@@ -30,7 +30,7 @@ func TestProxy_RegisterAndDeregisterCluster(t *testing.T) {
 	require.NoError(t, err)
 
 	// Register should not panic
-	proxy.RegisterCluster("cluster-a", "default", cidr)
+	require.NoError(t, proxy.RegisterCluster("cluster-a", "default", cidr))
 
 	// Deregister should not panic
 	proxy.DeregisterCluster("cluster-a")

@@ -126,7 +126,11 @@ func (r *Reconciler) handleClusterRegistration(
 		zap.String("namespace", cluster.Namespace),
 		zap.String("cidr", cidr.String()))
 
-	r.Proxy.RegisterCluster(cluster.Name, cluster.Namespace, cidr)
+	err = r.Proxy.RegisterCluster(cluster.Name, cluster.Namespace, cidr)
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to register cluster %s with proxy: %w",
+			cluster.Name, err)
+	}
 
 	return ctrl.Result{}, nil
 }
