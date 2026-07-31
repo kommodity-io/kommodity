@@ -185,7 +185,7 @@ func TestConnectHandler_TunnelDialFailure(t *testing.T) {
 	_, cidr, err := net.ParseCIDR("10.200.0.0/20")
 	require.NoError(t, err)
 
-	registry.Register("test-cluster", "default", cidr)
+	require.NoError(t, registry.Register("test-cluster", "default", cidr))
 
 	listener := startTestProxyServer(t, handler)
 

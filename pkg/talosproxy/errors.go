@@ -8,6 +8,9 @@ import "errors"
 var (
 	// ErrCIDRNotFound is returned when no registered CIDR matches the given IP address.
 	ErrCIDRNotFound = errors.New("no registered CIDR matches the given IP")
+	// ErrCIDROverlap is returned when a CIDR being registered overlaps a CIDR
+	// already registered for a different cluster.
+	ErrCIDROverlap = errors.New("CIDR overlaps an existing cluster CIDR")
 	// ErrTunnelNotReady is returned when the port-forward tunnel is not yet established.
 	ErrTunnelNotReady = errors.New("tunnel is not ready")
 	// ErrTunnelClosed is returned when the tunnel has been closed.

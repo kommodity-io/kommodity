@@ -24,7 +24,7 @@ func TestCIDRRegistry_RegisterAndLookup(t *testing.T) {
 	registry := talosproxy.NewCIDRRegistry()
 	cidr := mustParseCIDR(t, "10.200.0.0/20")
 
-	registry.Register("cluster-a", "default", cidr)
+	require.NoError(t, registry.Register("cluster-a", "default", cidr))
 
 	entry, err := registry.Lookup(net.ParseIP("10.200.0.5"))
 	require.NoError(t, err)
@@ -38,7 +38,7 @@ func TestCIDRRegistry_LookupNotFound(t *testing.T) {
 	registry := talosproxy.NewCIDRRegistry()
 	cidr := mustParseCIDR(t, "10.200.0.0/20")
 
-	registry.Register("cluster-a", "default", cidr)
+	require.NoError(t, registry.Register("cluster-a", "default", cidr))
 
 	_, err := registry.Lookup(net.ParseIP("192.168.1.1"))
 	require.Error(t, err)
@@ -52,8 +52,8 @@ func TestCIDRRegistry_MultipleClusters(t *testing.T) {
 	cidrA := mustParseCIDR(t, "10.200.0.0/20")
 	cidrB := mustParseCIDR(t, "10.201.0.0/20")
 
-	registry.Register("cluster-a", "ns-a", cidrA)
-	registry.Register("cluster-b", "ns-b", cidrB)
+	require.NoError(t, registry.Register("cluster-a", "ns-a", cidrA))
+	require.NoError(t, registry.Register("cluster-b", "ns-b", cidrB))
 
 	entryA, err := registry.Lookup(net.ParseIP("10.200.0.5"))
 	require.NoError(t, err)
@@ -70,7 +70,7 @@ func TestCIDRRegistry_Deregister(t *testing.T) {
 	registry := talosproxy.NewCIDRRegistry()
 	cidr := mustParseCIDR(t, "10.200.0.0/20")
 
-	registry.Register("cluster-a", "default", cidr)
+	require.NoError(t, registry.Register("cluster-a", "default", cidr))
 	registry.Deregister("cluster-a")
 
 	_, err := registry.Lookup(net.ParseIP("10.200.0.5"))
@@ -85,10 +85,10 @@ func TestCIDRRegistry_Len(t *testing.T) {
 	assert.Equal(t, 0, registry.Len())
 
 	cidr := mustParseCIDR(t, "10.200.0.0/20")
-	registry.Register("cluster-a", "default", cidr)
+	require.NoError(t, registry.Register("cluster-a", "default", cidr))
 	assert.Equal(t, 1, registry.Len())
 
-	registry.Register("cluster-b", "default", mustParseCIDR(t, "10.201.0.0/20"))
+	require.NoError(t, registry.Register("cluster-b", "default", mustParseCIDR(t, "10.201.0.0/20")))
 	assert.Equal(t, 2, registry.Len())
 
 	registry.Deregister("cluster-a")
@@ -102,8 +102,8 @@ func TestCIDRRegistry_OverwriteExisting(t *testing.T) {
 	cidrOld := mustParseCIDR(t, "10.200.0.0/20")
 	cidrNew := mustParseCIDR(t, "10.202.0.0/20")
 
-	registry.Register("cluster-a", "default", cidrOld)
-	registry.Register("cluster-a", "default", cidrNew)
+	require.NoError(t, registry.Register("cluster-a", "default", cidrOld))
+	require.NoError(t, registry.Register("cluster-a", "default", cidrNew))
 
 	// Old CIDR should no longer match
 	_, err := registry.Lookup(net.ParseIP("10.200.0.5"))
@@ -115,4 +115,48 @@ func TestCIDRRegistry_OverwriteExisting(t *testing.T) {
 	assert.Equal(t, "cluster-a", entry.ClusterName)
 
 	assert.Equal(t, 1, registry.Len())
+}
+
+func TestCIDRRegistry_RejectsOverlappingCIDR(t *testing.T) {
+	t.Parallel()
+
+	registry := talosproxy.NewCIDRRegistry()
+	supernet := mustParseCIDR(t, "10.0.0.0/8")
+	subnet := mustParseCIDR(t, "10.200.16.0/20")
+
+	require.NoError(t, registry.Register("cluster-a", "default", supernet))
+
+	err := registry.Register("cluster-b", "default", subnet)
+	require.Error(t, err)
+	require.ErrorIs(t, err, talosproxy.ErrCIDROverlap)
+
+	// Overlapping cluster must not be registered.
+	assert.Equal(t, 1, registry.Len())
+
+	_, lookupErr := registry.Lookup(net.ParseIP("10.200.16.5"))
+	require.NoError(t, lookupErr, "supernet should still own the address space")
+}
+
+func TestCIDRRegistry_RejectsOverlappingReRegistration(t *testing.T) {
+	t.Parallel()
+
+	registry := talosproxy.NewCIDRRegistry()
+	cidrA := mustParseCIDR(t, "10.200.0.0/20")
+	cidrB := mustParseCIDR(t, "10.201.0.0/20")
+	overlapping := mustParseCIDR(t, "10.0.0.0/8")
+
+	require.NoError(t, registry.Register("cluster-a", "default", cidrA))
+	require.NoError(t, registry.Register("cluster-b", "default", cidrB))
+
+	// Re-registering cluster-a with a CIDR overlapping cluster-b must fail and
+	// leave cluster-a's original entry intact.
+	err := registry.Register("cluster-a", "default", overlapping)
+	require.Error(t, err)
+	require.ErrorIs(t, err, talosproxy.ErrCIDROverlap)
+
+	assert.Equal(t, 2, registry.Len())
+
+	entry, lookupErr := registry.Lookup(net.ParseIP("10.200.0.5"))
+	require.NoError(t, lookupErr)
+	assert.Equal(t, "cluster-a", entry.ClusterName)
 }
