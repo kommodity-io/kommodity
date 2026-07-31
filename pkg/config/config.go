@@ -33,6 +33,7 @@ const (
 	envKineURI                            = "KOMMODITY_KINE_URI"
 	envInfrastructureProviders            = "KOMMODITY_INFRASTRUCTURE_PROVIDERS"
 	envAuditPolicyFilePath                = "KOMMODITY_AUDIT_POLICY_FILE_PATH"
+	envAuditDisabled                      = "KOMMODITY_AUDIT_DISABLED"
 	envGarbageCollectorEnabled            = "KOMMODITY_GARBAGE_COLLECTOR_ENABLED"
 	envGarbageCollectorWorkers            = "KOMMODITY_GARBAGE_COLLECTOR_WORKERS"
 	envGarbageCollectorSyncPeriod         = "KOMMODITY_GARBAGE_COLLECTOR_SYNC_PERIOD"
@@ -66,6 +67,7 @@ const (
 	defaultGarbageCollectorSyncPeriod         = 30 * time.Second
 	defaultGarbageCollectorInitialSyncTimeout = 60 * time.Second
 	defaultAzureDefaultCredentialSecret       = ""
+	defaultAuditDisabled                       = false
 	// defaultAzureARMDeletionGracePeriod bounds how long the embedded ARM
 	// reconciler waits for Azure to actually delete a managed resource before it
 	// releases its finalizer. This prevents a single un-deletable resource from
@@ -92,6 +94,7 @@ type KommodityConfig struct {
 	TalosProxyConfig        *TalosProxyConfig
 	GarbageCollectorConfig  *GarbageCollectorConfig
 	AuditPolicyFilePath     string
+	AuditDisabled           bool
 	DevelopmentMode         bool
 	InfrastructureProviders []Provider
 	AzureConfig             *AzureConfig
@@ -187,6 +190,7 @@ func LoadConfig(ctx context.Context) (*KommodityConfig, error) {
 		KineURI:             kineURI,
 		AttestationConfig:   getAttestationConfig(ctx),
 		AuditPolicyFilePath: getAuditPolicyFilePath(ctx),
+		AuditDisabled:       getAuditDisabled(ctx),
 		AuthConfig: &AuthConfig{
 			Apply:      apply,
 			OIDCConfig: oidcConfig,
@@ -513,6 +517,31 @@ func getAuditPolicyFilePath(ctx context.Context) string {
 	}
 
 	return policyFilePath
+}
+
+func getAuditDisabled(ctx context.Context) bool {
+	logger := logging.FromContext(ctx)
+
+	disabled := os.Getenv(envAuditDisabled)
+	if disabled == "" {
+		logger.Info(configurationNotSpecified,
+			zap.String("envVar", envAuditDisabled),
+			zap.Bool("default", defaultAuditDisabled))
+
+		return defaultAuditDisabled
+	}
+
+	disabledBool, err := strconv.ParseBool(disabled)
+	if err != nil {
+		logger.Info("failed to convert audit disabled to boolean",
+			zap.String("envVar", envAuditDisabled),
+			zap.String("value", disabled),
+			zap.Bool("default", defaultAuditDisabled))
+
+		return defaultAuditDisabled
+	}
+
+	return disabledBool
 }
 
 func getTalosProxyConfig(ctx context.Context) *TalosProxyConfig {

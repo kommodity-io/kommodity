@@ -1,0 +1,44 @@
+apiVersion: audit.k8s.io/v1
+kind: Policy
+# Default Kubernetes audit policy for Kommodity.
+#
+# Audit is ON by default. Override by setting KOMMODITY_AUDIT_POLICY_FILE_PATH
+# to a custom policy file, or disable entirely with KOMMODITY_AUDIT_DISABLED=true.
+#
+# Levels (low to high verbosity): None, Metadata, Request, RequestResponse
+rules:
+  # Don't log health probes, metrics, or streaming reads — high frequency, no forensic value.
+  - level: None
+    verbs: ["get", "list", "watch"]
+    nonResourceURLs:
+      - /healthz*
+      - /readyz*
+      - /livez
+      - /metrics
+
+  # Don't log kubelet lease heartbeats.
+  - level: None
+    userGroups: ["system:nodes"]
+    verbs: ["get", "create", "patch", "update"]
+    resources:
+      - group: "coordination.k8s.io"
+        resources: ["leases"]
+
+  # Downgrade Secrets to Metadata — never log credential bodies.
+  - level: Metadata
+    resources:
+      - group: ""
+        resources: ["secrets"]
+
+  # Log full request AND response bodies for writes to core, RBAC, and CAPI resources.
+  - level: RequestResponse
+    verbs: ["create", "update", "patch", "delete"]
+    resources:
+      - group: ""
+      - group: "rbac.authorization.k8s.io"
+      - group: "cluster.x-k8s.io"
+      - group: "infrastructure.cluster.x-k8s.io"
+      - group: "bootstrap.cluster.x-k8s.io"
+
+  # Metadata-only catch-all for everything else: who, what, when, where.
+  - level: Metadata
