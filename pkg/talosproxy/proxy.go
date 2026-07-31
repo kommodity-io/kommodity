@@ -140,9 +140,15 @@ func (p *Proxy) Start(ctx context.Context) error {
 	return nil
 }
 
-// RegisterCluster registers a new cluster CIDR with the proxy.
-func (p *Proxy) RegisterCluster(clusterName string, namespace string, cidr *net.IPNet) {
-	p.cidrRegistry.Register(clusterName, namespace, cidr)
+// RegisterCluster registers a new cluster CIDR with the proxy. It returns an
+// error if the CIDR overlaps a CIDR already registered for a different cluster.
+func (p *Proxy) RegisterCluster(clusterName string, namespace string, cidr *net.IPNet) error {
+	err := p.cidrRegistry.Register(clusterName, namespace, cidr)
+	if err != nil {
+		return fmt.Errorf("failed to register cluster %s: %w", clusterName, err)
+	}
+
+	return nil
 }
 
 // DeregisterCluster removes a cluster from the proxy.

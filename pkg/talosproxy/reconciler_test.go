@@ -113,7 +113,7 @@ func TestReconciler_AnnotationRemovalDeregisters(t *testing.T) {
 
 	_, cidr, err := net.ParseCIDR("10.20.0.0/16")
 	require.NoError(t, err)
-	proxy.RegisterCluster("annot-cluster", "team-c", cidr)
+	require.NoError(t, proxy.RegisterCluster("annot-cluster", "team-c", cidr))
 	require.Equal(t, 1, proxy.CIDRRegistryForTest().Len())
 
 	cluster := &clusterv1.Cluster{
@@ -142,7 +142,7 @@ func TestReconciler_ClusterDeletionDeregisters(t *testing.T) {
 
 	_, cidr, err := net.ParseCIDR("10.30.0.0/16")
 	require.NoError(t, err)
-	proxy.RegisterCluster("gone-cluster", "team-d", cidr)
+	require.NoError(t, proxy.RegisterCluster("gone-cluster", "team-d", cidr))
 	require.Equal(t, 1, proxy.CIDRRegistryForTest().Len())
 
 	// No Cluster resource exists in the fake client → reconciler hits the NotFound branch.
@@ -155,6 +155,38 @@ func TestReconciler_ClusterDeletionDeregisters(t *testing.T) {
 
 	assert.Equal(t, 0, proxy.CIDRRegistryForTest().Len(),
 		"a deleted cluster must be deregistered from the proxy")
+}
+
+func TestReconciler_OverlappingCIDRReturnsError(t *testing.T) {
+	t.Parallel()
+
+	scheme := newReconcilerScheme(t)
+	proxy := newReconcilerProxy(t)
+
+	// Pre-register a broad CIDR that subsumes the cluster's CIDR.
+	_, cidrExisting, err := net.ParseCIDR("10.0.0.0/8")
+	require.NoError(t, err)
+	require.NoError(t, proxy.RegisterCluster("other-cluster", "team-a", cidrExisting))
+
+	cluster := &clusterv1.Cluster{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        "overlap-cluster",
+			Namespace:   "team-b",
+			Annotations: map[string]string{testCIDRAnnotation: "10.200.16.0/20"},
+		},
+	}
+
+	kubeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(cluster).Build()
+
+	reconciler := &talosproxy.Reconciler{Client: kubeClient, Proxy: proxy}
+
+	_, err = reconciler.Reconcile(context.Background(), reconcileRequest(cluster.Name, cluster.Namespace))
+	require.Error(t, err)
+	require.ErrorIs(t, err, talosproxy.ErrCIDROverlap)
+
+	// The overlapping cluster must not have been registered.
+	assert.Equal(t, 1, proxy.CIDRRegistryForTest().Len(),
+		"overlapping cluster must not be registered")
 }
 
 // Compile-time guard that the reconciler still satisfies the controller-runtime Reconciler interface.
