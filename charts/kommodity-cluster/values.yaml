@@ -204,7 +204,7 @@ kommodity:
         version: 0.1.3
       initialExtraValues:
         image:
-          tag: v0.1.1
+          tag: v1.1.0
         replicaCount: 2
         tolerations:
           - key: node.cloudprovider.kubernetes.io/uninitialized
