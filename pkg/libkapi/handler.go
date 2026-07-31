@@ -1,28 +1,21 @@
 package libkapi
 
-import (
-	"fmt"
-	"net/http"
-)
+import "net/http"
 
 // HTTPHandlerFactory mounts additional routes onto the server's shared mux.
-// It is libkapi's own equivalent of combinedserver.HTTPMuxFactory, kept
-// dependency-free so libkapi never imports pkg/combinedserver.
+//
+// Deprecated: use ServerFactory via WithServerFactory instead, which also
+// exposes the gRPC server and the server's loopback client config through Ctx.
 type HTTPHandlerFactory func(*http.ServeMux) error
 
-// buildMux runs every factory against a fresh mux, then falls back every
-// unmatched request to apiHandler - the built API server's own handler.
-func buildMux(factories []HTTPHandlerFactory, apiHandler http.Handler) (*http.ServeMux, error) {
-	mux := http.NewServeMux()
-
-	for i, factory := range factories {
-		err := factory(mux)
-		if err != nil {
-			return nil, fmt.Errorf("failed to run HTTP handler factory %d: %w", i, err)
-		}
-	}
-
-	mux.Handle("/", apiHandler)
-
-	return mux, nil
+// WithHTTPHandlerFactory mounts an additional set of routes onto the
+// server's shared mux, alongside the built API server. Can be passed more
+// than once; factories run in the order given.
+//
+// Deprecated: use WithServerFactory instead, which also exposes the gRPC
+// server and the server's loopback client config through Ctx.
+func WithHTTPHandlerFactory(factory HTTPHandlerFactory) Option {
+	return WithServerFactory(func(c *Ctx) error {
+		return factory(c.HTTPMux())
+	})
 }

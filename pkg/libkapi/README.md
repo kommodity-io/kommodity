@@ -83,54 +83,56 @@ kubectl --server=http://127.0.0.1:8080 get namespaces
 kubectl --server=http://127.0.0.1:8080 apply -f my-deployment.yaml
 ```
 
-### Mounting custom HTTP handlers
+### Extending the built server
 
-`WithHTTPHandlerFactory` lets you mount your own routes alongside the built
-API server, on the same address and port. Pass it more than once to mount
-several factories; they run in the order given:
+`WithServerFactory` lets you extend the built server alongside the API
+server, on the same address and port. Each registered factory is called
+with a `*libkapi.Ctx` exposing whatever it needs:
+
+- `c.HTTPMux()` — mount routes on the server's shared `*http.ServeMux`.
+- `c.GRPCServer()` — register services on the server's `*grpc.Server`,
+  building it (and registering reflection) the first time it's called.
+  Requests are then routed by Content-Type: anything starting with
+  `application/grpc` goes to the gRPC server, everything else goes to the
+  HTTP mux.
+- `c.LoopbackConfig()` — the server's own privileged
+  (system:masters-equivalent) identity, for building a client (typed,
+  dynamic, or controller-runtime) that a registered service can use once
+  the server is actually serving requests.
+
+Pass `WithServerFactory` more than once to register several factories
+against the same `Ctx`; they run in the order given.
 
 ```go
 server, err := libkapi.New(ctx,
 	libkapi.WithStorage("sqlite://local.db"),
-	libkapi.WithHTTPHandlerFactory(func(mux *http.ServeMux) error {
-		mux.HandleFunc("GET /healthz/custom", func(w http.ResponseWriter, r *http.Request) {
+	libkapi.WithServerFactory(func(c *libkapi.Ctx) error {
+		c.HTTPMux().HandleFunc("GET /healthz/custom", func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		})
 
-		return nil
-	}),
-)
-```
+		kubeClient, err := kubernetes.NewForConfig(c.LoopbackConfig())
+		if err != nil {
+			return err
+		}
 
-Every unmatched request still falls through to the Kubernetes API server's
-own handler.
-
-### Mounting a gRPC server
-
-`WithGRPCServerFactory` lets you register gRPC services alongside the built
-API server, multiplexed onto the same address and port as everything else.
-Requests are routed by Content-Type: anything starting with
-`application/grpc` goes to the gRPC server, everything else goes to the HTTP
-mux (built API server plus any `WithHTTPHandlerFactory` routes). Pass it
-more than once to register several factories against the same
-`*grpc.Server`; they run in the order given. Reflection is registered
-automatically.
-
-```go
-server, err := libkapi.New(ctx,
-	libkapi.WithStorage("sqlite://local.db"),
-	libkapi.WithGRPCServerFactory(func(grpcServer *grpc.Server) error {
-		myservicepb.RegisterMyServiceServer(grpcServer, &myServiceImpl{})
+		myservicepb.RegisterMyServiceServer(c.GRPCServer(), &myServiceImpl{kubeClient: kubeClient})
 
 		return nil
 	}),
 )
 ```
 
-Registering at least one factory switches the listener to serve h2c (HTTP/2
-over plaintext), since gRPC requires HTTP/2 and `WithTLS` is not yet
-implemented. Servers that never call `WithGRPCServerFactory` are unaffected
-and stay on plain HTTP/1.1.
+Every unmatched HTTP request still falls through to the Kubernetes API
+server's own handler. If some factory calls `c.GRPCServer()`, the listener
+switches to serve h2c (HTTP/2 over plaintext), since gRPC requires HTTP/2
+and `WithTLS` is not yet implemented; a server where no factory ever calls
+`c.GRPCServer()` is unaffected and stays on plain HTTP/1.1.
+
+`WithHTTPHandlerFactory` and `WithGRPCServerFactory` still work, as thin,
+deprecated wrappers around `WithServerFactory` — prefer `WithServerFactory`
+for new code, since it also gives a factory access to whichever of `Ctx`'s
+other resources it needs.
 
 ### Graceful shutdown
 
@@ -241,8 +243,9 @@ auth-specific alike — pass any combination, in any order.
 | `WithAddr(addr string)`                          | Sets the listener address, e.g. `":8080"`. Defaults to `":"+$PORT`, falling back to `":8080"` if `PORT` is unset or invalid.                                                                           |
 | `WithStorage(storage string)`                    | Sets the storage connection string. See [Storage](#storage).                                                                                                                                           |
 | `WithLogger(logger *slog.Logger)`                | Sets the logger for libkapi's own output and the bridged klog/gRPC/logrus output. See [Logging](#logging). Defaults to `slog.Default()`.                                                               |
-| `WithHTTPHandlerFactory(f HTTPHandlerFactory)`   | Mounts an extra set of routes. See [Mounting custom HTTP handlers](#mounting-custom-http-handlers). Repeatable.                                                                                        |
-| `WithGRPCServerFactory(f GRPCServerFactory)`     | Registers gRPC services, multiplexed onto the same address and port. See [Mounting a gRPC server](#mounting-a-grpc-server). Repeatable.                                                                |
+| `WithServerFactory(f ServerFactory)`             | Extends the built server via `Ctx` (HTTP mux, gRPC server, loopback client config). See [Extending the built server](#extending-the-built-server). Repeatable.                                        |
+| `WithHTTPHandlerFactory(f HTTPHandlerFactory)`   | Deprecated: use `WithServerFactory` instead. Mounts an extra set of routes. See [Extending the built server](#extending-the-built-server). Repeatable.                                                |
+| `WithGRPCServerFactory(f GRPCServerFactory)`     | Deprecated: use `WithServerFactory` instead. Registers gRPC services, multiplexed onto the same address and port. See [Extending the built server](#extending-the-built-server). Repeatable.          |
 | `WithScheme(scheme *runtime.Scheme)`             | Registers additional types beyond the standard API groups libkapi wires by default.                                                                                                                    |
 | `WithTLS(cfg TLSConfig)`                         | Reserved for future use; passing it makes `New` return `ErrNotImplemented`.                                                                                                                            |
 | `WithOIDC(cfg OIDCConfig)`                       | Adds an OIDC bearer-token authenticator. Fetches the issuer's discovery document at `IssuerURL/.well-known/openid-configuration` during `New`.                                                         |
@@ -475,13 +478,36 @@ added.
 | `CertFile` | `string` |
 | `KeyFile`  | `string` |
 
+### `type Ctx struct`
+
+Exposes the resources available to a `ServerFactory`. New accessors can be
+added here over time without changing `ServerFactory`'s signature.
+
+| Method                                     | Description                                                                                                                                     |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `HTTPMux() *http.ServeMux`                  | The server's shared mux, for mounting additional routes.                                                                                         |
+| `LoopbackConfig() *restclient.Config`       | The server's own privileged (system:masters-equivalent) identity, for building whatever client a factory needs.                                  |
+| `GRPCServer() *grpc.Server`                 | The server's gRPC server, built (with reflection registered) the first time it's called. See [Extending the built server](#extending-the-built-server). |
+
+### `type ServerFactory func(*Ctx) error`
+
+libkapi's extension-point type. Each factory passed via `WithServerFactory`
+is called with a shared `*Ctx` during `New`; use whichever of its resources
+you need. Replaces the narrower `HTTPHandlerFactory` and `GRPCServerFactory`.
+
 ### `type HTTPHandlerFactory func(*http.ServeMux) error`
 
-libkapi's extension-point type. Each factory passed via
-`WithHTTPHandlerFactory` is called with the server's shared `*http.ServeMux`
-during `New`; register whatever routes you need on it. Any request that
-doesn't match a registered route falls through to the built API server's own
-handler.
+Deprecated: use `ServerFactory` via `WithServerFactory` instead. Each factory
+passed via `WithHTTPHandlerFactory` is called with the server's shared
+`*http.ServeMux` during `New`; register whatever routes you need on it. Any
+request that doesn't match a registered route falls through to the built API
+server's own handler.
+
+### `type GRPCServerFactory func(*grpc.Server) error`
+
+Deprecated: use `ServerFactory` via `WithServerFactory` instead. Each factory
+passed via `WithGRPCServerFactory` is called with the server's shared
+`*grpc.Server` during `New`; register whatever gRPC services you need on it.
 
 ### `type Server struct`
 
