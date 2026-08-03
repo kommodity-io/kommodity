@@ -188,6 +188,9 @@ Any values that should trigger a new Talos config template when changed should b
 {{- with (dig "additionalVolumes" "" .poolValues) -}}
 	{{- $_ := set $data "additionalVolumes" . -}}
 {{- end -}}
+{{- with (dig "instanceVolumes" "" .poolValues) -}}
+	{{- $_ := set $data "instanceVolumes" . -}}
+{{- end -}}
 {{- toJson $data | sha256sum | trunc 6 -}}
 {{- end -}}
 

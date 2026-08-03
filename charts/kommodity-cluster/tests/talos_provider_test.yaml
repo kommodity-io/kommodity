@@ -308,3 +308,153 @@ tests:
       - equal:
           path: spec.version
           value: "controlplane-kubernetes-version"
+
+  # InstanceVolumes tests
+  - it: should emit UserVolumeConfig for worker instanceVolumes
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.nodepools.default.instanceVolumes:
+        - nameSuffix: scratch
+          diskSelector: "disk.model == 'scratch'"
+          grow: true
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "kind: UserVolumeConfig"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "name: scratch"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "grow: true"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "disk.model == 'scratch'"
+
+  - it: should emit UserVolumeConfig for controlplane instanceVolumes
+    template: templates/talos/controlplane.yaml
+    set:
+      kommodity.controlplane.instanceVolumes:
+        - nameSuffix: scratch
+          diskSelector: "disk.model == 'scratch'"
+    asserts:
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "kind: UserVolumeConfig"
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "name: scratch"
+
+  - it: should emit multiple UserVolumeConfig for multiple instanceVolumes
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.nodepools.default.instanceVolumes:
+        - nameSuffix: scratch
+          diskSelector: "disk.model == 'scratch'"
+        - nameSuffix: cache
+          diskSelector: "disk.transport == 'nvme'"
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "name: scratch"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[2]
+          pattern: "name: cache"
+
+  - it: should not emit UserVolumeConfig when instanceVolumes is unset
+    template: templates/talos/configtemplate.yaml
+    asserts:
+      - not: true
+        matchRegex:
+          path: spec.template.spec.strategicPatches[0]
+          pattern: "UserVolumeConfig"
+
+  - it: should emit nodeID encryption by default on instanceVolumes
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.nodepools.default.instanceVolumes:
+        - nameSuffix: scratch
+          diskSelector: "disk.model == 'scratch'"
+          encryption:
+            provider: luks2
+            lockToState: true
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "provider: luks2"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "nodeID"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "lockToState: true"
+
+  - it: should default to KMS encryption when kms is enabled and keySource is omitted
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.kms.enabled: true
+      kommodity.nodepools.default.instanceVolumes:
+        - nameSuffix: scratch
+          diskSelector: "disk.model == 'scratch'"
+          encryption:
+            provider: luks2
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "provider: luks2"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "endpoint: \"https://kms.example.com\""
+      - not: true
+        matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "nodeID"
+
+  - it: should use nodeID encryption when kms is enabled but keySource is explicitly nodeID
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.kms.enabled: true
+      kommodity.nodepools.default.instanceVolumes:
+        - nameSuffix: scratch
+          diskSelector: "disk.model == 'scratch'"
+          encryption:
+            provider: luks2
+            keySource: nodeID
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "nodeID"
+      - not: true
+        matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "kms:"
+
+  - it: should not emit encryption when encryption block is omitted
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.nodepools.default.instanceVolumes:
+        - nameSuffix: scratch
+          diskSelector: "disk.model == 'scratch'"
+    asserts:
+      - not: true
+        matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "luks2"
+
+  - it: should fail when nameSuffix is missing from instanceVolumes
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.nodepools.default.instanceVolumes:
+        - diskSelector: "disk.model == 'scratch'"
+    asserts:
+      - failedTemplate:
+          errorMessage: "instanceVolumes[].nameSuffix is required (used as Talos volume name and /var/mnt/<name> mount path)"
+
+  - it: should fail when diskSelector is missing from instanceVolumes
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.nodepools.default.instanceVolumes:
+        - nameSuffix: scratch
+    asserts:
+      - failedTemplate:
+          errorMessage: "instanceVolumes[].diskSelector is required (CEL expression to match the target disk)"
