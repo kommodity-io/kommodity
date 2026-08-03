@@ -114,7 +114,8 @@ kommodity:
         disk:
           size: 20
       additionalVolumes:
-        - size: 10 # size in GB
+        - nameSuffix: data # required: used as Talos volume name and /var/mnt/<name> mount path
+          size: 10 # size in GB
       #     storageClassName: fast-ssd # optional, defaults to provider.config.storageClassName if set
 
       # Optional: specify GPU resources

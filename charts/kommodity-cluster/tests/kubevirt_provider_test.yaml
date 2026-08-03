@@ -180,8 +180,10 @@ tests:
     set:
       kommodity.provider.config.storageClassName: ceph-block
       kommodity.nodepools.default.additionalVolumes:
-        - size: 50
-        - size: 100
+        - nameSuffix: data
+          size: 50
+        - nameSuffix: logs
+          size: 100
           storageClassName: fast-ssd
     asserts:
       - equal:

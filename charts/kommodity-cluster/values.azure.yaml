@@ -221,11 +221,18 @@ kommodity:
       #   # Azure template maps `size` (GB) to the CAPZ `diskSizeGB` field.
       #   # Azure-specific extras: nameSuffix (required by CAPZ), lun,
       #   # storageClassName (defaults to Premium_LRS), cachingType (optional).
+      #   # nameSuffix is also used as the Talos volume name. For user volumes
+      #   # (default) the disk is auto-mounted at /var/mnt/<nameSuffix>.
+      #   #
+      #   # volumeType: "user" (default) or "raw"
+      #   #   user = UserVolumeConfig — formatted (xfs), mounted at /var/mnt/<name>
+      #   #   raw  = RawVolumeConfig — unformatted, unmounted, for CSI/Ceph OSDs
       #   - nameSuffix: data
       #     size: 100
       #     lun: 0
       #     storageClassName: Premium_LRS
       #     cachingType: ReadWrite
+      #     # volumeType: raw  # uncomment for Ceph/Rook raw block devices
       labels:
         my-label: my-value
       annotations:

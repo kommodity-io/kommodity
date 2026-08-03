@@ -83,7 +83,9 @@ kommodity:
         disk:
           size: 20
       # additionalVolumes:
-      #   - size: 50 # size in GB
+      #   # nameSuffix is required — used as Talos volume name and /var/mnt/<nameSuffix> mount path.
+      #   - nameSuffix: data
+      #     size: 50 # size in GB
       #     type: block # optional, defaults to block (local, block, scratch)
       #     iops: 5000 # optional, only valid for block volumes (5000 or 15000)
       labels:
