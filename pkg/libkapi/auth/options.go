@@ -20,6 +20,7 @@ type config struct {
 	saConfig          *ServiceAccountConfig
 	authorizer        authorizer.Authorizer
 	apiAudiences      authenticator.Audiences
+	rbacListerSource  *RBACListerSource
 }
 
 // ResolvedConfig is the resolved authentication/authorization state, ready
@@ -43,6 +44,13 @@ type ResolvedConfig struct {
 	// APIAudiences is the resolved API audiences for token validation.
 	// Empty if none were set.
 	APIAudiences authenticator.Audiences
+
+	// RBACListerSource is non-nil if WithRBACAuthorizer was used. It has no
+	// listers installed yet — buildServer calls SetListers on it once the
+	// server's SharedInformerFactory is available, the same "config now,
+	// finish later" split SAConfig uses for BuildSAAuthenticator. See
+	// WithRBACAuthorizer's doc for why the listers can't be built here.
+	RBACListerSource *RBACListerSource
 }
 
 // Resolve applies all options in order and returns the resolved configuration.
@@ -61,6 +69,7 @@ func Resolve(ctx context.Context, opts []Option, logger *slog.Logger) (*Resolved
 		SAConfig:          cfg.saConfig,
 		Authorizer:        resolveAuthorizer(cfg, logger),
 		APIAudiences:      cfg.apiAudiences,
+		RBACListerSource:  cfg.rbacListerSource,
 	}, nil
 }
 

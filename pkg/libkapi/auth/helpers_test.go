@@ -50,6 +50,7 @@ type fakeAttributes struct {
 	resource   string
 	verb       string
 	namespace  string
+	apiGroup   string
 }
 
 func (a *fakeAttributes) GetUser() user.Info { return a.user }
@@ -62,7 +63,7 @@ func (a *fakeAttributes) GetNamespace() string                           { retur
 func (a *fakeAttributes) GetResource() string                            { return a.resource }
 func (a *fakeAttributes) GetSubresource() string                         { return "" }
 func (a *fakeAttributes) GetName() string                                { return "" }
-func (a *fakeAttributes) GetAPIGroup() string                            { return "" }
+func (a *fakeAttributes) GetAPIGroup() string                            { return a.apiGroup }
 func (a *fakeAttributes) GetAPIVersion() string                          { return "" }
 func (a *fakeAttributes) IsResourceRequest() bool                        { return a.isResource }
 func (a *fakeAttributes) GetPath() string                                { return a.path }
