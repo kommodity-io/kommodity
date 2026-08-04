@@ -59,6 +59,46 @@ func TestResolve_WithAuthorizer_NilReturnsError(t *testing.T) {
 	require.ErrorIs(t, err, auth.ErrAuthorizerNil)
 }
 
+// TestResolve_WithAuthorizer_AfterRBACAuthorizer_ClearsRBACListerSource
+// verifies that a WithAuthorizer call after WithRBACAuthorizer clears
+// RBACListerSource, not just Authorizer — otherwise buildServer's
+// finishRBACAuthorizer would still wire up and start RBAC informers for
+// listers the final (overwritten) authorizer never reads, wasting API
+// server watches for no effect.
+func TestResolve_WithAuthorizer_AfterRBACAuthorizer_ClearsRBACListerSource(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	customAuthz := authorizerfactory.NewAlwaysAllowAuthorizer()
+
+	resolved, err := auth.Resolve(ctx, []auth.Option{
+		auth.WithRBACAuthorizer(auth.RBACAuthorizerConfig{AdminGroups: "my-admins"}),
+		auth.WithAuthorizer(customAuthz),
+	}, slog.Default())
+	require.NoError(t, err)
+
+	assert.Same(t, customAuthz, resolved.Authorizer)
+	assert.Nil(t, resolved.RBACListerSource)
+}
+
+// TestResolve_WithAdminAuthorizer_AfterRBACAuthorizer_ClearsRBACListerSource
+// is the same regression guard as
+// TestResolve_WithAuthorizer_AfterRBACAuthorizer_ClearsRBACListerSource,
+// for WithAdminAuthorizer instead of WithAuthorizer.
+func TestResolve_WithAdminAuthorizer_AfterRBACAuthorizer_ClearsRBACListerSource(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	resolved, err := auth.Resolve(ctx, []auth.Option{
+		auth.WithRBACAuthorizer(auth.RBACAuthorizerConfig{AdminGroups: "my-admins"}),
+		auth.WithAdminAuthorizer(auth.AdminAuthorizerConfig{AdminGroups: "my-admins"}),
+	}, slog.Default())
+	require.NoError(t, err)
+
+	assert.Nil(t, resolved.RBACListerSource)
+}
+
 // TestResolve_AuthWithoutAuthorizer_LogsWarning verifies that when
 // authentication strategies are configured but no authorizer is set,
 // Resolve uses always-allow and the logger receives a warning.

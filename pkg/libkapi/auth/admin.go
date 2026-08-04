@@ -33,6 +33,13 @@ type AdminAuthorizerConfig struct {
 // system:serviceaccounts; denies everything else.
 //
 // Mirrors pkg/server/auth.go's adminAuthorizer (lines 107-152).
+//
+// Clears any RBACListerSource a preceding WithRBACAuthorizer installed:
+// options are applied in order with the last authorizer-setting call
+// winning (see WithAuthorizer's doc), and a stale RBACListerSource left in
+// place would still make buildServer's finishRBACAuthorizer wire up and
+// start RBAC informers for listers nothing reads anymore — wasted watches
+// and API load for no effect on the actual, overwritten authorizer.
 func WithAdminAuthorizer(adminCfg AdminAuthorizerConfig) Option {
 	return func(_ context.Context, cfg *config) error {
 		groups := parseAdminGroups(adminCfg.AdminGroups)
@@ -41,6 +48,7 @@ func WithAdminAuthorizer(adminCfg AdminAuthorizerConfig) Option {
 		}
 
 		cfg.authorizer = &AdminAuthorizer{Groups: groups}
+		cfg.rbacListerSource = nil
 
 		return nil
 	}

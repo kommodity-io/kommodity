@@ -139,7 +139,7 @@ func (s *RBACListerSource) GetRole(_ context.Context, namespace, name string) (*
 
 	role, err := lister.Roles(namespace).Get(name)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get role %q: %w", name, err)
+		return nil, fmt.Errorf("failed to get role %q in namespace %q: %w", name, namespace, err)
 	}
 
 	return role, nil

@@ -117,6 +117,13 @@ func BuildUnionAuthenticator(oidcAuth authenticator.Request, saAuth authenticato
 
 // WithAuthorizer sets a custom authorizer. If not called, the server uses
 // always-allow (with a warning if authentication strategies are configured).
+//
+// Options are applied in order, with the last authorizer-setting call
+// (WithAuthorizer, WithAdminAuthorizer, or WithRBACAuthorizer) winning —
+// so this also clears any RBACListerSource a preceding WithRBACAuthorizer
+// installed. Leaving it in place would still make buildServer's
+// finishRBACAuthorizer wire up and start RBAC informers for listers
+// nothing reads anymore, since authz here doesn't reference them.
 func WithAuthorizer(authz authorizer.Authorizer) Option {
 	return func(_ context.Context, cfg *config) error {
 		if authz == nil {
@@ -124,6 +131,7 @@ func WithAuthorizer(authz authorizer.Authorizer) Option {
 		}
 
 		cfg.authorizer = authz
+		cfg.rbacListerSource = nil
 
 		return nil
 	}
