@@ -94,7 +94,7 @@ Returns empty string when instanceVolumes is not set or empty.
     keys:
       - slot: 0
 {{- if eq $keySource "kms" }}
-{{- $endpoint := required "kms.endpoint is required when encryption.keySource is kms" $kmsEndpoint -}}
+{{- $endpoint := required "kms.endpoint is required when encryption.keySource is kms" $kmsEndpoint }}
         kms:
           endpoint: {{ $endpoint | quote }}
 {{- else }}
