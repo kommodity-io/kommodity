@@ -192,6 +192,10 @@ kommodity:
         size: 30
         # Azure disk types: Standard_LRS, Premium_LRS, StandardSSD_LRS, UltraSSD_LRS
         type: Premium_LRS
+    # instanceVolumes:
+    #   # Instance-local disks (see values.yaml for full documentation)
+    #   - nameSuffix: scratch
+    #     diskSelector: "disk.transport == 'nvme'"
     healthCheck:
       enabled: true
       unhealthyConditions:
@@ -226,6 +230,19 @@ kommodity:
       #     lun: 0
       #     storageClassName: Premium_LRS
       #     cachingType: ReadWrite
+      # instanceVolumes:
+      #   # Instance-local disks that exist on the VM at boot (not provisioned via
+      #   # the Azure API). E.g. the temp disk on Azure VMs (/dev/sdb on many
+      #   # VM sizes). Emits UserVolumeConfig only — no AzureMachineTemplate changes.
+      #   # diskSelector is a CEL expression — run `talosctl get disks -o yaml`
+      #   # on a node to see available fields (model, transport, size, wwid, etc.).
+      #   - nameSuffix: scratch
+      #     diskSelector: "disk.transport == 'nvme'"
+      #     grow: true
+      #     encryption:
+      #       provider: luks2
+      #       keySource: nodeID  # or kms (default: kms if kommodity.kms.enabled, else nodeID)
+      #       lockToState: true
       labels:
         my-label: my-value
       annotations:

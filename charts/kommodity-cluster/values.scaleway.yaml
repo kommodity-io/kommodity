@@ -61,6 +61,10 @@ kommodity:
     os:
       disk:
         size: 20
+    # instanceVolumes:
+    #   # Instance-local disks (see values.yaml for full documentation)
+    #   - nameSuffix: scratch
+    #     diskSelector: "disk.model == 'scratch'"
     healthCheck:
       enabled: true
       unhealthyConditions:
@@ -86,6 +90,19 @@ kommodity:
       #   - size: 50 # size in GB
       #     type: block # optional, defaults to block (local, block, scratch)
       #     iops: 5000 # optional, only valid for block volumes (5000 or 15000)
+      # instanceVolumes:
+      #   # Instance-local disks that exist on the VM at boot (not provisioned via
+      #   # the Scaleway API). E.g. the built-in scratch NVMe on H100 instances.
+      #   # Emits UserVolumeConfig only — no ScalewayMachineTemplate changes.
+      #   # diskSelector is a CEL expression — run `talosctl get disks -o yaml`
+      #   # on a node to see available fields (model, transport, size, wwid, etc.).
+      #   - nameSuffix: scratch
+      #     diskSelector: "disk.model == 'scratch'"
+      #     grow: true
+      #     encryption:
+      #       provider: luks2
+      #       keySource: nodeID  # or kms (default: kms if kommodity.kms.enabled, else nodeID)
+      #       lockToState: true
       labels:
         my-label: my-value
       annotations:

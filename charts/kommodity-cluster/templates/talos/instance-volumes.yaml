@@ -1,0 +1,109 @@
+{{/*
+Talos UserVolumeConfig documents for instance-local volumes — disks that
+are physically attached to the VM by the hypervisor but NOT provisioned via
+the cloud provider's volume API (e.g. Scaleway H100 scratch NVMe, Azure temp
+disk). These disks exist on the instance at boot and need only Talos-side
+partitioning, formatting, and mounting.
+
+Unlike additionalVolumes (which triggers cloud-provider provisioning),
+instanceVolumes emits UserVolumeConfig only — no changes to
+ScalewayMachineTemplate / AzureMachineTemplate.
+
+Each entry supports:
+  - nameSuffix (required): Talos volume name, mounted at /var/mnt/<nameSuffix>
+  - diskSelector (required): CEL expression matching the target disk.
+  - grow (optional, default false): grow to fill disk on subsequent boots
+  - minSize (optional): minimum partition size
+  - maxSize (optional): maximum partition size
+  - encryption (optional):
+      provider: luks2
+      keySource: nodeID or kms (default: kms when kommodity.kms.enabled, else nodeID)
+      lockToState: true (recommended)
+
+### diskSelector
+
+A CEL expression evaluated against each available disk on the node.
+The first disk that returns true is selected. Use `talosctl get disks -o yaml`
+on a running node to see available fields:
+
+  dev_path: /dev/sdb
+  size: 2929688576
+  pretty_size: 2.9 TB
+  io_size: 512
+  sector_size: 512
+  readonly: false
+  model: scratch
+  transport: scsi
+  wwid: ...
+  serial: ...
+  bus_path: /pci0000:00/...
+
+Common selectors:
+  disk.model == 'scratch'                      # Scaleway H100 scratch NVMe
+  disk.transport == 'nvme'                     # any NVMe disk
+  disk.transport == 'scsi' && disk.size > 2u * TiB  # SCSI disk larger than 2 TB
+  disk.serial.startsWith('deadbeef')           # by serial prefix
+  '/dev/disk/by-path/pci-0000:00:1f.2' in disk.symlinks  # by stable symlink
+
+Size constants: KiB, MiB, GiB, TiB, PiB, EiB (binary) or kB, MB, GB, TB, PB, EB (decimal).
+Use `u` suffix for unsigned integers: disk.size > 2u * TiB.
+
+See: https://docs.siderolabs.com/talos/v1.13/configure-your-talos-cluster/storage-and-disk-management/disk-management/common
+
+When KMS is enabled and keySource is "kms" (the default when KMS is enabled),
+the volume is encrypted with luks2+KMS matching STATE/EPHEMERAL. When
+keySource is "nodeID" (the default when KMS is disabled), the volume is
+encrypted with luks2+nodeID, matching the encryption method used by
+STATE/EPHEMERAL on clusters without KMS.
+
+See:
+  - UserVolumeConfig: https://docs.siderolabs.com/talos/v1.13/reference/configuration/block/uservolumeconfig
+  - Disk encryption:  https://docs.siderolabs.com/talos/v1.13/configure-your-talos-cluster/storage-and-disk-management/disk-encryption
+
+Usage: {{ include "kommodity.talos.instanceVolumes" (dict "instanceVolumes" .instanceVolumes "kmsEndpoint" .kmsEndpoint) }}
+Returns empty string when instanceVolumes is not set or empty.
+*/}}
+{{- define "kommodity.talos.instanceVolumes" -}}
+{{- $volumes := .instanceVolumes -}}
+{{- $kmsEndpoint := .kmsEndpoint -}}
+{{- $kmsEnabled := default false .kmsEnabled -}}
+{{- if $volumes -}}
+{{- range $vol := $volumes }}
+{{- $name := required "instanceVolumes[].nameSuffix is required (used as Talos volume name and /var/mnt/<name> mount path)" $vol.nameSuffix -}}
+{{- $selector := required "instanceVolumes[].diskSelector is required (CEL expression to match the target disk)" $vol.diskSelector -}}
+{{- $enc := default dict (dig "encryption" nil $vol) -}}
+{{- $encProvider := default "luks2" (dig "provider" "" $enc) -}}
+{{- $keySource := default (ternary "kms" "nodeID" $kmsEnabled) (dig "keySource" "" $enc) -}}
+- |
+  apiVersion: v1alpha1
+  kind: UserVolumeConfig
+  name: {{ $name }}
+  provisioning:
+    diskSelector:
+      match: {{ $selector | quote }}
+{{- with $vol.minSize }}
+    minSize: {{ . }}
+{{- end }}
+{{- with $vol.maxSize }}
+    maxSize: {{ . }}
+{{- end }}
+    grow: {{ $vol.grow | default false }}
+{{- if $enc }}
+  encryption:
+    provider: {{ $encProvider }}
+    keys:
+      - slot: 0
+{{- if eq $keySource "kms" }}
+{{- $endpoint := required "kms.endpoint is required when encryption.keySource is kms" $kmsEndpoint -}}
+        kms:
+          endpoint: {{ $endpoint | quote }}
+{{- else }}
+        nodeID: {}
+{{- end }}
+{{- with $enc.lockToState }}
+        lockToState: {{ . }}
+{{- end }}
+{{- end }}
+{{ end -}}
+{{- end -}}
+{{- end -}}
