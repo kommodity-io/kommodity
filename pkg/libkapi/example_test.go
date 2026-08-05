@@ -85,11 +85,15 @@ func TestServerEndToEnd(t *testing.T) {
 	assertCRDServerLive(ctx, t, restConfig)
 }
 
-// TestServerEndToEnd_WithAdminAuthorizer verifies that once an authorizer
-// denies anonymous requests, libkapi's own internal loopback client (used by
-// post-start hooks like bootstrap-default-namespace, and by the CRD/
-// APIService informers) still authenticates as a privileged user, while an
-// unauthenticated external caller is denied.
+// assertServerEndToEndDeniesAnonymous builds and starts a real libkapi
+// Server with authOpt as its only authorization option, then verifies
+// libkapi's own internal loopback client (used by post-start hooks like
+// bootstrap-default-namespace, and by the CRD/APIService informers) still
+// authenticates as a privileged user while an unauthenticated external
+// caller is denied — shared by TestServerEndToEnd_WithAdminAuthorizer and
+// TestServerEndToEnd_WithRBACAuthorizer, which differ only in which
+// authorizer option they pass and in what that proves about its own
+// setup (see each test's own doc).
 //
 // Regression test: the loopback client used to carry no bearer token, so it
 // authenticated as system:anonymous exactly like any other caller and was
@@ -99,22 +103,20 @@ func TestServerEndToEnd(t *testing.T) {
 // hook intentionally wants to kill server, let it"), so before the fix this
 // test would crash the whole process instead of ever reaching the assertion
 // below.
-func TestServerEndToEnd_WithAdminAuthorizer(t *testing.T) {
-	t.Parallel()
+func assertServerEndToEndDeniesAnonymous(t *testing.T, dbName string, authOpt libkapi.Option) {
+	t.Helper()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
 	addr := libkapi.FreeAddr(t)
-	dbPath := filepath.Join(t.TempDir(), "libkapi-admin.db")
+	dbPath := filepath.Join(t.TempDir(), dbName)
 
 	server, err := libkapi.New(ctx,
 		libkapi.WithAddr(addr),
 		libkapi.WithStorage("sqlite://"+dbPath),
 		libkapi.WithLogger(slog.Default()),
-		libkapi.WithAdminAuthorizer(libkapi.AdminAuthorizerConfig{
-			AdminGroups: "test-admins",
-		}),
+		authOpt,
 	)
 	require.NoError(t, err)
 
@@ -139,6 +141,37 @@ func TestServerEndToEnd_WithAdminAuthorizer(t *testing.T) {
 	_, err = kubeClient.CoreV1().Namespaces().Get(ctx, "default", metav1.GetOptions{})
 	require.Error(t, err)
 	assert.True(t, apierrors.IsForbidden(err), "expected anonymous request to be forbidden, got: %v", err)
+}
+
+// TestServerEndToEnd_WithAdminAuthorizer is
+// assertServerEndToEndDeniesAnonymous's regression guard for
+// WithAdminAuthorizer — see that helper's own doc.
+func TestServerEndToEnd_WithAdminAuthorizer(t *testing.T) {
+	t.Parallel()
+
+	assertServerEndToEndDeniesAnonymous(t, "libkapi-admin.db",
+		libkapi.WithAdminAuthorizer(libkapi.AdminAuthorizerConfig{AdminGroups: "test-admins"}))
+}
+
+// TestServerEndToEnd_WithRBACAuthorizer verifies that a real libkapi Server
+// boots and serves correctly with WithRBACAuthorizer configured — in
+// particular, that finishRBACAuthorizer's informer-lister setup (run
+// synchronously during New, before ListenAndServe) doesn't itself break
+// startup — on top of assertServerEndToEndDeniesAnonymous's own regression
+// guard (see its doc).
+//
+// This deliberately doesn't attempt to prove a real ClusterRoleBinding
+// grants access to a non-admin group over live HTTP — doing so here would
+// need a second authenticator (OIDC or ServiceAccount) to mint a token for
+// some identity other than anonymous, adding real complexity for a proof
+// pkg/libkapi/auth/rbac_test.go's
+// TestRBACAuthorizer_GrantsAccessViaRealClusterRoleBinding already gives
+// directly against the resolved authorizer, with no server needed.
+func TestServerEndToEnd_WithRBACAuthorizer(t *testing.T) {
+	t.Parallel()
+
+	assertServerEndToEndDeniesAnonymous(t, "libkapi-rbac.db",
+		libkapi.WithRBACAuthorizer(libkapi.RBACAuthorizerConfig{AdminGroups: "test-admins"}))
 }
 
 func assertCoreV1(ctx context.Context, t *testing.T, kubeClient *kubernetes.Clientset) {

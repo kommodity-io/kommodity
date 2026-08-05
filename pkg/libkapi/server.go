@@ -217,6 +217,11 @@ func buildServer(cfg config, addr string, handle *storage.Handle,
 		return nil, fmt.Errorf("failed to set up API server config: %w", err)
 	}
 
+	err = finishRBACAuthorizer(authCfg, genericServerConfig)
+	if err != nil {
+		return nil, err
+	}
+
 	err = resolveAndSetAuth(authCfg, genericServerConfig, controllersLogger)
 	if err != nil {
 		return nil, err
@@ -247,6 +252,58 @@ func buildServer(cfg config, addr string, handle *storage.Handle,
 		postStartHooks:  cfg.postStartHooks,
 		preShutdownHooks: cfg.preShutdownHooks,
 	}, nil
+}
+
+// finishRBACAuthorizer completes WithRBACAuthorizer's setup, if it was used
+// (authCfg.RBACListerSource is nil otherwise, and this is a no-op): it
+// installs rbac/v1 informer listers, built from
+// genericServerConfig.SharedInformerFactory, onto the RBACListerSource the
+// authorizer already holds a reference to (via upstream's RBAC authorizer,
+// itself already wired into authz/genericServerConfig.Authorization.Authorizer/
+// StandardAPIGroups at this point) — see auth.WithRBACAuthorizer's doc for
+// why listers, not a direct client, and why this can't happen any earlier.
+//
+// Accessing SharedInformerFactory.Rbac().V1() registers these four
+// informers on the factory but doesn't start them - nothing populates the
+// listers yet. The post-start hook registered below starts the factory
+// once the server is listening, the same pattern
+// pkg/libkapi/controllers.NewTokenControllerHook uses for its own SA/Secret
+// informers (see token.go's doc: "informers must be registered on the
+// SharedInformerFactory before Start is called"). Calling Start on a
+// factory that's already running (e.g. because WithServiceAccount's own
+// hook already started it) is safe - client-go tracks per-informer state
+// and only starts ones that aren't already running.
+//
+// Called synchronously from buildServer, itself called synchronously from
+// New — entirely before ListenAndServe, so before the listener is ever
+// bound and before any real request could possibly reach the authorizer.
+func finishRBACAuthorizer(authCfg *auth.ResolvedConfig, genericServerConfig *genericapiserver.RecommendedConfig) error {
+	if authCfg.RBACListerSource == nil {
+		return nil
+	}
+
+	rbacInformers := genericServerConfig.SharedInformerFactory.Rbac().V1()
+
+	authCfg.RBACListerSource.SetListers(
+		rbacInformers.Roles().Lister(),
+		rbacInformers.RoleBindings().Lister(),
+		rbacInformers.ClusterRoles().Lister(),
+		rbacInformers.ClusterRoleBindings().Lister(),
+	)
+
+	sharedInformerFactory := genericServerConfig.SharedInformerFactory
+
+	err := genericServerConfig.AddPostStartHook("libkapi-rbac-authorizer-informers",
+		func(ctx genericapiserver.PostStartHookContext) error {
+			sharedInformerFactory.Start(ctx.Done())
+
+			return nil
+		})
+	if err != nil {
+		return fmt.Errorf("failed to add rbac authorizer informers post-start hook: %w", err)
+	}
+
+	return nil
 }
 
 // newHTTPServer builds the *http.Server for the listener. When grpcServer is

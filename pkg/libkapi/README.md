@@ -251,6 +251,7 @@ auth-specific alike — pass any combination, in any order.
 | `WithOIDC(cfg OIDCConfig)`                       | Adds an OIDC bearer-token authenticator. Fetches the issuer's discovery document at `IssuerURL/.well-known/openid-configuration` during `New`.                                                         |
 | `WithServiceAccount(cfg ServiceAccountConfig)`   | Adds a ServiceAccount token authenticator and starts the SA token controller (issues tokens for ServiceAccounts). Optionally persists the signing key to a Secret and watches for key rotation.        |
 | `WithAdminAuthorizer(cfg AdminAuthorizerConfig)` | Sets an authorizer that allows health endpoints (anonymous), `system:masters`, any group listed in the configured comma-delimited `AdminGroups`, and `system:serviceaccounts`; denies everything else. |
+| `WithRBACAuthorizer(cfg RBACAuthorizerConfig)`   | Sets an authorizer that evaluates real `Role`/`RoleBinding`/`ClusterRole`/`ClusterRoleBinding` objects via upstream Kubernetes's own RBAC authorizer, falling back to `WithAdminAuthorizer`'s exact behavior whenever no RBAC rule matches. See [RBAC authorizer](#rbac-authorizer). |
 | `WithAuthorizer(a Authorizer)`                   | Sets a custom authorizer. Use this to plug in any `k8s.io/apiserver` authorizer.                                                                                                                       |
 | `WithController(c Controller)`                   | Registers a `Controller` against the server's own privileged loopback identity. See [Controllers](#controllers). Repeatable.                                                                          |
 | `WithLeaderElection(cfg LeaderElectionConfig)`   | Enables manager-wide leader election via a `coordination.k8s.io` `Lease`. See [Controllers](#controllers).                                                                                             |
@@ -293,13 +294,54 @@ auth-specific alike — pass any combination, in any order.
 | `TokenSecretsNamespace` | `"kube-system"` | Namespace where SA token secrets are listed for rotation.                                                                            |
 | `OnTokenRotated`        | nil             | Callback called for each SA token secret rotated during key rotation. Use this for side effects like updating autoscaler ConfigMaps. |
 
+#### RBAC authorizer
+
+`WithRBACAuthorizer` is `WithAdminAuthorizer` plus real RBAC rule
+evaluation: it tries upstream Kubernetes's own RBAC authorizer first —
+reading `Role`, `RoleBinding`, `ClusterRole`, and `ClusterRoleBinding`
+objects through informer-backed listers, so `kubectl auth can-i` reflects
+whatever those objects actually say — and falls back to exactly
+`WithAdminAuthorizer`'s behavior (`system:masters`, `AdminGroups`,
+`system:serviceaccounts`, health endpoints) whenever no RBAC rule matches.
+This ordering is safe because upstream's RBAC authorizer only ever returns
+Allow or NoOpinion for a request, never a terminal Deny — RBAC is purely
+additive.
+
+```go
+server, err := libkapi.New(ctx,
+    libkapi.WithStorage("sqlite://local.db"),
+    libkapi.WithOIDC(libkapi.OIDCConfig{IssuerURL: "https://accounts.google.com", ClientID: "my-client"}),
+    libkapi.WithRBACAuthorizer(libkapi.RBACAuthorizerConfig{
+        // Deny-by-default fallback, same format as AdminAuthorizerConfig.AdminGroups.
+        AdminGroups: "my-admin-group,my-other-admin-group",
+    }),
+)
+```
+
+`RBACAuthorizerConfig` fields:
+
+| Field         | Default    | Description                                                                                                                  |
+| ------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `AdminGroups` | (required) | Comma-delimited fallback admin groups — same format as `AdminAuthorizerConfig.AdminGroups`. At least one group is required. |
+
+The RBAC authorizer's listers read from a `SharedInformerFactory` that only
+exists once the server's own `LoopbackClientConfig` is available — a
+chicken-and-egg `WithAuthorizer` itself doesn't have to solve, since
+`WithRBACAuthorizer` handles it internally: the returned authorizer starts
+with no listers installed, and `New` finishes wiring them up synchronously,
+entirely before `ListenAndServe` is ever called, so no real request can
+reach the authorizer before it's ready. It deliberately doesn't make a
+direct API call per Authorize check (informer listers instead) — a direct
+call would need the very authorization decision it's trying to compute,
+recursively, since the client it would call through is this same server.
+
 #### Security posture
 
-| Options passed                                          | Authenticator                            | Authorizer                    |
-| ------------------------------------------------------- | ---------------------------------------- | ----------------------------- |
-| None                                                    | anonymous                                | always-allow                  |
-| Auth options, no `WithAuthorizer`/`WithAdminAuthorizer` | union of strategies + anonymous fallback | always-allow (logged warning) |
-| Auth options + `WithAuthorizer`/`WithAdminAuthorizer`   | union of strategies + anonymous fallback | caller's authorizer           |
+| Options passed                                                              | Authenticator                            | Authorizer                    |
+| ----------------------------------------------------------------------------- | ----------------------------------------- | ------------------------------ |
+| None                                                                        | anonymous                                | always-allow                  |
+| Auth options, no `WithAuthorizer`/`WithAdminAuthorizer`/`WithRBACAuthorizer` | union of strategies + anonymous fallback | always-allow (logged warning) |
+| Auth options + `WithAuthorizer`/`WithAdminAuthorizer`/`WithRBACAuthorizer`   | union of strategies + anonymous fallback | caller's authorizer           |
 
 ### Controllers
 
@@ -539,5 +581,5 @@ was never called.
 | `ErrNotImplemented`              | `WithTLS` is used.                                                                                                |
 | `ErrOIDCIssuerRequired`          | `WithOIDC` is called with an empty `IssuerURL`.                                                                   |
 | `ErrOIDCClientIDRequired`        | `WithOIDC` is called with an empty `ClientID`.                                                                    |
-| `ErrAdminGroupRequired`          | `WithAdminAuthorizer` is called with an `AdminGroups` that contains no non-empty group after splitting on commas. |
+| `ErrAdminGroupRequired`          | `WithAdminAuthorizer` or `WithRBACAuthorizer` is called with an `AdminGroups` that contains no non-empty group after splitting on commas. |
 | `ErrLeaderElectionIDRequired`    | `WithLeaderElection` is called with an empty `ID`.                                                                |
