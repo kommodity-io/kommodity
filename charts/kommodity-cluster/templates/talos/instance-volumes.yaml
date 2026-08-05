@@ -12,9 +12,12 @@ ScalewayMachineTemplate / AzureMachineTemplate.
 Each entry supports:
   - nameSuffix (required): Talos volume name, mounted at /var/mnt/<nameSuffix>
   - diskSelector (required): CEL expression matching the target disk.
-  - grow (optional, default false): grow to fill disk on subsequent boots
-  - minSize (optional): minimum partition size
-  - maxSize (optional): maximum partition size
+  - volumeType (optional, default "partition"): "disk" or "partition"
+      "disk" takes over the entire disk (no grow/minSize/maxSize)
+      "partition" creates a partition (requires minSize or maxSize)
+  - grow (optional, default false): grow to fill disk (partition only)
+  - minSize (optional): minimum partition size (partition only)
+  - maxSize (optional): maximum partition size (partition only)
   - encryption (optional):
       provider: luks2
       keySource: nodeID or kms (default: kms when kommodity.kms.enabled, else nodeID)
@@ -74,20 +77,30 @@ Returns empty string when instanceVolumes is not set or empty.
 {{- $enc := default dict (dig "encryption" nil $vol) -}}
 {{- $encProvider := default "luks2" (dig "provider" "" $enc) -}}
 {{- $keySource := default (ternary "kms" "nodeID" $kmsEnabled) (dig "keySource" "" $enc) -}}
+{{- $volumeType := default "partition" $vol.volumeType -}}
+{{- $validVolumeTypes := list "disk" "partition" "directory" -}}
+{{- if not (has $volumeType $validVolumeTypes) -}}
+{{- fail (printf "instanceVolumes[].volumeType must be one of %s, got %q" (join ", " $validVolumeTypes) $volumeType) -}}
+{{- end -}}
 - |
   apiVersion: v1alpha1
   kind: UserVolumeConfig
   name: {{ $name }}
+  volumeType: {{ $volumeType | quote }}
   provisioning:
     diskSelector:
       match: {{ $selector | quote }}
+{{- if ne $volumeType "disk" }}
 {{- with $vol.minSize }}
     minSize: {{ . }}
 {{- end }}
 {{- with $vol.maxSize }}
     maxSize: {{ . }}
 {{- end }}
-    grow: {{ $vol.grow | default false }}
+{{- if (dig "grow" false $vol) }}
+    grow: true
+{{- end }}
+{{- end }}
 {{- if $enc }}
   encryption:
     provider: {{ $encProvider }}
