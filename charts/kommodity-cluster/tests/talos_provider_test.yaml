@@ -316,6 +316,7 @@ tests:
       kommodity.nodepools.default.instanceVolumes:
         - nameSuffix: scratch
           diskSelector: "disk.model == 'scratch'"
+          volumeType: partition
           grow: true
     asserts:
       - matchRegex:
@@ -326,10 +327,51 @@ tests:
           pattern: "name: scratch"
       - matchRegex:
           path: spec.template.spec.strategicPatches[1]
+          pattern: 'volumeType: "partition"'
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[1]
           pattern: "grow: true"
       - matchRegex:
           path: spec.template.spec.strategicPatches[1]
           pattern: "disk.model == 'scratch'"
+
+  - it: should default volumeType to partition when omitted
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.nodepools.default.instanceVolumes:
+        - nameSuffix: scratch
+          diskSelector: "disk.model == 'scratch'"
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: 'volumeType: "partition"'
+
+  - it: should suppress grow, minSize, maxSize for volumeType disk
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.nodepools.default.instanceVolumes:
+        - nameSuffix: scratch
+          diskSelector: "disk.dev_path == '/dev/sdb'"
+          volumeType: disk
+          grow: true
+          minSize: 100GiB
+          maxSize: 200GiB
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: 'volumeType: "disk"'
+      - not: true
+        matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "grow:"
+      - not: true
+        matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "minSize:"
+      - not: true
+        matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "maxSize:"
 
   - it: should emit UserVolumeConfig for controlplane instanceVolumes
     template: templates/talos/controlplane.yaml
