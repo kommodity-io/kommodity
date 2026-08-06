@@ -18,14 +18,17 @@ import (
 var env helpers.TestEnvironment
 
 const (
-	defaultClusterName     = "ci-test-cluster"
-	kommodityLogFile       = "kommodity_container.log"
-	virtualMachineGroup    = "kubevirt.io"
-	virtualMachineVersion  = "v1"
-	virtualMachineResource = "virtualmachines"
-	machineGroup           = "cluster.x-k8s.io"
-	machineVersion         = "v1beta1"
-	machineResource        = "machines"
+	defaultClusterName             = "ci-test-cluster"
+	kommodityLogFile               = "kommodity_container.log"
+	virtualMachineGroup            = "kubevirt.io"
+	virtualMachineVersion          = "v1"
+	virtualMachineResource         = "virtualmachines"
+	virtualMachineInstanceResource = "virtualmachineinstances"
+	machineGroup                   = "cluster.x-k8s.io"
+	machineVersion                 = "v1beta1"
+	machineResource                = "machines"
+	vmRunningTimeout               = 15 * time.Minute
+	clusterReachableTimeout        = 10 * time.Minute
 )
 
 func TestMain(m *testing.M) {
@@ -146,6 +149,7 @@ func TestCreateScalewayCluster(t *testing.T) {
 	require.NoError(t, err)
 }
 
+//nolint:funlen // Integration test is a linear sequence of orchestration steps; splitting hurts readability.
 func TestCreateKubevirtCluster(t *testing.T) {
 	t.Parallel()
 
@@ -196,6 +200,23 @@ func TestCreateKubevirtCluster(t *testing.T) {
 		infraEnv.Config, helpers.InfraClusterNamespace, clusterName,
 		virtualMachineGroup, virtualMachineVersion, virtualMachineResource,
 		"", "", 3*time.Minute, expectedVMCount,
+	)
+	require.NoError(t, err)
+
+	// Wait for VMs to be in "Running" state
+	err = helpers.WaitForK8sResourceCreation(
+		infraEnv.Config, helpers.InfraClusterNamespace, clusterName,
+		virtualMachineGroup, virtualMachineVersion, virtualMachineInstanceResource,
+		"status.phase", "Running", vmRunningTimeout, expectedVMCount,
+	)
+	require.NoError(t, err)
+
+	// Wait for the new cluster to be reachable using the kubeconfig in secret <cluster-name>-kubeconfig
+	// (i.e. control plane VM is running and the API server responds on /healthz).
+	err = helpers.WaitForClusterReachable(
+		env.KommodityCfg, infraEnv.Config,
+		"default", clusterName, helpers.InfraClusterNamespace,
+		clusterReachableTimeout,
 	)
 	require.NoError(t, err)
 
