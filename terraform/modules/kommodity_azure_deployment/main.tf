@@ -281,6 +281,14 @@ resource "azurerm_container_app" "kommodity-app" {
         }
       }
 
+      dynamic "env" {
+        for_each = var.kommodity_container.env_vars == null ? {} : var.kommodity_container.env_vars
+        content {
+          name  = env.key
+          value = env.value
+        }
+      }
+
       liveness_probe {
         transport = "HTTP"
         port      = var.kommodity_container.port
