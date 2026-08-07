@@ -198,6 +198,17 @@ kommodity:
       #     cidrBlock: 10.200.48.0/22
       #   node:
       #     cidrBlock: 10.200.52.0/22
+      # apiServerLB:
+      #   # Private clusters (public: false) ONLY, and REQUIRED whenever
+      #   # subnets.controlPlane.cidrBlock is overridden there. CAPZ defaults an
+      #   # Internal load balancer's frontend IP to the fixed address
+      #   # 10.0.0.100 (DefaultInternalLBIPAddress) — it does not derive it from
+      #   # the control-plane subnet, so it only falls inside that subnet by
+      #   # coincidence of the 10.0.0.0/16 default. Azure rejects a frontend IP
+      #   # outside its own subnet, so pick an address within the control-plane
+      #   # subnet; Azure reserves its first four and last addresses.
+      #   # The chart fails at render time if this is missing.
+      #   privateIPAddress: 10.200.48.100
       # subnet:
       #   # Optional: Override the single-subnet path (for BYO-subnet scenarios).
       #   # Private mode only; ignored when public is true. When omitted, the

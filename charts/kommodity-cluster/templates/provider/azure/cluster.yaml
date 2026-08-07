@@ -63,8 +63,21 @@ spec:
     that do not set these render byte-identically to before.
   */}}
   {{- $vnetCIDRs := (dig "ipv4" "vnet" "cidrBlocks" (list) .Values.kommodity.network) | default (list "10.0.0.0/8") }}
-  {{- $cpSubnetCIDR := (dig "ipv4" "subnets" "controlPlane" "cidrBlock" "" .Values.kommodity.network) | default "10.0.0.0/16" }}
+  {{- $cpSubnetOverride := (dig "ipv4" "subnets" "controlPlane" "cidrBlock" "" .Values.kommodity.network) | toString }}
+  {{- $cpSubnetCIDR := $cpSubnetOverride | default "10.0.0.0/16" }}
   {{- $nodeSubnetCIDR := (dig "ipv4" "subnets" "node" "cidrBlock" "" .Values.kommodity.network) | default "10.1.0.0/16" }}
+  {{- $ilbPrivateIP := (dig "ipv4" "apiServerLB" "privateIPAddress" "" .Values.kommodity.network) | toString }}
+  {{- /*
+    Private-mode guard.  CAPZ defaults an Internal apiServerLB's frontend IP to
+    the hardcoded constant 10.0.0.100, never deriving it from the control-plane
+    subnet.  Overriding that subnet away from a range containing 10.0.0.100
+    would leave the frontend IP outside its own subnet and Azure would reject
+    the load balancer, so demand an explicit address rather than rendering a
+    cluster that can never converge.
+  */}}
+  {{- if and (not $isPublic) (ne $cpSubnetOverride "") (eq $ilbPrivateIP "") }}
+  {{- fail (printf "kommodity.network.ipv4.subnets.controlPlane.cidrBlock is set to %q on a private cluster, but kommodity.network.ipv4.apiServerLB.privateIPAddress is not set. CAPZ defaults the internal API server load balancer's frontend IP to the fixed address 10.0.0.100, which is outside that subnet, and Azure rejects a frontend IP that does not belong to its subnet. Set apiServerLB.privateIPAddress to an address inside %s (avoiding the first four and the last address, which Azure reserves)." $cpSubnetOverride $cpSubnetOverride) }}
+  {{- end }}
   networkSpec:
     {{- /*
       Talos API (port 50000) is deliberately NOT exposed on the apiServerLB.
@@ -263,11 +276,27 @@ spec:
       sku: Standard
       idleTimeoutInMinutes: 4
       {{- /*
-        frontendIPs is omitted: CAPZ derives it from the CP subnet (10.0.0.100
-        on the default range).  Emitting it here would conflict with SSA on
-        every upgrade (same reason as the public-mode frontendIPs omission
-        above).
+        CAPZ's SetAPIServerLBDefaults fills an empty frontendIPs for an Internal
+        LB with DefaultInternalLBIPAddress — the literal constant "10.0.0.100"
+        (api/v1beta1/azurecluster_default.go).  It is NOT derived from the
+        control-plane subnet, so it only lands inside the subnet by coincidence
+        of the 10.0.0.0/16 default.  Overriding the control-plane subnet to a
+        range that excludes 10.0.0.100 therefore yields a frontend IP outside
+        its own subnet, which Azure rejects — the cluster never converges.
+
+        So when the control-plane subnet is overridden we require an explicit
+        apiServerLB.privateIPAddress and emit frontendIPs ourselves, which also
+        stops CAPZ's defaulter from touching the list (it only fills when the
+        list is empty).  Left unset, the list stays omitted and CAPZ's default
+        applies exactly as before — existing clusters are unaffected, and no
+        SSA ownership changes hands (the public-mode DNSName conflict described
+        above does not arise here, as an internal frontend has no publicIP).
       */}}
+      {{- if $ilbPrivateIP }}
+      frontendIPs:
+        - name: {{ printf "%s-frontEnd" $lbName }}
+          privateIP: {{ $ilbPrivateIP }}
+      {{- end }}
       backendPool:
         name: {{ printf "%s-backendPool" $lbName }}
     {{- end }}

@@ -328,6 +328,8 @@ tests:
       kommodity.network.ipv4.public: false
       kommodity.network.ipv4.subnets.controlPlane.cidrBlock: 10.200.48.0/22
       kommodity.network.ipv4.subnets.node.cidrBlock: 10.200.52.0/22
+      # Required on private clusters once the control-plane subnet moves.
+      kommodity.network.ipv4.apiServerLB.privateIPAddress: 10.200.48.100
     asserts:
       - equal:
           path: spec.networkSpec.subnets[0].cidrBlocks[0]
@@ -364,3 +366,44 @@ tests:
       - equal:
           path: spec.networkSpec.vnet.resourceGroup
           value: test-cluster
+
+  # CAPZ pins an Internal LB frontend IP to the constant 10.0.0.100, so a
+  # private cluster with a relocated control-plane subnet must state its own.
+  - it: should fail when a private cluster overrides the control-plane subnet without an internal LB IP
+    set:
+      kommodity.network.ipv4.public: false
+      kommodity.network.ipv4.subnets.controlPlane.cidrBlock: 10.200.48.0/22
+    asserts:
+      - failedTemplate:
+          errorMessage: 'kommodity.network.ipv4.subnets.controlPlane.cidrBlock is set to "10.200.48.0/22" on a private cluster, but kommodity.network.ipv4.apiServerLB.privateIPAddress is not set. CAPZ defaults the internal API server load balancer''s frontend IP to the fixed address 10.0.0.100, which is outside that subnet, and Azure rejects a frontend IP that does not belong to its subnet. Set apiServerLB.privateIPAddress to an address inside 10.200.48.0/22 (avoiding the first four and the last address, which Azure reserves).'
+
+  - it: should emit the configured internal LB frontend IP for a private cluster
+    set:
+      kommodity.network.ipv4.public: false
+      kommodity.network.ipv4.subnets.controlPlane.cidrBlock: 10.200.48.0/22
+      kommodity.network.ipv4.apiServerLB.privateIPAddress: 10.200.48.100
+    asserts:
+      - equal:
+          path: spec.networkSpec.apiServerLB.frontendIPs[0].privateIP
+          value: 10.200.48.100
+      - equal:
+          path: spec.networkSpec.apiServerLB.frontendIPs[0].name
+          value: test-cluster-internal-lb-frontEnd
+
+  # Public clusters have no internal LB, so the guard must not fire there.
+  - it: should not require an internal LB IP when a public cluster overrides the control-plane subnet
+    set:
+      kommodity.network.ipv4.public: true
+      kommodity.network.ipv4.subnets.controlPlane.cidrBlock: 10.200.48.0/22
+    asserts:
+      - notFailedTemplate: {}
+      - notExists:
+          path: spec.networkSpec.apiServerLB.frontendIPs
+
+  # Untouched private clusters keep CAPZ's default frontend IP behaviour.
+  - it: should omit frontendIPs for a private cluster using the default subnets
+    set:
+      kommodity.network.ipv4.public: false
+    asserts:
+      - notExists:
+          path: spec.networkSpec.apiServerLB.frontendIPs
