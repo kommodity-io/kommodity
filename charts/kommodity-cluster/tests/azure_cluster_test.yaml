@@ -307,3 +307,60 @@ tests:
       - equal:
           path: spec.resourceGroup
           value: shared-rg
+
+  # Subnet address space is overridable so nodeCIDR can both cover the node IPs
+  # and stay clear of sibling clusters in the talos-cluster-proxy CIDR registry.
+  - it: should use the configured subnet CIDRs in public mode
+    set:
+      kommodity.network.ipv4.public: true
+      kommodity.network.ipv4.subnets.controlPlane.cidrBlock: 10.200.48.0/22
+      kommodity.network.ipv4.subnets.node.cidrBlock: 10.200.52.0/22
+    asserts:
+      - equal:
+          path: spec.networkSpec.subnets[0].cidrBlocks[0]
+          value: 10.200.48.0/22
+      - equal:
+          path: spec.networkSpec.subnets[1].cidrBlocks[0]
+          value: 10.200.52.0/22
+
+  - it: should use the configured subnet CIDRs in private mode
+    set:
+      kommodity.network.ipv4.public: false
+      kommodity.network.ipv4.subnets.controlPlane.cidrBlock: 10.200.48.0/22
+      kommodity.network.ipv4.subnets.node.cidrBlock: 10.200.52.0/22
+    asserts:
+      - equal:
+          path: spec.networkSpec.subnets[0].cidrBlocks[0]
+          value: 10.200.48.0/22
+      - equal:
+          path: spec.networkSpec.subnets[1].cidrBlocks[0]
+          value: 10.200.52.0/22
+
+  - it: should fall back to the CAPZ default subnet CIDRs when none are configured
+    set:
+      kommodity.network.ipv4.public: true
+    asserts:
+      - equal:
+          path: spec.networkSpec.subnets[0].cidrBlocks[0]
+          value: 10.0.0.0/16
+      - equal:
+          path: spec.networkSpec.subnets[1].cidrBlocks[0]
+          value: 10.1.0.0/16
+
+  # cidrBlocks alone must not be read as a BYO-VNet adoption: BYO requires both
+  # vnet.name and vnet.resourceGroup, so the VNet stays chart-managed here.
+  - it: should narrow the chart-managed VNet when only vnet.cidrBlocks is set
+    set:
+      kommodity.network.ipv4.public: true
+      kommodity.network.ipv4.vnet.cidrBlocks:
+        - 10.200.48.0/20
+    asserts:
+      - equal:
+          path: spec.networkSpec.vnet.cidrBlocks[0]
+          value: 10.200.48.0/20
+      - equal:
+          path: spec.networkSpec.vnet.name
+          value: test-cluster-vnet
+      - equal:
+          path: spec.networkSpec.vnet.resourceGroup
+          value: test-cluster

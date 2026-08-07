@@ -156,8 +156,18 @@ kommodity:
       public: false
       # nodeCIDR is ALWAYS required on Azure: node VMs are private in both modes,
       # so the talos-cluster-proxy needs this range to identify which node IPs to
-      # route through the tunnel. It must cover the control-plane (10.0.0.0/16)
-      # and node (10.1.0.0/16) subnets the chart creates, hence the VNet supernet.
+      # route through the tunnel. It must cover the control-plane and node
+      # subnets the chart creates (10.0.0.0/16 and 10.1.0.0/16 by default),
+      # hence the VNet supernet.
+      #
+      # It must ALSO not overlap any other cluster's nodeCIDR on the same
+      # Kommodity management plane — the talos-cluster-proxy CIDR registry
+      # rejects overlapping registrations, because a first-match lookup across
+      # overlapping ranges routes Talos connections to the wrong cluster's
+      # tunnel. With the default subnets the only range covering both is the
+      # 10.0.0.0/8 supernet, which collides with every other 10.x fleet member;
+      # when that happens, narrow the subnets below instead of widening this.
+      #
       # Azure VNets support CIDR ranges between /8 and /29.
       nodeCIDR: 10.0.0.0/8
       # VNet — by DEFAULT you omit the `vnet:` block entirely (as here) and CAPZ
@@ -167,16 +177,31 @@ kommodity:
       # pre-create any networking — only the resource group must exist. Each cluster
       # gets its own `<release>-vnet`, so multiple clusters never collide.
       #
-      # Set the block below ONLY to adopt a pre-existing (BYO) VNet: pre-create the
-      # (empty) VNet yourself; the chart still creates the subnets / NSG / route
-      # table / NAT gateway inside it (emitted as ASO CRs, since CAPZ skips creating
-      # them in BYO-VNet mode).
+      # Set `vnet.name` AND `vnet.resourceGroup` ONLY to adopt a pre-existing
+      # (BYO) VNet: pre-create the (empty) VNet yourself; the chart still creates
+      # the subnets / NSG / route table / NAT gateway inside it (emitted as ASO
+      # CRs, since CAPZ skips creating them in BYO-VNet mode).  Setting
+      # `vnet.cidrBlocks` on its own does NOT enable BYO mode — it only changes
+      # the address space of the chart-managed VNet.
       # vnet:
       #   name: my-existing-vnet
       #   resourceGroup: my-vnet-resource-group
+      #   cidrBlocks:
+      #     - 10.200.48.0/20
+      # subnets:
+      #   # Optional: override the address space of the two subnets the chart
+      #   # creates. Both must sit inside the VNet's cidrBlocks. Use this to
+      #   # carve a per-cluster slice so nodeCIDR can cover the node IPs without
+      #   # overlapping a sibling cluster — e.g. with the VNet above:
+      #   #   nodeCIDR: 10.200.48.0/20
+      #   controlPlane:
+      #     cidrBlock: 10.200.48.0/22
+      #   node:
+      #     cidrBlock: 10.200.52.0/22
       # subnet:
       #   # Optional: Override the single-subnet path (for BYO-subnet scenarios).
-      #   # When omitted, the chart creates a controlplane and a node subnet.
+      #   # Private mode only; ignored when public is true. When omitted, the
+      #   # chart creates a controlplane and a node subnet.
       #   name: my-subnet
       #   cidrBlock: 10.200.0.0/24
 
