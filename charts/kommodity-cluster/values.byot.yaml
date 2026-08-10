@@ -1,0 +1,46 @@
+# Example of values to adopt existing Talos machines running in maintenance
+# mode, identified by public IP (Bring Your Own Talos).
+kommodity:
+  provider:
+    name: Byot
+
+  clusterAutoscaler:
+    enabled: false # Static machines cannot be autoscaled in v1.
+
+  network:
+    ipv4:
+      enabled: true
+      public: true # Machines are identified by public IP by definition.
+
+  controlplane:
+    # One entry per adopted control plane machine. Exactly one entry must set
+    # init: true (the bootstrap node).
+    staticMachines:
+      - name: cp-0
+        publicIP: 203.0.113.10 # your machine's public IP
+        init: true
+        # Optional per-machine strategic patches (Talos documents), e.g. to
+        # constrain volume provisioning on small disks:
+        # strategicPatches:
+        #   - |
+        #     apiVersion: v1alpha1
+        #     kind: VolumeConfig
+        #     name: EPHEMERAL
+        #     provisioning:
+        #       minSize: 1GiB
+      # - name: cp-1
+      #   publicIP: 203.0.113.11
+    # kubernetes:
+    #   version: v1.33.4
+    # talos:
+    #   version: v1.13.0
+
+  nodepools:
+    default:
+      staticMachines:
+        - name: worker-0
+          publicIP: 203.0.113.20 # your machine's public IP
+
+talos:
+  # Talos version must match the maintenance-mode machines being adopted.
+  version: v1.13.8

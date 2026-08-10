@@ -59,6 +59,7 @@ require (
 )
 
 require (
+	github.com/kommodity-io/cluster-api-provider-bringyourowntalos v0.0.0-20260810111232-25a6226701cc // indirect
 	github.com/robfig/cron/v3 v3.0.1 // indirect
 	golang.org/x/net v0.57.0 // indirect
 	k8s.io/gengo/v2 v2.0.0-20240911193312-2b36238f13e9 // indirect

@@ -1,0 +1,134 @@
+suite: test creation of resources for Byot (Bring Your Own Talos) clusters
+values:
+  - ../values.byot.yaml
+release:
+  name: test-cluster
+  namespace: default
+templates:
+  - templates/*
+tests:
+  - it: should create a ByotCluster with the control plane endpoint from the first static machine
+    template: templates/provider/byot/cluster.yaml
+    asserts:
+      - isKind:
+          of: ByotCluster
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: spec.controlPlaneEndpoint.host
+          value: 203.0.113.10
+      - equal:
+          path: spec.controlPlaneEndpoint.port
+          value: 6443
+
+  - it: should set infrastructureRef to ByotCluster and omit controlPlaneRef on the Cluster
+    template: templates/provider/capi/cluster.yaml
+    asserts:
+      - isKind:
+          of: Cluster
+      - equal:
+          path: spec.infrastructureRef.kind
+          value: ByotCluster
+      - notExists:
+          path: spec.controlPlaneRef
+
+  - it: should create one TalosConfig + ByotMachine + Machine per static machine
+    template: templates/provider/byot/machines.yaml
+    asserts:
+      - hasDocuments:
+          count: 6
+
+  - it: should mark the init control plane static machine TalosConfig as init
+    template: templates/provider/byot/machines.yaml
+    documentSelector:
+      path: spec.generateType
+      value: init
+    asserts:
+      - equal:
+          path: metadata.name
+          value: test-cluster-cp-cp-0
+
+  - it: should mark the worker static machine TalosConfig as worker
+    template: templates/provider/byot/machines.yaml
+    documentSelector:
+      path: spec.generateType
+      value: worker
+    asserts:
+      - equal:
+          path: metadata.name
+          value: test-cluster-worker-default-worker-0
+
+  - it: should adopt the control plane machine by public IP
+    template: templates/provider/byot/machines.yaml
+    documentSelector:
+      path: spec.publicIP
+      value: 203.0.113.10
+    asserts:
+      - isKind:
+          of: ByotMachine
+      - equal:
+          path: metadata.name
+          value: test-cluster-cp-cp-0
+
+  - it: should label the control plane Machine as control-plane
+    template: templates/provider/byot/machines.yaml
+    documentSelector:
+      path: metadata.labels["cluster.x-k8s.io/control-plane"]
+      value: ""
+    asserts:
+      - isKind:
+          of: Machine
+      - equal:
+          path: metadata.name
+          value: test-cluster-cp-cp-0
+
+  - it: should not create a TalosControlPlane for Byot
+    template: templates/talos/controlplane.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should not create MachineDeployments for Byot
+    template: templates/provider/capi/machinedeployment.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should not create TalosConfigTemplates for Byot
+    template: templates/talos/configtemplate.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should fail when no control plane machine is marked init
+    template: templates/provider/byot/machines.yaml
+    set:
+      kommodity.controlplane.staticMachines:
+        - name: cp-0
+          publicIP: 203.0.113.10
+    asserts:
+      - failedTemplate:
+          errorPattern: "exactly one entry must set init: true"
+
+  - it: should fail when static machine entries lack publicIP
+    template: templates/provider/byot/machines.yaml
+    set:
+      kommodity.controlplane.staticMachines:
+        - name: cp-0
+          init: true
+    asserts:
+      - failedTemplate:
+          errorPattern: "entries require name and publicIP"
+
+  - it: should fail on duplicate static machine names
+    template: templates/provider/byot/machines.yaml
+    set:
+      kommodity.controlplane.staticMachines:
+        - name: cp-0
+          publicIP: 203.0.113.10
+          init: true
+        - name: cp-0
+          publicIP: 203.0.113.11
+    asserts:
+      - failedTemplate:
+          errorPattern: "machine names must be unique"

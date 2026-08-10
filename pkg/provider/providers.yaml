@@ -112,6 +112,14 @@ providers:
     scheme_locations:
       - api/network/v1api20240301
       - api/network/v1api20240301/storage
+  - name: byot
+    provider: byot
+    repository: kommodity-io/cluster-api-provider-bringyourowntalos
+    go_module: github.com/kommodity-io/cluster-api-provider-bringyourowntalos
+    file_name: infrastructure-components.yaml
+    filter: select(.kind == "CustomResourceDefinition")
+    scheme_locations:
+      - api/v1alpha1
   - name: kubevirt
     provider: kubevirt
     repository: kubernetes-sigs/cluster-api-provider-kubevirt

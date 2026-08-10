@@ -1,0 +1,98 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.17.3
+  name: byotmachinetemplates.infrastructure.cluster.x-k8s.io
+  labels:
+    cluster.x-k8s.io/v1beta1: v1alpha1
+spec:
+  group: infrastructure.cluster.x-k8s.io
+  names:
+    kind: ByotMachineTemplate
+    listKind: ByotMachineTemplateList
+    plural: byotmachinetemplates
+    singular: byotmachinetemplate
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      schema:
+        openAPIV3Schema:
+          description: ByotMachineTemplate is the Schema for the byotmachinetemplates API.
+          properties:
+            apiVersion:
+              description: |-
+                APIVersion defines the versioned schema of this representation of an object.
+                Servers should convert recognized schemas to the latest internal value, and
+                may reject unrecognized values.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+              type: string
+            kind:
+              description: |-
+                Kind is a string value representing the REST resource this object represents.
+                Servers may infer this from the endpoint the client submits requests to.
+                Cannot be updated.
+                In CamelCase.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+              type: string
+            metadata:
+              type: object
+            spec:
+              description: ByotMachineTemplateSpec defines the desired state of ByotMachineTemplate.
+              properties:
+                template:
+                  description: ByotMachineTemplateResource describes the data needed to create a ByotMachine from a template.
+                  properties:
+                    metadata:
+                      description: Standard object's metadata.
+                      properties:
+                        annotations:
+                          additionalProperties:
+                            type: string
+                          description: |-
+                            annotations is an unstructured key value map stored with a resource that may be
+                            set by external tools to store and retrieve arbitrary metadata. They are not
+                            queryable and should be preserved when modifying objects.
+                            More info: http://kubernetes.io/docs/user-guide/annotations
+                          type: object
+                        labels:
+                          additionalProperties:
+                            type: string
+                          description: |-
+                            labels is a map of string keys and values that can be used to organize and categorize
+                            (scope and select) objects. May match selectors of replication controllers
+                            and services.
+                            More info: http://kubernetes.io/docs/user-guide/labels
+                          type: object
+                      type: object
+                    spec:
+                      description: Spec is the specification of the desired behavior of the machine.
+                      properties:
+                        failureDomain:
+                          description: FailureDomain is the unique name of the failure domain the machine is placed in.
+                          type: string
+                        providerID:
+                          description: ProviderID is set by the controller once the machine has been adopted.
+                          type: string
+                        publicIP:
+                          description: |-
+                            PublicIP identifies the machine to adopt. It must be reachable on the
+                            Talos machine API port (50000) in maintenance mode.
+                          minLength: 1
+                          type: string
+                          x-kubernetes-validations:
+                            - message: publicIP is immutable
+                              rule: self == oldSelf
+                      required:
+                        - publicIP
+                      type: object
+                  required:
+                    - spec
+                  type: object
+              required:
+                - template
+              type: object
+          type: object
+      served: true
+      storage: true

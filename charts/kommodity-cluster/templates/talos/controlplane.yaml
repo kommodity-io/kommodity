@@ -1,3 +1,7 @@
+{{- /* TalosControlPlane requires a clonable infra template reference; byot
+       machines are static (one publicIP each), so byot skips this object.
+       See templates/provider/byot/machines.yaml. */ -}}
+{{- if ne $.Values.kommodity.provider.name "Byot" }}
 ---
 apiVersion: controlplane.cluster.x-k8s.io/v1alpha3
 kind: TalosControlPlane
@@ -88,3 +92,4 @@ spec:
 {{- include "kommodity.talos.attestationExtensionServiceConfig" (dict "logLevel" $.Values.kommodity.logLevel) | nindent 6 }}
       {{- end }}
       {{- end }}
+{{- end }}

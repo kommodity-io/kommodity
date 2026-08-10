@@ -1,3 +1,7 @@
+{{- /* MachineDeployments clone an infra template per replica and cannot carry
+       a distinct publicIP per machine; byot renders static Machines instead,
+       see templates/provider/byot/machines.yaml. */ -}}
+{{- if ne .Values.kommodity.provider.name "Byot" }}
 {{- range $name, $np := .Values.kommodity.nodepools }}
 {{- $minReplicas := dig "autoscaling" "minReplicas" nil $np }}
 {{- $maxReplicas := dig "autoscaling" "maxReplicas" nil $np }}
@@ -119,5 +123,6 @@ spec:
         name: {{ $.Release.Name }}-worker-{{ $name }}{{ $tmplSuffix }}-{{ include "kommodity-cluster.machineSpecsHash" (dict "poolValues" $np "allValues" $.Values) }}
         namespace: {{ $.Release.Namespace }}
       version: {{ default $.Values.kubernetes.version (dig "kubernetes" "version" "" $np) -}}
+{{- end }}
 {{- end }}
 {{- end }}
