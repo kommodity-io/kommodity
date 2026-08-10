@@ -20,6 +20,7 @@ type config struct {
 	saConfig          *ServiceAccountConfig
 	authorizer        authorizer.Authorizer
 	apiAudiences      authenticator.Audiences
+	rbacListerSource  *RBACListerSource
 }
 
 // ResolvedConfig is the resolved authentication/authorization state, ready
@@ -43,6 +44,13 @@ type ResolvedConfig struct {
 	// APIAudiences is the resolved API audiences for token validation.
 	// Empty if none were set.
 	APIAudiences authenticator.Audiences
+
+	// RBACListerSource is non-nil if WithRBACAuthorizer was used. It has no
+	// listers installed yet — buildServer calls SetListers on it once the
+	// server's SharedInformerFactory is available, the same "config now,
+	// finish later" split SAConfig uses for BuildSAAuthenticator. See
+	// WithRBACAuthorizer's doc for why the listers can't be built here.
+	RBACListerSource *RBACListerSource
 }
 
 // Resolve applies all options in order and returns the resolved configuration.
@@ -61,6 +69,7 @@ func Resolve(ctx context.Context, opts []Option, logger *slog.Logger) (*Resolved
 		SAConfig:          cfg.saConfig,
 		Authorizer:        resolveAuthorizer(cfg, logger),
 		APIAudiences:      cfg.apiAudiences,
+		RBACListerSource:  cfg.rbacListerSource,
 	}, nil
 }
 
@@ -108,6 +117,13 @@ func BuildUnionAuthenticator(oidcAuth authenticator.Request, saAuth authenticato
 
 // WithAuthorizer sets a custom authorizer. If not called, the server uses
 // always-allow (with a warning if authentication strategies are configured).
+//
+// Options are applied in order, with the last authorizer-setting call
+// (WithAuthorizer, WithAdminAuthorizer, or WithRBACAuthorizer) winning —
+// so this also clears any RBACListerSource a preceding WithRBACAuthorizer
+// installed. Leaving it in place would still make buildServer's
+// finishRBACAuthorizer wire up and start RBAC informers for listers
+// nothing reads anymore, since authz here doesn't reference them.
 func WithAuthorizer(authz authorizer.Authorizer) Option {
 	return func(_ context.Context, cfg *config) error {
 		if authz == nil {
@@ -115,6 +131,7 @@ func WithAuthorizer(authz authorizer.Authorizer) Option {
 		}
 
 		cfg.authorizer = authz
+		cfg.rbacListerSource = nil
 
 		return nil
 	}

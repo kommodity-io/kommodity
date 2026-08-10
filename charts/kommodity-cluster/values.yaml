@@ -308,6 +308,23 @@ kommodity:
     #     status: "False"
     #     timeout: 300s
 
+    # instanceVolumes:
+    #   # Instance-local disks that exist on the VM at boot (not provisioned via
+    #   # the cloud provider's volume API). E.g. the Scaleway H100 scratch NVMe
+    #   # or the Azure VM temp disk. Emits UserVolumeConfig only — no changes
+    #   # to ScalewayMachineTemplate / AzureMachineTemplate.
+    #   # diskSelector is a CEL expression — run `talosctl get disks -o yaml`
+    #   # on a node to see available fields (model, transport, size, wwid, etc.).
+    #   - nameSuffix: scratch          # required — Talos volume name, mounted at /var/mnt/<name>
+    #     diskSelector: "disk.model == 'scratch'"  # required — CEL expression
+    #     grow: true                   # optional — grow to fill disk on subsequent boots
+    #     # minSize: 100GB             # optional — minimum partition size
+    #     # maxSize: 200GB             # optional — maximum partition size
+    #     encryption:                   # optional
+    #       provider: luks2
+    #       keySource: nodeID  # or kms (default: kms if kommodity.kms.enabled, else nodeID)
+    #       lockToState: true
+
   nodepools: {}
     ## Example of nodepool configuration
     # default:
@@ -354,6 +371,16 @@ kommodity:
     #     - type: Ready
     #       status: "False"
     #       timeout: 300s
+
+    #   # Instance-local disks (see kommodity.controlplane.instanceVolumes above)
+    #   instanceVolumes:
+    #     - nameSuffix: scratch
+    #       diskSelector: "disk.model == 'scratch'"
+    #       grow: true
+    #       encryption:
+    #         provider: luks2
+    #         keySource: nodeID  # or kms (default: kms if kommodity.kms.enabled, else nodeID)
+    #         lockToState: true
 
   # Logging verbosity: debug, info, warn, error (set as LOG_LEVEL env var)
   logLevel: warn

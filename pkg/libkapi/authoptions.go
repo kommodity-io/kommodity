@@ -34,6 +34,9 @@ type KeyPersistenceConfig = auth.KeyPersistenceConfig
 // AdminAuthorizerConfig configures the admin authorizer.
 type AdminAuthorizerConfig = auth.AdminAuthorizerConfig
 
+// RBACAuthorizerConfig configures the RBAC authorizer. See WithRBACAuthorizer.
+type RBACAuthorizerConfig = auth.RBACAuthorizerConfig
+
 // ServiceAccountTokenGetter provides access to ServiceAccount, Pod, Secret,
 // and Node objects for token validation.
 type ServiceAccountTokenGetter = auth.ServiceAccountTokenGetter
@@ -73,6 +76,17 @@ func WithAdminAuthorizer(cfg AdminAuthorizerConfig) Option {
 func WithAuthorizer(authz Authorizer) Option {
 	return func(_ context.Context, c *config) error {
 		c.authOpts = append(c.authOpts, auth.WithAuthorizer(authz))
+
+		return nil
+	}
+}
+
+// WithRBACAuthorizer sets an authorizer that evaluates real RBAC rules
+// (Role, RoleBinding, ClusterRole, ClusterRoleBinding), falling back to the
+// same admin-group behavior as WithAdminAuthorizer. See auth.WithRBACAuthorizer.
+func WithRBACAuthorizer(cfg RBACAuthorizerConfig) Option {
+	return func(_ context.Context, c *config) error {
+		c.authOpts = append(c.authOpts, auth.WithRBACAuthorizer(cfg))
 
 		return nil
 	}
