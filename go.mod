@@ -25,6 +25,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
 	github.com/k3s-io/kine v1.14.2
+	github.com/kommodity-io/cluster-api-provider-bringyourowntalos v1.0.0
 	github.com/scaleway/cluster-api-provider-scaleway v0.1.6
 	github.com/siderolabs/cluster-api-bootstrap-provider-talos v0.6.12
 	github.com/siderolabs/cluster-api-control-plane-provider-talos v0.5.13
@@ -59,7 +60,6 @@ require (
 )
 
 require (
-	github.com/kommodity-io/cluster-api-provider-bringyourowntalos v1.0.0 // indirect
 	github.com/robfig/cron/v3 v3.0.1 // indirect
 	golang.org/x/net v0.57.0 // indirect
 	k8s.io/gengo/v2 v2.0.0-20240911193312-2b36238f13e9 // indirect
