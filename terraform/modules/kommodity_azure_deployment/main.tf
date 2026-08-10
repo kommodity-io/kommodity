@@ -135,17 +135,6 @@ resource "azurerm_postgresql_flexible_server_database" "this" {
   }
 }
 
-# Log Analytics Workspace for Container Apps
-resource "azurerm_log_analytics_workspace" "kommodity-log-analytics" {
-  name                = "${var.resource_group.name}-log-analytics"
-  location            = azurerm_resource_group.kommodity-resource-group.location
-  resource_group_name = azurerm_resource_group.kommodity-resource-group.name
-  sku                 = var.log_analytics.workspace_sku
-  retention_in_days   = var.log_analytics.workspace_retention
-
-  depends_on = [azurerm_resource_group.kommodity-resource-group]
-}
-
 # Networking resources for Container App
 resource "azurerm_subnet" "kommodity-container-sn" {
   name                 = "${var.resource_group.name}-container-sn"
@@ -168,15 +157,14 @@ resource "azurerm_subnet" "kommodity-container-sn" {
 }
 
 resource "azurerm_container_app_environment" "kommodity-environment" {
-  name                       = "${var.resource_group.name}-environment"
-  location                   = azurerm_resource_group.kommodity-resource-group.location
-  resource_group_name        = azurerm_resource_group.kommodity-resource-group.name
-  log_analytics_workspace_id = azurerm_log_analytics_workspace.kommodity-log-analytics.id
-  infrastructure_subnet_id   = azurerm_subnet.kommodity-container-sn.id
+  name                     = "${var.resource_group.name}-environment"
+  location                 = azurerm_resource_group.kommodity-resource-group.location
+  resource_group_name      = azurerm_resource_group.kommodity-resource-group.name
+  logs_destination         = "azure-monitor"
+  infrastructure_subnet_id = azurerm_subnet.kommodity-container-sn.id
 
   depends_on = [
     azurerm_resource_group.kommodity-resource-group,
-    azurerm_log_analytics_workspace.kommodity-log-analytics,
     azurerm_subnet.kommodity-container-sn,
   ]
 
