@@ -325,14 +325,6 @@ kommodity:
     #       keySource: nodeID  # or kms (default: kms if kommodity.kms.enabled, else nodeID)
     #       lockToState: true
 
-    # Byot only: one static Machine per entry instead of TalosControlPlane
-    # replicas. Exactly one entry must set init: true (the bootstrap node).
-    # staticMachines:
-    #   - name: cp-0
-    #     publicIP: 203.0.113.10
-    #     init: true
-    #     # strategicPatches: optional per-machine Talos documents
-
   nodepools: {}
     ## Example of nodepool configuration
     # default:
@@ -389,11 +381,6 @@ kommodity:
     #         provider: luks2
     #         keySource: nodeID  # or kms (default: kms if kommodity.kms.enabled, else nodeID)
     #         lockToState: true
-
-    #   # Byot only: one static Machine per entry instead of a MachineDeployment.
-    #   staticMachines:
-    #     - name: worker-0
-    #       publicIP: 203.0.113.20
 
   # Logging verbosity: debug, info, warn, error (set as LOG_LEVEL env var)
   logLevel: warn
