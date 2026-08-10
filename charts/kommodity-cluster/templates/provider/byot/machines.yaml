@@ -3,37 +3,33 @@
   clone an infra template per replica, which cannot express one publicIP per
   machine, so Byot renders one ByotMachine + TalosConfig + Machine per entry.
 
-  kommodity.controlplane.staticMachines []:
-    name:      local name suffix (required, unique)
-    publicIP:  public IP of the Talos maintenance-mode machine (required)
-    init:      true on exactly one control plane machine (the bootstrap node)
-    failureDomain: optional
+  kommodity.controlplane.staticMachines is a map keyed by machine name:
+    <machineName>:
+      publicIP:  public IP of the Talos maintenance-mode machine (required)
+      init:      true on exactly one control plane machine (the bootstrap node)
+      failureDomain: optional
+      strategicPatches: optional per-machine Talos documents
 
-  kommodity.nodepools.<name>.staticMachines []: same shape (init ignored).
+  kommodity.nodepools.<name>.staticMachines: same shape (init ignored).
 */ -}}
 {{- if eq .Values.kommodity.provider.name "Byot" }}
-{{- $staticCPs := .Values.kommodity.controlplane.staticMachines | default list }}
+{{- $staticCPs := .Values.kommodity.controlplane.staticMachines | default dict }}
 {{- if eq (len $staticCPs) 0 }}
 {{- fail "kommodity.controlplane.staticMachines must contain at least one entry with a publicIP when provider is Byot" -}}
 {{- end }}
 {{- $cp := .Values.kommodity.controlplane }}
 {{- $initCount := 0 }}
-{{- $cpNames := list }}
-{{- range $staticCPs }}
-{{- if .init }}{{ $initCount = add $initCount 1 }}{{ end }}
-{{- $cpNames = append $cpNames .name }}
+{{- range $name, $m := $staticCPs }}
+{{- if $m.init }}{{ $initCount = add $initCount 1 }}{{ end }}
 {{- end }}
 {{- if ne $initCount 1 }}
 {{- fail (printf "kommodity.controlplane.staticMachines: exactly one entry must set init: true (bootstrap node), got %d" $initCount) -}}
 {{- end }}
-{{- if ne (len $cpNames) (len ($cpNames | uniq)) }}
-{{- fail "kommodity.controlplane.staticMachines: machine names must be unique" -}}
+{{- range $name, $m := $staticCPs }}
+{{- if not $m.publicIP }}
+{{- fail (printf "kommodity.controlplane.staticMachines.%s requires publicIP" $name) -}}
 {{- end }}
-{{- range .Values.kommodity.controlplane.staticMachines }}
-{{- if or (not .name) (not .publicIP) }}
-{{- fail "kommodity.controlplane.staticMachines entries require name and publicIP" -}}
-{{- end }}
-{{- $machineName := printf "%s-cp-%s" $.Release.Name .name }}
+{{- $machineName := printf "%s-cp-%s" $.Release.Name $name }}
 ---
 apiVersion: bootstrap.cluster.x-k8s.io/v1alpha3
 kind: TalosConfig
@@ -43,7 +39,7 @@ metadata:
   labels:
     app.kubernetes.io/managed-by: kommodity
 spec:
-  generateType: {{ if .init }}init{{ else }}controlplane{{ end }}
+  generateType: {{ if $m.init }}init{{ else }}controlplane{{ end }}
   talosVersion: {{ default (include "kommodity.talosVersion" $) (dig "talos" "version" "" $cp) }}
   {{- $mergedPatch := include "kommodity-cluster.mergedStrategicPatch" (dict
     "globalPatches" $.Values.kommodity.global.strategicPatches
@@ -57,7 +53,7 @@ spec:
     "disableCNI" $.Values.talos.disableCNI
     "disableProxy" $.Values.talos.disableKubeProxy
   ) | trim -}}
-  {{- $needsStrategicPatches := or (not (empty $mergedPatch)) $.Values.kommodity.kms.enabled $.Values.kommodity.security.enabled (gt (len (default list $cp.instanceVolumes)) 0) .strategicPatches }}
+  {{- $needsStrategicPatches := or (not (empty $mergedPatch)) $.Values.kommodity.kms.enabled $.Values.kommodity.security.enabled (gt (len (default list $cp.instanceVolumes)) 0) $m.strategicPatches }}
   {{- if $needsStrategicPatches }}
   strategicPatches:
   {{- if not (empty $mergedPatch) }}
@@ -78,8 +74,8 @@ spec:
 {{- include "kommodity.talos.attestationExtensionServiceConfig" (dict "logLevel" $.Values.kommodity.logLevel) | nindent 4 }}
   {{- end }}
   {{- /* Per-machine strategic patches (top-level Talos docs allowed, e.g. VolumeConfig) */ -}}
-  {{- if .strategicPatches }}
-{{- range .strategicPatches }}
+  {{- if $m.strategicPatches }}
+{{- range $m.strategicPatches }}
   - |
 {{ . | nindent 4 }}
   {{- end }}
@@ -97,9 +93,9 @@ metadata:
   annotations:
     helm.sh/resource-policy: keep
 spec:
-  publicIP: {{ .publicIP | quote }}
-  {{- if .failureDomain }}
-  failureDomain: {{ .failureDomain | quote }}
+  publicIP: {{ $m.publicIP | quote }}
+  {{- if $m.failureDomain }}
+  failureDomain: {{ $m.failureDomain | quote }}
   {{- end }}
 ---
 apiVersion: cluster.x-k8s.io/v1beta1
@@ -115,8 +111,8 @@ metadata:
     helm.sh/resource-policy: keep
 spec:
   clusterName: {{ $.Release.Name }}
-  {{- if .failureDomain }}
-  failureDomain: {{ .failureDomain | quote }}
+  {{- if $m.failureDomain }}
+  failureDomain: {{ $m.failureDomain | quote }}
   {{- end }}
   bootstrap:
     configRef:
@@ -136,18 +132,13 @@ spec:
   {{- end }}
 {{- end }}
 {{- /* Worker static machines per nodepool */ -}}
-{{- range $name, $np := .Values.kommodity.nodepools }}
-{{- $machines := $np.staticMachines | default list }}
-{{- $machineNames := list }}
-{{- range $machines }}{{ $machineNames = append $machineNames .name }}{{ end }}
-{{- if ne (len $machineNames) (len ($machineNames | uniq)) }}
-{{- fail (printf "kommodity.nodepools.%s.staticMachines: machine names must be unique" $name) -}}
+{{- range $poolName, $np := .Values.kommodity.nodepools }}
+{{- $machines := $np.staticMachines | default dict }}
+{{- range $name, $m := $machines }}
+{{- if not $m.publicIP }}
+{{- fail (printf "kommodity.nodepools.%s.staticMachines.%s requires publicIP" $poolName $name) -}}
 {{- end }}
-{{- range $machines }}
-{{- if or (not .name) (not .publicIP) }}
-{{- fail (printf "kommodity.nodepools.%s.staticMachines entries require name and publicIP" $name) -}}
-{{- end }}
-{{- $machineName := printf "%s-worker-%s-%s" $.Release.Name $name .name }}
+{{- $machineName := printf "%s-worker-%s-%s" $.Release.Name $poolName $name }}
 ---
 apiVersion: bootstrap.cluster.x-k8s.io/v1alpha3
 kind: TalosConfig
@@ -168,7 +159,7 @@ spec:
     "installer" $.Values.talos.installer
     "logLevel" $.Values.kommodity.logLevel
   ) | trim -}}
-  {{- $needsStrategicPatches := or (not (empty $mergedPatch)) $.Values.kommodity.kms.enabled $.Values.kommodity.security.enabled (gt (len (default list $np.instanceVolumes)) 0) .strategicPatches }}
+  {{- $needsStrategicPatches := or (not (empty $mergedPatch)) $.Values.kommodity.kms.enabled $.Values.kommodity.security.enabled (gt (len (default list $np.instanceVolumes)) 0) $m.strategicPatches }}
   {{- if $needsStrategicPatches }}
   strategicPatches:
   {{- if not (empty $mergedPatch) }}
@@ -186,8 +177,8 @@ spec:
   {{- if $.Values.kommodity.security.enabled }}
 {{- include "kommodity.talos.attestationExtensionServiceConfig" (dict "logLevel" $.Values.kommodity.logLevel) | nindent 4 }}
   {{- end }}
-  {{- if .strategicPatches }}
-{{- range .strategicPatches }}
+  {{- if $m.strategicPatches }}
+{{- range $m.strategicPatches }}
   - |
 {{ . | nindent 4 }}
   {{- end }}
@@ -205,9 +196,9 @@ metadata:
   annotations:
     helm.sh/resource-policy: keep
 spec:
-  publicIP: {{ .publicIP | quote }}
-  {{- if .failureDomain }}
-  failureDomain: {{ .failureDomain | quote }}
+  publicIP: {{ $m.publicIP | quote }}
+  {{- if $m.failureDomain }}
+  failureDomain: {{ $m.failureDomain | quote }}
   {{- end }}
 ---
 apiVersion: cluster.x-k8s.io/v1beta1
@@ -222,8 +213,8 @@ metadata:
     helm.sh/resource-policy: keep
 spec:
   clusterName: {{ $.Release.Name }}
-  {{- if .failureDomain }}
-  failureDomain: {{ .failureDomain | quote }}
+  {{- if $m.failureDomain }}
+  failureDomain: {{ $m.failureDomain | quote }}
   {{- end }}
   bootstrap:
     configRef:

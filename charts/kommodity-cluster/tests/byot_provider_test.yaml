@@ -103,32 +103,23 @@ tests:
   - it: should fail when no control plane machine is marked init
     template: templates/provider/byot/machines.yaml
     set:
-      kommodity.controlplane.staticMachines:
-        - name: cp-0
-          publicIP: 203.0.113.10
+      kommodity.controlplane.staticMachines.cp-0.init: null
     asserts:
       - failedTemplate:
-          errorPattern: "exactly one entry must set init: true"
+          errorMessage: "kommodity.controlplane.staticMachines: exactly one entry must set init: true (bootstrap node), got 0"
 
-  - it: should fail when static machine entries lack publicIP
+  - it: should fail when a static control plane machine lacks publicIP
     template: templates/provider/byot/machines.yaml
     set:
-      kommodity.controlplane.staticMachines:
-        - name: cp-0
-          init: true
+      kommodity.controlplane.staticMachines.cp-0.publicIP: null
     asserts:
       - failedTemplate:
-          errorPattern: "entries require name and publicIP"
+          errorMessage: "kommodity.controlplane.staticMachines.cp-0 requires publicIP"
 
-  - it: should fail on duplicate static machine names
+  - it: should fail when a static worker machine lacks publicIP
     template: templates/provider/byot/machines.yaml
     set:
-      kommodity.controlplane.staticMachines:
-        - name: cp-0
-          publicIP: 203.0.113.10
-          init: true
-        - name: cp-0
-          publicIP: 203.0.113.11
+      kommodity.nodepools.default.staticMachines.worker-0.publicIP: null
     asserts:
       - failedTemplate:
-          errorPattern: "machine names must be unique"
+          errorMessage: "kommodity.nodepools.default.staticMachines.worker-0 requires publicIP"
