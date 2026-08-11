@@ -20,6 +20,15 @@ kommodity:
       cp-0:
         publicIP: 203.0.113.10 # your machine's public IP
         init: true
+        # Optional: adopt a machine that is already booted and configured (not
+        # in maintenance mode) by pointing at a Secret holding its talosconfig
+        # (YAML under the "talosconfig" key):
+        # talosConfigSecretRef:
+        #   name: old-talosconfig
+        # Optional: wipe the machine (Talos reset on STATE+EPHEMERAL, reboot)
+        # before applying configuration — for machines that may carry stale
+        # state from a previous cluster. Pre-adoption only.
+        # forceReset: true
         # Optional per-machine strategic patches (Talos documents), e.g. to
         # constrain volume provisioning on small disks:
         # strategicPatches:
@@ -41,6 +50,8 @@ kommodity:
       staticMachines:
         worker-0:
           publicIP: 203.0.113.20 # your machine's public IP
+          talosConfigSecretRef:
+            name: old-talosconfig
 
 talos:
   # Talos version must match the maintenance-mode machines being adopted.

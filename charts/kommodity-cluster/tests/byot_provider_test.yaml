@@ -100,6 +100,56 @@ tests:
       - hasDocuments:
           count: 0
 
+  - it: should render talosConfigSecretRef on the ByotMachine when set
+    template: templates/provider/byot/machines.yaml
+    set:
+      kommodity.controlplane.staticMachines.cp-0.talosConfigSecretRef.name: old-talosconfig
+    documentSelector:
+      path: spec.publicIP
+      value: 203.0.113.10
+    asserts:
+      - isKind:
+          of: ByotMachine
+      - equal:
+          path: spec.talosConfigSecretRef.name
+          value: old-talosconfig
+
+  - it: should omit talosConfigSecretRef on the ByotMachine when unset
+    template: templates/provider/byot/machines.yaml
+    documentSelector:
+      path: spec.publicIP
+      value: 203.0.113.10
+    asserts:
+      - isKind:
+          of: ByotMachine
+      - notExists:
+          path: spec.talosConfigSecretRef
+
+  - it: should render forceReset on the ByotMachine when set
+    template: templates/provider/byot/machines.yaml
+    set:
+      kommodity.controlplane.staticMachines.cp-0.forceReset: true
+    documentSelector:
+      path: spec.publicIP
+      value: 203.0.113.10
+    asserts:
+      - isKind:
+          of: ByotMachine
+      - equal:
+          path: spec.forceReset
+          value: true
+
+  - it: should omit forceReset on the ByotMachine when unset
+    template: templates/provider/byot/machines.yaml
+    documentSelector:
+      path: spec.publicIP
+      value: 203.0.113.10
+    asserts:
+      - isKind:
+          of: ByotMachine
+      - notExists:
+          path: spec.forceReset
+
   - it: should fail when no control plane machine is marked init
     template: templates/provider/byot/machines.yaml
     set:

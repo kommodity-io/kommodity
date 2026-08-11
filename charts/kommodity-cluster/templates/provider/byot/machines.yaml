@@ -97,6 +97,13 @@ spec:
   {{- if $m.failureDomain }}
   failureDomain: {{ $m.failureDomain | quote }}
   {{- end }}
+  {{- if $m.talosConfigSecretRef }}
+  talosConfigSecretRef:
+    name: {{ $m.talosConfigSecretRef.name | quote }}
+  {{- end }}
+  {{- if $m.forceReset }}
+  forceReset: {{ $m.forceReset }}
+  {{- end }}
 ---
 apiVersion: cluster.x-k8s.io/v1beta1
 kind: Machine
@@ -199,6 +206,13 @@ spec:
   publicIP: {{ $m.publicIP | quote }}
   {{- if $m.failureDomain }}
   failureDomain: {{ $m.failureDomain | quote }}
+  {{- end }}
+  {{- if $m.talosConfigSecretRef }}
+  talosConfigSecretRef:
+    name: {{ $m.talosConfigSecretRef.name | quote }}
+  {{- end }}
+  {{- if $m.forceReset }}
+  forceReset: {{ $m.forceReset }}
   {{- end }}
 ---
 apiVersion: cluster.x-k8s.io/v1beta1
