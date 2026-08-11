@@ -185,9 +185,10 @@ resource "azurerm_container_app_environment" "kommodity-environment" {
 }
 
 resource "azurerm_monitor_diagnostic_setting" "kommodity-environment" {
-  name                       = "${var.resource_group.name}-environment-logs"
-  target_resource_id         = azurerm_container_app_environment.kommodity-environment.id
-  log_analytics_workspace_id = azurerm_log_analytics_workspace.kommodity-log-analytics.id
+  name                           = "${var.resource_group.name}-environment-logs"
+  target_resource_id             = azurerm_container_app_environment.kommodity-environment.id
+  log_analytics_workspace_id     = azurerm_log_analytics_workspace.kommodity-log-analytics.id
+  log_analytics_destination_type = "Dedicated"
 
   enabled_log {
     category = "ContainerAppConsoleLogs"
@@ -323,9 +324,10 @@ resource "azurerm_container_app" "kommodity-app" {
 }
 
 resource "azurerm_monitor_diagnostic_setting" "kommodity-app" {
-  name                       = "${var.resource_group.name}-app-metrics"
-  target_resource_id         = azurerm_container_app.kommodity-app.id
-  log_analytics_workspace_id = azurerm_log_analytics_workspace.kommodity-log-analytics.id
+  name                           = "${var.resource_group.name}-app-metrics"
+  target_resource_id             = azurerm_container_app.kommodity-app.id
+  log_analytics_workspace_id     = azurerm_log_analytics_workspace.kommodity-log-analytics.id
+  log_analytics_destination_type = "Dedicated"
 
   enabled_metric {
     category = "AllMetrics"
