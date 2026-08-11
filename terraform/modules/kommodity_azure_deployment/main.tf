@@ -135,6 +135,17 @@ resource "azurerm_postgresql_flexible_server_database" "this" {
   }
 }
 
+# Log Analytics Workspace for Azure Monitor diagnostic settings
+resource "azurerm_log_analytics_workspace" "kommodity-log-analytics" {
+  name                = "${var.resource_group.name}-log-analytics"
+  location            = azurerm_resource_group.kommodity-resource-group.location
+  resource_group_name = azurerm_resource_group.kommodity-resource-group.name
+  sku                 = var.log_analytics.workspace_sku
+  retention_in_days   = var.log_analytics.workspace_retention
+
+  depends_on = [azurerm_resource_group.kommodity-resource-group]
+}
+
 # Networking resources for Container App
 resource "azurerm_subnet" "kommodity-container-sn" {
   name                 = "${var.resource_group.name}-container-sn"
@@ -171,6 +182,29 @@ resource "azurerm_container_app_environment" "kommodity-environment" {
   lifecycle {
     ignore_changes = [infrastructure_resource_group_name, workload_profile]
   }
+}
+
+resource "azurerm_monitor_diagnostic_setting" "kommodity-environment" {
+  name                       = "${var.resource_group.name}-environment-logs"
+  target_resource_id         = azurerm_container_app_environment.kommodity-environment.id
+  log_analytics_workspace_id = azurerm_log_analytics_workspace.kommodity-log-analytics.id
+
+  enabled_log {
+    category = "ContainerAppConsoleLogs"
+  }
+
+  enabled_log {
+    category = "ContainerAppSystemLogs"
+  }
+
+  enabled_metric {
+    category = "AllMetrics"
+  }
+
+  depends_on = [
+    azurerm_container_app_environment.kommodity-environment,
+    azurerm_log_analytics_workspace.kommodity-log-analytics,
+  ]
 }
 
 # Container App for kommodity service
@@ -286,6 +320,21 @@ resource "azurerm_container_app" "kommodity-app" {
   lifecycle {
     ignore_changes = [workload_profile_name]
   }
+}
+
+resource "azurerm_monitor_diagnostic_setting" "kommodity-app" {
+  name                       = "${var.resource_group.name}-app-metrics"
+  target_resource_id         = azurerm_container_app.kommodity-app.id
+  log_analytics_workspace_id = azurerm_log_analytics_workspace.kommodity-log-analytics.id
+
+  enabled_metric {
+    category = "AllMetrics"
+  }
+
+  depends_on = [
+    azurerm_container_app.kommodity-app,
+    azurerm_log_analytics_workspace.kommodity-log-analytics,
+  ]
 }
 
 # Custom domain DNS + managed certificate for the Container App
