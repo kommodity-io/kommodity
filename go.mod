@@ -25,7 +25,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
 	github.com/k3s-io/kine v1.14.2
-	github.com/kommodity-io/cluster-api-provider-bringyourowntalos v0.0.0-20260811111224-99e60e8fc342
+	github.com/kommodity-io/cluster-api-provider-bringyourowntalos v0.1.1-0.20260812081716-8f9a8495e90c
 	github.com/scaleway/cluster-api-provider-scaleway v0.1.6
 	github.com/siderolabs/cluster-api-bootstrap-provider-talos v0.6.12
 	github.com/siderolabs/cluster-api-control-plane-provider-talos v0.5.13

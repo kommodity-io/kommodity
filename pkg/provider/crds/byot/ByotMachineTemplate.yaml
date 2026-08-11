@@ -72,14 +72,21 @@ spec:
                         failureDomain:
                           description: FailureDomain is the unique name of the failure domain the machine is placed in.
                           type: string
-                        forceReset:
+                        joinPolicy:
+                          default: None
                           description: |-
-                            ForceReset requests a machine reset (wiping the STATE and EPHEMERAL
-                            system volumes) before the machine configuration is applied. It is a
-                            pre-adoption latch: it only takes effect while no configuration has
-                            been applied yet (status.lastAppliedConfigSHA empty). Use it when
-                            adopting a machine that may carry stale state from a previous cluster.
-                          type: boolean
+                            JoinPolicy defines what to do when adopting the machine. "None" (the
+                            default) adopts the machine only if it is in maintenance mode or already
+                            carries this cluster's PKI bundle; a machine carrying a different
+                            cluster's state fails the join preflight instead of being wiped.
+                            "Reset" wipes the machine's STATE and EPHEMERAL system volumes before
+                            the machine configuration is applied. Reset is a pre-adoption latch: it
+                            only takes effect while no configuration has been applied yet
+                            (status.lastAppliedConfigSHA empty).
+                          enum:
+                            - None
+                            - Reset
+                          type: string
                         providerID:
                           description: ProviderID is set by the controller once the machine has been adopted.
                           type: string
@@ -92,6 +99,19 @@ spec:
                           x-kubernetes-validations:
                             - message: publicIP is immutable
                               rule: self == oldSelf
+                        splitPolicy:
+                          default: None
+                          description: |-
+                            SplitPolicy defines what to do when the machine is removed from the
+                            cluster's management. "None" (the default) removes the ByotMachine
+                            object only: the machine keeps running with its configuration and
+                            datastore intact and can be re-adopted without any changes. "Reset"
+                            wipes the machine's STATE and EPHEMERAL system volumes before it is
+                            released, returning it to maintenance mode for reuse elsewhere.
+                          enum:
+                            - None
+                            - Reset
+                          type: string
                         talosConfigSecretRef:
                           description: |-
                             TalosConfigSecretRef references a Secret holding a talosconfig (YAML

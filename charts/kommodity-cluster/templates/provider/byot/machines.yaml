@@ -8,6 +8,8 @@
       publicIP:  public IP of the Talos maintenance-mode machine (required)
       init:      true on exactly one control plane machine (the bootstrap node)
       failureDomain: optional
+      joinPolicy/splitPolicy: optional None|Reset lifecycle policy overrides
+        (defaults resolved from the controlplane/nodepool block, then "None")
       strategicPatches: optional per-machine Talos documents
 
   kommodity.nodepools.<name>.staticMachines: same shape (init ignored).
@@ -53,8 +55,7 @@ spec:
     "disableCNI" $.Values.talos.disableCNI
     "disableProxy" $.Values.talos.disableKubeProxy
   ) | trim -}}
-  {{- $needsStrategicPatches := or (not (empty $mergedPatch)) $.Values.kommodity.kms.enabled $.Values.kommodity.security.enabled (gt (len (default list $cp.instanceVolumes)) 0) $m.strategicPatches }}
-  {{- if $needsStrategicPatches }}
+  {{- /* always true: byot always injects the kubelet provider-id patch below */}}
   strategicPatches:
   {{- if not (empty $mergedPatch) }}
 {{ $mergedPatch | nindent 4 }}
@@ -73,12 +74,19 @@ spec:
   {{- /* ExtensionServiceConfig for kommodity-attestation extension */ -}}
 {{- include "kommodity.talos.attestationExtensionServiceConfig" (dict "logLevel" $.Values.kommodity.logLevel) | nindent 4 }}
   {{- end }}
-  {{- /* Per-machine strategic patches (top-level Talos docs allowed, e.g. VolumeConfig) */ -}}
-  {{- if $m.strategicPatches }}
+  {{- /* Per-machine strategic patches (top-level Talos docs allowed, e.g. VolumeConfig). */ -}}
+  {{- /* Kubelet provider-id matching ByotMachine's spec.providerID: injected always so the
+      CAPI Machine controller links the workload-cluster Node (status.nodeRef) and can
+      drain/delete it when the Machine is deleted. */}}
+    - |
+      machine:
+        kubelet:
+          extraArgs:
+            provider-id: byot://{{ $m.publicIP }}
+  {{ if $m.strategicPatches }}
 {{- range $m.strategicPatches }}
-  - |
-{{ . | nindent 4 }}
-  {{- end }}
+    - |
+{{- . | nindent 6 }}
   {{- end }}
   {{- end }}
 ---
@@ -101,9 +109,7 @@ spec:
   talosConfigSecretRef:
     name: {{ $m.talosConfigSecretRef.name | quote }}
   {{- end }}
-  {{- if $m.forceReset }}
-  forceReset: {{ $m.forceReset }}
-  {{- end }}
+  {{- include "kommodity-cluster.byotPolicies" (dict "scope" (printf "kommodity.controlplane.staticMachines.%s" $name) "parent" $cp "machine" $m) | nindent 2 }}
 ---
 apiVersion: cluster.x-k8s.io/v1beta1
 kind: Machine
@@ -166,8 +172,7 @@ spec:
     "installer" $.Values.talos.installer
     "logLevel" $.Values.kommodity.logLevel
   ) | trim -}}
-  {{- $needsStrategicPatches := or (not (empty $mergedPatch)) $.Values.kommodity.kms.enabled $.Values.kommodity.security.enabled (gt (len (default list $np.instanceVolumes)) 0) $m.strategicPatches }}
-  {{- if $needsStrategicPatches }}
+  {{- /* always true: byot always injects the kubelet provider-id patch below */}}
   strategicPatches:
   {{- if not (empty $mergedPatch) }}
 {{ $mergedPatch | nindent 4 }}
@@ -184,11 +189,18 @@ spec:
   {{- if $.Values.kommodity.security.enabled }}
 {{- include "kommodity.talos.attestationExtensionServiceConfig" (dict "logLevel" $.Values.kommodity.logLevel) | nindent 4 }}
   {{- end }}
-  {{- if $m.strategicPatches }}
+  {{- /* Kubelet provider-id matching ByotMachine's spec.providerID: injected always so the
+      CAPI Machine controller links the workload-cluster Node (status.nodeRef) and can
+      drain/delete it when the Machine is deleted. */}}
+    - |
+      machine:
+        kubelet:
+          extraArgs:
+            provider-id: byot://{{ $m.publicIP }}
+  {{ if $m.strategicPatches }}
 {{- range $m.strategicPatches }}
-  - |
-{{ . | nindent 4 }}
-  {{- end }}
+    - |
+{{- . | nindent 6 }}
   {{- end }}
   {{- end }}
 ---
@@ -211,9 +223,7 @@ spec:
   talosConfigSecretRef:
     name: {{ $m.talosConfigSecretRef.name | quote }}
   {{- end }}
-  {{- if $m.forceReset }}
-  forceReset: {{ $m.forceReset }}
-  {{- end }}
+  {{- include "kommodity-cluster.byotPolicies" (dict "scope" (printf "kommodity.nodepools.%s.staticMachines.%s" $poolName $name) "parent" $np "machine" $m) | nindent 2 }}
 ---
 apiVersion: cluster.x-k8s.io/v1beta1
 kind: Machine

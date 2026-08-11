@@ -125,10 +125,10 @@ tests:
       - notExists:
           path: spec.talosConfigSecretRef
 
-  - it: should render forceReset on the ByotMachine when set
+  - it: should render policies set per static machine
     template: templates/provider/byot/machines.yaml
     set:
-      kommodity.controlplane.staticMachines.cp-0.forceReset: true
+      kommodity.controlplane.staticMachines.cp-0.joinPolicy: Reset
     documentSelector:
       path: spec.publicIP
       value: 203.0.113.10
@@ -136,10 +136,77 @@ tests:
       - isKind:
           of: ByotMachine
       - equal:
-          path: spec.forceReset
-          value: true
+          path: spec.joinPolicy
+          value: Reset
+      - equal:
+          path: spec.splitPolicy
+          value: None
 
-  - it: should omit forceReset on the ByotMachine when unset
+  - it: should inherit policies from the controlplane block
+    template: templates/provider/byot/machines.yaml
+    set:
+      kommodity.controlplane.joinPolicy: Reset
+      kommodity.controlplane.splitPolicy: Reset
+    documentSelector:
+      path: spec.publicIP
+      value: 203.0.113.10
+    asserts:
+      - isKind:
+          of: ByotMachine
+      - equal:
+          path: spec.joinPolicy
+          value: Reset
+      - equal:
+          path: spec.splitPolicy
+          value: Reset
+
+  - it: should let static machine policies override the controlplane block
+    template: templates/provider/byot/machines.yaml
+    set:
+      kommodity.controlplane.joinPolicy: Reset
+      kommodity.controlplane.staticMachines.cp-0.splitPolicy: Reset
+      kommodity.controlplane.staticMachines.cp-0.joinPolicy: None
+    documentSelector:
+      path: spec.publicIP
+      value: 203.0.113.10
+    asserts:
+      - isKind:
+          of: ByotMachine
+      - equal:
+          path: spec.joinPolicy
+          value: None
+      - equal:
+          path: spec.splitPolicy
+          value: Reset
+
+  - it: should inherit policies from the nodepool block for workers
+    template: templates/provider/byot/machines.yaml
+    set:
+      kommodity.nodepools.default.splitPolicy: Reset
+    documentSelector:
+      path: spec.publicIP
+      value: 203.0.113.20
+    asserts:
+      - isKind:
+          of: ByotMachine
+      - equal:
+          path: spec.splitPolicy
+          value: Reset
+
+  - it: should not inherit controlplane policies into nodepools
+    template: templates/provider/byot/machines.yaml
+    set:
+      kommodity.controlplane.joinPolicy: Reset
+    documentSelector:
+      path: spec.publicIP
+      value: 203.0.113.20
+    asserts:
+      - isKind:
+          of: ByotMachine
+      - notExists:
+          path: spec.joinPolicy
+
+  - it: should omit policies on the ByotMachine when unset
     template: templates/provider/byot/machines.yaml
     documentSelector:
       path: spec.publicIP
@@ -148,7 +215,17 @@ tests:
       - isKind:
           of: ByotMachine
       - notExists:
-          path: spec.forceReset
+          path: spec.joinPolicy
+      - notExists:
+          path: spec.splitPolicy
+
+  - it: should fail on an invalid joinPolicy
+    template: templates/provider/byot/machines.yaml
+    set:
+      kommodity.controlplane.staticMachines.cp-0.joinPolicy: Wipe
+    asserts:
+      - failedTemplate:
+          errorMessage: 'kommodity.controlplane.staticMachines.cp-0.joinPolicy must be None or Reset, got "Wipe"'
 
   - it: should fail when no control plane machine is marked init
     template: templates/provider/byot/machines.yaml
