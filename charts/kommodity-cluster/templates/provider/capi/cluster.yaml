@@ -65,9 +65,11 @@ spec:
       {{- range $cidr := .Values.kommodity.network.cluster.serviceCIDR }}
         - {{ $cidr }}
       {{- end }}
+  {{- /*
+    BYOT uses static Machines instead of a TalosControlPlane. An infra
+    template clone cannot carry a distinct publicIP per replica.
+  */}}
   {{- if ne .Values.kommodity.provider.name "Byot" }}
-  # byot uses static Machines instead of a TalosControlPlane: an infra
-  # template clone cannot carry a distinct publicIP per replica.
   controlPlaneRef:
     apiVersion: controlplane.cluster.x-k8s.io/v1alpha3
     kind: TalosControlPlane
