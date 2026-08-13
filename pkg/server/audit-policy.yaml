@@ -2,8 +2,8 @@ apiVersion: audit.k8s.io/v1
 kind: Policy
 # Default Kubernetes audit policy for Kommodity.
 #
-# Audit is ON by default. Override by setting KOMMODITY_AUDIT_POLICY_FILE_PATH
-# to a custom policy file, or disable entirely with KOMMODITY_AUDIT_DISABLED=true.
+# Audit is OFF by default. Enable with KOMMODITY_AUDIT_ENABLED=true. Override the
+# policy by setting KOMMODITY_AUDIT_POLICY_FILE_PATH to a custom policy file.
 #
 # Levels (low to high verbosity): None, Metadata, Request, RequestResponse
 rules:
