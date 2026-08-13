@@ -21,6 +21,31 @@ tests:
           path: spec.controlPlaneEndpoint.port
           value: 6443
 
+  - it: should override the control plane endpoint host and port when both are set
+    template: templates/provider/byot/cluster.yaml
+    set:
+      kommodity.provider.config.endpoint.host: 198.51.100.5
+      kommodity.provider.config.endpoint.port: 7443
+    asserts:
+      - equal:
+          path: spec.controlPlaneEndpoint.host
+          value: 198.51.100.5
+      - equal:
+          path: spec.controlPlaneEndpoint.port
+          value: 7443
+
+  - it: should keep the init machine endpoint host when only endpoint.port is overridden
+    template: templates/provider/byot/cluster.yaml
+    set:
+      kommodity.provider.config.endpoint.port: 7443
+    asserts:
+      - equal:
+          path: spec.controlPlaneEndpoint.host
+          value: 203.0.113.10
+      - equal:
+          path: spec.controlPlaneEndpoint.port
+          value: 7443
+
   - it: should set infrastructureRef to ByotCluster and omit controlPlaneRef on the Cluster
     template: templates/provider/capi/cluster.yaml
     asserts:

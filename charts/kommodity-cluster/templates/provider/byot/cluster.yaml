@@ -13,7 +13,7 @@
 {{- $endpointPort := 6443 }}
 {{- with .Values.kommodity.provider.config }}
 {{- if hasKey . "endpoint" }}
-{{- $endpointHost = .endpoint.host }}
+{{- $endpointHost = .endpoint.host | default $endpointHost }}
 {{- $endpointPort = .endpoint.port | default 6443 }}
 {{- end }}
 {{- end }}
