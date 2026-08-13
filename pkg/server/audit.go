@@ -38,9 +38,9 @@ func (w zapWriter) Write(p []byte) (int, error) {
 }
 
 // loadPolicyRuleEvaluator builds the audit policy rule evaluator based on configuration.
-// Precedence: disabled > custom file path > embedded default policy.
+// Precedence: disabled (default) > custom file path > embedded default policy.
 func loadPolicyRuleEvaluator(cfg *config.KommodityConfig) (audit.PolicyRuleEvaluator, error) {
-	if cfg.AuditDisabled {
+	if !cfg.AuditEnabled {
 		// Audit disabled; return nil to skip audit entirely.
 		//
 		//nolint:nilnil // intentional: nil evaluator signals no audit

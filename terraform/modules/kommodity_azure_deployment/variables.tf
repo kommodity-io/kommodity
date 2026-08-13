@@ -81,6 +81,7 @@ variable "kommodity_container" {
     infrastructure_providers        = optional(string, "") # If env var is empty, Kommodity uses default providers
     garbage_collector_enabled       = optional(string, "true")
     azure_default_credential_secret = optional(string, "")
+    audit_enabled                   = optional(string, "false")
   })
   description = "Kommodity container configuration"
   default     = {}

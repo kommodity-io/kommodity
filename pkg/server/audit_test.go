@@ -13,12 +13,12 @@ import (
 )
 
 // TestLoadPolicyRuleEvaluatorDisabled asserts that audit is fully disabled when
-// AuditDisabled is true, regardless of other settings.
+// AuditEnabled is false, regardless of other settings.
 func TestLoadPolicyRuleEvaluatorDisabled(t *testing.T) {
 	t.Parallel()
 
 	cfg := &config.KommodityConfig{
-		AuditDisabled: true,
+		AuditEnabled: false,
 		// Even with a path set, disabled should win.
 		AuditPolicyFilePath: "/nonexistent/path.yaml",
 	}
@@ -29,7 +29,7 @@ func TestLoadPolicyRuleEvaluatorDisabled(t *testing.T) {
 }
 
 // TestLoadPolicyRuleEvaluatorCustomPath asserts that a custom policy file is
-// loaded when AuditPolicyFilePath is set and audit is not disabled.
+// loaded when AuditPolicyFilePath is set and audit is enabled.
 func TestLoadPolicyRuleEvaluatorCustomPath(t *testing.T) {
 	t.Parallel()
 
@@ -45,7 +45,7 @@ rules:
 	require.NoError(t, err)
 
 	cfg := &config.KommodityConfig{
-		AuditDisabled:       false,
+		AuditEnabled:        true,
 		AuditPolicyFilePath: policyPath,
 	}
 
@@ -55,12 +55,12 @@ rules:
 }
 
 // TestLoadPolicyRuleEvaluatorEmbedded asserts that the embedded default policy
-// is loaded when no custom path is provided and audit is not disabled.
+// is loaded when no custom path is provided and audit is enabled.
 func TestLoadPolicyRuleEvaluatorEmbedded(t *testing.T) {
 	t.Parallel()
 
 	cfg := &config.KommodityConfig{
-		AuditDisabled:       false,
+		AuditEnabled:        true,
 		AuditPolicyFilePath: "",
 	}
 

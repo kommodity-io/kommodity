@@ -296,6 +296,10 @@ resource "azurerm_container_app" "kommodity-app" {
         name  = "KOMMODITY_GARBAGE_COLLECTOR_ENABLED"
         value = var.kommodity_container.garbage_collector_enabled
       }
+      env {
+        name  = "KOMMODITY_AUDIT_ENABLED"
+        value = var.kommodity_container.audit_enabled
+      }
       dynamic "env" {
         for_each = var.kommodity_container.azure_default_credential_secret != "" ? [var.kommodity_container.azure_default_credential_secret] : []
         content {
