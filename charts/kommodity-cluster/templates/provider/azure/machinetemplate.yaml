@@ -25,6 +25,10 @@ spec:
         osType: Linux
         managedDisk:
           storageAccountType: {{ default "Premium_LRS" .Values.kommodity.controlplane.os.disk.type }}
+      {{- if hasKey .Values.kommodity.controlplane "acceleratedNetworking" }}
+      networkInterfaces:
+        - acceleratedNetworking: {{ .Values.kommodity.controlplane.acceleratedNetworking }}
+      {{- end }}
       {{- if .Values.kommodity.controlplane.additionalVolumes }}
       dataDisks:
         {{- range .Values.kommodity.controlplane.additionalVolumes }}
@@ -63,6 +67,10 @@ spec:
         osType: Linux
         managedDisk:
           storageAccountType: {{ default "Premium_LRS" $np.os.disk.type }}
+      {{- if hasKey $np "acceleratedNetworking" }}
+      networkInterfaces:
+        - acceleratedNetworking: {{ $np.acceleratedNetworking }}
+      {{- end }}
       {{- if $np.additionalVolumes }}
       dataDisks:
         {{- range $np.additionalVolumes }}
