@@ -65,11 +65,17 @@ spec:
       {{- range $cidr := .Values.kommodity.network.cluster.serviceCIDR }}
         - {{ $cidr }}
       {{- end }}
+  {{- /*
+    BYOT uses static Machines instead of a TalosControlPlane. An infra
+    template clone cannot carry a distinct publicIP per replica.
+  */}}
+  {{- if ne .Values.kommodity.provider.name "Byot" }}
   controlPlaneRef:
     apiVersion: controlplane.cluster.x-k8s.io/v1alpha3
     kind: TalosControlPlane
     name: {{ .Release.Name }}-controlplane
     namespace: {{ .Release.Namespace }}
+  {{- end }}
   infrastructureRef:
     {{- if not .Values.kommodity.provider.name }}
     {{- fail "kommodity.provider.name must be set in values.yaml" -}}
@@ -85,6 +91,9 @@ spec:
     {{- else if eq .Values.kommodity.provider.name "Azure" }}
     apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
     kind: AzureCluster
+    {{- else if eq .Values.kommodity.provider.name "Byot" }}
+    apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+    kind: ByotCluster
     {{- else }}
     {{- fail "infrastructure provider is not supported" -}}
     {{- end }}

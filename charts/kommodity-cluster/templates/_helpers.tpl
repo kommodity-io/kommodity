@@ -371,3 +371,24 @@ id: {{ printf "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Compute/i
 {{- fail "no Talos image configured for Azure: set talos.imageName (recommended) together with kommodity.provider.config.talosImageResourceGroup, or use talos.id / talos.computeGallery / talos.marketplace" -}}
 {{- end -}}
 {{- end -}}
+
+{{/*
+Resolve byot join/split policies for a static machine.
+Precedence: static machine > parent block (controlplane or nodepool) > default "None".
+Renders joinPolicy/splitPolicy lines only when at least one policy is non-default.
+Input: dict "scope" (value path for error messages) "parent" (controlplane/nodepool values) "machine" (static machine values).
+*/}}
+{{- define "kommodity-cluster.byotPolicies" -}}
+{{- $joinPolicy := default (default "None" .parent.joinPolicy) .machine.joinPolicy -}}
+{{- $splitPolicy := default (default "None" .parent.splitPolicy) .machine.splitPolicy -}}
+{{- if not (or (eq $joinPolicy "None") (eq $joinPolicy "Reset")) -}}
+{{- fail (printf "%s.joinPolicy must be None or Reset, got %q" .scope $joinPolicy) -}}
+{{- end -}}
+{{- if not (or (eq $splitPolicy "None") (eq $splitPolicy "Reset")) -}}
+{{- fail (printf "%s.splitPolicy must be None or Reset, got %q" .scope $splitPolicy) -}}
+{{- end -}}
+{{- if or (ne $joinPolicy "None") (ne $splitPolicy "None") }}
+joinPolicy: {{ $joinPolicy | quote }}
+splitPolicy: {{ $splitPolicy | quote }}
+{{- end -}}
+{{- end -}}

@@ -1,0 +1,37 @@
+{{- if eq .Values.kommodity.provider.name "Byot" }}
+{{- $staticCPs := .Values.kommodity.controlplane.staticMachines | default dict }}
+{{- if eq (len $staticCPs) 0 }}
+{{- fail "kommodity.controlplane.staticMachines must contain at least one entry with a publicIP when provider is Byot" -}}
+{{- end }}
+{{- /* Endpoint defaults to the bootstrap (init) node's public IP: it is the
+       first node serving the apiserver. Override via
+       kommodity.provider.config.endpoint. */ -}}
+{{- $endpointHost := "" }}
+{{- range $name, $m := $staticCPs }}
+{{- if and $m.init $m.publicIP }}{{ $endpointHost = $m.publicIP }}{{ end }}
+{{- end }}
+{{- $endpointPort := 6443 }}
+{{- with .Values.kommodity.provider.config }}
+{{- if hasKey . "endpoint" }}
+{{- $endpointHost = .endpoint.host | default $endpointHost }}
+{{- $endpointPort = .endpoint.port | default 6443 }}
+{{- end }}
+{{- end }}
+{{- if not $endpointHost }}
+{{- fail "kommodity.controlplane.staticMachines: the init machine requires a publicIP" -}}
+{{- end }}
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: ByotCluster
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: kommodity
+  annotations:
+    helm.sh/resource-policy: keep # Prevent Helm from deleting the resource on uninstall, deletion will be handled by CAPI
+spec:
+  controlPlaneEndpoint:
+    host: {{ $endpointHost }}
+    port: {{ $endpointPort }}
+{{- end }}

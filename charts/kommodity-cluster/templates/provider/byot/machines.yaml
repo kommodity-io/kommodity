@@ -1,0 +1,257 @@
+{{- /*
+  Static Machines for the byot provider. MachineDeployment/TalosControlPlane
+  clone an infra template per replica, which cannot express one publicIP per
+  machine, so Byot renders one ByotMachine + TalosConfig + Machine per entry.
+
+  kommodity.controlplane.staticMachines is a map keyed by machine name:
+    <machineName>:
+      publicIP:  public IP of the Talos maintenance-mode machine (required)
+      init:      true on exactly one control plane machine (the bootstrap node)
+      failureDomain: optional
+      joinPolicy/splitPolicy: optional None|Reset lifecycle policy overrides
+        (defaults resolved from the controlplane/nodepool block, then "None")
+      strategicPatches: optional per-machine Talos documents
+
+  kommodity.nodepools.<name>.staticMachines: same shape (init ignored).
+*/ -}}
+{{- if eq .Values.kommodity.provider.name "Byot" }}
+{{- $staticCPs := .Values.kommodity.controlplane.staticMachines | default dict }}
+{{- if eq (len $staticCPs) 0 }}
+{{- fail "kommodity.controlplane.staticMachines must contain at least one entry with a publicIP when provider is Byot" -}}
+{{- end }}
+{{- $cp := .Values.kommodity.controlplane }}
+{{- $initCount := 0 }}
+{{- range $name, $m := $staticCPs }}
+{{- if $m.init }}{{ $initCount = add $initCount 1 }}{{ end }}
+{{- end }}
+{{- if ne $initCount 1 }}
+{{- fail (printf "kommodity.controlplane.staticMachines: exactly one entry must set init: true (bootstrap node), got %d" $initCount) -}}
+{{- end }}
+{{- range $name, $m := $staticCPs }}
+{{- if not $m.publicIP }}
+{{- fail (printf "kommodity.controlplane.staticMachines.%s requires publicIP" $name) -}}
+{{- end }}
+{{- $machineName := printf "%s-cp-%s" $.Release.Name $name }}
+---
+apiVersion: bootstrap.cluster.x-k8s.io/v1alpha3
+kind: TalosConfig
+metadata:
+  name: {{ $machineName }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: kommodity
+spec:
+  generateType: {{ if $m.init }}init{{ else }}controlplane{{ end }}
+  talosVersion: {{ default (include "kommodity.talosVersion" $) (dig "talos" "version" "" $cp) }}
+  {{- $mergedPatch := include "kommodity-cluster.mergedStrategicPatch" (dict
+    "globalPatches" $.Values.kommodity.global.strategicPatches
+    "nodepoolPatches" $cp.strategicPatches
+    "taints" $cp.taints
+    "labels" $cp.labels
+    "annotations" $cp.annotations
+    "oidc" $.Values.kommodity.oidc
+    "installer" $.Values.talos.installer
+    "logLevel" $.Values.kommodity.logLevel
+    "disableCNI" $.Values.talos.disableCNI
+    "disableProxy" $.Values.talos.disableKubeProxy
+  ) | trim -}}
+  {{- /* always true: byot always injects the kubelet provider-id patch below */}}
+  strategicPatches:
+  {{- if not (empty $mergedPatch) }}
+{{ $mergedPatch | nindent 4 }}
+  {{- end }}
+  {{- if $.Values.kommodity.kms.enabled }}
+  {{- /* VolumeConfig for disk encryption (Talos v1.12+) */ -}}
+{{- include "kommodity.talos.volumeEncryption" (dict "endpoint" $.Values.kommodity.kms.endpoint) | nindent 4 }}
+  {{- end }}
+  {{- if $cp.instanceVolumes }}
+  {{- /* UserVolumeConfig for instance-local disks */ -}}
+{{- $kmsEndpoint := "" -}}
+{{- if $.Values.kommodity.kms.enabled }}{{- $kmsEndpoint = $.Values.kommodity.kms.endpoint -}}{{- end -}}
+{{- include "kommodity.talos.instanceVolumes" (dict "instanceVolumes" $cp.instanceVolumes "kmsEndpoint" $kmsEndpoint "kmsEnabled" $.Values.kommodity.kms.enabled) | nindent 4 }}
+  {{- end }}
+  {{- if $.Values.kommodity.security.enabled }}
+  {{- /* ExtensionServiceConfig for kommodity-attestation extension */ -}}
+{{- include "kommodity.talos.attestationExtensionServiceConfig" (dict "logLevel" $.Values.kommodity.logLevel) | nindent 4 }}
+  {{- end }}
+  {{- /* Per-machine strategic patches (top-level Talos docs allowed, e.g. VolumeConfig). */ -}}
+  {{- /* Kubelet provider-id matching ByotMachine's spec.providerID: injected always so the
+      CAPI Machine controller links the workload-cluster Node (status.nodeRef) and can
+      drain/delete it when the Machine is deleted. */}}
+    - |
+      machine:
+        kubelet:
+          extraArgs:
+            provider-id: byot://{{ $m.publicIP }}
+  {{ if $m.strategicPatches }}
+{{- range $m.strategicPatches }}
+    - |
+{{- . | nindent 6 }}
+  {{- end }}
+  {{- end }}
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: ByotMachine
+metadata:
+  name: {{ $machineName }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: kommodity
+    cluster.x-k8s.io/cluster-name: {{ $.Release.Name }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  publicIP: {{ $m.publicIP | quote }}
+  {{- if $m.failureDomain }}
+  failureDomain: {{ $m.failureDomain | quote }}
+  {{- end }}
+  {{- if $m.talosConfigSecretRef }}
+  talosConfigSecretRef:
+    name: {{ $m.talosConfigSecretRef.name | quote }}
+  {{- end }}
+  {{- include "kommodity-cluster.byotPolicies" (dict "scope" (printf "kommodity.controlplane.staticMachines.%s" $name) "parent" $cp "machine" $m) | nindent 2 }}
+---
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: Machine
+metadata:
+  name: {{ $machineName }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: kommodity
+    cluster.x-k8s.io/cluster-name: {{ $.Release.Name }}
+    cluster.x-k8s.io/control-plane: ""
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  clusterName: {{ $.Release.Name }}
+  {{- if $m.failureDomain }}
+  failureDomain: {{ $m.failureDomain | quote }}
+  {{- end }}
+  bootstrap:
+    configRef:
+      apiVersion: bootstrap.cluster.x-k8s.io/v1alpha3
+      kind: TalosConfig
+      name: {{ $machineName }}
+      namespace: {{ $.Release.Namespace }}
+  infrastructureRef:
+    apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+    kind: ByotMachine
+    name: {{ $machineName }}
+    namespace: {{ $.Release.Namespace }}
+  {{- if and (hasKey $cp "kubernetes") (hasKey $cp.kubernetes "version") }}
+  version: {{ $cp.kubernetes.version }}
+  {{- else }}
+  version: {{ $.Values.kubernetes.version }}
+  {{- end }}
+{{- end }}
+{{- /* Worker static machines per nodepool */ -}}
+{{- range $poolName, $np := .Values.kommodity.nodepools }}
+{{- $machines := $np.staticMachines | default dict }}
+{{- range $name, $m := $machines }}
+{{- if not $m.publicIP }}
+{{- fail (printf "kommodity.nodepools.%s.staticMachines.%s requires publicIP" $poolName $name) -}}
+{{- end }}
+{{- $machineName := printf "%s-worker-%s-%s" $.Release.Name $poolName $name }}
+---
+apiVersion: bootstrap.cluster.x-k8s.io/v1alpha3
+kind: TalosConfig
+metadata:
+  name: {{ $machineName }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: kommodity
+spec:
+  generateType: worker
+  talosVersion: {{ default (include "kommodity.talosVersion" $) (dig "talos" "version" "" $np) }}
+  {{- $mergedPatch := include "kommodity-cluster.mergedStrategicPatch" (dict
+    "globalPatches" $.Values.kommodity.global.strategicPatches
+    "nodepoolPatches" $np.strategicPatches
+    "taints" $np.taints
+    "labels" $np.labels
+    "annotations" $np.annotations
+    "installer" $.Values.talos.installer
+    "logLevel" $.Values.kommodity.logLevel
+  ) | trim -}}
+  {{- /* always true: byot always injects the kubelet provider-id patch below */}}
+  strategicPatches:
+  {{- if not (empty $mergedPatch) }}
+{{ $mergedPatch | nindent 4 }}
+  {{- end }}
+  {{- if $.Values.kommodity.kms.enabled }}
+  {{- /* VolumeConfig for KMS disk encryption */ -}}
+{{- include "kommodity.talos.volumeEncryption" (dict "endpoint" $.Values.kommodity.kms.endpoint) | nindent 4 }}
+  {{- end }}
+  {{- if $np.instanceVolumes }}
+  {{- $kmsEndpoint := "" -}}
+  {{- if $.Values.kommodity.kms.enabled }}{{- $kmsEndpoint = $.Values.kommodity.kms.endpoint -}}{{- end -}}
+{{- include "kommodity.talos.instanceVolumes" (dict "instanceVolumes" $np.instanceVolumes "kmsEndpoint" $kmsEndpoint "kmsEnabled" $.Values.kommodity.kms.enabled) | nindent 4 }}
+  {{- end }}
+  {{- if $.Values.kommodity.security.enabled }}
+{{- include "kommodity.talos.attestationExtensionServiceConfig" (dict "logLevel" $.Values.kommodity.logLevel) | nindent 4 }}
+  {{- end }}
+  {{- /* Kubelet provider-id matching ByotMachine's spec.providerID: injected always so the
+      CAPI Machine controller links the workload-cluster Node (status.nodeRef) and can
+      drain/delete it when the Machine is deleted. */}}
+    - |
+      machine:
+        kubelet:
+          extraArgs:
+            provider-id: byot://{{ $m.publicIP }}
+  {{ if $m.strategicPatches }}
+{{- range $m.strategicPatches }}
+    - |
+{{- . | nindent 6 }}
+  {{- end }}
+  {{- end }}
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: ByotMachine
+metadata:
+  name: {{ $machineName }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: kommodity
+    cluster.x-k8s.io/cluster-name: {{ $.Release.Name }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  publicIP: {{ $m.publicIP | quote }}
+  {{- if $m.failureDomain }}
+  failureDomain: {{ $m.failureDomain | quote }}
+  {{- end }}
+  {{- if $m.talosConfigSecretRef }}
+  talosConfigSecretRef:
+    name: {{ $m.talosConfigSecretRef.name | quote }}
+  {{- end }}
+  {{- include "kommodity-cluster.byotPolicies" (dict "scope" (printf "kommodity.nodepools.%s.staticMachines.%s" $poolName $name) "parent" $np "machine" $m) | nindent 2 }}
+---
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: Machine
+metadata:
+  name: {{ $machineName }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: kommodity
+    cluster.x-k8s.io/cluster-name: {{ $.Release.Name }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  clusterName: {{ $.Release.Name }}
+  {{- if $m.failureDomain }}
+  failureDomain: {{ $m.failureDomain | quote }}
+  {{- end }}
+  bootstrap:
+    configRef:
+      apiVersion: bootstrap.cluster.x-k8s.io/v1alpha3
+      kind: TalosConfig
+      name: {{ $machineName }}
+      namespace: {{ $.Release.Namespace }}
+  infrastructureRef:
+    apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+    kind: ByotMachine
+    name: {{ $machineName }}
+    namespace: {{ $.Release.Namespace }}
+  version: {{ default $.Values.kubernetes.version (dig "kubernetes" "version" "" $np) -}}
+{{- end }}
+{{- end }}
+{{- end }}

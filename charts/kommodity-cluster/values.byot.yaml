@@ -1,0 +1,60 @@
+# Example of values to adopt existing Talos machines running in maintenance
+# mode, or already bootstrapped, identified by public IP (Bring Your Own Talos).
+kommodity:
+  provider:
+    name: Byot
+
+  clusterAutoscaler:
+    enabled: false # Static machines cannot be autoscaled in v1.
+
+  network:
+    ipv4:
+      enabled: true
+      public: true # Machines are identified by public IP by definition.
+
+  controlplane:
+    # Optional lifecycle policy defaults for control plane static machines
+    # (None|Reset, default None; static machine entries take precedence):
+    #   joinPolicy: Reset  # wipe each machine before adopting it
+    #   splitPolicy: Reset # wipe each machine when it leaves management
+    # One entry per adopted control plane machine, keyed by machine name.
+    # Exactly one entry must set init: true (the bootstrap node); its public
+    # IP also defaults as the cluster control plane endpoint.
+    staticMachines:
+      cp-0:
+        publicIP: 203.0.113.10
+        init: true
+        # Optional: adopt a machine that is already booted and configured (not
+        # in maintenance mode) by pointing at a Secret holding its talosconfig
+        # (YAML under the "talosconfig" key). Used for the join preflight and
+        # for joinPolicy: Reset wipes. Note: adopting a machine that still
+        # carries ANOTHER cluster's state without wiping it will fail the join
+        # preflight (bundle mismatch) — set joinPolicy: Reset for such machines:
+        # talosConfigSecretRef:
+        #   name: old-talosconfig
+        # Optional: wipe the machine (Talos reset on STATE+EPHEMERAL, reboot)
+        # before applying configuration — for machines that may carry stale
+        # state from a previous cluster. Pre-adoption only:
+        # joinPolicy: Reset
+        # Optional per-machine strategic patches
+        # strategicPatches: {}
+      # cp-1:
+      #   publicIP: 203.0.113.11
+    # kubernetes:
+    #   version: v1.33.4
+    # talos:
+    #   version: v1.13.0
+
+  nodepools:
+    default:
+      staticMachines:
+        worker-0:
+          publicIP: 203.0.113.20
+          # talosConfigSecretRef:
+          #   name: old-talosconfig
+          # joinPolicy: Reset
+          # strategicPatches: {}
+
+talos:
+  # Talos version must match the maintenance-mode machines being adopted.
+  version: v1.13.8
