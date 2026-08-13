@@ -51,6 +51,16 @@ variable "database" {
   default     = {}
 }
 
+# Log Analytics
+variable "log_analytics" {
+  type = object({
+    workspace_sku       = optional(string, "PerGB2018")
+    workspace_retention = optional(number, 30)
+  })
+  description = "Log Analytics workspace configuration for Azure Monitor diagnostic settings"
+  default     = {}
+}
+
 # Kommodity Container
 variable "kommodity_container" {
   type = object({

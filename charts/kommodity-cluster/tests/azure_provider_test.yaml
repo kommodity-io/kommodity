@@ -283,6 +283,56 @@ tests:
           path: spec.template.spec.dataDisks
         documentIndex: 1
 
+  - it: should omit networkInterfaces when acceleratedNetworking is not set
+    template: templates/provider/azure/machinetemplate.yaml
+    asserts:
+      - notExists:
+          path: spec.template.spec.networkInterfaces
+        documentIndex: 0
+      - notExists:
+          path: spec.template.spec.networkInterfaces
+        documentIndex: 1
+
+  - it: should set acceleratedNetworking on controlplane and nodepool when configured
+    template: templates/provider/azure/machinetemplate.yaml
+    set:
+      kommodity.controlplane.acceleratedNetworking: false
+      kommodity.nodepools.default.acceleratedNetworking: false
+    asserts:
+      - equal:
+          path: spec.template.spec.networkInterfaces[0].acceleratedNetworking
+          value: false
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.networkInterfaces[0].acceleratedNetworking
+          value: false
+        documentIndex: 1
+
+  - it: should render acceleratedNetworking true when explicitly enabled
+    template: templates/provider/azure/machinetemplate.yaml
+    set:
+      kommodity.controlplane.acceleratedNetworking: true
+      kommodity.nodepools.default.acceleratedNetworking: true
+    asserts:
+      - equal:
+          path: spec.template.spec.networkInterfaces[0].acceleratedNetworking
+          value: true
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.networkInterfaces[0].acceleratedNetworking
+          value: true
+        documentIndex: 1
+
+  - it: should mint a new AzureMachineTemplate when acceleratedNetworking is set
+    template: templates/provider/azure/machinetemplate.yaml
+    set:
+      kommodity.nodepools.default.acceleratedNetworking: false
+    asserts:
+      - matchRegex:
+          path: metadata.name
+          pattern: ^test-cluster-worker-default-[a-f0-9]{6}$
+        documentIndex: 1
+
   - it: should mint a new AzureMachineTemplate when additionalVolumes change
     template: templates/provider/azure/machinetemplate.yaml
     set:

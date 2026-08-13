@@ -208,6 +208,9 @@ Any values that should trigger a new Machine template when changed should be add
 {{- end -}}
 {{- $_ := set $data "diskSize" (dig "os" "disk" "size" "" .poolValues) -}}
 {{- $_ := set $data "gpus" (dig "gpus" "" .poolValues) -}}
+{{- if and (eq .allValues.kommodity.provider.name "Azure") (hasKey .poolValues "acceleratedNetworking") -}}
+{{- $_ := set $data "acceleratedNetworking" .poolValues.acceleratedNetworking -}}
+{{- end -}}
 {{- with (dig "additionalVolumes" "" .poolValues) -}}
 	{{- $_ := set $data "additionalVolumes" . -}}
 {{- end -}}

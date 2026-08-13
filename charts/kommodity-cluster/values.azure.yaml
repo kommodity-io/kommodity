@@ -187,6 +187,11 @@ kommodity:
     # Optional failure domains.
     # zones:
     #   - "1"
+    # Explicitly enable/disable Azure Accelerated Networking (SR-IOV) on the
+    # control plane node NICs. When omitted, CAPZ derives it from the VM size, and
+    # Azure may non-deterministically attach SR-IOV virtual functions (mlx5_core)
+    # that Talos cannot manage, causing NIC flapping.
+    # acceleratedNetworking: false
     os:
       disk:
         size: 30
@@ -215,6 +220,9 @@ kommodity:
       # Optional failure domains.
       # zones:
       #   - "1"
+      # Explicitly enable/disable Azure Accelerated Networking (SR-IOV) on this
+      # nodepool's NICs (see controlplane above for rationale).
+      # acceleratedNetworking: false
       os:
         disk:
           size: 30
