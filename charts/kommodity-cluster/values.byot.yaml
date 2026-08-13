@@ -1,5 +1,5 @@
 # Example of values to adopt existing Talos machines running in maintenance
-# mode, identified by public IP (Bring Your Own Talos).
+# mode, or already bootstrapped, identified by public IP (Bring Your Own Talos).
 kommodity:
   provider:
     name: Byot
@@ -22,7 +22,7 @@ kommodity:
     # IP also defaults as the cluster control plane endpoint.
     staticMachines:
       cp-0:
-        publicIP: 203.0.113.10 # your machine's public IP
+        publicIP: 203.0.113.10
         init: true
         # Optional: adopt a machine that is already booted and configured (not
         # in maintenance mode) by pointing at a Secret holding its talosconfig
@@ -36,15 +36,8 @@ kommodity:
         # before applying configuration — for machines that may carry stale
         # state from a previous cluster. Pre-adoption only:
         # joinPolicy: Reset
-        # Optional per-machine strategic patches (Talos documents), e.g. to
-        # constrain volume provisioning on small disks:
-        # strategicPatches:
-        #   - |
-        #     apiVersion: v1alpha1
-        #     kind: VolumeConfig
-        #     name: EPHEMERAL
-        #     provisioning:
-        #       minSize: 1GiB
+        # Optional per-machine strategic patches
+        # strategicPatches: {}
       # cp-1:
       #   publicIP: 203.0.113.11
     # kubernetes:
@@ -56,10 +49,11 @@ kommodity:
     default:
       staticMachines:
         worker-0:
-          publicIP: 203.0.113.20 # your machine's public IP
+          publicIP: 203.0.113.20
           # talosConfigSecretRef:
           #   name: old-talosconfig
           # joinPolicy: Reset
+          # strategicPatches: {}
 
 talos:
   # Talos version must match the maintenance-mode machines being adopted.

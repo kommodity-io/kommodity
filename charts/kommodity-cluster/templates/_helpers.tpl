@@ -368,7 +368,7 @@ id: {{ $talos.id }}
 {{- $imageRG := required "talos.imageName requires kommodity.provider.config.talosImageResourceGroup (the resource group holding the Talos managed image) to build the Talos image resource ID" (dig "config" "talosImageResourceGroup" "" .Values.kommodity.provider) -}}
 id: {{ printf "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Compute/images/%s" $subID $imageRG $talos.imageName }}
 {{- else -}}
-{{- fail "no Talos image configured for Azure: set talos.imageName (recommended) together with kommodity.provider.config.subscriptionID and kommodity.provider.config.talosImageResourceGroup to build the Talos image resource ID, or use talos.id / talos.computeGallery / talos.marketplace" -}}
+{{- fail "no Talos image configured for Azure: set talos.imageName (recommended) together with kommodity.provider.config.talosImageResourceGroup, or use talos.id / talos.computeGallery / talos.marketplace" -}}
 {{- end -}}
 {{- end -}}
 
