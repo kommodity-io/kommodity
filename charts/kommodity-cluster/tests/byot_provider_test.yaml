@@ -335,3 +335,16 @@ tests:
     asserts:
       - isKind:
           of: ByotMachine
+
+  - it: should not keep ByotMachine or Machine from helm deletion (CAPI+byot own teardown)
+    template: templates/provider/byot/machines.yaml
+    asserts:
+      - notExists:
+          path: metadata.annotations["helm.sh/resource-policy"]
+
+  - it: should keep the ByotCluster from helm deletion (CAPI owns cluster teardown)
+    template: templates/provider/byot/cluster.yaml
+    asserts:
+      - equal:
+          path: metadata.annotations["helm.sh/resource-policy"]
+          value: keep

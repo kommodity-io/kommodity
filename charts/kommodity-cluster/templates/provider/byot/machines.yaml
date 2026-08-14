@@ -111,8 +111,6 @@ metadata:
   labels:
     app.kubernetes.io/managed-by: kommodity
     cluster.x-k8s.io/cluster-name: {{ $.Release.Name }}
-  annotations:
-    helm.sh/resource-policy: keep
 spec:
   publicIP: {{ $m.publicIP | quote }}
   {{- if $m.failureDomain }}
@@ -133,8 +131,6 @@ metadata:
     app.kubernetes.io/managed-by: kommodity
     cluster.x-k8s.io/cluster-name: {{ $.Release.Name }}
     cluster.x-k8s.io/control-plane: ""
-  annotations:
-    helm.sh/resource-policy: keep
 spec:
   clusterName: {{ $.Release.Name }}
   {{- if $m.failureDomain }}
@@ -237,8 +233,6 @@ metadata:
   labels:
     app.kubernetes.io/managed-by: kommodity
     cluster.x-k8s.io/cluster-name: {{ $.Release.Name }}
-  annotations:
-    helm.sh/resource-policy: keep
 spec:
   publicIP: {{ $m.publicIP | quote }}
   {{- if $m.failureDomain }}
@@ -259,8 +253,6 @@ metadata:
     app.kubernetes.io/managed-by: kommodity
     cluster.x-k8s.io/cluster-name: {{ $.Release.Name }}
     kommodity.io/nodepool: {{ $poolName }}
-  annotations:
-    helm.sh/resource-policy: keep
 spec:
   clusterName: {{ $.Release.Name }}
   {{- if $m.failureDomain }}
