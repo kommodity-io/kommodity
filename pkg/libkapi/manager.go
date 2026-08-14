@@ -77,10 +77,17 @@ func buildManager(
 		return nil, fmt.Errorf("failed to build controller manager: %w", err)
 	}
 
-	for i, c := range cfg.controllers {
-		err := c.SetupWithManager(mgr)
+	for controllerIndex, controller := range cfg.controllers {
+		// Wire in the fully-resolved webhook config (nil if WithWebhookServer
+		// was never used) before SetupWithManager runs - see webhookAware's
+		// doc for why this can't be done inside an Option closure instead.
+		if aware, ok := controller.(webhookAware); ok {
+			aware.setWebhookConfig(cfg.webhook)
+		}
+
+		err := controller.SetupWithManager(mgr)
 		if err != nil {
-			return nil, fmt.Errorf("failed to set up controller %d: %w", i, err)
+			return nil, fmt.Errorf("failed to set up controller %d: %w", controllerIndex, err)
 		}
 	}
 

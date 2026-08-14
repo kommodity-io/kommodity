@@ -59,4 +59,8 @@ var (
 	ErrGarbageCollectorClientBuild = errors.New("failed to build garbage collector client")
 	// ErrGarbageCollectorInit is returned when the garbage collector fails to initialize.
 	ErrGarbageCollectorInit = errors.New("failed to initialize garbage collector")
+	// ErrGarbageCollectorWebhookNotReady is returned when WithWebhookServer
+	// was used but its TLS listener never became dialable within the
+	// garbage collector's startup readiness timeout.
+	ErrGarbageCollectorWebhookNotReady = errors.New("garbage collector: webhook server was not ready in time")
 )
