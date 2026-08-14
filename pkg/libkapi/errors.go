@@ -62,5 +62,5 @@ var (
 	// ErrGarbageCollectorWebhookNotReady is returned when WithWebhookServer
 	// was used but its TLS listener never became dialable within the
 	// garbage collector's startup readiness timeout.
-	ErrGarbageCollectorWebhookNotReady = errors.New("garbage collector: webhook server was not ready in time")
+	ErrGarbageCollectorWebhookNotReady = errors.New("garbage collector webhook server was not ready in time")
 )
