@@ -101,6 +101,64 @@ func InstallKommodityClusterChartKubevirt(
 	})
 }
 
+// InstallKommodityClusterChartByot installs the kommodity-cluster helm chart with BYOT values.
+func InstallKommodityClusterChartByot(
+	t *testing.T,
+	env TestEnvironment,
+	releaseName string,
+	namespace string,
+	infra ByotInfra,
+) {
+	t.Helper()
+
+	installKommodityClusterChart(t, env, releaseName, namespace, infra)
+}
+
+// UpgradeKommodityClusterChartByot upgrades an existing BYOT release with new
+// infra overrides, re-creating any manually deleted machine resources.
+func UpgradeKommodityClusterChartByot(
+	t *testing.T,
+	env TestEnvironment,
+	releaseName string,
+	namespace string,
+	infra ByotInfra,
+) {
+	t.Helper()
+
+	repoRoot, err := FindRepoRoot()
+	require.NoError(t, err)
+
+	chartPath := filepath.Join(repoRoot, "charts", "kommodity-cluster")
+	valuesPath := filepath.Join(repoRoot, "charts", "kommodity-cluster", infra.ValuesFile())
+
+	cfg := new(action.Configuration)
+	restGetter := genericclioptions.NewConfigFlags(false)
+	apiServer := env.KommodityCfg.Host
+	restGetter.APIServer = &apiServer
+	restGetter.Namespace = &namespace
+
+	err = cfg.Init(restGetter, namespace, "secret", func(string, ...any) {})
+	require.NoError(t, err)
+
+	chart, err := loader.Load(chartPath)
+	require.NoError(t, err)
+
+	values, err := chartutil.ReadValuesFile(valuesPath)
+	require.NoError(t, err)
+
+	for key, value := range infra.Overrides() {
+		err := setNestedValue(values, key, value)
+		require.NoError(t, err)
+	}
+
+	upgrader := action.NewUpgrade(cfg)
+	upgrader.Namespace = namespace
+	upgrader.Wait = false
+
+	_, err = upgrader.Run(releaseName, chart, values)
+	require.NoError(t, err)
+}
+
 // UninstallKommodityClusterChart uninstalls the kommodity-cluster helm chart with the specified parameters.
 func UninstallKommodityClusterChart(t *testing.T, env TestEnvironment, releaseName string, namespace string) {
 	t.Helper()
