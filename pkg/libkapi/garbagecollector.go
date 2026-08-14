@@ -3,6 +3,7 @@ package libkapi
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -330,8 +331,10 @@ func newGCClients(restConfig *restclient.Config) (*gcClients, error) {
 
 // waitForWebhookServer blocks until a TLS handshake against addr succeeds,
 // polling every gcWebhookPollInterval, or returns ErrGarbageCollectorWebhookNotReady
-// once timeout elapses or ctx is cancelled, whichever comes first. It mirrors
-// webhook.DefaultServer's own StartedChecker dial
+// once timeout elapses or ctx is cancelled, whichever comes first - the
+// error message distinguishes the two cases so a cancelled parent ctx
+// (e.g. manager shutdown while still waiting) doesn't get logged as a
+// timeout. It mirrors webhook.DefaultServer's own StartedChecker dial
 // (sigs.k8s.io/controller-runtime/pkg/webhook, server.go): InsecureSkipVerify
 // is safe here because the goal is only to confirm the listener is accepting
 // TLS connections at all, never to validate or use the self-signed
@@ -370,8 +373,13 @@ func waitForWebhookServer(ctx context.Context, addr string, timeout time.Duratio
 
 		select {
 		case <-waitCtx.Done():
-			return fmt.Errorf("%w: timed out after %s dialing %s: %w",
-				ErrGarbageCollectorWebhookNotReady, timeout, addr, lastErr)
+			if errors.Is(waitCtx.Err(), context.DeadlineExceeded) {
+				return fmt.Errorf("%w: timed out after %s dialing %s: %w",
+					ErrGarbageCollectorWebhookNotReady, timeout, addr, lastErr)
+			}
+
+			return fmt.Errorf("%w: context canceled while dialing %s: %w",
+				ErrGarbageCollectorWebhookNotReady, addr, lastErr)
 		case <-ticker.C:
 		}
 	}

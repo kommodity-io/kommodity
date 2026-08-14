@@ -111,11 +111,14 @@ func TestWaitForWebhookServer_TimesOut(t *testing.T) {
 	err := waitForWebhookServer(context.Background(), addr, gcWebhookTestShortTimeout)
 
 	require.ErrorIs(t, err, ErrGarbageCollectorWebhookNotReady)
+	assert.Contains(t, err.Error(), "timed out", "a genuine timeout should be reported as one, not a cancellation")
 }
 
 // TestWaitForWebhookServer_RespectsContextCancellation verifies a cancelled
 // ctx stops waitForWebhookServer immediately rather than waiting out the
-// full timeout.
+// full timeout, and that the resulting error is worded as a cancellation
+// rather than a timeout (they're distinct failure modes: a cancelled parent
+// ctx during manager shutdown isn't "not ready in time").
 func TestWaitForWebhookServer_RespectsContextCancellation(t *testing.T) {
 	t.Parallel()
 
@@ -128,8 +131,11 @@ func TestWaitForWebhookServer_RespectsContextCancellation(t *testing.T) {
 	err := waitForWebhookServer(ctx, addr, gcWebhookTestTimeout)
 	elapsed := time.Since(start)
 
-	require.Error(t, err)
+	require.ErrorIs(t, err, ErrGarbageCollectorWebhookNotReady)
 	assert.Less(t, elapsed, gcWebhookTestTimeout, "expected ctx cancellation to short-circuit the wait")
+	assert.Contains(t, err.Error(), "context canceled")
+	assert.NotContains(t, err.Error(), "timed out",
+		"a cancelled parent ctx should not be reported as a timeout")
 }
 
 // TestResolvedWebhookAddr verifies resolvedWebhookAddr always binds to
