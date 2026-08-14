@@ -14,7 +14,7 @@ import (
 	"github.com/kommodity-io/kommodity/pkg/logging"
 	"go.uber.org/zap"
 	"golang.org/x/net/http2"
-	"golang.org/x/net/http2/h2c" //nolint:staticcheck // PLA-6517: stdlib replacement leaks
+	"golang.org/x/net/http2/h2c" //nolint:staticcheck // stdlib replacement leaks
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
@@ -157,10 +157,9 @@ func (s *server) ListenAndServe(ctx context.Context) error {
 	// proxied through httputil.ReverseProxy (orphaned handler goroutines on
 	// RST_STREAM), causing a ~30-50 MiB/hour OOM-after-~24h sawtooth on the
 	// Azure Container App (ingress transport = http2 -> prior-knowledge h2c).
-	// See PLA-6517. x/net's http2.Server does not exhibit the leak.
 	s.httpServer = &http.Server{
 		Addr:              ":" + strconv.Itoa(s.Port),
-		Handler:           h2c.NewHandler(mixedHandler, &http2.Server{}), //nolint:staticcheck // PLA-6517
+		Handler:           h2c.NewHandler(mixedHandler, &http2.Server{}), //nolint:staticcheck
 		ReadHeaderTimeout: 1 * time.Second,
 	}
 
