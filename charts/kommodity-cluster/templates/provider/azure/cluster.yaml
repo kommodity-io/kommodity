@@ -49,6 +49,8 @@ spec:
   {{- $isPublic := dig "ipv4" "public" false .Values.kommodity.network }}
   {{- $hasVnet := dig "ipv4" "vnet" "" .Values.kommodity.network }}
   {{- $hasSubnet := dig "ipv4" "subnet" "" .Values.kommodity.network }}
+  {{- $cpSubnetCIDR := dig "ipv4" "controlplaneSubnet" "cidrBlock" "10.0.0.0/16" .Values.kommodity.network }}
+  {{- $nodeSubnetCIDR := dig "ipv4" "nodeSubnet" "cidrBlock" "10.1.0.0/16" .Values.kommodity.network }}
   networkSpec:
     {{- /*
       Talos API (port 50000) is deliberately NOT exposed on the apiServerLB.
@@ -132,13 +134,13 @@ spec:
       - name: {{ printf "%s-controlplane-subnet" .Release.Name }}
         role: control-plane
         cidrBlocks:
-          - 10.0.0.0/16
+          - {{ $cpSubnetCIDR }}
         securityGroup:
           name: {{ printf "%s-controlplane-nsg" .Release.Name }}
       - name: {{ printf "%s-node-subnet" .Release.Name }}
         role: node
         cidrBlocks:
-          - 10.1.0.0/16
+          - {{ $nodeSubnetCIDR }}
         securityGroup:
           name: {{ printf "%s-node-nsg" .Release.Name }}
         routeTable:
@@ -163,7 +165,7 @@ spec:
       - name: {{ printf "%s-controlplane-subnet" .Release.Name }}
         role: control-plane
         cidrBlocks:
-          - 10.0.0.0/16
+          - {{ $cpSubnetCIDR }}
         securityGroup:
           name: {{ printf "%s-controlplane-nsg" .Release.Name }}
           {{- /*
@@ -203,7 +205,7 @@ spec:
       - name: {{ printf "%s-node-subnet" .Release.Name }}
         role: node
         cidrBlocks:
-          - 10.1.0.0/16
+          - {{ $nodeSubnetCIDR }}
         securityGroup:
           name: {{ printf "%s-node-nsg" .Release.Name }}
         routeTable:
