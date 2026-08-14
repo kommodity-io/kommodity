@@ -13,6 +13,17 @@ kommodity:
       public: true # Machines are identified by public IP by definition.
 
   controlplane:
+    # MachineHealthCheck: detect unhealthy/missing control-plane machines
+    # (e.g. a deleted VM whose Node goes NotReady) so CAPI can remediate.
+    healthCheck:
+      enabled: true
+      unhealthyConditions:
+        - type: Ready
+          status: Unknown
+          timeout: 300s
+        - type: Ready
+          status: "False"
+          timeout: 300s
     # Optional lifecycle policy defaults for control plane static machines
     # (None|Reset, default None; static machine entries take precedence):
     #   joinPolicy: Reset  # wipe each machine before adopting it
@@ -47,6 +58,17 @@ kommodity:
 
   nodepools:
     default:
+      # MachineHealthCheck for static worker machines: detect unhealthy/missing
+      # workers (e.g. a deleted VM whose Node goes NotReady).
+      healthCheck:
+        enabled: true
+        unhealthyConditions:
+          - type: Ready
+            status: Unknown
+            timeout: 300s
+          - type: Ready
+            status: "False"
+            timeout: 300s
       staticMachines:
         worker-0:
           publicIP: 203.0.113.20

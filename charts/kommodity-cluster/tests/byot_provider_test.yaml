@@ -275,3 +275,39 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: "kommodity.nodepools.default.staticMachines.worker-0 requires publicIP"
+
+  - it: should render a control-plane MachineHealthCheck selecting the control-plane machines
+    template: templates/provider/capi/machinehealthcheck.yaml
+    documentSelector:
+      path: metadata.name
+      value: test-cluster-controlplane
+    asserts:
+      - isKind:
+          of: MachineHealthCheck
+      - equal:
+          path: spec.selector.matchLabels["cluster.x-k8s.io/control-plane"]
+          value: ""
+
+  - it: should render a worker MachineHealthCheck selecting by nodepool label
+    template: templates/provider/capi/machinehealthcheck.yaml
+    documentSelector:
+      path: metadata.name
+      value: test-cluster-worker-default
+    asserts:
+      - isKind:
+          of: MachineHealthCheck
+      - equal:
+          path: spec.selector.matchLabels["kommodity.io/nodepool"]
+          value: default
+      - equal:
+          path: spec.selector.matchLabels["cluster.x-k8s.io/cluster-name"]
+          value: test-cluster
+
+  - it: should label the worker Machine with its nodepool for health-check selection
+    template: templates/provider/byot/machines.yaml
+    documentSelector:
+      path: spec.publicIP
+      value: 203.0.113.20
+    asserts:
+      - isKind:
+          of: ByotMachine
