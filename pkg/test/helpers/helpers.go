@@ -20,7 +20,7 @@ import (
 
 const (
 	postgresDefaultPort = "5432"
-	startupTimeout      = 10 * time.Second
+	startupTimeout      = 60 * time.Second
 	pollInterval        = 5 * time.Second
 	writeTimeout        = 15 * time.Second
 	filePermission      = 0o600
@@ -129,7 +129,7 @@ func startKommodityContainer(ctx context.Context, networkName string) (tc.Contai
 				"KOMMODITY_DB_URI": "postgres://kommodity:kommodity@postgres:" +
 					postgresDefaultPort + "/kommodity?sslmode=disable",
 				"KOMMODITY_INSECURE_DISABLE_AUTHENTICATION": "true",
-				"KOMMODITY_INFRASTRUCTURE_PROVIDERS":        "kubevirt,scaleway",
+				"KOMMODITY_INFRASTRUCTURE_PROVIDERS":        "kubevirt,scaleway,byot",
 				"KOMMODITY_KINE_URI":                        "unix:///tmp/kine.sock",
 			},
 			WaitingFor: wait.ForHTTP("/readyz").WithPort("5000/tcp").WithStartupTimeout(startupTimeout),
@@ -185,9 +185,17 @@ func FindRepoRoot() (string, error) {
 func (e TestEnvironment) Teardown() {
 	ctx := context.Background()
 
-	_ = e.Postgres.Terminate(ctx)
-	_ = e.Kommodity.Terminate(ctx)
-	_ = e.Network.Remove(ctx)
+	if e.Postgres != nil {
+		_ = e.Postgres.Terminate(ctx)
+	}
+
+	if e.Kommodity != nil {
+		_ = e.Kommodity.Terminate(ctx)
+	}
+
+	if e.Network != nil {
+		_ = e.Network.Remove(ctx)
+	}
 }
 
 // WriteKommodityLogsToFile retrieves the logs from the Kommodity container and writes them to the specified file.

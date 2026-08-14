@@ -149,6 +149,10 @@ run-scaleway-integration-test: ## Runs Scaleway integration tests (requires Dock
 run-kubevirt-integration-test: ## Runs KubeVirt integration tests (requires Docker and kubectl)
 	cd pkg/test && go test -run TestCreateKubevirtCluster -v -timeout 15m
 
+.PHONY: run-byot-integration-test
+run-byot-integration-test: ## Runs BYOT integration tests (requires Docker)
+	cd pkg/test && go test -run 'TestByotCluster' -v -timeout 60m -parallel 2
+
 .PHONY: run-helm-unit-tests
 run-helm-unit-tests:
 	helm unittest charts/*
