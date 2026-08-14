@@ -258,6 +258,7 @@ metadata:
   labels:
     app.kubernetes.io/managed-by: kommodity
     cluster.x-k8s.io/cluster-name: {{ $.Release.Name }}
+    kommodity.io/nodepool: {{ $poolName }}
   annotations:
     helm.sh/resource-policy: keep
 spec:
