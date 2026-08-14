@@ -280,6 +280,49 @@ tests:
           path: spec.networkSpec.subnets[0].cidrBlocks[0]
           value: "10.0.1.0/24"
 
+  - it: should use default subnet CIDRs when not overridden (private mode)
+    template: templates/provider/azure/cluster.yaml
+    asserts:
+      - equal:
+          path: spec.networkSpec.subnets[0].cidrBlocks[0]
+          value: 10.0.0.0/16
+        documentIndex: 0
+      - equal:
+          path: spec.networkSpec.subnets[1].cidrBlocks[0]
+          value: 10.1.0.0/16
+        documentIndex: 0
+
+  - it: should use custom subnet CIDRs when overridden (private mode)
+    template: templates/provider/azure/cluster.yaml
+    set:
+      kommodity.network.ipv4.controlplaneSubnet.cidrBlock: 10.200.48.0/24
+      kommodity.network.ipv4.nodeSubnet.cidrBlock: 10.200.49.0/24
+    asserts:
+      - equal:
+          path: spec.networkSpec.subnets[0].cidrBlocks[0]
+          value: 10.200.48.0/24
+        documentIndex: 0
+      - equal:
+          path: spec.networkSpec.subnets[1].cidrBlocks[0]
+          value: 10.200.49.0/24
+        documentIndex: 0
+
+  - it: should use custom subnet CIDRs when overridden (public mode)
+    template: templates/provider/azure/cluster.yaml
+    set:
+      kommodity.network.ipv4.public: true
+      kommodity.network.ipv4.controlplaneSubnet.cidrBlock: 10.200.48.0/24
+      kommodity.network.ipv4.nodeSubnet.cidrBlock: 10.200.49.0/24
+    asserts:
+      - equal:
+          path: spec.networkSpec.subnets[0].cidrBlocks[0]
+          value: 10.200.48.0/24
+        documentIndex: 0
+      - equal:
+          path: spec.networkSpec.subnets[1].cidrBlocks[0]
+          value: 10.200.49.0/24
+        documentIndex: 0
+
   - it: should not render for non-Azure providers
     set:
       kommodity.provider.name: Scaleway

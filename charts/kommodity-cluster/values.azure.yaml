@@ -156,9 +156,9 @@ kommodity:
       public: false
       # nodeCIDR is ALWAYS required on Azure: node VMs are private in both modes,
       # so the talos-cluster-proxy needs this range to identify which node IPs to
-      # route through the tunnel. It must cover the control-plane (10.0.0.0/16)
-      # and node (10.1.0.0/16) subnets the chart creates, hence the VNet supernet.
-      # Azure VNets support CIDR ranges between /8 and /29.
+      # route through the tunnel. It must cover the control-plane and node subnets
+      # the chart creates (see controlplaneSubnet / nodeSubnet below), hence the
+      # VNet supernet. Azure VNets support CIDR ranges between /8 and /29.
       nodeCIDR: 10.0.0.0/8
       # VNet — by DEFAULT you omit the `vnet:` block entirely (as here) and CAPZ
       # auto-creates `<release>-vnet` (10.0.0.0/8) in the cluster's resource group,
@@ -174,11 +174,24 @@ kommodity:
       # vnet:
       #   name: my-existing-vnet
       #   resourceGroup: my-vnet-resource-group
+      #   cidrBlocks:
+      #     - 10.200.48.0/20
       # subnet:
       #   # Optional: Override the single-subnet path (for BYO-subnet scenarios).
       #   # When omitted, the chart creates a controlplane and a node subnet.
       #   name: my-subnet
       #   cidrBlock: 10.200.0.0/24
+      #
+      # Subnet CIDRs — by DEFAULT the chart uses 10.0.0.0/16 (controlplane) and
+      # 10.1.0.0/16 (node), matching the VNet default of 10.0.0.0/8. Override
+      # these when the defaults overlap other clusters' node CIDRs (the
+      # talos-cluster-proxy CIDR registry rejects overlapping ranges), or when
+      # you need a smaller VNet (e.g. /20 instead of /8). The controlplane and
+      # node subnets must both fit within the VNet CIDR.
+      # controlplaneSubnet:
+      #   cidrBlock: 10.200.48.0/24
+      # nodeSubnet:
+      #   cidrBlock: 10.200.49.0/24
 
   controlplane:
     replicas: 1
