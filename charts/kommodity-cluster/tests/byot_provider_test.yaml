@@ -348,3 +348,12 @@ tests:
       - equal:
           path: metadata.annotations["helm.sh/resource-policy"]
           value: keep
+
+  - it: should keep the CAPI Cluster from helm deletion so CAPI drains static Machines first
+    template: templates/provider/capi/cluster.yaml
+    asserts:
+      - isKind:
+          of: Cluster
+      - equal:
+          path: metadata.annotations["helm.sh/resource-policy"]
+          value: keep

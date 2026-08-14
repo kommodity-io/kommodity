@@ -21,6 +21,10 @@ metadata:
   labels:
     app.kubernetes.io/managed-by: kommodity
     cluster.x-k8s.io/cluster-name: {{ .Release.Name }}
+  {{- if eq .Values.kommodity.provider.name "Byot" }}
+  annotations:
+    helm.sh/resource-policy: keep # Prevent Helm from deleting the Cluster before CAPI drains its static Machines; CAPI removes the object once all Machines are gone.
+  {{- end }}
   {{- $annotations := dict }}
   {{- if and .Values.kommodity.network.ipv4.enabled $nodesPrivate .Values.kommodity.network.ipv4.nodeCIDR }}
   {{- $_ := set $annotations "kommodity.io/node-cidr" .Values.kommodity.network.ipv4.nodeCIDR }}
