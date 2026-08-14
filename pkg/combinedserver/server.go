@@ -13,6 +13,8 @@ import (
 
 	"github.com/kommodity-io/kommodity/pkg/logging"
 	"go.uber.org/zap"
+	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/h2c" //nolint:staticcheck // PLA-6517: stdlib replacement leaks
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
@@ -148,18 +150,18 @@ func (s *server) ListenAndServe(ctx context.Context) error {
 		}
 	})
 
-	// Create HTTP server with unencrypted HTTP/2 (h2c) support via the
-	// Protocols field (replaces the deprecated golang.org/x/net/http2/h2c).
-	protocols := &http.Protocols{}
-	protocols.SetHTTP1(true)
-	protocols.SetHTTP2(true)
-	protocols.SetUnencryptedHTTP2(true)
-
+	// Create HTTP server with h2c support for HTTP/2 without TLS.
+	// NOTE: we intentionally use golang.org/x/net/http2/h2c instead of the
+	// stdlib http.Server.Protocols.SetUnencryptedHTTP2 path. The stdlib
+	// bundled http2 server leaks memory on long-lived HTTP/2 watch streams
+	// proxied through httputil.ReverseProxy (orphaned handler goroutines on
+	// RST_STREAM), causing a ~30-50 MiB/hour OOM-after-~24h sawtooth on the
+	// Azure Container App (ingress transport = http2 -> prior-knowledge h2c).
+	// See PLA-6517. x/net's http2.Server does not exhibit the leak.
 	s.httpServer = &http.Server{
 		Addr:              ":" + strconv.Itoa(s.Port),
-		Handler:           mixedHandler,
+		Handler:           h2c.NewHandler(mixedHandler, &http2.Server{}), //nolint:staticcheck // PLA-6517
 		ReadHeaderTimeout: 1 * time.Second,
-		Protocols:         protocols,
 	}
 
 	logger.Info("Starting combined HTTP/gRPC server", zap.Int("port", s.Port))
