@@ -223,6 +223,37 @@ Any values that should trigger a new Machine template when changed should be add
 {{- end -}}
 
 {{/*
+Compute sha256sum of a BYOT static machine's TalosConfig spec.
+Byot renders one TalosConfig per static machine (not a Template), and
+TalosConfig.spec is immutable: any change that should redeploy the config
+must produce a new TalosConfig name. Hash the exact inputs that shape the
+rendered spec (generateType, resolved talosVersion, the merged strategic
+patch, the always-injected kubelet provider-id patch derived from publicIP,
+per-machine strategic patches, KMS, instance volumes and security), so a
+Talos version bump or patch change creates a new TalosConfig and updates the
+owning Machine's bootstrap.configRef to it.
+*/}}
+{{- define "kommodity-cluster.byotTalosConfigHash" -}}
+{{- $data := dict -}}
+{{- $_ := set $data "generateType" .generateType -}}
+{{- $_ := set $data "talosVersion" .talosVersion -}}
+{{- $_ := set $data "mergedPatch" .mergedPatch -}}
+{{- $_ := set $data "publicIP" .publicIP -}}
+{{- with .machineStrategicPatches -}}
+{{- $_ := set $data "machineStrategicPatches" . -}}
+{{- end -}}
+{{- $_ := set $data "kmsEnabled" .kmsEnabled -}}
+{{- with .kmsEndpoint -}}
+{{- $_ := set $data "kmsEndpoint" . -}}
+{{- end -}}
+{{- with .instanceVolumes -}}
+{{- $_ := set $data "instanceVolumes" . -}}
+{{- end -}}
+{{- $_ := set $data "securityEnabled" .securityEnabled -}}
+{{- toJson $data | sha256sum | trunc 6 -}}
+{{- end -}}
+
+{{/*
 Build a merged strategic patch from all configuration sources.
 Returns a YAML block scalar list item (- |\n  <yaml>) representing a single MachineConfig strategic patch.
 Returns empty string if there are no patches to apply.
