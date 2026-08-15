@@ -246,11 +246,18 @@ kommodity:
       #   # Azure template maps `size` (GB) to the CAPZ `diskSizeGB` field.
       #   # Azure-specific extras: nameSuffix (required by CAPZ), lun,
       #   # storageClassName (defaults to Premium_LRS), cachingType (optional).
+      #   # nameSuffix also doubles as the Talos volume name — when set, a
+      #   # UserVolumeConfig is emitted so Talos formats (xfs) and mounts
+      #   # the disk at /var/mnt/<nameSuffix>. Without nameSuffix, no Talos
+      #   # volume config is generated (disk is attached but unmanaged).
+      #   # Optional diskSelector overrides the auto-generated size-based
+      #   # CEL selector (useful to avoid matching Azure temp disks).
       #   - nameSuffix: data
       #     size: 100
       #     lun: 0
       #     storageClassName: Premium_LRS
       #     cachingType: ReadWrite
+      #     # diskSelector: "disk.serial.startsWith('deadbeef')"
       # instanceVolumes:
       #   # Instance-local disks that exist on the VM at boot (not provisioned via
       #   # the Azure API). E.g. the temp disk on Azure VMs (/dev/sdb on many

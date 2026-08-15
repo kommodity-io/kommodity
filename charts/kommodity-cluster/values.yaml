@@ -308,6 +308,14 @@ kommodity:
     #     status: "False"
     #     timeout: 300s
 
+    #   # Optional: additional data disks. When nameSuffix is set, a Talos
+    #   # UserVolumeConfig is emitted so Talos formats (xfs) and mounts
+    #   # at /var/mnt/<nameSuffix>. Optional diskSelector overrides the
+    #   # auto-generated size-based CEL selector.
+    #   additionalVolumes:
+    #     - nameSuffix: data
+    #       size: 100
+
     # instanceVolumes:
     #   # Instance-local disks that exist on the VM at boot (not provisioned via
     #   # the cloud provider's volume API). E.g. the Scaleway H100 scratch NVMe
@@ -371,6 +379,14 @@ kommodity:
     #     - type: Ready
     #       status: "False"
     #       timeout: 300s
+
+    #   # Optional: additional data disks. When nameSuffix is set, a Talos
+    #   # UserVolumeConfig is emitted so Talos formats (xfs) and mounts
+    #   # at /var/mnt/<nameSuffix>. Optional diskSelector overrides the
+    #   # auto-generated size-based CEL selector.
+    #   additionalVolumes:
+    #     - nameSuffix: data
+    #       size: 100
 
     #   # Instance-local disks (see kommodity.controlplane.instanceVolumes above)
     #   instanceVolumes:

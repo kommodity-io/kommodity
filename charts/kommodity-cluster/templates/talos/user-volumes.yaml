@@ -1,0 +1,56 @@
+{{/*
+Talos UserVolumeConfig documents for additionalVolumes entries.
+
+additionalVolumes provisions cloud-provider data disks (Azure dataDisks,
+Scaleway additionalVolumes) AND emits matching Talos UserVolumeConfig
+documents so Talos partitions, formats (xfs), and mounts them at
+/var/mnt/<nameSuffix>. Without this, Azure data disks arrive with a vfat
+filesystem that Talos rejects with "filesystem type mismatch: vfat != xfs".
+
+Entries without a nameSuffix are skipped (no UserVolumeConfig generated).
+On Azure, nameSuffix is already required by the AzureMachineTemplate.
+On Scaleway, nameSuffix is optional — set it to get Talos-side provisioning.
+
+An optional diskSelector field overrides the auto-generated size-based
+CEL selector. Use this when the default selector (size-based) is too
+imprecise (e.g., multiple data disks of similar size, or a local temp
+disk that matches the size threshold).
+
+See:
+  - UserVolumeConfig: https://docs.siderolabs.com/talos/v1.13/reference/configuration/block/uservolumeconfig
+  - Disk management:  https://docs.siderolabs.com/talos/v1.13/configure-your-talos-cluster/storage-and-disk-management/disk-management/common
+
+Usage: {{ include "kommodity.talos.additionalVolumes" (dict "additionalVolumes" .additionalVolumes "kmsEndpoint" .kmsEndpoint) }}
+Returns empty string when additionalVolumes is not set or no entries have nameSuffix.
+*/}}
+{{- define "kommodity.talos.additionalVolumes" -}}
+{{- $volumes := .additionalVolumes -}}
+{{- $kmsEndpoint := .kmsEndpoint -}}
+{{- if $volumes -}}
+{{- range $vol := $volumes }}
+{{- if $vol.nameSuffix }}
+{{- $name := $vol.nameSuffix -}}
+{{- $selector := $vol.diskSelector -}}
+{{- if not $selector }}
+{{- $selector = printf "system_disk == false && disk.size > %vu * GB" (sub $vol.size 1) -}}
+{{- end }}
+- |
+  apiVersion: v1alpha1
+  kind: UserVolumeConfig
+  name: {{ $name }}
+  volumeType: disk
+  provisioning:
+    diskSelector:
+      match: {{ $selector | quote }}
+{{- if $kmsEndpoint }}
+  encryption:
+    provider: luks2
+    keys:
+      - slot: 0
+        kms:
+          endpoint: {{ $kmsEndpoint | quote }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
