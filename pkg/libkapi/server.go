@@ -585,7 +585,11 @@ func buildDelegationChain(
 	// runServerFactories can mount it before PrepareRun runs. ListenAndServe
 	// calls PrepareRun exactly once before NonBlockingRunWithContext.
 	grpcServer, handler, err := runServerFactories(
-		cfg.serverFactories, genericServerConfig.LoopbackClientConfig, aggregatorServer.GenericAPIServer.Handler)
+		cfg.serverFactories,
+		genericServerConfig.LoopbackClientConfig,
+		storageEndpoints,
+		aggregatorServer.GenericAPIServer.Handler,
+	)
 	if err != nil {
 		return nil, nil, nil, err
 	}
