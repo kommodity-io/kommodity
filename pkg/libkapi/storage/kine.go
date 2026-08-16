@@ -89,6 +89,16 @@ func startKine(ctx context.Context,
 		}
 	}()
 
+	// endpoint.Listen can panic instead of returning an error - see
+	// ErrKineStartPanicked - if the database stays unreachable for its
+	// entire internal retry window. Recover so a prolonged outage surfaces
+	// as a normal error instead of crashing the process.
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			rerr = fmt.Errorf("%w: %v", ErrKineStartPanicked, recovered)
+		}
+	}()
+
 	listenAddr := "unix://" + filepath.Join(tmpDir, kineSocketFileName)
 
 	etcdConfig, err := endpoint.Listen(ctx, endpoint.Config{
