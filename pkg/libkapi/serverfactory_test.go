@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	clientv3 "go.etcd.io/etcd/client/v3"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/health/grpc_health_v1"
@@ -18,8 +19,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// serverFactoryTestShutdownTimeout bounds the server shutdown run from t.Cleanup.
-const serverFactoryTestShutdownTimeout = 10 * time.Second
+const (
+	// serverFactoryTestShutdownTimeout bounds the server shutdown run from t.Cleanup.
+	serverFactoryTestShutdownTimeout = 10 * time.Second
+	// serverFactoryTestStorageTimeout bounds dialing, and probing, the endpoint
+	// captured from Ctx.StorageEndpoints.
+	serverFactoryTestStorageTimeout = 5 * time.Second
+)
 
 // loopbackHealthServer implements grpc_health_v1.HealthServer, reporting
 // SERVING only if kubeClient (built from Ctx.LoopbackConfig by the
@@ -114,6 +120,52 @@ func TestServerEndToEnd_WithServerFactory(t *testing.T) {
 	resp, err := client.Check(callCtx, &grpc_health_v1.HealthCheckRequest{})
 	require.NoError(t, err)
 	require.Equal(t, grpc_health_v1.HealthCheckResponse_SERVING, resp.GetStatus())
+}
+
+// TestServerEndToEnd_CtxStorageEndpoints verifies that Ctx.StorageEndpoints
+// hands a ServerFactory real, dialable etcd3 endpoints for the server's own
+// storage backend - here, the private endpoint of the in-process Kine gRPC
+// server libkapi spawned for the sqlite:// DSN - not just a non-empty
+// slice.
+func TestServerEndToEnd_CtxStorageEndpoints(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	addr := libkapi.FreeAddr(t)
+	dbPath := filepath.Join(t.TempDir(), "libkapi-serverfactory-storage-endpoints.db")
+
+	var capturedEndpoints []string
+
+	// The server is never started: factories run - and storage is resolved,
+	// spawning Kine - during New, and canceling ctx tears that endpoint back
+	// down, so there is nothing here for ListenAndServe/Shutdown to do.
+	_, err := libkapi.New(ctx,
+		libkapi.WithAddr(addr),
+		libkapi.WithStorage("sqlite://"+dbPath),
+		libkapi.WithServerFactory(func(factoryCtx *libkapi.Ctx) error {
+			capturedEndpoints = factoryCtx.StorageEndpoints()
+
+			return nil
+		}),
+	)
+	require.NoError(t, err)
+	require.NotEmpty(t, capturedEndpoints, "expected at least one storage endpoint")
+
+	client, err := clientv3.New(clientv3.Config{
+		Endpoints:   capturedEndpoints,
+		DialTimeout: serverFactoryTestStorageTimeout,
+		DialOptions: []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = client.Close() })
+
+	getCtx, getCancel := context.WithTimeout(ctx, serverFactoryTestStorageTimeout)
+	defer getCancel()
+
+	_, err = client.Get(getCtx, "libkapi-storage-endpoints-probe")
+	require.NoError(t, err, "expected StorageEndpoints to be a live, dialable etcd3 endpoint")
 }
 
 // TestNew_ServerFactoryError verifies that an error returned by a

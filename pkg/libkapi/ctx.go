@@ -2,6 +2,7 @@ package libkapi
 
 import (
 	"net/http"
+	"slices"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
@@ -9,14 +10,16 @@ import (
 )
 
 // Ctx exposes the resources available to a ServerFactory: the server's
-// shared HTTP mux, its privileged loopback identity, and - via GRPCServer -
-// a lazily built gRPC server. New accessors can be added here over time
-// without changing ServerFactory's signature, so extending what a factory
-// can reach is never a breaking change.
+// shared HTTP mux, its privileged loopback identity, its storage backend's
+// etcd3-compatible endpoints, and - via GRPCServer - a lazily built gRPC
+// server. New accessors can be added here over time without changing
+// ServerFactory's signature, so extending what a factory can reach is never
+// a breaking change.
 type Ctx struct {
-	mux            *http.ServeMux
-	loopbackConfig *restclient.Config
-	grpcServer     *grpc.Server
+	mux              *http.ServeMux
+	loopbackConfig   *restclient.Config
+	grpcServer       *grpc.Server
+	storageEndpoints []string
 }
 
 // HTTPMux returns the server's shared HTTP mux, for mounting additional
@@ -37,6 +40,17 @@ func (c *Ctx) HTTPMux() *http.ServeMux {
 // server's loopback identity - the same reasoning as configForGC's own copy.
 func (c *Ctx) LoopbackConfig() *restclient.Config {
 	return restclient.CopyConfig(c.loopbackConfig)
+}
+
+// StorageEndpoints returns the etcd3-compatible endpoints backing the
+// server's storage - the same ones RESTOptionsGetters dial. For a Kine DSN
+// scheme (postgres/mysql/sqlite/nats), this is the private endpoint of the
+// in-process Kine gRPC server libkapi spawned; for etcd:// or unix://, the
+// endpoint given to WithStorage directly. A clone, rather than the shared
+// slice itself, is returned so a factory can't mutate the server's own
+// endpoints - the same reasoning as LoopbackConfig's own copy.
+func (c *Ctx) StorageEndpoints() []string {
+	return slices.Clone(c.storageEndpoints)
 }
 
 // GRPCServer returns the server's gRPC server, building it (and
