@@ -1,6 +1,6 @@
 {{- define "kommodity.addon.installer" -}}
 {{- $addonFullName := printf "%s-%s" .name (.addon.chart.version | replace "." "-") -}}
-{{- $valuesHash := include "kommodity.addon.valuesHash" .addon -}}
+{{- $valuesHash := include "kommodity.addon.valuesHash" (dict "initialExtraValues" .addon.initialExtraValues "releaseRevision" .releaseRevision) -}}
 {{- $jobName := printf "%s-install%s" $addonFullName (ternary (printf "-%s" $valuesHash) "" (ne $valuesHash "")) -}}
 {{- $addonNamespace := default .name .addon.namespace -}}
 ---

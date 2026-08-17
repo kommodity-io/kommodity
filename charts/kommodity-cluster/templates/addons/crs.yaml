@@ -31,7 +31,7 @@ stringData:
 {{ $contents | indent 4 }}
   {{- end }}
   installer.yaml: |
-{{ include "kommodity.addon.installer" (dict "name" $name "addon" $addon) | indent 4 }}
+{{ include "kommodity.addon.installer" (dict "name" $name "addon" $addon "releaseRevision" $.Release.Revision) | indent 4 }}
 {{- end }}
 {{- end }}
 {{- range $name := $addonNames -}}
