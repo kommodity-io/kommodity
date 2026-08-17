@@ -2,6 +2,7 @@ package libkapi_test
 
 import (
 	"context"
+	"net"
 	"path/filepath"
 	"testing"
 	"time"
@@ -48,12 +49,39 @@ func TestServerEndToEnd_WithGarbageCollector(t *testing.T) {
 
 	kubeClient := startGCTestServer(t)
 
-	owner := createGCConfigMap(t, kubeClient, "gc-owner", nil)
+	assertOwnerDeletionCascades(t, kubeClient, "gc-owner", "gc-dependent")
+}
+
+// TestServerEndToEnd_WithGarbageCollector_AndWebhookServer verifies that
+// WithGarbageCollector and WithWebhookServer can be combined without the
+// garbage collector's startup racing the webhook server's TLS listener (see
+// waitForWebhookServer's doc in garbagecollector.go, and
+// TestWaitForWebhookServer_BlocksUntilDialable for the isolated ordering
+// proof): the server must start and become healthy, the registered webhook
+// handler must be reachable, and the collector must still delete a
+// dependent whose owner is removed - end-to-end evidence the readiness wait
+// doesn't deadlock or break either feature.
+func TestServerEndToEnd_WithGarbageCollector_AndWebhookServer(t *testing.T) {
+	t.Parallel()
+
+	kubeClient := startGCWebhookTestServer(t)
+
+	assertOwnerDeletionCascades(t, kubeClient, "gc-webhook-owner", "gc-webhook-dependent")
+}
+
+// assertOwnerDeletionCascades creates ownerName and dependentName as
+// ConfigMaps with a controller ownerReference from dependent to owner,
+// deletes owner, and asserts the embedded garbage collector eventually
+// deletes dependent too.
+func assertOwnerDeletionCascades(t *testing.T, kubeClient kubernetes.Interface, ownerName, dependentName string) {
+	t.Helper()
+
+	owner := createGCConfigMap(t, kubeClient, ownerName, nil)
 
 	isController := true
 	blockOwnerDeletion := true
 
-	dependent := createGCConfigMap(t, kubeClient, "gc-dependent", []metav1.OwnerReference{{
+	dependent := createGCConfigMap(t, kubeClient, dependentName, []metav1.OwnerReference{{
 		APIVersion:         "v1",
 		Kind:               "ConfigMap",
 		Name:               owner.Name,
@@ -77,6 +105,59 @@ func TestServerEndToEnd_WithGarbageCollector(t *testing.T) {
 		return apierrors.IsNotFound(getErr)
 	}, gcTestCollectionTimeout, gcTestPollInterval,
 		"expected the garbage collector to delete the dependent ConfigMap once its owner was deleted")
+}
+
+// startGCWebhookTestServer builds and starts a libkapi Server with both
+// WithGarbageCollector and WithWebhookServer enabled, waits for the server
+// to become healthy and the webhook handler to become reachable, and
+// returns a typed client talking to it. The server is shut down via
+// t.Cleanup.
+func startGCWebhookTestServer(t *testing.T) kubernetes.Interface {
+	t.Helper()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	addr := libkapi.FreeAddr(t)
+	dbPath := filepath.Join(t.TempDir(), "libkapi-gc-webhook.db")
+
+	_, webhookPortStr, err := net.SplitHostPort(libkapi.FreeAddr(t))
+	require.NoError(t, err)
+
+	server, err := libkapi.New(ctx,
+		libkapi.WithAddr(addr),
+		libkapi.WithStorage("sqlite://"+dbPath),
+		libkapi.WithController(webhookTestController{}),
+		libkapi.WithWebhookServer(libkapi.WebhookConfig{
+			Port: mustAtoi(t, webhookPortStr),
+		}),
+		libkapi.WithGarbageCollector(libkapi.GarbageCollectorConfig{
+			SyncPeriod: gcTestSyncPeriod,
+		}),
+	)
+	require.NoError(t, err)
+
+	go func() {
+		_ = server.ListenAndServe(ctx)
+	}()
+
+	t.Cleanup(func() {
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), gcTestShutdownTimeout)
+		defer shutdownCancel()
+
+		_ = server.Shutdown(shutdownCtx)
+	})
+
+	baseURL := "http://" + addr
+	libkapi.WaitForHealthz(t, baseURL+"/healthz")
+
+	webhookURL := "https://" + net.JoinHostPort("localhost", webhookPortStr) + "/validate"
+	waitForWebhook(t, webhookURL)
+
+	kubeClient, err := kubernetes.NewForConfig(&restclient.Config{Host: baseURL})
+	require.NoError(t, err)
+
+	return kubeClient
 }
 
 // startGCTestServer builds and starts a libkapi Server with
