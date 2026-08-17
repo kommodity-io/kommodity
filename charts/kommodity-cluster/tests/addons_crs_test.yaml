@@ -162,6 +162,21 @@ tests:
           path: stringData["installer.yaml"]
           pattern: 'app.kubernetes.io/app: cilium-1-18-4-install'
 
+  - it: should include the release revision in the installer Job name so CRS re-applies on re-adopt
+    template: templates/addons/crs.yaml
+    set:
+      kommodity.addons.talos-cluster-proxy.enabled: false
+    documentSelector:
+      path: metadata.name
+      value: test-cluster-cilium-manifests
+    asserts:
+      - matchRegex:
+          path: stringData["installer.yaml"]
+          pattern: 'name: cilium-1-18-4-install-[a-f0-9]{8}'
+      - matchRegex:
+          path: stringData["installer.yaml"]
+          pattern: 'app.kubernetes.io/app: cilium-1-18-4-install-[a-f0-9]{8}'
+
   - it: should embed the installer image in the Job manifest
     template: templates/addons/crs.yaml
     set:
