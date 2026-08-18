@@ -28,7 +28,9 @@ const (
 	byotDeleteTimeout         = 5 * time.Minute
 	byotConditionTimeout      = 5 * time.Minute
 	byotJoinPolicyReset       = "Reset"
+	byotJoinPolicyNone       = "None"
 	byotSplitPolicyReset      = "Reset"
+	byotSplitPolicyNone       = "None"
 	byotNodePollInterval      = 5 * time.Second
 )
 
@@ -60,7 +62,10 @@ func TestByotClusterSplitNoneRoundTrip(t *testing.T) {
 	t.Parallel()
 
 	clusterName := "byot-roundtrip"
-	nodes := startFreshByotCluster(t, clusterName, helpers.ByotInfra{})
+	nodes := startFreshByotCluster(t, clusterName, helpers.ByotInfra{
+		SplitPolicy:       byotSplitPolicyNone,
+		WorkerSplitPolicy: byotSplitPolicyNone,
+	})
 
 	defer helpers.TerminateTalosNodes(t, nodes.CP, nodes.Worker)
 
@@ -100,7 +105,10 @@ func TestByotClusterJoinBlockedThenResetRescue(t *testing.T) {
 	defer helpers.DumpByotMachines(ctx, env, byotNamespace)
 
 	clusterA := "byot-victim"
-	victim := startFreshByotCluster(t, clusterA, helpers.ByotInfra{})
+	victim := startFreshByotCluster(t, clusterA, helpers.ByotInfra{
+		SplitPolicy:       byotSplitPolicyNone,
+		WorkerSplitPolicy: byotSplitPolicyNone,
+	})
 
 	defer helpers.TerminateTalosNodes(t, victim.CP, victim.Worker)
 
