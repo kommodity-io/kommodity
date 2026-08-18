@@ -36,6 +36,9 @@ spec:
     {{- else if eq $.Values.kommodity.provider.name "Azure" }}
     apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
     kind: AzureMachineTemplate
+    {{- else if eq $.Values.kommodity.provider.name "Hetzner" }}
+    apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+    kind: HCloudMachineTemplate
     {{- else }}
     {{- fail "infrastructure provider is not supported" -}}
     {{- end }}
@@ -45,7 +48,16 @@ spec:
     controlplane:
       generateType: controlplane
       talosVersion: {{ default (include "kommodity.talosVersion" $) (dig "talos" "version" "" $.Values.kommodity.controlplane) }}
-      hostname: {}
+      {{- /*
+        Bake the hostname into the machine config so it is set before etcd
+        starts. Without a source the node keeps the hostname Talos generates
+        for itself until the platform applies the real one, and an etcd member
+        that registers under the generated name cannot rejoin once it changes.
+        InfrastructureName matches the node name the infrastructure provider
+        and the CCM use.
+      */}}
+      hostname:
+        source: InfrastructureName
       {{- $cp := $.Values.kommodity.controlplane }}
       {{- $cpPatches := dig "strategicPatches" nil $cp }}
       {{- $globalPatches := dig "global" "strategicPatches" nil $.Values.kommodity }}
@@ -53,6 +65,7 @@ spec:
       {{- $cpLabels := dig "labels" nil $cp }}
       {{- $cpAnnotations := dig "annotations" nil $cp }}
       {{- $oidc := dig "oidc" nil $.Values.kommodity }}
+      {{- $hetznerPrivate := and (eq $.Values.kommodity.provider.name "Hetzner") (not $.Values.kommodity.network.ipv4.public) }}
       {{- /* Build merged MachineConfig strategic patch */ -}}
       {{- $mergedPatch := include "kommodity-cluster.mergedStrategicPatch" (dict
         "globalPatches" $globalPatches
@@ -66,6 +79,7 @@ spec:
         "disableCNI" $.Values.talos.disableCNI
         "disableProxy" $.Values.talos.disableKubeProxy
       ) | trim }}
+      {{- $hetznerNameservers := ternary (dig "nameservers" (list) $.Values.kommodity.network) (list) (eq $.Values.kommodity.provider.name "Hetzner") }}
       {{- $kmsEndpoint := "" -}}
       {{- if $.Values.kommodity.kms.enabled }}{{- $kmsEndpoint = $.Values.kommodity.kms.endpoint -}}{{- end -}}
       {{- $additionalVolumesPatch := include "kommodity.talos.additionalVolumes" (dict "additionalVolumes" $.Values.kommodity.controlplane.additionalVolumes "kmsEndpoint" $kmsEndpoint) | trim }}
@@ -82,12 +96,20 @@ spec:
       {{- /* UserVolumeConfig for instance-local disks (not cloud-provisioned) */ -}}
 {{- include "kommodity.talos.instanceVolumes" (dict "instanceVolumes" $.Values.kommodity.controlplane.instanceVolumes "kmsEndpoint" $kmsEndpoint "kmsEnabled" $.Values.kommodity.kms.enabled) | nindent 6 }}
       {{- end }}
+      {{- if $hetznerPrivate }}
+      {{- /* Hetzner's DHCP does not announce the network's 0.0.0.0/0 route */ -}}
+{{- include "kommodity.talos.defaultRoute" (dict "nodeCIDR" $.Values.kommodity.network.ipv4.nodeCIDR) | nindent 6 }}
+      {{- end }}
+      {{- if $hetznerNameservers }}
+      {{- /* Nameservers for the node, propagated by Talos to CoreDNS */ -}}
+{{- include "kommodity.talos.resolverConfig" (dict "nameservers" $hetznerNameservers) | nindent 6 }}
+      {{- end }}
       {{- if not (empty $additionalVolumesPatch) }}
       {{- /* UserVolumeConfig for cloud-provisioned data disks (Azure dataDisks, etc.) */ -}}
 {{ $additionalVolumesPatch | nindent 6 }}
       {{- end }}
       {{- /* ExtensionServiceConfig for kommodity-autobootstrap extension */ -}}
-{{- include "kommodity.talos.autoBootstrapExtensionServiceConfig" (dict "autoBootstrap" $.Values.talos.autoBootstrap "logLevel" $.Values.kommodity.logLevel "replicas" (default 1 $.Values.kommodity.controlplane.replicas)) | nindent 6 }}
+{{- include "kommodity.talos.autoBootstrapExtensionServiceConfig" (dict "autoBootstrap" $.Values.talos.autoBootstrap "logLevel" $.Values.kommodity.logLevel "replicas" (default 1 $.Values.kommodity.controlplane.replicas) "scanCIDR" (ternary $.Values.kommodity.network.ipv4.nodeCIDR "" $hetznerPrivate)) | nindent 6 }}
       {{- if $.Values.kommodity.security.enabled }}
       {{- /* ExtensionServiceConfig for kommodity-attestation extension */ -}}
 {{- include "kommodity.talos.attestationExtensionServiceConfig" (dict "logLevel" $.Values.kommodity.logLevel) | nindent 6 }}

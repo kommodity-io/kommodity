@@ -1,0 +1,249 @@
+suite: test creation of resources for Hetzner cluster
+values:
+  - ../values.hetzner.yaml
+release:
+  name: test-cluster
+  namespace: default
+templates:
+  - templates/*
+tests:
+  - it: should make sure a Cluster is created
+    template: templates/provider/capi/cluster.yaml
+    asserts:
+      - isKind:
+          of: Cluster
+      - equal:
+          path: spec.infrastructureRef.kind
+          value: HetznerCluster
+      - equal:
+          path: metadata.annotations["kommodity.io/ccm-downstream-secret-name"]
+          value: hcloud
+      - hasDocuments:
+          count: 1
+
+  - it: should create a HetznerCluster with a control-plane load balancer
+    template: templates/provider/hetzner/cluster.yaml
+    asserts:
+      - isKind:
+          of: HetznerCluster
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: spec.controlPlaneRegions[0]
+          value: fsn1
+      - equal:
+          path: spec.controlPlaneLoadBalancer.enabled
+          value: true
+      # CAPH needs the endpoint rendered up front; empty host is filled with
+      # the load balancer IPv4 by the controller once the LB is ready.
+      - equal:
+          path: spec.controlPlaneEndpoint.host
+          value: ""
+      - equal:
+          path: spec.controlPlaneEndpoint.port
+          value: 6443
+      - equal:
+          path: spec.hetznerSecretRef.name
+          value: hetzner
+      - equal:
+          path: spec.hetznerSecretRef.key.hcloudToken
+          value: hcloud
+      - equal:
+          path: spec.skipCreatingHetznerSecretInWorkloadCluster
+          value: true
+      - notExists:
+          path: spec.hcloudNetwork
+
+  - it: should create a private network when the network is not public
+    template: templates/provider/hetzner/cluster.yaml
+    set:
+      kommodity.network.ipv4.public: false
+      kommodity.network.ipv4.nodeCIDR: 10.0.0.0/16
+    asserts:
+      - equal:
+          path: spec.hcloudNetwork.enabled
+          value: true
+      - equal:
+          path: spec.hcloudNetwork.cidrBlock
+          value: 10.0.0.0/16
+      - equal:
+          path: spec.hcloudNetwork.subnetCidrBlock
+          value: 10.0.0.0/16
+      - equal:
+          path: spec.hcloudNetwork.networkZone
+          value: eu-central
+
+  - it: should fail when the network is private and nodeCIDR is missing
+    template: templates/provider/hetzner/cluster.yaml
+    set:
+      kommodity.network.ipv4.public: false
+      kommodity.network.ipv4.nodeCIDR: null
+      # Disable the proxy addon so its own nodeCIDR guard in
+      # capi/cluster.yaml does not fail the render first.
+      kommodity.addons.talos-cluster-proxy.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: missing required nodeCIDR in kommodity.network.ipv4
+
+  - it: should create HCloudMachineTemplates for control plane and nodepools
+    template: templates/provider/hetzner/machinetemplate.yaml
+    asserts:
+      - isKind:
+          of: HCloudMachineTemplate
+      - hasDocuments:
+          count: 2
+      - equal:
+          path: spec.template.spec.type
+          value: cpx32
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.imageName
+          value: kommodity-talos-hcloud-v1.13.0
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.publicNetwork.enableIPv4
+          value: true
+        documentIndex: 0
+
+  - it: should disable the public network on machines when the network is private
+    template: templates/provider/hetzner/machinetemplate.yaml
+    set:
+      kommodity.network.ipv4.public: false
+      kommodity.network.ipv4.nodeCIDR: 10.0.0.0/16
+    asserts:
+      - equal:
+          path: spec.template.spec.publicNetwork.enableIPv4
+          value: false
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.publicNetwork.enableIPv6
+          value: false
+        documentIndex: 0
+
+  - it: should reference HCloudMachineTemplate from the MachineDeployment
+    template: templates/provider/capi/machinedeployment.yaml
+    asserts:
+      - isKind:
+          of: MachineDeployment
+      - equal:
+          path: spec.template.spec.infrastructureRef.kind
+          value: HCloudMachineTemplate
+
+  - it: should reference HCloudMachineTemplate from the TalosControlPlane
+    template: templates/talos/controlplane.yaml
+    asserts:
+      - isKind:
+          of: TalosControlPlane
+      - equal:
+          path: spec.infrastructureTemplate.kind
+          value: HCloudMachineTemplate
+
+  - it: should render the hcloud CCM in the ClusterResourceSet ConfigMap
+    template: templates/ccm-crs.yaml
+    asserts:
+      - isKind:
+          of: ConfigMap
+        documentIndex: 0
+      - matchRegex:
+          path: data["ccm.yaml"]
+          pattern: hcloud-cloud-controller-manager
+        documentIndex: 0
+      - matchRegex:
+          path: data["ccm.yaml"]
+          pattern: "name: hcloud"
+        documentIndex: 0
+
+  - it: should render when provider config is null rather than an empty map
+    template: templates/provider/hetzner/cluster.yaml
+    set:
+      kommodity.provider.config: null
+    asserts:
+      - isKind:
+          of: HetznerCluster
+      - equal:
+          path: spec.controlPlaneLoadBalancer.enabled
+          value: true
+      - equal:
+          path: spec.controlPlaneEndpoint.port
+          value: 6443
+
+  - it: should fail when the hcloud-csi addon is enabled without the CCM
+    template: templates/provider/hetzner/cluster.yaml
+    set:
+      kommodity.provider.cloudControllerManager.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: the hcloud-csi addon requires kommodity.provider.cloudControllerManager.enabled=true (it delivers the hcloud Secret the CSI controller mounts); disable the addon or enable the CCM
+
+  - it: should bind the CCM to the scoped ClusterRole, not cluster-admin
+    template: templates/ccm-crs.yaml
+    asserts:
+      - matchRegex:
+          path: data["ccm.yaml"]
+          pattern: 'name: "system:hcloud-cloud-controller-manager"'
+        documentIndex: 0
+      - notMatchRegex:
+          path: data["ccm.yaml"]
+          pattern: "name: cluster-admin"
+        documentIndex: 0
+      - matchRegex:
+          path: data["ccm.yaml"]
+          pattern: readOnlyRootFilesystem
+        documentIndex: 0
+
+  - it: should inject a default route on private clusters without a user patch
+    template: templates/talos/controlplane.yaml
+    set:
+      kommodity.network.ipv4.public: false
+      kommodity.network.ipv4.nodeCIDR: 10.0.0.0/16
+    asserts:
+      # Gateway is the first usable address of nodeCIDR.
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "gateway: 10\\.0\\.0\\.1"
+      # Hetzner's private NIC is enp7s0; with public: false it is the only physical device.
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "physical: true"
+      # A machine-level patch is a bare machine: document. CABPT does not
+      # register MachineConfig as a standalone patch kind.
+      - notMatchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "kind: MachineConfig"
+
+  - it: should derive the default-route gateway from a non-default nodeCIDR
+    template: templates/talos/controlplane.yaml
+    set:
+      kommodity.network.ipv4.public: false
+      kommodity.network.ipv4.nodeCIDR: 10.42.0.0/16
+    asserts:
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "gateway: 10\\.42\\.0\\.1"
+
+  - it: should not inject a default route on public clusters
+    template: templates/talos/controlplane.yaml
+    asserts:
+      - notMatchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "0\\.0\\.0\\.0/0"
+
+  - it: should point nodes at public resolvers by default
+    template: templates/talos/controlplane.yaml
+    asserts:
+      # Talos propagates these to CoreDNS, so they cover pod DNS as well.
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "kind: ResolverConfig"
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "address: 1\\.1\\.1\\.1"
+
+  - it: should allow opting out of the resolver override
+    template: templates/talos/controlplane.yaml
+    set:
+      kommodity.network.nameservers: []
+    asserts:
+      - notMatchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "kind: ResolverConfig"
