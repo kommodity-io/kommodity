@@ -144,6 +144,9 @@ delete-kind-management-cluster:
 run-scaleway-integration-test: ## Runs Scaleway integration tests (requires Docker)
 	cd pkg/test && go test -run TestCreateScalewayCluster -v -timeout 15m
 
+.PHONY: run-hetzner-integration-test
+run-hetzner-integration-test: ## Runs Hetzner integration tests (requires Docker)
+	cd pkg/test && go test -run TestCreateHetznerCluster -v -timeout 30m
 
 .PHONY: run-kubevirt-integration-test
 run-kubevirt-integration-test: ## Runs KubeVirt integration tests (requires Docker and kubectl)
