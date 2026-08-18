@@ -32,17 +32,18 @@ require (
 	github.com/siderolabs/kms-client v0.1.0
 	github.com/siderolabs/talos/pkg/machinery v1.13.0
 	github.com/stretchr/testify v1.11.1
+	github.com/syself/cluster-api-provider-hetzner v1.1.0-alpha.4
 	go.etcd.io/etcd/client/v3 v3.6.4
 	go.uber.org/zap v1.27.1
 	golang.org/x/time v0.15.0
 	google.golang.org/grpc v1.80.0
 	gopkg.in/yaml.v3 v3.0.1
-	k8s.io/api v0.32.6
-	k8s.io/apiextensions-apiserver v0.32.6
-	k8s.io/apimachinery v0.32.6
-	k8s.io/apiserver v0.32.6
-	k8s.io/client-go v0.32.6
-	k8s.io/component-base v0.32.6
+	k8s.io/api v0.32.7
+	k8s.io/apiextensions-apiserver v0.32.7
+	k8s.io/apimachinery v0.32.7
+	k8s.io/apiserver v0.32.7
+	k8s.io/client-go v0.32.7
+	k8s.io/component-base v0.32.7
 	k8s.io/klog/v2 v2.130.1
 	k8s.io/kube-aggregator v0.32.3
 	k8s.io/kube-openapi v0.0.0-20250701173324-9bd5c66d9911
@@ -60,7 +61,10 @@ require (
 )
 
 require (
+	github.com/bramvdbogaerde/go-scp v1.5.0 // indirect
+	github.com/hetznercloud/hcloud-go/v2 v2.22.0 // indirect
 	github.com/robfig/cron/v3 v3.0.1 // indirect
+	github.com/syself/hrobot-go v0.2.7 // indirect
 	golang.org/x/net v0.57.0 // indirect
 	k8s.io/gengo/v2 v2.0.0-20240911193312-2b36238f13e9 // indirect
 )
@@ -398,7 +402,7 @@ require (
 	github.com/spf13/viper v1.21.0 // indirect
 	github.com/ssgreg/nlreturn/v2 v2.2.1 // indirect
 	github.com/stbenjam/no-sprintf-host-port v0.3.1 // indirect
-	github.com/stoewer/go-strcase v1.3.0 // indirect
+	github.com/stoewer/go-strcase v1.3.1 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/tetafro/godot v1.5.4 // indirect
@@ -454,7 +458,7 @@ require (
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	go.yaml.in/yaml/v4 v4.0.0-rc.4 // indirect
 	golang.org/x/crypto v0.54.0 // indirect
-	golang.org/x/exp v0.0.0-20250717185816-542afb5b7346 // indirect
+	golang.org/x/exp v0.0.0-20250718183923-645b1fa84792 // indirect
 	golang.org/x/exp/typeparams v0.0.0-20260209203927-2842357ff358 // indirect
 	golang.org/x/mod v0.37.0 // indirect
 	golang.org/x/oauth2 v0.35.0 // indirect
@@ -475,14 +479,14 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gotest.tools/v3 v3.5.2 // indirect
 	honnef.co/go/tools v0.7.0 // indirect
-	k8s.io/cli-runtime v0.32.3 // indirect
+	k8s.io/cli-runtime v0.32.7 // indirect
 	k8s.io/cloud-provider v0.32.6 // indirect
 	k8s.io/cluster-bootstrap v0.32.3 // indirect
-	k8s.io/component-helpers v0.32.6 // indirect
+	k8s.io/component-helpers v0.32.7 // indirect
 	k8s.io/controller-manager v0.32.6
-	k8s.io/kms v0.32.6 // indirect
+	k8s.io/kms v0.32.7 // indirect
 	k8s.io/kube-controller-manager v0.32.6 // indirect
-	k8s.io/kubectl v0.32.3 // indirect
+	k8s.io/kubectl v0.32.7 // indirect
 	k8s.io/kubelet v0.32.6 // indirect
 	kubevirt.io/controller-lifecycle-operator-sdk/api v0.2.4 // indirect
 	mvdan.cc/gofumpt v0.9.2 // indirect
