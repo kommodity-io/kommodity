@@ -306,8 +306,11 @@ tests:
   - it: should label the worker Machine with its nodepool for health-check selection
     template: templates/provider/byot/machines.yaml
     documentSelector:
-      path: spec.publicIP
-      value: 203.0.113.20
+      path: metadata.labels["kommodity.io/nodepool"]
+      value: default
     asserts:
       - isKind:
-          of: ByotMachine
+          of: Machine
+      - equal:
+          path: metadata.name
+          value: test-cluster-worker-default-worker-0
