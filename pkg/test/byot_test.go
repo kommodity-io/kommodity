@@ -57,6 +57,9 @@ func TestByotClusterFreshAdopt(t *testing.T) {
 func TestByotClusterSplitNoneRoundTrip(t *testing.T) {
 	t.Parallel()
 
+	ctx := context.Background()
+	defer helpers.DumpByotMachines(ctx, env, byotNamespace)
+
 	clusterName := "byot-roundtrip"
 	nodes := startFreshByotCluster(t, clusterName, helpers.ByotInfra{
 		SplitPolicy:       byotSplitPolicyNone,
@@ -77,6 +80,13 @@ func TestByotClusterSplitNoneRoundTrip(t *testing.T) {
 	waitForNodeCount(t, workloadClient, 1)
 	assertHostKeepsBundle(t, nodes.Worker, clusterName)
 
+	// CAPI cascade-deletes the worker ByotMachine after its finalizer is
+	// removed (splitPolicy=None releases immediately), but that lags the
+	// Machine deletion. Wait for the ByotMachine to be gone before upgrading:
+	// otherwise helm sees the still-terminating object and skips recreating
+	// it, leaving the new Machine with no infra ref to re-adopt.
+	helpers.WaitForByotMachineDeletion(t, env, byotNamespace, workerMachine, byotDeleteTimeout)
+
 	helpers.UpgradeKommodityClusterChartByot(t, env, clusterName, byotNamespace, nodes.Infra)
 
 	// The recreated ByotMachine can only join once the join preflight accepted
@@ -91,10 +101,10 @@ func TestByotClusterSplitNoneRoundTrip(t *testing.T) {
 	helpers.UninstallKommodityClusterChart(t, env, clusterName, byotNamespace)
 }
 
-// TestByotJoinBlockedThenReset : a machine carrying
-// a foreign bundle is blocked by the join preflight without and with
+// TestByotClusterJoinBlockedThenReset verifies PLA-6479: a machine
+// carrying a foreign bundle is blocked by the join preflight without and with
 // credentials, and only wiped once joinPolicy=Reset is set.
-func TestByotJoinBlockedThenReset(t *testing.T) {
+func TestByotClusterJoinBlockedThenReset(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -121,6 +131,21 @@ func TestByotJoinBlockedThenReset(t *testing.T) {
 			!helpers.ProbeMaintenance(ctx, victim.Worker.TalosAPIAddr, victim.Worker.InternalIP)
 	}, byotConditionTimeout, 5*time.Second,
 		"worker must still carry victim cluster's bundle after Split=None")
+
+	rescueBlockedForeignBundle(t, victim, victimTalosconfig)
+}
+
+// rescueBlockedForeignBundle drives the rescue cluster (clusterB) that tries
+// to adopt the victim's worker, which still carries a foreign bundle. It
+// asserts the join preflight blocks without credentials, blocks again once
+// the foreign talosconfig is supplied (bundle mismatch), and only proceeds
+// once joinPolicy=Reset wipes the machine.
+func rescueBlockedForeignBundle(
+	t *testing.T,
+	victim byotNodes,
+	victimTalosconfig []byte,
+) {
+	t.Helper()
 
 	clusterB := "byot-rescue"
 	rescueInfra := victim.Infra
