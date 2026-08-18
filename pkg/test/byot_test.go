@@ -91,10 +91,10 @@ func TestByotClusterSplitNoneRoundTrip(t *testing.T) {
 	helpers.UninstallKommodityClusterChart(t, env, clusterName, byotNamespace)
 }
 
-// TestByotClusterJoinBlockedThenResetRescue verifies PLA-6479: a machine
-// carrying a foreign bundle is blocked by the join preflight without and with
+// TestByotClusterJoinBlockedThenReset : a machine carrying
+// a foreign bundle is blocked by the join preflight without and with
 // credentials, and only wiped once joinPolicy=Reset is set.
-func TestByotClusterJoinBlockedThenResetRescue(t *testing.T) {
+func TestByotClusterJoinBlockedThenReset(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
