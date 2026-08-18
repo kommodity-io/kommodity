@@ -66,7 +66,10 @@ spec:
         "disableCNI" $.Values.talos.disableCNI
         "disableProxy" $.Values.talos.disableKubeProxy
       ) | trim -}}
-      {{- $needsStrategicPatches := or (not (empty $mergedPatch)) $.Values.kommodity.kms.enabled (not $.Values.kommodity.network.ipv4.public) $.Values.talos.autoBootstrap.enabled $.Values.kommodity.security.enabled (gt (len (default list $.Values.kommodity.controlplane.instanceVolumes)) 0) }}
+      {{- $kmsEndpoint := "" -}}
+      {{- if $.Values.kommodity.kms.enabled }}{{- $kmsEndpoint = $.Values.kommodity.kms.endpoint -}}{{- end -}}
+      {{- $additionalVolumesPatch := include "kommodity.talos.additionalVolumes" (dict "additionalVolumes" $.Values.kommodity.controlplane.additionalVolumes "kmsEndpoint" $kmsEndpoint) | trim -}}
+      {{- $needsStrategicPatches := or (not (empty $mergedPatch)) $.Values.kommodity.kms.enabled (not $.Values.kommodity.network.ipv4.public) $.Values.talos.autoBootstrap.enabled $.Values.kommodity.security.enabled (gt (len (default list $.Values.kommodity.controlplane.instanceVolumes)) 0) (not (empty $additionalVolumesPatch)) }}
       {{- if $needsStrategicPatches }}
       strategicPatches:
       {{- /* Merged MachineConfig patch (labels, taints, annotations, env, installer, OIDC, CNI, proxy, CCM, user patches) */ -}}
@@ -79,9 +82,11 @@ spec:
       {{- end }}
       {{- if $.Values.kommodity.controlplane.instanceVolumes }}
       {{- /* UserVolumeConfig for instance-local disks (not cloud-provisioned) */ -}}
-{{- $kmsEndpoint := "" -}}
-{{- if $.Values.kommodity.kms.enabled }}{{- $kmsEndpoint = $.Values.kommodity.kms.endpoint -}}{{- end -}}
 {{- include "kommodity.talos.instanceVolumes" (dict "instanceVolumes" $.Values.kommodity.controlplane.instanceVolumes "kmsEndpoint" $kmsEndpoint "kmsEnabled" $.Values.kommodity.kms.enabled) | nindent 6 }}
+      {{- end }}
+      {{- if not (empty $additionalVolumesPatch) }}
+      {{- /* UserVolumeConfig for cloud-provisioned data disks (Azure dataDisks, etc.) */ -}}
+{{ $additionalVolumesPatch | nindent 6 }}
       {{- end }}
       {{- if or (not $.Values.kommodity.network.ipv4.public) $.Values.talos.autoBootstrap.enabled }}
       {{- /* ExtensionServiceConfig for kommodity-autobootstrap extension */ -}}

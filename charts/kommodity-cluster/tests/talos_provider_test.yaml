@@ -500,3 +500,126 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: "instanceVolumes[].diskSelector is required (CEL expression to match the target disk)"
+
+  # additionalVolumes UserVolumeConfig tests
+  - it: should emit UserVolumeConfig for worker additionalVolumes with nameSuffix
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.nodepools.default.additionalVolumes:
+        - nameSuffix: data
+          size: 100
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "kind: UserVolumeConfig"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "name: data"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: 'volumeType: disk'
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: 'system_disk == false && disk.size > 99u \* GB'
+
+  - it: should emit UserVolumeConfig for controlplane additionalVolumes
+    template: templates/talos/controlplane.yaml
+    set:
+      kommodity.controlplane.additionalVolumes:
+        - nameSuffix: data
+          size: 100
+    asserts:
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "kind: UserVolumeConfig"
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "name: data"
+
+  - it: should use custom diskSelector when provided
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.nodepools.default.additionalVolumes:
+        - nameSuffix: data
+          size: 100
+          diskSelector: "disk.serial.startsWith('deadbeef')"
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "disk.serial.startsWith\\('deadbeef'\\)"
+      - not: true
+        matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "system_disk"
+
+  - it: should emit KMS encryption for additionalVolumes when KMS is enabled
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.kms.enabled: true
+      kommodity.nodepools.default.additionalVolumes:
+        - nameSuffix: data
+          size: 100
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "kind: UserVolumeConfig"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "provider: luks2"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: 'endpoint: "https://kms.example.com"'
+
+  - it: should not emit encryption for additionalVolumes when KMS is disabled
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.nodepools.default.additionalVolumes:
+        - nameSuffix: data
+          size: 100
+    asserts:
+      - not: true
+        matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "luks2"
+
+  - it: should not emit UserVolumeConfig for additionalVolumes without nameSuffix
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.nodepools.default.additionalVolumes:
+        - size: 50
+          type: block
+    asserts:
+      - not: true
+        matchRegex:
+          path: spec.template.spec.strategicPatches[0]
+          pattern: "UserVolumeConfig"
+
+  - it: should emit multiple UserVolumeConfig for multiple additionalVolumes
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.nodepools.default.additionalVolumes:
+        - nameSuffix: data
+          size: 100
+        - nameSuffix: cache
+          size: 200
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "name: data"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: 'disk.size > 99u \* GB'
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[2]
+          pattern: "name: cache"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[2]
+          pattern: 'disk.size > 199u \* GB'
+
+  - it: should not emit UserVolumeConfig when additionalVolumes is unset
+    template: templates/talos/configtemplate.yaml
+    asserts:
+      - not: true
+        matchRegex:
+          path: spec.template.spec.strategicPatches[0]
+          pattern: "UserVolumeConfig"

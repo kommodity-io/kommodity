@@ -87,9 +87,17 @@ kommodity:
         disk:
           size: 20
       # additionalVolumes:
-      #   - size: 50 # size in GB
+      #   # nameSuffix is optional on Scaleway — when set, a Talos
+      #   # UserVolumeConfig is emitted so Talos formats (xfs) and mounts
+      #   # the disk at /var/mnt/<nameSuffix>. Without nameSuffix, the disk
+      #   # is attached but Talos does not manage it.
+      #   # Optional diskSelector overrides the auto-generated size-based
+      #   # CEL selector.
+      #   - nameSuffix: data
+      #     size: 50 # size in GB
       #     type: block # optional, defaults to block (local, block, scratch)
       #     iops: 5000 # optional, only valid for block volumes (5000 or 15000)
+      #     # diskSelector: "disk.transport == 'nvme'"
       # instanceVolumes:
       #   # Instance-local disks that exist on the VM at boot (not provisioned via
       #   # the Scaleway API). E.g. the built-in scratch NVMe on H100 instances.
