@@ -5,7 +5,6 @@ This configures environment variables for the kommodity-autobootstrap extension 
 {{- define "kommodity.talos.autoBootstrapExtensionServiceConfig" -}}
 {{- $autoBootstrap := .autoBootstrap -}}
 {{- $logLevel := .logLevel -}}
-{{- $scanCIDR := .scanCIDR -}}
 {{- $replicas := .replicas -}}
 {{- $defaultQuorum := add (div (sub $replicas 1) 2) 1 -}}
 - |
@@ -19,7 +18,4 @@ This configures environment variables for the kommodity-autobootstrap extension 
     - TALOS_AUTO_BOOTSTRAP_PRE_BOOTSTRAP_DELAY={{ $autoBootstrap.preBootstrapDelay }}
     - TALOS_AUTO_BOOTSTRAP_MAX_BACKOFF={{ $autoBootstrap.maxBackoff }}
     - TALOS_AUTO_BOOTSTRAP_SCAN_TIMEOUT={{ $autoBootstrap.scanTimeout }}
-{{- if $scanCIDR }}
-    - TALOS_AUTO_BOOTSTRAP_SCAN_CIDR={{ $scanCIDR }}
-{{- end }}
 {{- end -}}

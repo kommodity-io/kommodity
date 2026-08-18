@@ -109,7 +109,7 @@ spec:
 {{ $additionalVolumesPatch | nindent 6 }}
       {{- end }}
       {{- /* ExtensionServiceConfig for kommodity-autobootstrap extension */ -}}
-{{- include "kommodity.talos.autoBootstrapExtensionServiceConfig" (dict "autoBootstrap" $.Values.talos.autoBootstrap "logLevel" $.Values.kommodity.logLevel "replicas" (default 1 $.Values.kommodity.controlplane.replicas) "scanCIDR" (ternary $.Values.kommodity.network.ipv4.nodeCIDR "" $hetznerPrivate)) | nindent 6 }}
+{{- include "kommodity.talos.autoBootstrapExtensionServiceConfig" (dict "autoBootstrap" $.Values.talos.autoBootstrap "logLevel" $.Values.kommodity.logLevel "replicas" (default 1 $.Values.kommodity.controlplane.replicas)) | nindent 6 }}
       {{- if $.Values.kommodity.security.enabled }}
       {{- /* ExtensionServiceConfig for kommodity-attestation extension */ -}}
 {{- include "kommodity.talos.attestationExtensionServiceConfig" (dict "logLevel" $.Values.kommodity.logLevel) | nindent 6 }}
