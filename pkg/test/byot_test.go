@@ -28,7 +28,7 @@ const (
 	byotDeleteTimeout         = 5 * time.Minute
 	byotConditionTimeout      = 5 * time.Minute
 	byotJoinPolicyReset       = "Reset"
-	byotJoinPolicyNone       = "None"
+	byotJoinPolicyNone        = "None"
 	byotSplitPolicyReset      = "Reset"
 	byotSplitPolicyNone       = "None"
 	byotNodePollInterval      = 5 * time.Second
