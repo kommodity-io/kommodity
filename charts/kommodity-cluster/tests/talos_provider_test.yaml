@@ -252,11 +252,10 @@ tests:
         documentIndex: 1
 
   # AutoBootstrap extension tests
-  - it: should include autoBootstrap extension when kommodity.network.ipv4.public is false, even though the autoBootstrap.enabled value is false
+  - it: should include autoBootstrap extension when kommodity.network.ipv4.public is false
     template: templates/talos/controlplane.yaml
     set:
       kommodity.network.ipv4.public: false
-      talos.autoBootstrap.enabled: false
     asserts:
       - hasDocuments:
           count: 1
@@ -266,10 +265,8 @@ tests:
           path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
           pattern: "name: kommodity-autobootstrap"
 
-  - it: should include autoBootstrap extension when autoBootstrap.enabled value is true
+  - it: should include autoBootstrap extension unconditionally
     template: templates/talos/controlplane.yaml
-    set:
-      talos.autoBootstrap.enabled: true
     asserts:
       - hasDocuments:
           count: 1
@@ -279,22 +276,66 @@ tests:
           path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
           pattern: "name: kommodity-autobootstrap"
 
-  - it: should not include autoBootstrap extension when kommodity.network.ipv4.public is true and talos.autoBootstrap.enabled is not set
+  - it: should include autoBootstrap extension when kommodity.network.ipv4.public is true
     template: templates/talos/controlplane.yaml
     set:
       kommodity.network.ipv4.public: true
-      talos.autoBootstrap.enabled: null
     asserts:
       - hasDocuments:
           count: 1
       - exists:
           path: spec.controlPlaneConfig.controlplane.strategicPatches
-      - not: true
-        matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[0]
-          pattern: "kommodity-autobootstrap"
-      - notExists:
+      - matchRegex:
           path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "name: kommodity-autobootstrap"
+
+  - it: should default quorumNodes to etcd quorum (floor(replicas/2)+1) when not set
+    template: templates/talos/controlplane.yaml
+    set:
+      kommodity.controlplane.replicas: 3
+      talos.autoBootstrap.quorumNodes: null
+    asserts:
+      - hasDocuments:
+          count: 1
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "TALOS_AUTO_BOOTSTRAP_QUORUM_NODES=2"
+
+  - it: should default quorumNodes to 3 for 5 replicas
+    template: templates/talos/controlplane.yaml
+    set:
+      kommodity.controlplane.replicas: 5
+      talos.autoBootstrap.quorumNodes: null
+    asserts:
+      - hasDocuments:
+          count: 1
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "TALOS_AUTO_BOOTSTRAP_QUORUM_NODES=3"
+
+  - it: should default quorumNodes to 1 for single-node CP
+    template: templates/talos/controlplane.yaml
+    set:
+      kommodity.controlplane.replicas: 1
+      talos.autoBootstrap.quorumNodes: null
+    asserts:
+      - hasDocuments:
+          count: 1
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "TALOS_AUTO_BOOTSTRAP_QUORUM_NODES=1"
+
+  - it: should use explicit quorumNodes when set
+    template: templates/talos/controlplane.yaml
+    set:
+      kommodity.controlplane.replicas: 3
+      talos.autoBootstrap.quorumNodes: 2
+    asserts:
+      - hasDocuments:
+          count: 1
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "TALOS_AUTO_BOOTSTRAP_QUORUM_NODES=2"
 
   # Kubernetes version precedence test
   - it: should make sure Kubernetes version defined in controlplane's config takes precedence
