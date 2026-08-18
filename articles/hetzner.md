@@ -167,3 +167,14 @@ hcloud volume list
 clean up if it fails partway, so an interrupted upload leaves a running server
 and an SSH key behind. Check for leftovers named `hcloud-upload-image-*` after
 a failed run.
+
+Its own cleanup needs the hcloud API, so when the upload fails because the API is
+unreachable the cleanup fails with it and the server keeps billing. A retry
+wrapper that sweeps orphans has the same dependency and the same blind spot, so
+check by hand rather than trusting the sweep.
+
+The workflow publishes a decompressed `.raw`, which is what the command above
+uploads. On an unreliable connection, recompressing it and passing
+`--compression zstd` is worth the extra step: the transfer drops from gigabytes to
+a few hundred megabytes, which is a much smaller window for the connection to fail
+in.
