@@ -1,0 +1,14 @@
+{{/*
+ResolverConfig document setting the node nameservers.
+Used as a strategic patch in TalosConfigTemplate and TalosControlPlane.
+Talos propagates these to CoreDNS, so they cover pod DNS as well.
+*/}}
+{{- define "kommodity.talos.resolverConfig" -}}
+- |
+  apiVersion: v1alpha1
+  kind: ResolverConfig
+  nameservers:
+  {{- range .nameservers }}
+    - address: {{ . }}
+  {{- end }}
+{{- end -}}
