@@ -165,7 +165,7 @@ tests:
           value: Reset
       - equal:
           path: spec.splitPolicy
-          value: None
+          value: Reset
 
   - it: should inherit policies from the controlplane block
     template: templates/provider/byot/machines.yaml
@@ -222,6 +222,8 @@ tests:
     template: templates/provider/byot/machines.yaml
     set:
       kommodity.controlplane.joinPolicy: Reset
+      kommodity.nodepools.default.joinPolicy: None
+      kommodity.nodepools.default.splitPolicy: None
     documentSelector:
       path: spec.publicIP
       value: 203.0.113.20
@@ -230,8 +232,10 @@ tests:
           of: ByotMachine
       - notExists:
           path: spec.joinPolicy
+      - notExists:
+          path: spec.splitPolicy
 
-  - it: should omit policies on the ByotMachine when unset
+  - it: should default policies on the ByotMachine when unset
     template: templates/provider/byot/machines.yaml
     documentSelector:
       path: spec.publicIP
@@ -239,10 +243,12 @@ tests:
     asserts:
       - isKind:
           of: ByotMachine
-      - notExists:
+      - equal:
           path: spec.joinPolicy
-      - notExists:
+          value: None
+      - equal:
           path: spec.splitPolicy
+          value: Reset
 
   - it: should fail on an invalid joinPolicy
     template: templates/provider/byot/machines.yaml

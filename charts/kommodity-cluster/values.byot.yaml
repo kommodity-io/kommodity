@@ -25,9 +25,9 @@ kommodity:
           status: "False"
           timeout: 300s
     # Optional lifecycle policy defaults for control plane static machines
-    # (None|Reset, default None; static machine entries take precedence):
-    #   joinPolicy: Reset  # wipe each machine before adopting it
-    #   splitPolicy: Reset # wipe each machine when it leaves management
+    # Static machine entries take precedence
+    #   joinPolicy: Reset  # wipe each machine before adopting it (defaults to None)
+    #   splitPolicy: Reset # wipe each machine when it leaves management (defaults to Reset)
     # One entry per adopted control plane machine, keyed by machine name.
     # Exactly one entry must set init: true (the bootstrap node); its public
     # IP also defaults as the cluster control plane endpoint.
