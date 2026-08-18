@@ -1,6 +1,7 @@
 package helpers
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -36,6 +37,10 @@ func installKommodityClusterChart(
 	cfg := new(action.Configuration)
 	restGetter := genericclioptions.NewConfigFlags(false)
 	apiServer := env.KommodityCfg.Host
+	// Pin the kubeconfig to an empty file so helm talks only to the test
+	// container and never resolves contexts from the developer's ~/.kube/config.
+	emptyKubeconfig := os.DevNull
+	restGetter.KubeConfig = &emptyKubeconfig
 	restGetter.APIServer = &apiServer
 	restGetter.Namespace = &namespace
 
@@ -166,6 +171,10 @@ func UninstallKommodityClusterChart(t *testing.T, env TestEnvironment, releaseNa
 	cfg := new(action.Configuration)
 	restGetter := genericclioptions.NewConfigFlags(false)
 	apiServer := env.KommodityCfg.Host
+	// Pin the kubeconfig to an empty file so helm talks only to the test
+	// container and never resolves contexts from the developer's ~/.kube/config.
+	emptyKubeconfig := os.DevNull
+	restGetter.KubeConfig = &emptyKubeconfig
 	restGetter.APIServer = &apiServer
 	restGetter.Namespace = &namespace
 
