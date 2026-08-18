@@ -16,22 +16,18 @@ import (
 )
 
 const (
-	byotNamespace             = "default"
-	byotJoinPreflightCond     = "JoinPreflight"
-	byotMachineAdoptedCond    = "MachineAdopted"
-	byotReasonMaintenanceMode = "MaintenanceMode"
-	byotReasonBundleMatch     = "BundleMatch"
-	byotReasonNoCredentials   = "NoCredentials"
-	byotReasonBundleMismatch  = "BundleMismatch"
-	byotMachineAdoptTimeout   = 10 * time.Minute
-	byotNodeReadyTimeout      = 10 * time.Minute
-	byotDeleteTimeout         = 5 * time.Minute
-	byotConditionTimeout      = 5 * time.Minute
-	byotJoinPolicyReset       = "Reset"
-	byotJoinPolicyNone        = "None"
-	byotSplitPolicyReset      = "Reset"
-	byotSplitPolicyNone       = "None"
-	byotNodePollInterval      = 5 * time.Second
+	byotNamespace            = "default"
+	byotJoinPreflightCond    = "JoinPreflight"
+	byotReasonBundleMatch    = "BundleMatch"
+	byotReasonNoCredentials  = "NoCredentials"
+	byotReasonBundleMismatch = "BundleMismatch"
+	byotNodeReadyTimeout     = 10 * time.Minute
+	byotDeleteTimeout        = 5 * time.Minute
+	byotConditionTimeout     = 5 * time.Minute
+	byotJoinPolicyReset      = "Reset"
+	byotSplitPolicyReset     = "Reset"
+	byotSplitPolicyNone      = "None"
+	byotNodePollInterval     = 5 * time.Second
 )
 
 func waitForKubeconfigSecret(t *testing.T, clusterName string) {
