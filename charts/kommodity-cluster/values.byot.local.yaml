@@ -1,0 +1,22 @@
+# Local BYOT test override. Layered on top of values.byot.yaml.
+kommodity:
+  kms:
+    enabled: false # isolate BYOT bugs from remote KMS reachability
+
+  controlplane:
+    staticMachines:
+      cp-0:
+        publicIP: 151.115.150.23
+        init: true
+        joinPolicy: Reset
+        splitPolicy: Reset
+  nodepools:
+    default:
+      staticMachines:
+        worker-0:
+          publicIP: 51.159.131.217
+          joinPolicy: Reset
+          splitPolicy: Reset
+
+kubernetes:
+  version: v1.35.2
