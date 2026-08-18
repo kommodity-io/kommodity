@@ -32,6 +32,9 @@ Returns empty string when additionalVolumes is not set or no entries have nameSu
 {{- $name := $vol.nameSuffix -}}
 {{- $selector := $vol.diskSelector -}}
 {{- if not $selector }}
+{{- if not $vol.size }}
+{{- fail "additionalVolumes[].size is required when diskSelector is not set (used to generate the disk selector CEL expression)" -}}
+{{- end }}
 {{- $selector = printf "system_disk == false && disk.size > %vu * GB" (sub $vol.size 1) -}}
 {{- end }}
 - |
