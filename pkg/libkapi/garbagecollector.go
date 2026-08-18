@@ -2,7 +2,11 @@ package libkapi
 
 import (
 	"context"
+	"crypto/tls"
+	"errors"
 	"fmt"
+	"net"
+	"strconv"
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -18,6 +22,7 @@ import (
 	"k8s.io/controller-manager/pkg/informerfactory"
 	"k8s.io/kubernetes/pkg/controller/garbagecollector"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/webhook"
 )
 
 const (
@@ -52,6 +57,28 @@ const (
 	// collector because each object deletion takes two API calls. Matches the
 	// upstream kube-controller-manager behaviour.
 	gcQPSMultiplier = 2
+
+	// gcWebhookReadyTimeout bounds how long Start waits, when a webhook
+	// server was configured via WithWebhookServer, for that server's TLS
+	// listener to become dialable before giving up. controller-runtime's
+	// Manager.Start launches webhook servers before any other runnable
+	// specifically to avoid a race between conversion webhooks and cache
+	// sync (see WithGarbageCollector's doc), but that only guarantees launch
+	// order, not readiness: a webhook.Server signals "ready" to the manager
+	// the instant its goroutine is scheduled - well before it actually
+	// finishes provisioning its certificate and binding its TLS listener.
+	// Without this wait, the garbage collector's discovery-driven informers
+	// can trip a conversion webhook with a List/Watch before that listener
+	// is accepting connections, failing with "connection refused".
+	gcWebhookReadyTimeout = 30 * time.Second
+
+	// gcWebhookDialTimeout bounds a single dial attempt made while polling
+	// for the webhook server's readiness.
+	gcWebhookDialTimeout = 5 * time.Second
+
+	// gcWebhookPollInterval is how often waitForWebhookServer retries the
+	// dial while waiting for the webhook server to come up.
+	gcWebhookPollInterval = 100 * time.Millisecond
 )
 
 // GarbageCollectorConfig configures the embedded ownerReferences-based
@@ -120,12 +147,36 @@ type garbageCollectorController struct {
 	// cfg is the caller's config with every zero field already resolved to
 	// its default by WithGarbageCollector.
 	cfg GarbageCollectorConfig
+
+	// webhook is the process-wide webhook config, wired in by buildManager
+	// via setWebhookConfig (see webhookAware) after every Option has been
+	// applied. nil means WithWebhookServer was never used for this New()
+	// call, so the runner has nothing to wait for.
+	webhook *WebhookConfig
 }
+
+// webhookAware is implemented by Controllers that need to know, before
+// their own SetupWithManager runs, whether WithWebhookServer was used for
+// this New() call and where its listener binds. This can't be captured
+// inside WithGarbageCollector's own Option closure: Options run in the
+// caller-supplied order, so a WithWebhookServer call later in the same
+// opts list wouldn't have populated cfg.webhook yet at that point.
+// buildManager wires it in instead, once cfg is fully resolved.
+type webhookAware interface {
+	setWebhookConfig(cfg *WebhookConfig)
+}
+
+// Compile-time assertion that garbageCollectorController implements webhookAware.
+var _ webhookAware = (*garbageCollectorController)(nil)
 
 func (g *garbageCollectorController) SetupWithManager(mgr Manager) error {
 	runner := &garbageCollectorRunner{
 		restConfig: mgr.GetConfig(),
 		cfg:        g.cfg,
+	}
+
+	if g.webhook != nil {
+		runner.webhookAddr = resolvedWebhookAddr(g.webhook)
 	}
 
 	err := mgr.Add(runner)
@@ -136,23 +187,57 @@ func (g *garbageCollectorController) SetupWithManager(mgr Manager) error {
 	return nil
 }
 
+func (g *garbageCollectorController) setWebhookConfig(cfg *WebhookConfig) {
+	g.webhook = cfg
+}
+
+// resolvedWebhookAddr returns the host:port a webhook server built from cfg
+// binds to, matching the default controller-runtime itself applies
+// (webhook.DefaultPort) when cfg.Port is left at zero. Host is always
+// webhookHost (see manager.go): the manager's webhook server only ever
+// binds to loopback.
+func resolvedWebhookAddr(cfg *WebhookConfig) string {
+	port := cfg.Port
+	if port <= 0 {
+		port = webhook.DefaultPort
+	}
+
+	return net.JoinHostPort(webhookHost, strconv.Itoa(port))
+}
+
 // garbageCollectorRunner orchestrates the garbage collector lifecycle as a
 // controller-runtime manager.Runnable.
 type garbageCollectorRunner struct {
 	restConfig *restclient.Config
 	cfg        GarbageCollectorConfig
+
+	// webhookAddr is the manager's webhook server's host:port, set only
+	// when WithWebhookServer was used for this process (see
+	// garbageCollectorController.SetupWithManager). Empty means Start has
+	// nothing to wait for.
+	webhookAddr string
 }
 
 // Compile-time assertion that the runner implements manager.Runnable.
 var _ manager.Runnable = (*garbageCollectorRunner)(nil)
 
-// Start builds the typed, metadata, and discovery clients, the REST mapper,
-// the shared and metadata informer factories, and the GarbageCollector
-// itself - using ctx, the Manager's own running context, rather than one
-// captured when the Controller was set up - then runs the collector's
-// workers, its discovery resync loop, and the REST mapper refresh loop until
-// ctx is cancelled. It blocks until all background goroutines have exited.
+// Start waits for the manager's webhook server to become reachable (if one
+// was configured via WithWebhookServer - see gcWebhookReadyTimeout's doc for
+// why), then builds the typed, metadata, and discovery clients, the REST
+// mapper, the shared and metadata informer factories, and the
+// GarbageCollector itself - using ctx, the Manager's own running context,
+// rather than one captured when the Controller was set up - then runs the
+// collector's workers, its discovery resync loop, and the REST mapper
+// refresh loop until ctx is cancelled. It blocks until all background
+// goroutines have exited.
 func (r *garbageCollectorRunner) Start(ctx context.Context) error {
+	if r.webhookAddr != "" {
+		err := waitForWebhookServer(ctx, r.webhookAddr, gcWebhookReadyTimeout)
+		if err != nil {
+			return err
+		}
+	}
+
 	clients, err := newGCClients(r.restConfig)
 	if err != nil {
 		return err
@@ -242,6 +327,62 @@ func newGCClients(restConfig *restclient.Config) (*gcClients, error) {
 		discovery:  discoveryClient,
 		restMapper: restMapper,
 	}, nil
+}
+
+// waitForWebhookServer blocks until a TLS handshake against addr succeeds,
+// polling every gcWebhookPollInterval, or returns ErrGarbageCollectorWebhookNotReady
+// once timeout elapses or ctx is cancelled, whichever comes first - the
+// error message distinguishes the two cases so a cancelled parent ctx
+// (e.g. manager shutdown while still waiting) doesn't get logged as a
+// timeout. It mirrors webhook.DefaultServer's own StartedChecker dial
+// (sigs.k8s.io/controller-runtime/pkg/webhook, server.go): InsecureSkipVerify
+// is safe here because the goal is only to confirm the listener is accepting
+// TLS connections at all, never to validate or use the self-signed
+// certificate's identity.
+func waitForWebhookServer(ctx context.Context, addr string, timeout time.Duration) error {
+	waitCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	dialer := &tls.Dialer{
+		NetDialer: &net.Dialer{Timeout: gcWebhookDialTimeout},
+		//nolint:gosec // dial-only readiness probe against our own loopback webhook server; no data is exchanged or trusted.
+		Config: &tls.Config{InsecureSkipVerify: true},
+	}
+
+	ticker := time.NewTicker(gcWebhookPollInterval)
+	defer ticker.Stop()
+
+	var lastErr error
+
+	for {
+		dialCtx, dialCancel := context.WithTimeout(waitCtx, gcWebhookDialTimeout)
+		conn, err := dialer.DialContext(dialCtx, "tcp", addr)
+
+		dialCancel()
+
+		if err == nil {
+			closeErr := conn.Close()
+			if closeErr != nil {
+				return fmt.Errorf("failed to close webhook readiness probe connection: %w", closeErr)
+			}
+
+			return nil
+		}
+
+		lastErr = err
+
+		select {
+		case <-waitCtx.Done():
+			if errors.Is(waitCtx.Err(), context.DeadlineExceeded) {
+				return fmt.Errorf("%w: timed out after %s dialing %s: %w",
+					ErrGarbageCollectorWebhookNotReady, timeout, addr, lastErr)
+			}
+
+			return fmt.Errorf("%w: context canceled while dialing %s: %w",
+				ErrGarbageCollectorWebhookNotReady, addr, lastErr)
+		case <-ticker.C:
+		}
+	}
 }
 
 // runGCRESTMapperReset resets restMapper every period until ctx is done.

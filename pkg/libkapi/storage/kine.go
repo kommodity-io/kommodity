@@ -18,6 +18,11 @@ import (
 
 const kineSocketFileName = "kine.sock"
 
+// endpointListen is a seam over endpoint.Listen so tests can simulate it
+// panicking (see ErrKineStartPanicked) without a real prolonged database
+// outage.
+var endpointListen = endpoint.Listen //nolint:gochecknoglobals // test seam, not mutable config.
+
 // Kine tuning defaults, mirrored from github.com/k3s-io/kine/pkg/app's CLI
 // flag defaults (pkg/app/app.go). endpoint.Listen has none of its own: it is
 // a lower-level entry point than the CLI wrapper, so callers driving it
@@ -89,9 +94,23 @@ func startKine(ctx context.Context,
 		}
 	}()
 
+	// endpointListen can panic instead of returning an error - see
+	// ErrKineStartPanicked - if the database stays unreachable for its
+	// entire internal retry window. Recover so a prolonged outage surfaces
+	// as a normal error instead of crashing the process.
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			if recoveredErr, ok := recovered.(error); ok {
+				rerr = fmt.Errorf("%w: %w", ErrKineStartPanicked, recoveredErr)
+			} else {
+				rerr = fmt.Errorf("%w: %v", ErrKineStartPanicked, recovered)
+			}
+		}
+	}()
+
 	listenAddr := "unix://" + filepath.Join(tmpDir, kineSocketFileName)
 
-	etcdConfig, err := endpoint.Listen(ctx, endpoint.Config{
+	etcdConfig, err := endpointListen(ctx, endpoint.Config{
 		Listener:              listenAddr,
 		Endpoint:              dbEndpoint,
 		WaitGroup:             kineWaitGroup,

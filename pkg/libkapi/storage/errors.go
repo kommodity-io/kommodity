@@ -12,4 +12,12 @@ var (
 	// ErrKineNotReady is returned when the embedded Kine endpoint does not
 	// become ready to accept connections within the readiness timeout.
 	ErrKineNotReady = errors.New("kine did not become ready")
+	// ErrKineStartPanicked is returned when starting the embedded Kine
+	// endpoint panics instead of returning an error. This works around a bug
+	// in github.com/k3s-io/kine's generic.Open: it does not check the error
+	// from its internal connection-retry loop before continuing, so once the
+	// database stays unreachable for the whole retry window (e.g. a
+	// persistent DNS failure), it proceeds with a nil *sql.DB and panics on
+	// first use.
+	ErrKineStartPanicked = errors.New("starting embedded kine endpoint panicked")
 )
