@@ -411,8 +411,10 @@ talos:
     # Network Discovery frequency
     scanInterval: 30s
     # Quorum nodes required before bootstrapping. When null (default),
-    # defaults to floor(replicas/2)+1 (etcd quorum) to prevent split-brain
-    # while tolerating node failures during bootstrap. Set explicitly to override.
+    # defaults to floor((replicas-1)/2)+1, which is what the template computes,
+    # to reduce the split-brain window while tolerating node failures during
+    # bring-up. Set explicitly to override; the control plane count is the value
+    # that makes every node wait for the same set.
     quorumNodes: null
     # Leader wait time before executing bootstrap
     preBootstrapDelay: 10s

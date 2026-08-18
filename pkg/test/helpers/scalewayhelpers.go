@@ -60,7 +60,7 @@ func WaitForScalewayServers(
 		}
 
 		if len(response.Servers) > instanceCount {
-			return false, fmt.Errorf("%w: found %d, expected %d",
+			return false, fmt.Errorf("%w in Scaleway: found %d, expected %d",
 				errMoreServersThanExpected, len(response.Servers), instanceCount)
 		}
 

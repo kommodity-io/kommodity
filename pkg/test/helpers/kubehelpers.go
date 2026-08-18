@@ -23,6 +23,7 @@ import (
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/discovery/cached/memory"
 	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/restmapper"
 	"k8s.io/client-go/tools/clientcmd"
@@ -35,6 +36,10 @@ const (
 	applyRetryTimeout    = 30 * time.Second
 	fieldManager         = "kommodity-test"
 	yamlDecoderBuffer    = 4096
+
+	// workloadAPIRequestTimeout bounds each /readyz probe against the workload
+	// cluster API so a black-holed connection cannot stall the poll loop.
+	workloadAPIRequestTimeout = 10 * time.Second
 )
 
 // extractAPIServerPort extracts the port from a kubeconfig server URL.
@@ -443,4 +448,64 @@ func countMatchingResources(
 	}
 
 	return count, nil
+}
+
+// WaitForWorkloadClusterReady waits until the workload cluster's kubeconfig
+// Secret exists and the workload cluster's Kubernetes API answers /readyz.
+func WaitForWorkloadClusterReady(
+	ctx context.Context,
+	config *rest.Config,
+	clusterName string,
+	namespace string,
+	timeout time.Duration,
+) error {
+	client, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return fmt.Errorf("failed to create Kubernetes client: %w", err)
+	}
+
+	err = k8s_wait.PollUntilContextTimeout(ctx, pollInterval, timeout, true,
+		func(pollCtx context.Context) (bool, error) {
+			secret, err := client.CoreV1().Secrets(namespace).Get(
+				pollCtx, clusterName+"-kubeconfig", metav1.GetOptions{})
+			if apierrors.IsNotFound(err) {
+				log.Printf("Workload kubeconfig secret not yet available")
+
+				return false, nil
+			}
+
+			if err != nil {
+				return false, fmt.Errorf("failed to get workload kubeconfig secret: %w", err)
+			}
+
+			workloadCfg, err := clientcmd.RESTConfigFromKubeConfig(secret.Data["value"])
+			if err != nil {
+				return false, fmt.Errorf("failed to parse workload kubeconfig: %w", err)
+			}
+
+			workloadCfg.Timeout = workloadAPIRequestTimeout
+
+			workloadClient, err := kubernetes.NewForConfig(workloadCfg)
+			if err != nil {
+				return false, fmt.Errorf("failed to create workload cluster client: %w", err)
+			}
+
+			result := workloadClient.Discovery().RESTClient().Get().AbsPath("/readyz").Do(pollCtx)
+
+			resultErr := result.Error()
+			if resultErr != nil {
+				log.Printf("Workload cluster API not ready yet: %v", resultErr)
+
+				return false, nil
+			}
+
+			log.Printf("Workload cluster API is ready")
+
+			return true, nil
+		})
+	if err != nil {
+		return fmt.Errorf("workload cluster API did not become ready within timeout: %w", err)
+	}
+
+	return nil
 }
