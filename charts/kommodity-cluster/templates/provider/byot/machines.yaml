@@ -32,18 +32,8 @@
 {{- fail (printf "kommodity.controlplane.staticMachines.%s requires publicIP" $name) -}}
 {{- end }}
 {{- $machineName := printf "%s-cp-%s" $.Release.Name $name }}
----
-apiVersion: bootstrap.cluster.x-k8s.io/v1alpha3
-kind: TalosConfig
-metadata:
-  name: {{ $machineName }}
-  namespace: {{ $.Release.Namespace }}
-  labels:
-    app.kubernetes.io/managed-by: kommodity
-spec:
-  generateType: {{ if $m.init }}init{{ else }}controlplane{{ end }}
-  talosVersion: {{ default (include "kommodity.talosVersion" $) (dig "talos" "version" "" $cp) }}
-  {{- $mergedPatch := include "kommodity-cluster.mergedStrategicPatch" (dict
+{{- $talosVersion := default (include "kommodity.talosVersion" $) (dig "talos" "version" "" $cp) }}
+{{- $mergedPatch := include "kommodity-cluster.mergedStrategicPatch" (dict
     "globalPatches" $.Values.kommodity.global.strategicPatches
     "nodepoolPatches" $cp.strategicPatches
     "taints" $cp.taints
@@ -55,6 +45,29 @@ spec:
     "disableCNI" $.Values.talos.disableCNI
     "disableProxy" $.Values.talos.disableKubeProxy
   ) | trim -}}
+{{- $generateType := ternary "init" "controlplane" $m.init -}}
+{{- $configHash := include "kommodity-cluster.byotTalosConfigHash" (dict
+    "generateType" $generateType
+    "talosVersion" $talosVersion
+    "mergedPatch" $mergedPatch
+    "publicIP" $m.publicIP
+    "machineStrategicPatches" $m.strategicPatches
+    "kmsEnabled" $.Values.kommodity.kms.enabled
+    "kmsEndpoint" $.Values.kommodity.kms.endpoint
+    "instanceVolumes" $cp.instanceVolumes
+    "securityEnabled" $.Values.kommodity.security.enabled) -}}
+{{- $configName := printf "%s-%s" $machineName $configHash }}
+---
+apiVersion: bootstrap.cluster.x-k8s.io/v1alpha3
+kind: TalosConfig
+metadata:
+  name: {{ $configName }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: kommodity
+spec:
+  generateType: {{ $generateType }}
+  talosVersion: {{ $talosVersion }}
   {{- /* always true: byot always injects the kubelet provider-id patch below */}}
   strategicPatches:
   {{- if not (empty $mergedPatch) }}
@@ -98,8 +111,6 @@ metadata:
   labels:
     app.kubernetes.io/managed-by: kommodity
     cluster.x-k8s.io/cluster-name: {{ $.Release.Name }}
-  annotations:
-    helm.sh/resource-policy: keep
 spec:
   publicIP: {{ $m.publicIP | quote }}
   {{- if $m.failureDomain }}
@@ -120,8 +131,6 @@ metadata:
     app.kubernetes.io/managed-by: kommodity
     cluster.x-k8s.io/cluster-name: {{ $.Release.Name }}
     cluster.x-k8s.io/control-plane: ""
-  annotations:
-    helm.sh/resource-policy: keep
 spec:
   clusterName: {{ $.Release.Name }}
   {{- if $m.failureDomain }}
@@ -131,7 +140,7 @@ spec:
     configRef:
       apiVersion: bootstrap.cluster.x-k8s.io/v1alpha3
       kind: TalosConfig
-      name: {{ $machineName }}
+      name: {{ $configName }}
       namespace: {{ $.Release.Namespace }}
   infrastructureRef:
     apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
@@ -152,18 +161,8 @@ spec:
 {{- fail (printf "kommodity.nodepools.%s.staticMachines.%s requires publicIP" $poolName $name) -}}
 {{- end }}
 {{- $machineName := printf "%s-worker-%s-%s" $.Release.Name $poolName $name }}
----
-apiVersion: bootstrap.cluster.x-k8s.io/v1alpha3
-kind: TalosConfig
-metadata:
-  name: {{ $machineName }}
-  namespace: {{ $.Release.Namespace }}
-  labels:
-    app.kubernetes.io/managed-by: kommodity
-spec:
-  generateType: worker
-  talosVersion: {{ default (include "kommodity.talosVersion" $) (dig "talos" "version" "" $np) }}
-  {{- $mergedPatch := include "kommodity-cluster.mergedStrategicPatch" (dict
+{{- $talosVersion := default (include "kommodity.talosVersion" $) (dig "talos" "version" "" $np) }}
+{{- $mergedPatch := include "kommodity-cluster.mergedStrategicPatch" (dict
     "globalPatches" $.Values.kommodity.global.strategicPatches
     "nodepoolPatches" $np.strategicPatches
     "taints" $np.taints
@@ -172,6 +171,28 @@ spec:
     "installer" $.Values.talos.installer
     "logLevel" $.Values.kommodity.logLevel
   ) | trim -}}
+{{- $configHash := include "kommodity-cluster.byotTalosConfigHash" (dict
+    "generateType" "worker"
+    "talosVersion" $talosVersion
+    "mergedPatch" $mergedPatch
+    "publicIP" $m.publicIP
+    "machineStrategicPatches" $m.strategicPatches
+    "kmsEnabled" $.Values.kommodity.kms.enabled
+    "kmsEndpoint" $.Values.kommodity.kms.endpoint
+    "instanceVolumes" $np.instanceVolumes
+    "securityEnabled" $.Values.kommodity.security.enabled) -}}
+{{- $configName := printf "%s-%s" $machineName $configHash }}
+---
+apiVersion: bootstrap.cluster.x-k8s.io/v1alpha3
+kind: TalosConfig
+metadata:
+  name: {{ $configName }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: kommodity
+spec:
+  generateType: worker
+  talosVersion: {{ $talosVersion }}
   {{- /* always true: byot always injects the kubelet provider-id patch below */}}
   strategicPatches:
   {{- if not (empty $mergedPatch) }}
@@ -212,8 +233,6 @@ metadata:
   labels:
     app.kubernetes.io/managed-by: kommodity
     cluster.x-k8s.io/cluster-name: {{ $.Release.Name }}
-  annotations:
-    helm.sh/resource-policy: keep
 spec:
   publicIP: {{ $m.publicIP | quote }}
   {{- if $m.failureDomain }}
@@ -233,8 +252,7 @@ metadata:
   labels:
     app.kubernetes.io/managed-by: kommodity
     cluster.x-k8s.io/cluster-name: {{ $.Release.Name }}
-  annotations:
-    helm.sh/resource-policy: keep
+    kommodity.io/nodepool: {{ $poolName }}
 spec:
   clusterName: {{ $.Release.Name }}
   {{- if $m.failureDomain }}
@@ -244,7 +262,7 @@ spec:
     configRef:
       apiVersion: bootstrap.cluster.x-k8s.io/v1alpha3
       kind: TalosConfig
-      name: {{ $machineName }}
+      name: {{ $configName }}
       namespace: {{ $.Release.Namespace }}
   infrastructureRef:
     apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1

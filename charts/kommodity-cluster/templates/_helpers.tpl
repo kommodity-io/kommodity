@@ -81,15 +81,23 @@ Usage: {{ include "kommodity-cluster.zoneShare" (dict "total" 6 "count" 2 "index
 {{- end -}}
 
 {{/*
-Compute a short hash of an addon's initialExtraValues.
-Returns empty string when initialExtraValues is not set, so the Job name
-is unaffected for addons without extra values.
-Usage: {{ include "kommodity.addon.valuesHash" .addon }}
+Compute a short hash of an addon's initialExtraValues combined with the
+helm release revision.
+The release revision is included so that re-applying the chart (e.g. a
+reset re-adopt after deleting machines) produces a different hash. This
+forces the ClusterResourceSet (strategy: Reconcile) to detect a definition
+change and re-apply the installer Job, which redeploys addons like CNI on
+a freshly reset downstream cluster. The installer Job is itself idempotent
+(helm release check), so re-runs on upgrades where the addon already exists
+are a no-op.
+Usage: {{ include "kommodity.addon.valuesHash" (dict "initialExtraValues" .addon.initialExtraValues "releaseRevision" .releaseRevision) }}
 */}}
 {{- define "kommodity.addon.valuesHash" -}}
-{{- if .initialExtraValues }}
-{{- toYaml .initialExtraValues | sha256sum | trunc 8 -}}
+{{- $values := "" -}}
+{{- if .initialExtraValues -}}
+{{- $values = toYaml .initialExtraValues -}}
 {{- end -}}
+{{- printf "%s-r%d" $values (.releaseRevision | default 0) | sha256sum | trunc 8 -}}
 {{- end -}}
 
 {{/*
@@ -219,6 +227,37 @@ Any values that should trigger a new Machine template when changed should be add
 {{- if gt (len $zones) 0 -}}
 {{- $_ := set $data "zones" $zones -}}
 {{- end -}}
+{{- toJson $data | sha256sum | trunc 6 -}}
+{{- end -}}
+
+{{/*
+Compute sha256sum of a BYOT static machine's TalosConfig spec.
+Byot renders one TalosConfig per static machine (not a Template), and
+TalosConfig.spec is immutable: any change that should redeploy the config
+must produce a new TalosConfig name. Hash the exact inputs that shape the
+rendered spec (generateType, resolved talosVersion, the merged strategic
+patch, the always-injected kubelet provider-id patch derived from publicIP,
+per-machine strategic patches, KMS, instance volumes and security), so a
+Talos version bump or patch change creates a new TalosConfig and updates the
+owning Machine's bootstrap.configRef to it.
+*/}}
+{{- define "kommodity-cluster.byotTalosConfigHash" -}}
+{{- $data := dict -}}
+{{- $_ := set $data "generateType" .generateType -}}
+{{- $_ := set $data "talosVersion" .talosVersion -}}
+{{- $_ := set $data "mergedPatch" .mergedPatch -}}
+{{- $_ := set $data "publicIP" .publicIP -}}
+{{- with .machineStrategicPatches -}}
+{{- $_ := set $data "machineStrategicPatches" . -}}
+{{- end -}}
+{{- $_ := set $data "kmsEnabled" .kmsEnabled -}}
+{{- with .kmsEndpoint -}}
+{{- $_ := set $data "kmsEndpoint" . -}}
+{{- end -}}
+{{- with .instanceVolumes -}}
+{{- $_ := set $data "instanceVolumes" . -}}
+{{- end -}}
+{{- $_ := set $data "securityEnabled" .securityEnabled -}}
 {{- toJson $data | sha256sum | trunc 6 -}}
 {{- end -}}
 
