@@ -451,7 +451,7 @@ compatible with Cluster API `v1.10.x`.
 | cluster-api-provider-azure               | v1.21.0  | Infrastructure |
 | cluster-api-provider-bringyourowntalos   | v0.2.0   | Infrastructure |
 | cluster-api-provider-kubevirt            | v0.1.10  | Infrastructure |
-| cluster-api-provider-scaleway            | v0.1.5   | Infrastructure |
+| cluster-api-provider-scaleway            | v0.1.6   | Infrastructure |
 
 ### Limitations
 
