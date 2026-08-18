@@ -1,0 +1,37 @@
+{{- if eq .Values.kommodity.provider.name "Hetzner" }}
+{{- $publicNetwork := and .Values.kommodity.network.ipv4.enabled .Values.kommodity.network.ipv4.public }}
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: HCloudMachineTemplate
+metadata:
+  name: {{ .Release.Name }}-controlplane-{{ include "kommodity-cluster.machineSpecsHash" (dict "poolValues" .Values.kommodity.controlplane "allValues" .Values) }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: kommodity
+spec:
+  template:
+    spec:
+      type: {{ .Values.kommodity.controlplane.sku }}
+      imageName: {{ default $.Values.talos.imageName (dig "talos" "imageName" "" .Values.kommodity.controlplane) }}
+      publicNetwork:
+        enableIPv4: {{ $publicNetwork }}
+        enableIPv6: {{ $publicNetwork }}
+
+{{- range $name, $np := .Values.kommodity.nodepools }}
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: HCloudMachineTemplate
+metadata:
+  name: {{ $.Release.Name }}-worker-{{ $name }}-{{ include "kommodity-cluster.machineSpecsHash" (dict "poolValues" $np "allValues" $.Values) }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: kommodity
+spec:
+  template:
+    spec:
+      type: {{ $np.sku }}
+      imageName: {{ default $.Values.talos.imageName (dig "talos" "imageName" "" $np) }}
+      publicNetwork:
+        enableIPv4: {{ $publicNetwork }}
+        enableIPv6: {{ $publicNetwork }}
+{{- end }}
+{{- end }}

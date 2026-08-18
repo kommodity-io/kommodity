@@ -1,0 +1,156 @@
+# Example of values to create a cluster in Hetzner Cloud (hcloud).
+kommodity:
+  provider:
+    name: Hetzner
+    secret:
+      # Hetzner secret example (one API token per Hetzner project):
+      #
+      # apiVersion: v1
+      # kind: Secret
+      # metadata:
+      #   name: hetzner
+      #   namespace: default
+      # data:
+      #   hcloud: <YOUR_BASE64_ENCODED_HCLOUD_TOKEN>
+      # type: Opaque
+      name: hetzner
+    # IMMUTABLE AFTER CREATE: CAPH treats hcloudNetwork, loadBalancer.enabled,
+    # controlPlaneEndpoint.port and kommodity.region (the LB region) as
+    # immutable on HetznerCluster. Kommodity does not run CAPH's validating
+    # webhooks, so a helm upgrade changing any of them is accepted by the API
+    # server but has no effect. Recreate the cluster instead.
+    config: {}
+      # Optional: name of an SSH key pre-uploaded to the Hetzner project.
+      # Talos has no SSH, so this is usually left unset.
+      # sshKeyName: my-ssh-key
+
+      # Control-plane load balancer (created by CAPH, enabled by default).
+      # Disable it for single-control-plane setups and set controlPlaneEndpoint
+      # to a DNS name pointing at the control-plane machine instead.
+      # loadBalancer:
+      #   enabled: true    # immutable after create
+      #   # One of lb11, lb21, lb31 (default lb11).
+      #   type: lb11
+      # controlPlaneEndpoint:
+      #   host: cp.example.com
+      #   port: 6443       # immutable after create
+
+      # Network zone of the private network when kommodity.network.ipv4.public
+      # is false. One of eu-central (fsn1/nbg1/hel1, the default), us-east (ash),
+      # us-west (hil), ap-southeast (sin).
+      # networkZone: eu-central
+
+    cloudControllerManager:
+      enabled: true
+      image:
+        repository: docker.io/hetznercloud/hcloud-cloud-controller-manager
+        tag: v1.34.0
+
+  global:
+    strategicPatches:
+      # Required when using a Cloud Controller Manager (https://kubernetes.io/docs/tasks/administer-cluster/running-cloud-controller/#running-cloud-controller-manager)
+      machine:
+        kubelet:
+          extraArgs:
+            cloud-provider: external
+
+  network:
+    # Nameservers for the nodes, propagated by Talos to CoreDNS as well.
+    #
+    # Hetzner's platform config points nodes at the provider's own recursors
+    # (185.12.64.1/.2), which serve NXDOMAIN for newly created public records
+    # well past the record's TTL. That breaks in-cluster self-checks of a public
+    # name, cert-manager's HTTP-01 solver most visibly.
+    #
+    # Set to an empty list to keep whatever Hetzner's DHCP hands out.
+    nameservers:
+      - 1.1.1.1
+      - 8.8.8.8
+
+    ipv4:
+      enabled: true
+      # With public: true every node gets a public IPv4/IPv6 address. Setting
+      # public: false attaches nodes to a Hetzner private network instead
+      # (nodeCIDR required); note that Hetzner private networks have no
+      # managed NAT gateway, so image pulls need user-provided egress.
+      #
+      # Hetzner's DHCP does not announce the 0.0.0.0/0 network route, so with
+      # public: false the chart configures the node-side default route, with
+      # the gateway at the first usable address of nodeCIDR.
+      #
+      # The egress itself is yours to provide: a NAT server on the same network
+      # plus a 0.0.0.0/0 network route pointing at it. See articles/hetzner.md.
+      public: true
+      # Required when public is false. Used as the private network and subnet
+      # CIDR; all subnets/servers of a network share one network zone.
+      # nodeCIDR: 10.0.0.0/16
+
+  # Hetzner location: one of fsn1, nbg1, hel1, ash, hil, sin.
+  region: fsn1
+
+  controlplane:
+    replicas: 3
+    # Hetzner server type, e.g. cpx32 or ccx23 (x86), cax21 (arm64).
+    # Availability varies per location and generation; check creatable types
+    # with the datacenters API before choosing. Root disk size is fixed by
+    # the server type.
+    sku: cpx32
+    healthCheck:
+      enabled: true
+      unhealthyConditions:
+        - type: Ready
+          status: Unknown
+          timeout: 300s
+        - type: Ready
+          status: "False"
+          timeout: 300s
+
+  nodepools:
+    default:
+      replicas: 2
+      sku: cpx32
+      healthCheck:
+        enabled: true
+        unhealthyConditions:
+          - type: Ready
+            status: Unknown
+            timeout: 300s
+          - type: Ready
+            status: "False"
+            timeout: 300s
+
+  addons:
+    # Hetzner CSI driver providing the hcloud-volumes StorageClass.
+    # Requires the CCM (nodes must be initialized with providerID).
+    hcloud-csi:
+      enabled: true
+      namespace: kube-system
+      lifecycle:
+        install:
+          mode: HelmInstall
+        upgrade:
+          disable: false
+      chart:
+        repository: https://charts.hetzner.cloud
+        name: hcloud-csi
+        version: 2.22.1
+      initialExtraValues:
+        controller:
+          hcloudToken:
+            existingSecret:
+              # Delivered by the kommodity CCM ClusterResourceSet.
+              name: hcloud
+              key: hcloud
+
+talos:
+  # Keep in sync with the Talos version baked into the snapshot below.
+  version: v1.13.0
+  # Talos hcloud snapshot in the Hetzner project. CAPH matches snapshots by the
+  # caph-image-name label, so upload with
+  # https://github.com/apricote/hcloud-upload-image, e.g.:
+  #   hcloud-upload-image upload \
+  #     --image-url https://factory.talos.dev/image/<schematic>/v1.13.0/hcloud-amd64.raw.xz \
+  #     --architecture x86 --compression xz \
+  #     --description kommodity-talos-hcloud-v1.13.0 \
+  #     --labels caph-image-name=kommodity-talos-hcloud-v1.13.0
+  imageName: kommodity-talos-hcloud-v1.13.0
