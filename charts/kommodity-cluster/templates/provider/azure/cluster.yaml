@@ -137,6 +137,25 @@ spec:
           - {{ $cpSubnetCIDR }}
         securityGroup:
           name: {{ printf "%s-controlplane-nsg" .Release.Name }}
+          {{- /*
+            Allow Talos API (TCP/50000) from within the VNet so that control
+            plane nodes can communicate peer-to-peer.  The autobootstrap
+            extension scans peers on this port to elect a leader and reach
+            quorum.  CAPZ merges these securityRules with the rules it
+            auto-generates (e.g. the 6443 allow-from-LB rule) and does NOT
+            remove rules it didn't create.
+          */}}
+          securityRules:
+            - name: allow-talos-api-from-vnet
+              description: "Allow Talos API (port 50000) from within the VNet"
+              protocol: Tcp
+              direction: Inbound
+              priority: 200
+              source: VirtualNetwork
+              sourcePorts: "*"
+              destination: "*"
+              destinationPorts: "50000"
+              action: Allow
       - name: {{ printf "%s-node-subnet" .Release.Name }}
         role: node
         cidrBlocks:
@@ -169,11 +188,12 @@ spec:
         securityGroup:
           name: {{ printf "%s-controlplane-nsg" .Release.Name }}
           {{- /*
-            Add an explicit inbound rule for Talos API (TCP/50000) from within
-            the VNet so that talosctl can reach the internal apiServerLB's
-            additional LB rule.  CAPZ merges these securityRules with the
-            rules it auto-generates (e.g. the 6443 allow-from-LB rule) and
-            does NOT remove rules it didn't create.
+            Allow Talos API (TCP/50000) from within the VNet so that control
+            plane nodes can communicate peer-to-peer.  The autobootstrap
+            extension scans peers on this port to elect a leader and reach
+            quorum.  CAPZ merges these securityRules with the rules it
+            auto-generates (e.g. the 6443 allow-from-LB rule) and does NOT
+            remove rules it didn't create.
           */}}
           securityRules:
             - name: allow-talos-api-from-vnet
