@@ -653,6 +653,8 @@ github.com/kommodity-io/cluster-api-provider-bringyourowntalos v0.3.2-0.20260819
 github.com/kommodity-io/cluster-api-provider-bringyourowntalos v0.3.2-0.20260819073906-bfe6a5c47051/go.mod h1:mmke3UOWZ39WjEgnCzm6jo7FQ5sD2ThA++/acxwtb+Q=
 github.com/kommodity-io/cluster-api-provider-bringyourowntalos v0.3.2-0.20260819075834-13788e18e464 h1:VDpVC1l8Q2HYCbC44dTz2X/wf4OgVez/uAhpcZ4n4Uc=
 github.com/kommodity-io/cluster-api-provider-bringyourowntalos v0.3.2-0.20260819075834-13788e18e464/go.mod h1:mmke3UOWZ39WjEgnCzm6jo7FQ5sD2ThA++/acxwtb+Q=
+github.com/kommodity-io/cluster-api-provider-bringyourowntalos v0.3.2 h1:7VMuerg59t6239DziwRmgHowyBdTn5m+VyikmWlyz14=
+github.com/kommodity-io/cluster-api-provider-bringyourowntalos v0.3.2/go.mod h1:mmke3UOWZ39WjEgnCzm6jo7FQ5sD2ThA++/acxwtb+Q=
 github.com/kr/pretty v0.1.0/go.mod h1:dAy3ld7l9f0ibDNOQOHHMYYIIbhfbHSm3C4ZsoJORNo=
 github.com/kr/pretty v0.2.0/go.mod h1:ipq/a2n7PKx3OHsz4KJII5eveXtPO4qwEXGdVfWzfnI=
 github.com/kr/pretty v0.3.1 h1:flRD4NNwYAUpkphVc1HcthR4KEIFJ65n8Mw5qdRn3LE=
