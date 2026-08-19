@@ -81,23 +81,15 @@ Usage: {{ include "kommodity-cluster.zoneShare" (dict "total" 6 "count" 2 "index
 {{- end -}}
 
 {{/*
-Compute a short hash of an addon's initialExtraValues combined with the
-helm release revision.
-The release revision is included so that re-applying the chart (e.g. a
-reset re-adopt after deleting machines) produces a different hash. This
-forces the ClusterResourceSet (strategy: Reconcile) to detect a definition
-change and re-apply the installer Job, which redeploys addons like CNI on
-a freshly reset downstream cluster. The installer Job is itself idempotent
-(helm release check), so re-runs on upgrades where the addon already exists
-are a no-op.
-Usage: {{ include "kommodity.addon.valuesHash" (dict "initialExtraValues" .addon.initialExtraValues "releaseRevision" .releaseRevision) }}
+Compute a short hash of an addon's initialExtraValues.
+Returns empty string when initialExtraValues is not set, so the Job name
+is unaffected for addons without extra values.
+Usage: {{ include "kommodity.addon.valuesHash" .addon }}
 */}}
 {{- define "kommodity.addon.valuesHash" -}}
-{{- $values := "" -}}
-{{- if .initialExtraValues -}}
-{{- $values = toYaml .initialExtraValues -}}
+{{- if .initialExtraValues }}
+{{- toYaml .initialExtraValues | sha256sum | trunc 8 -}}
 {{- end -}}
-{{- printf "%s-r%d" $values (.releaseRevision | default 0) | sha256sum | trunc 8 -}}
 {{- end -}}
 
 {{/*
