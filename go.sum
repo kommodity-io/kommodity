@@ -647,6 +647,12 @@ github.com/klauspost/compress v1.18.5 h1:/h1gH5Ce+VWNLSWqPzOVn6XBO+vJbCNGvjoaGBF
 github.com/klauspost/compress v1.18.5/go.mod h1:cwPg85FWrGar70rWktvGQj8/hthj3wpl0PGDogxkrSQ=
 github.com/kommodity-io/cluster-api-provider-bringyourowntalos v0.3.1 h1:NQ1EX/8MOUPQQENxEwXVMSeKOXBnWl/8t0/U0zMZPh0=
 github.com/kommodity-io/cluster-api-provider-bringyourowntalos v0.3.1/go.mod h1:mmke3UOWZ39WjEgnCzm6jo7FQ5sD2ThA++/acxwtb+Q=
+github.com/kommodity-io/cluster-api-provider-bringyourowntalos v0.3.2-0.20260819072748-c1aa85efc790 h1:Cpz4uOL/QyrcSPdZ8QQNUDmWCD97NwZQlLJRk1+DlM4=
+github.com/kommodity-io/cluster-api-provider-bringyourowntalos v0.3.2-0.20260819072748-c1aa85efc790/go.mod h1:mmke3UOWZ39WjEgnCzm6jo7FQ5sD2ThA++/acxwtb+Q=
+github.com/kommodity-io/cluster-api-provider-bringyourowntalos v0.3.2-0.20260819073906-bfe6a5c47051 h1:PtAqJS/JjwkwIXkhTBVwvNtfWD95LBpGsRrZqxCfTqQ=
+github.com/kommodity-io/cluster-api-provider-bringyourowntalos v0.3.2-0.20260819073906-bfe6a5c47051/go.mod h1:mmke3UOWZ39WjEgnCzm6jo7FQ5sD2ThA++/acxwtb+Q=
+github.com/kommodity-io/cluster-api-provider-bringyourowntalos v0.3.2-0.20260819075834-13788e18e464 h1:VDpVC1l8Q2HYCbC44dTz2X/wf4OgVez/uAhpcZ4n4Uc=
+github.com/kommodity-io/cluster-api-provider-bringyourowntalos v0.3.2-0.20260819075834-13788e18e464/go.mod h1:mmke3UOWZ39WjEgnCzm6jo7FQ5sD2ThA++/acxwtb+Q=
 github.com/kr/pretty v0.1.0/go.mod h1:dAy3ld7l9f0ibDNOQOHHMYYIIbhfbHSm3C4ZsoJORNo=
 github.com/kr/pretty v0.2.0/go.mod h1:ipq/a2n7PKx3OHsz4KJII5eveXtPO4qwEXGdVfWzfnI=
 github.com/kr/pretty v0.3.1 h1:flRD4NNwYAUpkphVc1HcthR4KEIFJ65n8Mw5qdRn3LE=
