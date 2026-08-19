@@ -1,7 +1,7 @@
 {{- define "kommodity.addon.installer" -}}
 {{- $addonFullName := printf "%s-%s" .name (.addon.chart.version | replace "." "-") -}}
-{{- $valuesHash := include "kommodity.addon.valuesHash" (dict "initialExtraValues" .addon.initialExtraValues "releaseRevision" .releaseRevision) -}}
-{{- $jobName := printf "%s-install-%s" $addonFullName $valuesHash -}}
+{{- $valuesHash := include "kommodity.addon.valuesHash" .addon -}}
+{{- $jobName := printf "%s-install%s" $addonFullName (ternary (printf "-%s" $valuesHash) "" (ne $valuesHash "")) -}}
 {{- $addonNamespace := default .name .addon.namespace -}}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
