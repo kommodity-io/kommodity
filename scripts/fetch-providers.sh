@@ -26,20 +26,35 @@ for i in $(seq 0 $((count - 1))); do
     version=$(go mod graph | grep "$repo" | head -n1 | awk -F'@' '{print $2}')
   fi
   
-  # Fetch CRD manifests
-  if [ "$file" == "null" ]; then
+  # Fetch CRD manifests, either from individual files at the git tag (crd_paths)
+  # or from a release asset (file_name).
+  crd_count=$(yq ".providers[$i].crd_paths | length" "$yq_path")
+  if [ "$crd_count" != "null" ] && [ "$crd_count" -gt 0 ]; then
+    for j in $(seq 0 $((crd_count - 1))); do
+      crd_path=$(yq -r ".providers[$i].crd_paths[$j]" "$yq_path")
+      crd_url="https://raw.githubusercontent.com/${repo}/refs/tags/${version}/${crd_path}"
+
+      echo "Fetching CRD manifest from $crd_url"
+
+      # Raw CRD bases lack the Cluster API contract label added by kustomize at
+      # release time, so stamp it with all served API versions of the CRD.
+      curl -sL "$crd_url" |
+        yq '.metadata.labels."cluster.x-k8s.io/v1beta1" = ([.spec.versions[].name] | join("_"))' |
+        yq -s '"pkg/provider/crds/\(.spec.names.kind).yaml"'
+    done
+  elif [ "$file" == "null" ]; then
     echo "'file' field is null. Skipping CRD manifests for $name."
     continue
-  fi
-  url="https://github.com/${repo}/releases/download/${version}/$file"
-  
-  echo "Fetching from $url with filter $filter"
+  else
+    url="https://github.com/${repo}/releases/download/${version}/$file"
 
-  curl -sL "$url" -o "pkg/provider/${name}.yaml"
-  
+    echo "Fetching from $url with filter $filter"
 
-  if [ -n "$filter" ]; then
-    yq eval "$filter" "pkg/provider/${name}.yaml" | yq -s '"pkg/provider/crds/\(.spec.names.kind).yaml"'
+    curl -sL "$url" -o "pkg/provider/${name}.yaml"
+
+    if [ -n "$filter" ]; then
+      yq eval "$filter" "pkg/provider/${name}.yaml" | yq -s '"pkg/provider/crds/\(.spec.names.kind).yaml"'
+    fi
   fi
 
   for kind in $(yq -r ".providers[$i].deny_list[]" "$yq_path"); do
