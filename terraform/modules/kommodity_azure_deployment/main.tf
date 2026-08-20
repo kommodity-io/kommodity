@@ -184,6 +184,13 @@ resource "azurerm_container_app_environment" "kommodity-environment" {
   }
 }
 
+resource "time_sleep" "wait_for_environment" {
+  create_duration = "60s"
+  triggers = {
+    environment_id = azurerm_container_app_environment.kommodity-environment.id
+  }
+}
+
 resource "azurerm_monitor_diagnostic_setting" "kommodity-environment" {
   name                           = "${var.resource_group.name}-environment-logs"
   target_resource_id             = azurerm_container_app_environment.kommodity-environment.id
@@ -214,6 +221,7 @@ resource "azurerm_container_app" "kommodity-app" {
     azurerm_resource_group.kommodity-resource-group,
     azurerm_container_app_environment.kommodity-environment,
     azurerm_postgresql_flexible_server_database.this,
+    time_sleep.wait_for_environment,
   ]
   name                         = "${var.resource_group.name}-app"
   container_app_environment_id = azurerm_container_app_environment.kommodity-environment.id
@@ -409,7 +417,7 @@ resource "azurerm_container_app_environment_managed_certificate" "this" {
   subject_name                 = trimsuffix(azurerm_dns_cname_record.kommodity.fqdn, ".")
   domain_control_validation    = "CNAME"
 
-  depends_on = [azurerm_container_app_custom_domain.this]
+  depends_on = [azurerm_container_app_custom_domain.this, time_sleep.wait_for_environment]
 }
 
 resource "azapi_update_resource" "bind_cert" {
