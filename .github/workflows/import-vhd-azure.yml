@@ -1,0 +1,112 @@
+name: Import VHD to Azure Gallery
+
+on:
+  workflow_dispatch:
+    inputs:
+      vhd_tag:
+        description: "GHCR tag of the VHD OCI artifact (e.g. v1.13.2)"
+        required: true
+        type: string
+        default: "v1.13.2"
+      gallery_version:
+        description: "Gallery image version (e.g. 1.13.9)"
+        required: true
+        type: string
+      storage_sas:
+        description: "SAS token for Azure Storage container (write permission)"
+        required: true
+        type: string
+      storage_account:
+        description: "Azure Storage account name"
+        required: true
+        type: string
+        default: "kommoditydevsharedstorag"
+      storage_container:
+        description: "Azure Storage container name"
+        required: true
+        type: string
+        default: "vhd-images"
+
+jobs:
+  import:
+    name: Import VHD to Azure Storage
+    runs-on: ubuntu-latest
+    permissions:
+      packages: read
+    steps:
+      - name: Install oras
+        run: |
+          ORAS_VERSION="1.2.0"
+          curl -LO "https://github.com/oras-project/oras/releases/download/v${ORAS_VERSION}/oras_${ORAS_VERSION}_linux_amd64.tar.gz"
+          tar -xzf "oras_${ORAS_VERSION}_linux_amd64.tar.gz"
+          sudo mv oras /usr/local/bin/
+
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | oras login ghcr.io --username ${{ github.actor }} --password-stdin
+
+      - name: Pull VHD from GHCR
+        run: |
+          mkdir -p _out
+          cd _out
+          oras pull ghcr.io/kommodity-io/kommodity-talos-azure:${{ inputs.vhd_tag }}
+          ls -la
+
+      - name: Verify VHD footer
+        run: |
+          VHD_FILE=$(find _out -name "*.vhd" | head -1)
+          echo "VHD file: $VHD_FILE"
+          echo "Size: $(stat -c%s "$VHD_FILE") bytes"
+          FOOTER=$(tail -c 512 "$VHD_FILE" | strings | head -1)
+          echo "Footer: $FOOTER"
+          if [[ "$FOOTER" != *"conectix"* ]]; then
+            echo "ERROR: VHD footer not found - file may be truncated"
+            exit 1
+          fi
+          echo "VHD footer valid"
+
+      - name: Upload VHD to Azure Storage
+        run: |
+          VHD_FILE=$(find _out -name "*.vhd" | head -1)
+          BLOB_NAME="kommodity-talos-azure-${{ inputs.gallery_version }}.vhd"
+          SAS_URL="https://${{ inputs.storage_account }}.blob.core.windows.net/${{ inputs.storage_container }}/${BLOB_NAME}?${{ inputs.storage_sas }}"
+          echo "Uploading $VHD_FILE as $BLOB_NAME..."
+          curl -X PUT \
+            -H "x-ms-blob-type: PageBlob" \
+            -H "Content-Type: application/octet-stream" \
+            --data-binary @"$VHD_FILE" \
+            "$SAS_URL" \
+            -w "\nHTTP status: %{http_code}\n" \
+            -o upload-response.txt
+          cat upload-response.txt
+          HTTP_STATUS=$(grep -oP 'HTTP status: \K\d+' upload-response.txt)
+          if [[ "$HTTP_STATUS" != "201" ]]; then
+            echo "ERROR: Upload failed with HTTP $HTTP_STATUS"
+            exit 1
+          fi
+          echo "Upload successful"
+
+      - name: Summary
+        run: |
+          BLOB_NAME="kommodity-talos-azure-${{ inputs.gallery_version }}.vhd"
+          BLOB_URL="https://${{ inputs.storage_account }}.blob.core.windows.net/${{ inputs.storage_container }}/${BLOB_NAME}"
+          echo "## VHD Import Summary"
+          echo ""
+          echo "| Setting | Value |"
+          echo "|---------|-------|"
+          echo "| VHD Tag | \`${{ inputs.vhd_tag }}\` |"
+          echo "| Gallery Version | \`${{ inputs.gallery_version }}\` |"
+          echo "| Blob URL | \`${BLOB_URL}\` |"
+          echo ""
+          echo "### Create gallery image version locally"
+          echo '```bash'
+          echo "az sig image-version create \\"
+          echo "  --resource-group shared-dev-infra \\"
+          echo "  --gallery-name kommodity_canary \\"
+          echo "  --gallery-image-definition kommodity-talos-azure \\"
+          echo "  --gallery-image-version ${{ inputs.gallery_version }} \\"
+          echo "  --os-vhd-uri \"${BLOB_URL}\" \\"
+          echo "  --os-vhd-storage-account ${{ inputs.storage_account }} \\"
+          echo "  --storage-account-type Premium_LRS \\"
+          echo "  --replica-count 1 \\"
+          echo "  --location northeurope"
+          echo '```'

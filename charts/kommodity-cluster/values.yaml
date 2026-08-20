@@ -420,6 +420,10 @@ talos:
     maxBackoff: 2m
     # Node probe timeout
     scanTimeout: 2s
+    # Optional: override the auto-detected scan CIDR for peer discovery.
+    # Useful on platforms that assign /32 node addresses (e.g. Azure).
+    # Empty means auto-detect from the interface or route table.
+    # scanCIDR: ""
 
   # If true, the Talos CNI will be disabled. Useful when using a different CNI such as Cilium.
   disableCNI: true
