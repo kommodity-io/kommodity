@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
 	certutil "k8s.io/client-go/util/cert"
@@ -185,4 +186,5 @@ func TestCreateWebhookCertSecret_AlreadyExists_ReturnsError(t *testing.T) {
 
 	err = libkapi.CreateWebhookCertSecret(ctx, client.CoreV1(), certPEM, keyPEM, "test-ns", "test-secret")
 	require.Error(t, err)
+	assert.True(t, apierrors.IsAlreadyExists(err), "expected an IsAlreadyExists error, got: %v", err)
 }
