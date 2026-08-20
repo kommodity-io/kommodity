@@ -65,9 +65,10 @@ spec:
         "logLevel" $.Values.kommodity.logLevel
         "disableCNI" $.Values.talos.disableCNI
         "disableProxy" $.Values.talos.disableKubeProxy
-      ) | trim -}}
-      {{- $needsStrategicPatches := or (not (empty $mergedPatch)) $.Values.kommodity.kms.enabled (not $.Values.kommodity.network.ipv4.public) $.Values.talos.autoBootstrap.enabled $.Values.kommodity.security.enabled (gt (len (default list $.Values.kommodity.controlplane.instanceVolumes)) 0) }}
-      {{- if $needsStrategicPatches }}
+      ) | trim }}
+      {{- $kmsEndpoint := "" -}}
+      {{- if $.Values.kommodity.kms.enabled }}{{- $kmsEndpoint = $.Values.kommodity.kms.endpoint -}}{{- end -}}
+      {{- $additionalVolumesPatch := include "kommodity.talos.additionalVolumes" (dict "additionalVolumes" $.Values.kommodity.controlplane.additionalVolumes "kmsEndpoint" $kmsEndpoint) | trim }}
       strategicPatches:
       {{- /* Merged MachineConfig patch (labels, taints, annotations, env, installer, OIDC, CNI, proxy, CCM, user patches) */ -}}
       {{- if not (empty $mergedPatch) }}
@@ -79,17 +80,16 @@ spec:
       {{- end }}
       {{- if $.Values.kommodity.controlplane.instanceVolumes }}
       {{- /* UserVolumeConfig for instance-local disks (not cloud-provisioned) */ -}}
-{{- $kmsEndpoint := "" -}}
-{{- if $.Values.kommodity.kms.enabled }}{{- $kmsEndpoint = $.Values.kommodity.kms.endpoint -}}{{- end -}}
 {{- include "kommodity.talos.instanceVolumes" (dict "instanceVolumes" $.Values.kommodity.controlplane.instanceVolumes "kmsEndpoint" $kmsEndpoint "kmsEnabled" $.Values.kommodity.kms.enabled) | nindent 6 }}
       {{- end }}
-      {{- if or (not $.Values.kommodity.network.ipv4.public) $.Values.talos.autoBootstrap.enabled }}
-      {{- /* ExtensionServiceConfig for kommodity-autobootstrap extension */ -}}
-{{- include "kommodity.talos.autoBootstrapExtensionServiceConfig" (dict "autoBootstrap" $.Values.talos.autoBootstrap "logLevel" $.Values.kommodity.logLevel) | nindent 6 }}
+      {{- if not (empty $additionalVolumesPatch) }}
+      {{- /* UserVolumeConfig for cloud-provisioned data disks (Azure dataDisks, etc.) */ -}}
+{{ $additionalVolumesPatch | nindent 6 }}
       {{- end }}
+      {{- /* ExtensionServiceConfig for kommodity-autobootstrap extension */ -}}
+{{- include "kommodity.talos.autoBootstrapExtensionServiceConfig" (dict "autoBootstrap" $.Values.talos.autoBootstrap "logLevel" $.Values.kommodity.logLevel "replicas" (default 1 $.Values.kommodity.controlplane.replicas)) | nindent 6 }}
       {{- if $.Values.kommodity.security.enabled }}
       {{- /* ExtensionServiceConfig for kommodity-attestation extension */ -}}
 {{- include "kommodity.talos.attestationExtensionServiceConfig" (dict "logLevel" $.Values.kommodity.logLevel) | nindent 6 }}
-      {{- end }}
       {{- end }}
 {{- end }}

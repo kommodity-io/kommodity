@@ -5,6 +5,8 @@ This configures environment variables for the kommodity-autobootstrap extension 
 {{- define "kommodity.talos.autoBootstrapExtensionServiceConfig" -}}
 {{- $autoBootstrap := .autoBootstrap -}}
 {{- $logLevel := .logLevel -}}
+{{- $replicas := .replicas -}}
+{{- $defaultQuorum := add (div (sub $replicas 1) 2) 1 -}}
 - |
   apiVersion: v1alpha1
   kind: ExtensionServiceConfig
@@ -12,7 +14,7 @@ This configures environment variables for the kommodity-autobootstrap extension 
   environment:
     - LOG_LEVEL={{ $logLevel }}
     - TALOS_AUTO_BOOTSTRAP_SCAN_INTERVAL={{ $autoBootstrap.scanInterval }}
-    - TALOS_AUTO_BOOTSTRAP_QUORUM_NODES={{ $autoBootstrap.quorumNodes }}
+    - TALOS_AUTO_BOOTSTRAP_QUORUM_NODES={{ default $defaultQuorum $autoBootstrap.quorumNodes }}
     - TALOS_AUTO_BOOTSTRAP_PRE_BOOTSTRAP_DELAY={{ $autoBootstrap.preBootstrapDelay }}
     - TALOS_AUTO_BOOTSTRAP_MAX_BACKOFF={{ $autoBootstrap.maxBackoff }}
     - TALOS_AUTO_BOOTSTRAP_SCAN_TIMEOUT={{ $autoBootstrap.scanTimeout }}

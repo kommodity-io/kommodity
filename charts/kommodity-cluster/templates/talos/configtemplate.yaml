@@ -25,7 +25,10 @@ spec:
         "installer" $.Values.talos.installer
         "logLevel" $.Values.kommodity.logLevel
       ) | trim -}}
-      {{- $needsStrategicPatches := or (not (empty $mergedPatch)) $.Values.kommodity.kms.enabled $.Values.kommodity.security.enabled (gt (len (default list $np.instanceVolumes)) 0) }}
+      {{- $kmsEndpoint := "" -}}
+      {{- if $.Values.kommodity.kms.enabled }}{{- $kmsEndpoint = $.Values.kommodity.kms.endpoint -}}{{- end -}}
+      {{- $additionalVolumesPatch := include "kommodity.talos.additionalVolumes" (dict "additionalVolumes" $np.additionalVolumes "kmsEndpoint" $kmsEndpoint) | trim -}}
+      {{- $needsStrategicPatches := or (not (empty $mergedPatch)) $.Values.kommodity.kms.enabled $.Values.kommodity.security.enabled (gt (len (default list $np.instanceVolumes)) 0) (not (empty $additionalVolumesPatch)) }}
       {{- if $needsStrategicPatches }}
       strategicPatches:
       {{- if not (empty $mergedPatch) }}
@@ -37,9 +40,11 @@ spec:
       {{- end }}
       {{- if $np.instanceVolumes }}
       {{- /* UserVolumeConfig for instance-local disks (not cloud-provisioned) */ -}}
-{{- $kmsEndpoint := "" -}}
-{{- if $.Values.kommodity.kms.enabled }}{{- $kmsEndpoint = $.Values.kommodity.kms.endpoint -}}{{- end -}}
 {{- include "kommodity.talos.instanceVolumes" (dict "instanceVolumes" $np.instanceVolumes "kmsEndpoint" $kmsEndpoint "kmsEnabled" $.Values.kommodity.kms.enabled) | nindent 6 }}
+      {{- end }}
+      {{- if not (empty $additionalVolumesPatch) }}
+      {{- /* UserVolumeConfig for cloud-provisioned data disks (Azure dataDisks, etc.) */ -}}
+{{ $additionalVolumesPatch | nindent 6 }}
       {{- end }}
       {{- if $.Values.kommodity.security.enabled }}
       {{- /* ExtensionServiceConfig for kommodity-attestation extension */ -}}

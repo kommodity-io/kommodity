@@ -173,6 +173,12 @@ tests:
           path: spec.networkSpec.subnets[0].securityGroup.securityRules[0].destinationPorts
           value: "50000"
       - equal:
+          path: spec.networkSpec.subnets[0].securityGroup.securityRules[0].action
+          value: Allow
+      - equal:
+          path: spec.networkSpec.subnets[0].securityGroup.securityRules[0].priority
+          value: 200
+      - equal:
           path: spec.networkSpec.subnets[0].natGateway.name
           value: test-cluster-node-natgw-1
       - equal:
@@ -231,6 +237,30 @@ tests:
       - equal:
           path: spec.networkSpec.subnets[0].role
           value: control-plane
+      - equal:
+          path: spec.networkSpec.subnets[0].securityGroup.name
+          value: test-cluster-controlplane-nsg
+      - equal:
+          path: spec.networkSpec.subnets[0].securityGroup.securityRules[0].name
+          value: allow-talos-api-from-vnet
+      - equal:
+          path: spec.networkSpec.subnets[0].securityGroup.securityRules[0].protocol
+          value: Tcp
+      - equal:
+          path: spec.networkSpec.subnets[0].securityGroup.securityRules[0].direction
+          value: Inbound
+      - equal:
+          path: spec.networkSpec.subnets[0].securityGroup.securityRules[0].source
+          value: VirtualNetwork
+      - equal:
+          path: spec.networkSpec.subnets[0].securityGroup.securityRules[0].destinationPorts
+          value: "50000"
+      - equal:
+          path: spec.networkSpec.subnets[0].securityGroup.securityRules[0].action
+          value: Allow
+      - equal:
+          path: spec.networkSpec.subnets[0].securityGroup.securityRules[0].priority
+          value: 200
       - equal:
           path: spec.networkSpec.subnets[1].name
           value: test-cluster-node-subnet

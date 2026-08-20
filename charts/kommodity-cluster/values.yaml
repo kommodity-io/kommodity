@@ -30,7 +30,6 @@ kommodity:
       enabled: true
       # Setting public to false will :
       # - prevent the creation of a public network interface
-      # - enable the Talos autoBootstrap extension (nodes are not reachable by Kommodity so they need to bootstrap themselves)
       # - create a private network and attach the nodes to it (Scaleway only)
       # - create a public gateway and attach it to the private network (Scaleway only)
       public: false
@@ -308,6 +307,14 @@ kommodity:
     #     status: "False"
     #     timeout: 300s
 
+    #   # Optional: additional data disks. When nameSuffix is set, a Talos
+    #   # UserVolumeConfig is emitted so Talos formats (xfs) and mounts
+    #   # at /var/mnt/<nameSuffix>. Optional diskSelector overrides the
+    #   # auto-generated size-based CEL selector.
+    #   additionalVolumes:
+    #     - nameSuffix: data
+    #       size: 100
+
     # instanceVolumes:
     #   # Instance-local disks that exist on the VM at boot (not provisioned via
     #   # the cloud provider's volume API). E.g. the Scaleway H100 scratch NVMe
@@ -372,6 +379,14 @@ kommodity:
     #       status: "False"
     #       timeout: 300s
 
+    #   # Optional: additional data disks. When nameSuffix is set, a Talos
+    #   # UserVolumeConfig is emitted so Talos formats (xfs) and mounts
+    #   # at /var/mnt/<nameSuffix>. Optional diskSelector overrides the
+    #   # auto-generated size-based CEL selector.
+    #   additionalVolumes:
+    #     - nameSuffix: data
+    #       size: 100
+
     #   # Instance-local disks (see kommodity.controlplane.instanceVolumes above)
     #   instanceVolumes:
     #     - nameSuffix: scratch
@@ -393,12 +408,12 @@ talos:
   #   imageName: kommodity-talos-installer:v1.13.0
   #   repository: ghcr.io/kommodity-io
   autoBootstrap:
-    # autoBootstrap will be enabled regardless of the enabled value if kommodity.network.ipv4.public is set to false
-    enabled: false
-    # Network discovery frequency
+    # Network Discovery frequency
     scanInterval: 30s
-    # Expected number of control plane nodes required for quorum before bootstrapping
-    quorumNodes: 1
+    # Quorum nodes required before bootstrapping. When null (default),
+    # defaults to floor(replicas/2)+1 (etcd quorum) to prevent split-brain
+    # while tolerating node failures during bootstrap. Set explicitly to override.
+    quorumNodes: null
     # Leader wait time before executing bootstrap
     preBootstrapDelay: 10s
     # Maximum retry backoff period

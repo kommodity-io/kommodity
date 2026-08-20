@@ -25,7 +25,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
 	github.com/k3s-io/kine v1.14.2
-	github.com/kommodity-io/cluster-api-provider-bringyourowntalos v0.2.0
+	github.com/kommodity-io/cluster-api-provider-bringyourowntalos v0.3.2
 	github.com/scaleway/cluster-api-provider-scaleway v0.1.6
 	github.com/siderolabs/cluster-api-bootstrap-provider-talos v0.6.12
 	github.com/siderolabs/cluster-api-control-plane-provider-talos v0.5.13
@@ -34,7 +34,6 @@ require (
 	github.com/stretchr/testify v1.11.1
 	go.etcd.io/etcd/client/v3 v3.6.4
 	go.uber.org/zap v1.27.1
-	golang.org/x/net v0.57.0
 	golang.org/x/time v0.15.0
 	google.golang.org/grpc v1.80.0
 	gopkg.in/yaml.v3 v3.0.1
@@ -62,6 +61,7 @@ require (
 
 require (
 	github.com/robfig/cron/v3 v3.0.1 // indirect
+	golang.org/x/net v0.57.0 // indirect
 	k8s.io/gengo/v2 v2.0.0-20240911193312-2b36238f13e9 // indirect
 )
 
