@@ -16,20 +16,18 @@ import (
 )
 
 const (
-	byotNamespace             = "default"
-	byotJoinPreflightCond     = "JoinPreflight"
-	byotMachineAdoptedCond    = "MachineAdopted"
-	byotReasonMaintenanceMode = "MaintenanceMode"
-	byotReasonBundleMatch     = "BundleMatch"
-	byotReasonNoCredentials   = "NoCredentials"
-	byotReasonBundleMismatch  = "BundleMismatch"
-	byotMachineAdoptTimeout   = 10 * time.Minute
-	byotNodeReadyTimeout      = 10 * time.Minute
-	byotDeleteTimeout         = 5 * time.Minute
-	byotConditionTimeout      = 5 * time.Minute
-	byotJoinPolicyReset       = "Reset"
-	byotSplitPolicyReset      = "Reset"
-	byotNodePollInterval      = 5 * time.Second
+	byotNamespace            = "default"
+	byotJoinPreflightCond    = "JoinPreflight"
+	byotReasonBundleMatch    = "BundleMatch"
+	byotReasonNoCredentials  = "NoCredentials"
+	byotReasonBundleMismatch = "BundleMismatch"
+	byotNodeReadyTimeout     = 10 * time.Minute
+	byotDeleteTimeout        = 5 * time.Minute
+	byotConditionTimeout     = 5 * time.Minute
+	byotJoinPolicyReset      = "Reset"
+	byotSplitPolicyReset     = "Reset"
+	byotSplitPolicyNone      = "None"
+	byotNodePollInterval     = 5 * time.Second
 )
 
 func waitForKubeconfigSecret(t *testing.T, clusterName string) {
@@ -59,8 +57,14 @@ func TestByotClusterFreshAdopt(t *testing.T) {
 func TestByotClusterSplitNoneRoundTrip(t *testing.T) {
 	t.Parallel()
 
+	ctx := context.Background()
+	defer helpers.DumpByotMachines(ctx, env, byotNamespace)
+
 	clusterName := "byot-roundtrip"
-	nodes := startFreshByotCluster(t, clusterName, helpers.ByotInfra{})
+	nodes := startFreshByotCluster(t, clusterName, helpers.ByotInfra{
+		SplitPolicy:       byotSplitPolicyNone,
+		WorkerSplitPolicy: byotSplitPolicyNone,
+	})
 
 	defer helpers.TerminateTalosNodes(t, nodes.CP, nodes.Worker)
 
@@ -76,6 +80,13 @@ func TestByotClusterSplitNoneRoundTrip(t *testing.T) {
 	waitForNodeCount(t, workloadClient, 1)
 	assertHostKeepsBundle(t, nodes.Worker, clusterName)
 
+	// CAPI cascade-deletes the worker ByotMachine after its finalizer is
+	// removed (splitPolicy=None releases immediately), but that lags the
+	// Machine deletion. Wait for the ByotMachine to be gone before upgrading:
+	// otherwise helm sees the still-terminating object and skips recreating
+	// it, leaving the new Machine with no infra ref to re-adopt.
+	helpers.WaitForByotMachineDeletion(t, env, byotNamespace, workerMachine, byotDeleteTimeout)
+
 	helpers.UpgradeKommodityClusterChartByot(t, env, clusterName, byotNamespace, nodes.Infra)
 
 	// The recreated ByotMachine can only join once the join preflight accepted
@@ -90,17 +101,20 @@ func TestByotClusterSplitNoneRoundTrip(t *testing.T) {
 	helpers.UninstallKommodityClusterChart(t, env, clusterName, byotNamespace)
 }
 
-// TestByotClusterJoinBlockedThenResetRescue verifies PLA-6479: a machine
+// TestByotClusterJoinBlockedThenReset verifies PLA-6479: a machine
 // carrying a foreign bundle is blocked by the join preflight without and with
 // credentials, and only wiped once joinPolicy=Reset is set.
-func TestByotClusterJoinBlockedThenResetRescue(t *testing.T) {
+func TestByotClusterJoinBlockedThenReset(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
 	defer helpers.DumpByotMachines(ctx, env, byotNamespace)
 
 	clusterA := "byot-victim"
-	victim := startFreshByotCluster(t, clusterA, helpers.ByotInfra{})
+	victim := startFreshByotCluster(t, clusterA, helpers.ByotInfra{
+		SplitPolicy:       byotSplitPolicyNone,
+		WorkerSplitPolicy: byotSplitPolicyNone,
+	})
 
 	defer helpers.TerminateTalosNodes(t, victim.CP, victim.Worker)
 
@@ -117,6 +131,21 @@ func TestByotClusterJoinBlockedThenResetRescue(t *testing.T) {
 			!helpers.ProbeMaintenance(ctx, victim.Worker.TalosAPIAddr, victim.Worker.InternalIP)
 	}, byotConditionTimeout, 5*time.Second,
 		"worker must still carry victim cluster's bundle after Split=None")
+
+	rescueBlockedForeignBundle(t, victim, victimTalosconfig)
+}
+
+// rescueBlockedForeignBundle drives the rescue cluster (clusterB) that tries
+// to adopt the victim's worker, which still carries a foreign bundle. It
+// asserts the join preflight blocks without credentials, blocks again once
+// the foreign talosconfig is supplied (bundle mismatch), and only proceeds
+// once joinPolicy=Reset wipes the machine.
+func rescueBlockedForeignBundle(
+	t *testing.T,
+	victim byotNodes,
+	victimTalosconfig []byte,
+) {
+	t.Helper()
 
 	clusterB := "byot-rescue"
 	rescueInfra := victim.Infra

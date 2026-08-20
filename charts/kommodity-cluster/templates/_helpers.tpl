@@ -380,7 +380,7 @@ Input: dict "scope" (value path for error messages) "parent" (controlplane/nodep
 */}}
 {{- define "kommodity-cluster.byotPolicies" -}}
 {{- $joinPolicy := default (default "None" .parent.joinPolicy) .machine.joinPolicy -}}
-{{- $splitPolicy := default (default "None" .parent.splitPolicy) .machine.splitPolicy -}}
+{{- $splitPolicy := default (default "Reset" .parent.splitPolicy) .machine.splitPolicy -}}
 {{- if not (or (eq $joinPolicy "None") (eq $joinPolicy "Reset")) -}}
 {{- fail (printf "%s.joinPolicy must be None or Reset, got %q" .scope $joinPolicy) -}}
 {{- end -}}

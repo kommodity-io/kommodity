@@ -563,6 +563,25 @@ func DumpByotMachines(ctx context.Context, env TestEnvironment, namespace string
 	}
 }
 
+// WaitForByotMachineDeletion polls until the named ByotMachine is gone from
+// the cluster. CAPI deletes a ByotMachine only after its finalizer is
+// removed, which lags behind the owning Machine's deletion; callers that
+// re-create the ByotMachine via a helm upgrade must wait for this first,
+// otherwise helm sees the still-terminating object and skips re-creating it.
+func WaitForByotMachineDeletion(
+	t *testing.T,
+	env TestEnvironment,
+	namespace string,
+	machineName string,
+	timeout time.Duration,
+) {
+	t.Helper()
+
+	require.NoError(t, WaitForK8sResourceDeletion(
+		env.KommodityCfg, namespace, machineName,
+		byotMachineGroup, byotMachineVersion, byotMachineResource, "", "", timeout))
+}
+
 // WaitForByotMachineCondition polls a ByotMachine until the given status
 // condition reports the wanted status, then returns its reason and message.
 func WaitForByotMachineCondition(

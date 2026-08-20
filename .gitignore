@@ -45,3 +45,7 @@ azure-sbx-cluster-resources.md
 
 .playwright-mcp/
 .claude/
+
+# Local go.work for linking sibling provider repos during BYOT testing
+go.work
+go.work.sum
