@@ -20,19 +20,22 @@ type WebhookConfig struct {
 	// (controller-runtime's own default) if zero.
 	Port int
 
-	// DNSNames are the Subject Alternative Names New embeds in the
-	// self-signed serving certificate it generates on startup (see
-	// ensureSelfSignedWebhookCert) if one doesn't already exist. Defaults to
-	// []string{"localhost"} if empty — the only hostname a caller dialing
-	// 127.0.0.1 from this same host would ever use.
+	// DNSNames are the Subject Alternative Names embedded in the
+	// self-signed serving certificate ListenAndServe generates on startup
+	// (see Server.syncWebhookCert) if the shared Secret backing it doesn't
+	// already exist. Defaults to []string{"localhost"} if empty — the only
+	// hostname a caller dialing 127.0.0.1 from this same host would ever
+	// use.
 	DNSNames []string
 }
 
 // WithWebhookServer enables the manager's webhook server. Any registered
 // Controller can call mgr.GetWebhookServer().Register(path, handler) in its
 // own SetupWithManager to serve admission or conversion webhooks — no
-// change to the Controller interface. New ensures a self-signed serving
-// certificate exists before the manager starts. Without this option,
+// change to the Controller interface. ListenAndServe adopts or creates the
+// shared serving certificate Secret, and writes the certificate to disk,
+// before the manager starts; its PEM bytes are available to callers via
+// Server.WebhookCABundle. Without this option,
 // GetWebhookServer still works (controller-runtime's own lazy default), but
 // with no certificate provisioned, so a Controller trying to actually serve
 // traffic through it would fail.

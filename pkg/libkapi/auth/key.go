@@ -138,8 +138,9 @@ func LoadOrCreateSigningKey(
 	ctx context.Context,
 	client corev1client.CoreV1Interface,
 	keyPersistence *KeyPersistenceConfig,
+	systemNamespace string,
 ) (*rsa.PrivateKey, error) {
-	namespace := ResolveSigningKeyNamespace(keyPersistence)
+	namespace := ResolveSigningKeyNamespace(keyPersistence, systemNamespace)
 	secretName := ResolveSigningKeySecretName(keyPersistence)
 
 	// Try to load from existing Secret.

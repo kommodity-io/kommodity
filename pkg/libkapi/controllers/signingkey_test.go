@@ -16,21 +16,34 @@ import (
 )
 
 // TestResolveTokenSecretsNamespace_DefaultsToKubeSystem verifies that
-// ResolveTokenSecretsNamespace returns "kube-system" when unset.
+// ResolveTokenSecretsNamespace falls back to "kube-system" when both
+// kp.TokenSecretsNamespace and systemNamespace are unset.
 func TestResolveTokenSecretsNamespace_DefaultsToKubeSystem(t *testing.T) {
 	t.Parallel()
 
 	keyPersistence := &auth.KeyPersistenceConfig{}
-	assert.Equal(t, "kube-system", controllers.ResolveTokenSecretsNamespace(keyPersistence))
+	assert.Equal(t, "kube-system", controllers.ResolveTokenSecretsNamespace(keyPersistence, ""))
 }
 
 // TestResolveTokenSecretsNamespace_UsesConfigured verifies that
-// ResolveTokenSecretsNamespace respects a custom TokenSecretsNamespace.
+// ResolveTokenSecretsNamespace respects a custom TokenSecretsNamespace over
+// systemNamespace.
 func TestResolveTokenSecretsNamespace_UsesConfigured(t *testing.T) {
 	t.Parallel()
 
 	keyPersistence := &auth.KeyPersistenceConfig{TokenSecretsNamespace: "custom-ns"}
-	assert.Equal(t, "custom-ns", controllers.ResolveTokenSecretsNamespace(keyPersistence))
+	assert.Equal(t, "custom-ns", controllers.ResolveTokenSecretsNamespace(keyPersistence, "system-ns"))
+}
+
+// TestResolveTokenSecretsNamespace_FallsBackToSystemNamespace verifies that
+// ResolveTokenSecretsNamespace uses systemNamespace when
+// kp.TokenSecretsNamespace is unset, in preference over the
+// DefaultTokenSecretsNamespace last resort.
+func TestResolveTokenSecretsNamespace_FallsBackToSystemNamespace(t *testing.T) {
+	t.Parallel()
+
+	keyPersistence := &auth.KeyPersistenceConfig{}
+	assert.Equal(t, "custom-system-ns", controllers.ResolveTokenSecretsNamespace(keyPersistence, "custom-system-ns"))
 }
 
 // TestHandleSecretUpdate_KeyDataChanged_TriggersRotation verifies that

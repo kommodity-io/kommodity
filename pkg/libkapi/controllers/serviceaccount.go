@@ -36,6 +36,11 @@ type ServiceAccountSetupHookConfig struct {
 	// InformerFactory is the server's SharedInformerFactory.
 	InformerFactory informers.SharedInformerFactory
 
+	// SystemNamespace is the resolved namespace for the signing key Secret
+	// and SA-token-rotation lister, used as the fallback when
+	// KeyPersistence.Namespace/TokenSecretsNamespace aren't set.
+	SystemNamespace string
+
 	// Logger receives log output from the hook.
 	Logger *slog.Logger
 }
@@ -66,7 +71,7 @@ func NewServiceAccountSetupHook(
 
 	return func(ctx genericapiserver.PostStartHookContext) error {
 		signingKey, err := auth.LoadOrCreateSigningKey(
-			ctx, kubeClient.CoreV1(), hookCfg.SACfg.KeyPersistence)
+			ctx, kubeClient.CoreV1(), hookCfg.SACfg.KeyPersistence, hookCfg.SystemNamespace)
 		if err != nil {
 			return fmt.Errorf("failed to resolve service account signing key: %w", err)
 		}
@@ -95,6 +100,7 @@ func NewServiceAccountSetupHook(
 				hookCfg.SACfg,
 				signingKey,
 				kubeClient.CoreV1(),
+				hookCfg.SystemNamespace,
 				hookCfg.Logger,
 			)
 		}

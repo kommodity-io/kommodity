@@ -41,6 +41,11 @@ type SigningKeyRotationHookConfig struct {
 	// SigningKey is the current in-memory signing key. Used to persist
 	// when the Secret is deleted (regenerate + persist).
 	SigningKey *rsa.PrivateKey
+
+	// SystemNamespace is the resolved namespace fallback for the signing
+	// key Secret and SA-token-rotation lister when
+	// KeyPersistence.Namespace/TokenSecretsNamespace aren't set.
+	SystemNamespace string
 }
 
 // NewSigningKeyRotationHook builds a PostStartHookFunc that registers a
@@ -69,6 +74,7 @@ func NewSigningKeyRotationHook(
 		},
 		hookCfg.SigningKey,
 		kubeClient.CoreV1(),
+		hookCfg.SystemNamespace,
 		logger,
 	)
 
@@ -86,11 +92,12 @@ func SetupSigningKeyRotation(
 	saCfg *auth.ServiceAccountConfig,
 	signingKey *rsa.PrivateKey,
 	coreClient corev1client.CoreV1Interface,
+	systemNamespace string,
 	logger *slog.Logger,
 ) {
 	keyPersistence := saCfg.KeyPersistence
-	tokenSecretsNamespace := ResolveTokenSecretsNamespace(keyPersistence)
-	signingKeyNamespace := auth.ResolveSigningKeyNamespace(keyPersistence)
+	tokenSecretsNamespace := ResolveTokenSecretsNamespace(keyPersistence, systemNamespace)
+	signingKeyNamespace := auth.ResolveSigningKeyNamespace(keyPersistence, systemNamespace)
 	signingKeySecretName := auth.ResolveSigningKeySecretName(keyPersistence)
 
 	_, _ = secretInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -105,11 +112,17 @@ func SetupSigningKeyRotation(
 	})
 }
 
-// ResolveTokenSecretsNamespace returns the namespace for SA token secrets,
-// defaulting to "kube-system" if not set.
-func ResolveTokenSecretsNamespace(kp *auth.KeyPersistenceConfig) string {
+// ResolveTokenSecretsNamespace returns the namespace for SA token secrets:
+// kp.TokenSecretsNamespace if set, else systemNamespace if set, else
+// DefaultTokenSecretsNamespace as a last-resort fallback for direct callers
+// that pass "" for systemNamespace.
+func ResolveTokenSecretsNamespace(kp *auth.KeyPersistenceConfig, systemNamespace string) string {
 	if kp.TokenSecretsNamespace != "" {
 		return kp.TokenSecretsNamespace
+	}
+
+	if systemNamespace != "" {
+		return systemNamespace
 	}
 
 	return DefaultTokenSecretsNamespace

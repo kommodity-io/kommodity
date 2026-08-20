@@ -90,7 +90,7 @@ func TestLoadOrCreateSigningKey_SecretExists_LoadsKey(t *testing.T) {
 		SecretName: auth.DefaultSigningKeySecretName,
 	}
 
-	loadedKey, err := auth.LoadOrCreateSigningKey(ctx, client.CoreV1(), keyPersistence)
+	loadedKey, err := auth.LoadOrCreateSigningKey(ctx, client.CoreV1(), keyPersistence, "")
 	require.NoError(t, err)
 	require.NotNil(t, loadedKey)
 
@@ -113,7 +113,7 @@ func TestLoadOrCreateSigningKey_SecretDoesNotExist_CreatesKey(t *testing.T) {
 		SecretName: auth.DefaultSigningKeySecretName,
 	}
 
-	createdKey, err := auth.LoadOrCreateSigningKey(ctx, client.CoreV1(), keyPersistence)
+	createdKey, err := auth.LoadOrCreateSigningKey(ctx, client.CoreV1(), keyPersistence, "")
 	require.NoError(t, err)
 	require.NotNil(t, createdKey)
 
@@ -147,10 +147,10 @@ func TestLoadOrCreateSigningKey_IsIdempotent(t *testing.T) {
 		SecretName: auth.DefaultSigningKeySecretName,
 	}
 
-	key1, err := auth.LoadOrCreateSigningKey(ctx, client.CoreV1(), keyPersistence)
+	key1, err := auth.LoadOrCreateSigningKey(ctx, client.CoreV1(), keyPersistence, "")
 	require.NoError(t, err)
 
-	key2, err := auth.LoadOrCreateSigningKey(ctx, client.CoreV1(), keyPersistence)
+	key2, err := auth.LoadOrCreateSigningKey(ctx, client.CoreV1(), keyPersistence, "")
 	require.NoError(t, err)
 
 	assert.Equal(t, 0, key1.D.Cmp(key2.D), "second call should return the same key as the first")
@@ -186,7 +186,7 @@ func TestLoadOrCreateSigningKey_MissingKeyData_ReturnsError(t *testing.T) {
 		SecretName: auth.DefaultSigningKeySecretName,
 	}
 
-	_, err = auth.LoadOrCreateSigningKey(ctx, client.CoreV1(), keyPersistence)
+	_, err = auth.LoadOrCreateSigningKey(ctx, client.CoreV1(), keyPersistence, "")
 	require.Error(t, err)
 	assert.ErrorIs(t, err, auth.ErrSigningKeyDataMissing)
 }
@@ -203,7 +203,7 @@ func TestLoadOrCreateSigningKey_EmptyNamespaceAndSecretName_UsesDefaults(t *test
 
 	keyPersistence := &auth.KeyPersistenceConfig{}
 
-	createdKey, err := auth.LoadOrCreateSigningKey(ctx, client.CoreV1(), keyPersistence)
+	createdKey, err := auth.LoadOrCreateSigningKey(ctx, client.CoreV1(), keyPersistence, "")
 	require.NoError(t, err)
 	require.NotNil(t, createdKey)
 
@@ -218,21 +218,33 @@ func TestLoadOrCreateSigningKey_EmptyNamespaceAndSecretName_UsesDefaults(t *test
 }
 
 // TestResolveSigningKeyNamespace_DefaultsToKubeSystem verifies that
-// ResolveSigningKeyNamespace returns "kube-system" when unset.
+// ResolveSigningKeyNamespace falls back to "kube-system" when both
+// kp.Namespace and systemNamespace are unset.
 func TestResolveSigningKeyNamespace_DefaultsToKubeSystem(t *testing.T) {
 	t.Parallel()
 
 	keyPersistence := &auth.KeyPersistenceConfig{}
-	assert.Equal(t, auth.DefaultSigningKeyNamespace, auth.ResolveSigningKeyNamespace(keyPersistence))
+	assert.Equal(t, auth.DefaultSigningKeyNamespace, auth.ResolveSigningKeyNamespace(keyPersistence, ""))
 }
 
 // TestResolveSigningKeyNamespace_UsesConfigured verifies that
-// ResolveSigningKeyNamespace respects a custom Namespace.
+// ResolveSigningKeyNamespace respects a custom Namespace over
+// systemNamespace.
 func TestResolveSigningKeyNamespace_UsesConfigured(t *testing.T) {
 	t.Parallel()
 
 	keyPersistence := &auth.KeyPersistenceConfig{Namespace: "custom-ns"}
-	assert.Equal(t, "custom-ns", auth.ResolveSigningKeyNamespace(keyPersistence))
+	assert.Equal(t, "custom-ns", auth.ResolveSigningKeyNamespace(keyPersistence, "system-ns"))
+}
+
+// TestResolveSigningKeyNamespace_FallsBackToSystemNamespace verifies that
+// ResolveSigningKeyNamespace uses systemNamespace when kp.Namespace is
+// unset, in preference over the DefaultSigningKeyNamespace last resort.
+func TestResolveSigningKeyNamespace_FallsBackToSystemNamespace(t *testing.T) {
+	t.Parallel()
+
+	keyPersistence := &auth.KeyPersistenceConfig{}
+	assert.Equal(t, "custom-system-ns", auth.ResolveSigningKeyNamespace(keyPersistence, "custom-system-ns"))
 }
 
 // TestResolveSigningKeySecretName_DefaultsToLibkapi verifies that

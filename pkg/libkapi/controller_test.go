@@ -14,6 +14,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -257,7 +258,8 @@ func (webhookTestController) SetupWithManager(mgr libkapi.Manager) error {
 
 // TestServerEndToEnd_WithWebhookServer verifies that a Controller can
 // register a webhook handler that's actually reachable over HTTPS, on its
-// own port, using the certificate New generates on startup.
+// own port, using the certificate ListenAndServe adopts/creates in the
+// (default) system namespace's shared Secret during its boot sequence.
 func TestServerEndToEnd_WithWebhookServer(t *testing.T) {
 	t.Parallel()
 
@@ -298,6 +300,20 @@ func TestServerEndToEnd_WithWebhookServer(t *testing.T) {
 
 	webhookURL := "https://" + net.JoinHostPort("localhost", webhookPortStr) + "/validate"
 	waitForWebhook(t, webhookURL)
+
+	// The certificate should also have landed in the default system
+	// namespace's shared Secret - not just on disk - and WebhookCABundle
+	// should expose exactly what's there, proving the sync step actually
+	// ran (rather than the webhook server somehow using a stale/local-only
+	// certificate).
+	kubeClient, err := kubernetes.NewForConfig(&restclient.Config{Host: "http://" + addr})
+	require.NoError(t, err)
+
+	secret, err := kubeClient.CoreV1().Secrets("libkapi").Get(
+		ctx, libkapi.DefaultWebhookCertSecretName, metav1.GetOptions{})
+	require.NoError(t, err, "expected the webhook cert Secret to exist in the default system namespace")
+	assert.Equal(t, corev1.SecretTypeTLS, secret.Type)
+	assert.Equal(t, secret.Data[corev1.TLSCertKey], server.WebhookCABundle())
 }
 
 // waitForWebhook polls url (over HTTPS, trusting any cert - the server's is
@@ -449,4 +465,71 @@ func TestLeaderElection_OnlyOneManagerBecomesLeader(t *testing.T) {
 		require.FailNow(t, "expected only one manager to become leader")
 	default:
 	}
+}
+
+// noopTestController registers nothing - used only to make buildManager
+// actually build a Manager (it's a no-op without at least one Controller),
+// for tests that only care about manager-level behavior like leader
+// election, not any particular reconciler/runnable.
+type noopTestController struct{}
+
+func (noopTestController) SetupWithManager(_ libkapi.Manager) error {
+	return nil
+}
+
+// TestServerEndToEnd_WithLeaderElection_UsesSystemNamespace verifies that
+// WithLeaderElection, given no explicit LeaderElectionConfig.Namespace,
+// resolves to the configured system namespace (see WithSystemNamespace) -
+// and that ListenAndServe's ensureLeaderElectionNamespace step actually
+// creates that namespace before the manager tries to acquire the Lease
+// there, since unlike the literal "default" namespace this used to fall
+// back to, the system namespace carries no guarantee from libkapi's own
+// bootstrap-default-namespace post-start hook that it already exists.
+func TestServerEndToEnd_WithLeaderElection_UsesSystemNamespace(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	addr := libkapi.FreeAddr(t)
+	dbPath := filepath.Join(t.TempDir(), "libkapi-leaderelection-systemns.db")
+
+	const (
+		systemNamespace  = "custom-system-ns"
+		leaderElectionID = "leader-election-system-ns-test"
+	)
+
+	server, err := libkapi.New(ctx,
+		libkapi.WithAddr(addr),
+		libkapi.WithStorage("sqlite://"+dbPath),
+		libkapi.WithSystemNamespace(systemNamespace),
+		libkapi.WithController(noopTestController{}),
+		libkapi.WithLeaderElection(libkapi.LeaderElectionConfig{ID: leaderElectionID}),
+	)
+	require.NoError(t, err)
+
+	go func() {
+		_ = server.ListenAndServe(ctx)
+	}()
+
+	t.Cleanup(func() {
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer shutdownCancel()
+
+		_ = server.Shutdown(shutdownCtx)
+	})
+
+	baseURL := "http://" + addr
+	libkapi.WaitForHealthz(t, baseURL+"/healthz")
+
+	kubeClient, err := kubernetes.NewForConfig(&restclient.Config{Host: baseURL})
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		_, getErr := kubeClient.CoordinationV1().Leases(systemNamespace).Get(ctx, leaderElectionID, metav1.GetOptions{})
+
+		return getErr == nil
+	}, 10*time.Second, 100*time.Millisecond,
+		"expected leader election Lease %q to be created in the configured system namespace %q",
+		leaderElectionID, systemNamespace)
 }

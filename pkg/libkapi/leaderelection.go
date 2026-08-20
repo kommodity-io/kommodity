@@ -2,11 +2,6 @@ package libkapi
 
 import "context"
 
-// defaultLeaderElectionNamespace is used when LeaderElectionConfig.Namespace
-// is empty - the one namespace libkapi's own bootstrap-default-namespace
-// post-start hook guarantees exists.
-const defaultLeaderElectionNamespace = "default"
-
 // LeaderElectionConfig configures manager-wide leader election, backed by a
 // coordination.k8s.io/v1 Lease — the same default resource lock
 // controller-runtime itself uses. When enabled, only the elected replica's
@@ -17,8 +12,23 @@ type LeaderElectionConfig struct {
 	// ID names the Lease object contenders coordinate on. Required.
 	ID string
 
-	// Namespace is the Lease's namespace. Defaults to "default" if empty.
+	// Namespace is the Lease's namespace. Defaults to the resolved system
+	// namespace (see WithSystemNamespace, itself "libkapi" if unset) if
+	// empty. ListenAndServe's ensureLeaderElectionNamespace step creates
+	// this namespace if it doesn't already exist.
 	Namespace string
+}
+
+// resolvedNamespace returns cfg.Namespace, or systemNamespace if unset. The
+// single source of truth shared by buildManager (which points the Lease at
+// this namespace) and Server.ensureLeaderElectionNamespace (which creates
+// it), so the two can never disagree about where the Lease lives.
+func (cfg *LeaderElectionConfig) resolvedNamespace(systemNamespace string) string {
+	if cfg.Namespace != "" {
+		return cfg.Namespace
+	}
+
+	return systemNamespace
 }
 
 // WithLeaderElection enables manager-wide leader election using the
