@@ -1,6 +1,6 @@
 module github.com/kommodity-io/kommodity/pkg/test
 
-go 1.26.1
+go 1.26.7
 
 require (
 	github.com/docker/docker v28.5.1+incompatible

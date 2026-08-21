@@ -76,7 +76,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6
         with:
-          go-version: stable
+          go-version-file: go.mod
           check-latest: true
 
       - name: Detect semantic release
@@ -123,7 +123,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6
         with:
-          go-version: stable
+          go-version-file: go.mod
           check-latest: true
 
       - name: Install dependencies
@@ -185,7 +185,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6
         with:
-          go-version: stable
+          go-version-file: go.mod
           check-latest: true
 
       - name: Install dependencies
@@ -218,7 +218,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6
         with:
-          go-version: stable
+          go-version-file: go.mod
           check-latest: true
 
       - name: Install dependencies
@@ -270,7 +270,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6
         with:
-          go-version: stable
+          go-version-file: go.mod
           check-latest: true
 
       - name: Install dependencies
