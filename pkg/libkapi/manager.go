@@ -51,24 +51,22 @@ func buildManager(
 	}
 
 	if cfg.leaderElection != nil {
-		namespace := cfg.leaderElection.Namespace
-		if namespace == "" {
-			namespace = defaultLeaderElectionNamespace
-		}
-
 		options.LeaderElection = true
 		options.LeaderElectionResourceLock = resourcelock.LeasesResourceLock
 		options.LeaderElectionID = cfg.leaderElection.ID
-		options.LeaderElectionNamespace = namespace
+		options.LeaderElectionNamespace = cfg.leaderElection.resolvedNamespace(cfg.resolvedSystemNamespace())
 		options.LeaderElectionConfig = loopbackConfig
 	}
 
 	if cfg.webhook != nil {
-		err := ensureSelfSignedWebhookCert(cfg.webhook.DNSNames)
-		if err != nil {
-			return nil, fmt.Errorf("failed to provision webhook serving certificate: %w", err)
-		}
-
+		// The serving certificate itself is provisioned later, by
+		// ListenAndServe's syncWebhookCert step - it needs a working
+		// loopback client (to adopt/create the shared Secret), which
+		// doesn't exist yet at this point (buildManager runs during New,
+		// before the listener is even bound). webhook.Server's own
+		// certwatcher doesn't read the on-disk files until mgr.Start runs,
+		// in startManager - strictly after that sync step - so building
+		// the server here without a certificate on disk yet is safe.
 		options.WebhookServer = webhook.NewServer(webhook.Options{Host: webhookHost, Port: cfg.webhook.Port})
 	}
 

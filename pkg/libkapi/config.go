@@ -42,6 +42,7 @@ type config struct {
 	webhook          *WebhookConfig
 	postStartHooks   []PostStartHookFunc
 	preShutdownHooks []PreShutdownHookFunc
+	systemNamespace  string
 }
 
 // resolvedAddr returns cfg.addr, or a PORT-env-var/default-derived fallback.
@@ -68,4 +69,13 @@ func (cfg config) resolvedLogger() *slog.Logger {
 	}
 
 	return slog.Default()
+}
+
+// resolvedSystemNamespace returns cfg.systemNamespace, or defaultSystemNamespace if unset.
+func (cfg config) resolvedSystemNamespace() string {
+	if cfg.systemNamespace != "" {
+		return cfg.systemNamespace
+	}
+
+	return defaultSystemNamespace
 }

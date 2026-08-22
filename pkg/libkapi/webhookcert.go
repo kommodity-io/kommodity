@@ -4,14 +4,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-
-	certutil "k8s.io/client-go/util/cert"
 )
 
 const (
 	// webhookCertFileName and webhookKeyFileName match webhook.Options'
-	// own defaults (CertName, KeyName), so a self-signed cert generated here
-	// is found by a webhook.Server built with default options.
+	// own defaults (CertName, KeyName), so a certificate written here is
+	// found by a webhook.Server built with default options.
 	webhookCertFileName = "tls.crt"
 	webhookKeyFileName  = "tls.key"
 
@@ -24,53 +22,41 @@ const (
 )
 
 // webhookCertDir is controller-runtime's own default webhook.Options.CertDir
-// — reused as-is (not overridden) so the certificate ensureSelfSignedWebhookCert
-// generates lands exactly where webhook.NewServer(webhook.Options{}) already
-// looks by default.
+// — reused as-is (not overridden) so a certificate written by
+// writeWebhookCertFiles lands exactly where webhook.NewServer(webhook.Options{})
+// already looks by default, and its certwatcher already watches for changes.
 //
 // os.TempDir() is the fixed, stable OS temp directory (e.g. "/tmp") — the
 // same path every process on the host resolves to. This must NOT be
 // os.MkdirTemp(), which mints a fresh, uniquely-named directory on every
-// call: that would make every restart generate (and immediately orphan) a
-// new certificate, breaking across-restart reuse and invalidating whatever
+// call: that would make every restart lose track of the certwatcher's
+// target, breaking across-restart reuse and invalidating whatever
 // caBundle the caller registered on a
 // Validating/MutatingWebhookConfiguration.
 //
 //nolint:gochecknoglobals // fixed path, mirrors webhook.Options' own default CertDir.
 var webhookCertDir = filepath.Join(os.TempDir(), "k8s-webhook-server", "serving-certs")
 
-// ensureSelfSignedWebhookCert writes tls.crt/tls.key under webhookCertDir if
-// they don't already exist there, using k8s.io/client-go/util/cert's
-// GenerateSelfSignedCertKey — the same helper k8s.io/apiserver's own
-// loopback-client cert generation uses (see apiserver/apiserver.go's
-// newLoopbackClientConfig doc) — so repeated New calls against the same
-// /tmp reuse one certificate instead of generating (and orphaning) a new
-// one every time.
-func ensureSelfSignedWebhookCert(dnsNames []string) error {
-	certPath := filepath.Join(webhookCertDir, webhookCertFileName)
-	keyPath := filepath.Join(webhookCertDir, webhookKeyFileName)
-
-	_, certErr := os.Stat(certPath)
-	_, keyErr := os.Stat(keyPath)
-
-	if certErr == nil && keyErr == nil {
-		return nil
-	}
-
+// writeWebhookCertFiles writes certPEM/keyPEM under webhookCertDir,
+// creating the directory if needed - the same fixed path
+// controller-runtime's webhook.Server certwatcher already watches (fsnotify
+// plus a 10s poll fallback), so a rewrite here is picked up live, without a
+// process restart. Shared by the initial sync (Server.syncWebhookCert) and
+// the rotation loop (webhookcertrotation.go).
+func writeWebhookCertFiles(certPEM []byte, keyPEM []byte) error {
 	err := os.MkdirAll(webhookCertDir, webhookDirPerm)
 	if err != nil {
 		return fmt.Errorf("failed to create webhook certificate directory %q: %w", webhookCertDir, err)
 	}
 
-	certPEM, keyPEM, err := certutil.GenerateSelfSignedCertKey(dnsNames[0], nil, dnsNames)
-	if err != nil {
-		return fmt.Errorf("failed to generate self-signed webhook certificate: %w", err)
-	}
+	certPath := filepath.Join(webhookCertDir, webhookCertFileName)
 
 	err = os.WriteFile(certPath, certPEM, webhookCertPerm)
 	if err != nil {
 		return fmt.Errorf("failed to write webhook certificate %q: %w", certPath, err)
 	}
+
+	keyPath := filepath.Join(webhookCertDir, webhookKeyFileName)
 
 	err = os.WriteFile(keyPath, keyPEM, webhookKeyPerm)
 	if err != nil {

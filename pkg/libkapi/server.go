@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"slices"
 	"sync"
 	"time"
 
@@ -15,6 +16,8 @@ import (
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	genericapiserver "k8s.io/apiserver/pkg/server"
+	"k8s.io/client-go/kubernetes"
+	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
 	restclient "k8s.io/client-go/rest"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	aggregatorapiserver "k8s.io/kube-aggregator/pkg/apiserver"
@@ -78,6 +81,32 @@ type Server struct {
 	// respectively - see their own docs.
 	postStartHooks   []PostStartHookFunc
 	preShutdownHooks []PreShutdownHookFunc
+
+	// webhookCfg is cfg.webhook, retained so ListenAndServe's syncWebhookCert
+	// step (needs a live client, unavailable at New()-time) knows the
+	// DNSNames to generate/adopt/rotate the certificate with. nil means
+	// WithWebhookServer wasn't used - syncWebhookCert and the rotation loop
+	// are no-ops.
+	webhookCfg *WebhookConfig
+
+	// leaderElection is cfg.leaderElection, retained so
+	// ListenAndServe's ensureLeaderElectionNamespace step can ensure its
+	// resolved namespace exists before the manager starts trying to
+	// acquire the Lease. nil means WithLeaderElection wasn't used.
+	leaderElection *LeaderElectionConfig
+
+	// systemNamespace is cfg.resolvedSystemNamespace() - the namespace all
+	// of libkapi's own system-managed Secrets/Leases resolve into unless
+	// overridden by a more specific config field (e.g.
+	// KeyPersistenceConfig.Namespace, LeaderElectionConfig.Namespace).
+	systemNamespace string
+
+	// webhookCABundle is the PEM-encoded certificate currently backing the
+	// webhook server. Set by the initial syncWebhookCert call in
+	// ListenAndServe and updated by each rotation tick. Guarded by mu since
+	// it's written from ListenAndServe's/the rotation loop's goroutine and
+	// may be read concurrently via WebhookCABundle.
+	webhookCABundle []byte
 }
 
 // newMu serializes New() across concurrent calls. Constructing a Server
@@ -222,7 +251,7 @@ func buildServer(cfg config, addr string, handle *storage.Handle,
 		return nil, err
 	}
 
-	err = resolveAndSetAuth(authCfg, genericServerConfig, controllersLogger)
+	err = resolveAndSetAuth(authCfg, genericServerConfig, controllersLogger, cfg.resolvedSystemNamespace())
 	if err != nil {
 		return nil, err
 	}
@@ -240,18 +269,37 @@ func buildServer(cfg config, addr string, handle *storage.Handle,
 		return nil, err
 	}
 
+	return newServer(cfg, addr, handle, logger, mgr, genericServerConfig, aggregator, grpcServer, handler), nil
+}
+
+// newServer assembles the built Server from buildServer's own resolved
+// parts - split out purely to keep buildServer's own length in check.
+func newServer(
+	cfg config,
+	addr string,
+	handle *storage.Handle,
+	logger *slog.Logger,
+	mgr ctrl.Manager,
+	genericServerConfig *genericapiserver.RecommendedConfig,
+	aggregator *aggregatorapiserver.APIAggregator,
+	grpcServer *grpc.Server,
+	handler http.Handler,
+) *Server {
 	return &Server{
-		addr:            addr,
-		httpServer:      newHTTPServer(addr, handler, grpcServer),
-		aggregator:      aggregator,
-		grpcServer:      grpcServer,
-		storageClose:    handle.Close,
-		logger:          logger,
-		mgr:             mgr,
-		loopbackConfig:  genericServerConfig.LoopbackClientConfig,
-		postStartHooks:  cfg.postStartHooks,
+		addr:             addr,
+		httpServer:       newHTTPServer(addr, handler, grpcServer),
+		aggregator:       aggregator,
+		grpcServer:       grpcServer,
+		storageClose:     handle.Close,
+		logger:           logger,
+		mgr:              mgr,
+		loopbackConfig:   genericServerConfig.LoopbackClientConfig,
+		postStartHooks:   cfg.postStartHooks,
 		preShutdownHooks: cfg.preShutdownHooks,
-	}, nil
+		webhookCfg:       cfg.webhook,
+		leaderElection:   cfg.leaderElection,
+		systemNamespace:  cfg.resolvedSystemNamespace(),
+	}
 }
 
 // finishRBACAuthorizer completes WithRBACAuthorizer's setup, if it was used
@@ -346,6 +394,7 @@ func resolveAndSetAuth(
 	authCfg *auth.ResolvedConfig,
 	genericServerConfig *genericapiserver.RecommendedConfig,
 	controllersLogger *slog.Logger,
+	systemNamespace string,
 ) error {
 	if authCfg.SAConfig == nil {
 		genericServerConfig.Authentication.Authenticator = auth.BuildUnionAuthenticator(
@@ -359,10 +408,10 @@ func resolveAndSetAuth(
 	}
 
 	if authCfg.SAConfig.SigningKey == nil && authCfg.SAConfig.KeyPersistence != nil {
-		return resolveDeferredSAAuth(authCfg, genericServerConfig, controllersLogger)
+		return resolveDeferredSAAuth(authCfg, genericServerConfig, controllersLogger, systemNamespace)
 	}
 
-	return resolveImmediateSAAuth(authCfg, genericServerConfig, controllersLogger)
+	return resolveImmediateSAAuth(authCfg, genericServerConfig, controllersLogger, systemNamespace)
 }
 
 // resolveDeferredSAAuth handles the case where the signing key must be
@@ -374,6 +423,7 @@ func resolveDeferredSAAuth(
 	authCfg *auth.ResolvedConfig,
 	genericServerConfig *genericapiserver.RecommendedConfig,
 	controllersLogger *slog.Logger,
+	systemNamespace string,
 ) error {
 	placeholder := auth.BuildUnionAuthenticator(authCfg.OIDCAuthenticator, nil)
 	dynAuth := auth.NewDynamicAuthenticator(placeholder)
@@ -391,6 +441,7 @@ func resolveDeferredSAAuth(
 			SetAuthenticator: dynAuth.Set,
 			LoopbackConfig:   genericServerConfig.LoopbackClientConfig,
 			InformerFactory:  genericServerConfig.SharedInformerFactory,
+			SystemNamespace:  systemNamespace,
 			Logger:           controllersLogger,
 		},
 	)
@@ -415,6 +466,7 @@ func resolveImmediateSAAuth(
 	authCfg *auth.ResolvedConfig,
 	genericServerConfig *genericapiserver.RecommendedConfig,
 	controllersLogger *slog.Logger,
+	systemNamespace string,
 ) error {
 	signingKey, err := auth.ResolveSigningKey(authCfg.SAConfig)
 	if err != nil {
@@ -434,7 +486,8 @@ func resolveImmediateSAAuth(
 		genericServerConfig.Authentication.APIAudiences = authCfg.APIAudiences
 	}
 
-	return registerSAControllerHooks(authCfg.SAConfig, signingKey, genericServerConfig, controllersLogger)
+	return registerSAControllerHooks(
+		authCfg.SAConfig, signingKey, genericServerConfig, controllersLogger, systemNamespace)
 }
 
 // registerSAControllerHooks builds and registers the SA token controller,
@@ -446,6 +499,7 @@ func registerSAControllerHooks(
 	signingKey *rsa.PrivateKey,
 	genericServerConfig *genericapiserver.RecommendedConfig,
 	logger *slog.Logger,
+	systemNamespace string,
 ) error {
 	err := registerTokenControllerHook(saCfg, signingKey, genericServerConfig)
 	if err != nil {
@@ -456,7 +510,7 @@ func registerSAControllerHooks(
 		return nil
 	}
 
-	return registerKeyHooks(saCfg, signingKey, genericServerConfig, logger)
+	return registerKeyHooks(saCfg, signingKey, genericServerConfig, logger, systemNamespace)
 }
 
 // registerTokenControllerHook builds and registers the SA token controller hook.
@@ -503,11 +557,12 @@ func registerKeyHooks(
 	signingKey *rsa.PrivateKey,
 	genericServerConfig *genericapiserver.RecommendedConfig,
 	logger *slog.Logger,
+	systemNamespace string,
 ) error {
 	persistenceHook, err := controllers.NewCreateKeyHook(
 		controllers.CreateKeyHookConfig{
 			SigningKey: signingKey,
-			Namespace:  auth.ResolveSigningKeyNamespace(saCfg.KeyPersistence),
+			Namespace:  auth.ResolveSigningKeyNamespace(saCfg.KeyPersistence, systemNamespace),
 			SecretName: auth.ResolveSigningKeySecretName(saCfg.KeyPersistence),
 		},
 		genericServerConfig.LoopbackClientConfig,
@@ -523,8 +578,9 @@ func registerKeyHooks(
 
 	rotationHook, err := controllers.NewSigningKeyRotationHook(
 		controllers.SigningKeyRotationHookConfig{
-			KeyPersistence: saCfg.KeyPersistence,
-			SigningKey:     signingKey,
+			KeyPersistence:  saCfg.KeyPersistence,
+			SigningKey:      signingKey,
+			SystemNamespace: systemNamespace,
 		},
 		genericServerConfig.LoopbackClientConfig,
 		genericServerConfig.SharedInformerFactory,
@@ -685,6 +741,16 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 		return s.abortListenAndServe(cancel, internalHooksCancel, fmt.Errorf("failed to start apiserver: %w", err))
 	}
 
+	// Sync the webhook serving certificate and ensure the leader-election
+	// namespace exists - both need a working loopback client (unavailable
+	// until now) and both must complete before any caller WithPostStartHook
+	// or startManager - see syncBeforePostStartHooks's own doc.
+	err = s.syncBeforePostStartHooks(runCtx, internalHooksCtx)
+	if err != nil {
+		//nolint:contextcheck // abortAfterInternalHooksStarted deliberately bounds its own wait - see its doc.
+		return s.abortAfterInternalHooksStarted(cancel, internalHooksCancel, listener.Addr().String(), err)
+	}
+
 	// Run any WithPostStartHook registrations - in registration order,
 	// synchronously - now that the internal hooks above are running and can
 	// be depended on. A failing hook aborts ListenAndServe through
@@ -792,6 +858,39 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// WebhookCABundle returns the PEM-encoded webhook serving certificate
+// currently in effect, or nil if WithWebhookServer wasn't configured or the
+// initial sync hasn't run yet. Safe to call from a WithPostStartHook
+// closure registered before New returns: the sync step that populates this
+// runs strictly before any WithPostStartHook - see ListenAndServe's own
+// doc. Since WithPostStartHook closures don't receive the *Server, capture
+// it via a variable assigned by New itself:
+//
+//	var srv *libkapi.Server
+//	var err error
+//
+//	srv, err = libkapi.New(ctx, // "=" not ":=" - a ":=" would shadow srv
+//		libkapi.WithWebhookServer(libkapi.WebhookConfig{DNSNames: []string{"my-webhook.svc"}}),
+//		libkapi.WithPostStartHook(func(ctx context.Context, loopbackConfig *restclient.Config) error {
+//			return embedCABundleIntoOwnCRD(ctx, loopbackConfig, srv.WebhookCABundle())
+//		}),
+//	)
+func (s *Server) WebhookCABundle() []byte {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return slices.Clone(s.webhookCABundle)
+}
+
+// setWebhookCABundle records certPEM as the certificate currently backing
+// the webhook server - see the webhookCABundle field's own doc.
+func (s *Server) setWebhookCABundle(certPEM []byte) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.webhookCABundle = certPEM
 }
 
 // shutdownGRPCServer gracefully stops s.grpcServer (if some ServerFactory
@@ -1021,4 +1120,104 @@ func (s *Server) runPreShutdownHooks(ctx context.Context) {
 	case <-done:
 	case <-ctx.Done():
 	}
+}
+
+// syncBeforePostStartHooks runs libkapi's own internal boot-sequence steps
+// that need a working loopback client (unavailable before now) and must
+// complete before any caller WithPostStartHook - e.g. one that embeds the
+// webhook cert's caBundle into its own CRD, via WebhookCABundle - and
+// before startManager, so controller-runtime's webhook certwatcher and
+// leader-election Lease acquisition never race either step. rotationCtx is
+// ListenAndServe's own internalHooksCtx: the lifetime the webhook cert
+// rotation loop, once started, runs for.
+func (s *Server) syncBeforePostStartHooks(ctx context.Context, rotationCtx context.Context) error {
+	if s.webhookCfg != nil {
+		err := s.syncWebhookCert(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to sync webhook certificate: %w", err)
+		}
+
+		s.runWg.Go(func() {
+			s.runWebhookCertRotationLoop(rotationCtx)
+		})
+	}
+
+	err := s.ensureLeaderElectionNamespace(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to ensure leader election namespace: %w", err)
+	}
+
+	return nil
+}
+
+// syncWebhookCert adopts or creates the shared webhook serving certificate
+// Secret in s.systemNamespace, then overwrites the local webhookCertDir
+// files with whatever won - see LoadOrCreateWebhookCert's own doc for the
+// create-or-adopt mechanics. Must be called after the server is listening
+// (it uses the loopback client) and before startManager, so
+// controller-runtime's own certwatcher never reads a file this hasn't
+// already written.
+func (s *Server) syncWebhookCert(ctx context.Context) error {
+	client, err := s.newCoreV1Client("webhook cert sync")
+	if err != nil {
+		return err
+	}
+
+	certPEM, keyPEM, err := LoadOrCreateWebhookCert(
+		ctx, client, s.webhookCfg.DNSNames, s.systemNamespace, DefaultWebhookCertSecretName)
+	if err != nil {
+		return fmt.Errorf("failed to load or create webhook certificate secret: %w", err)
+	}
+
+	err = writeWebhookCertFiles(certPEM, keyPEM)
+	if err != nil {
+		return err
+	}
+
+	s.setWebhookCABundle(certPEM)
+
+	return nil
+}
+
+// ensureLeaderElectionNamespace creates s.leaderElection's resolved
+// namespace if it doesn't already exist. Only needed when that namespace is
+// the system namespace default: unlike the literal "default" namespace
+// leader election used to fall back to, s.systemNamespace carries no
+// guarantee from libkapi's own bootstrap-default-namespace post-start hook
+// that it already exists. Idempotent and harmless when Namespace was
+// explicitly overridden too. Must complete before startManager, where
+// mgr.Start actually tries to acquire the Lease.
+func (s *Server) ensureLeaderElectionNamespace(ctx context.Context) error {
+	if s.leaderElection == nil {
+		return nil
+	}
+
+	client, err := s.newCoreV1Client("leader election namespace")
+	if err != nil {
+		return err
+	}
+
+	namespace := s.leaderElection.resolvedNamespace(s.systemNamespace)
+
+	err = auth.EnsureNamespace(ctx, client, namespace)
+	if err != nil {
+		return fmt.Errorf("failed to ensure namespace %q exists: %w", namespace, err)
+	}
+
+	return nil
+}
+
+// newCoreV1Client builds a core/v1 client on the server's own privileged
+// loopback identity, from a copy of loopbackConfig so the shared config
+// itself can never be mutated through it (see that field's own doc). Only
+// usable once the server is listening - the loopback client has nothing to
+// talk to before that. purpose names the caller in the returned error, e.g.
+// "webhook cert sync".
+func (s *Server) newCoreV1Client(purpose string) (corev1client.CoreV1Interface, error) {
+	kubeClient, err := kubernetes.NewForConfig(restclient.CopyConfig(s.loopbackConfig))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create kubernetes client for %s: %w", purpose, err)
+	}
+
+	return kubeClient.CoreV1(), nil
 }

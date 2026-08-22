@@ -238,10 +238,17 @@ func ResolveSigningKey(cfg *ServiceAccountConfig) (*rsa.PrivateKey, error) {
 }
 
 // ResolveSigningKeyNamespace returns the namespace for the signing key
-// Secret, defaulting to DefaultSigningKeyNamespace if not set.
-func ResolveSigningKeyNamespace(kp *KeyPersistenceConfig) string {
+// Secret: kp.Namespace if set, else systemNamespace if set, else
+// DefaultSigningKeyNamespace as a last-resort fallback for direct callers
+// that pass "" for systemNamespace. libkapi.New's own call chain always
+// passes cfg.resolvedSystemNamespace(), which is never empty.
+func ResolveSigningKeyNamespace(kp *KeyPersistenceConfig, systemNamespace string) string {
 	if kp.Namespace != "" {
 		return kp.Namespace
+	}
+
+	if systemNamespace != "" {
+		return systemNamespace
 	}
 
 	return DefaultSigningKeyNamespace
