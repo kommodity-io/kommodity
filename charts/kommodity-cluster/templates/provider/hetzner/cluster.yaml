@@ -21,10 +21,10 @@ metadata:
     helm.sh/resource-policy: keep # Prevent Helm from deleting the resource on uninstall, deletion will be handled by CAPI
 spec:
   controlPlaneRegions:
-    - {{ .Values.kommodity.region }}
+    - {{ dig "region" "fsn1" $config }}
   controlPlaneLoadBalancer:
     enabled: {{ dig "loadBalancer" "enabled" true $config }}
-    region: {{ .Values.kommodity.region }}
+    region: {{ dig "region" "fsn1" $config }}
     type: {{ dig "loadBalancer" "type" "lb11" $config }}
   {{- $cpe := dig "controlPlaneEndpoint" (dict) $config }}
   {{- /*

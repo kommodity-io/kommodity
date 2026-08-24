@@ -32,11 +32,14 @@ kommodity:
       # on its own - so use one project per set of related clusters.
       name: hetzner
     # IMMUTABLE AFTER CREATE: CAPH treats hcloudNetwork, loadBalancer.enabled,
-    # controlPlaneEndpoint.port and kommodity.region (the LB region) as
-    # immutable on HetznerCluster. Kommodity does not run CAPH's validating
-    # webhooks, so a helm upgrade changing any of them is accepted by the API
-    # server but has no effect. Recreate the cluster instead.
-    config: {}
+    # controlPlaneEndpoint.port and region (the LB region) as immutable on
+    # HetznerCluster. Kommodity does not run CAPH's validating webhooks, so a
+    # helm upgrade changing any of them is accepted by the API server but has
+    # no effect. Recreate the cluster instead.
+    config:
+      # Hetzner location for the control plane and its load balancer:
+      # one of fsn1, nbg1, hel1, ash, hil, sin (default fsn1).
+      region: fsn1
       # Optional: name of an SSH key pre-uploaded to the Hetzner project.
       # Talos has no SSH, so this is usually left unset.
       # sshKeyName: my-ssh-key
@@ -113,9 +116,6 @@ kommodity:
       # Required when public is false. Used as the private network and subnet
       # CIDR; all subnets/servers of a network share one network zone.
       # nodeCIDR: 10.0.0.0/16
-
-  # Hetzner location: one of fsn1, nbg1, hel1, ash, hil, sin.
-  region: fsn1
 
   controlplane:
     replicas: 3
