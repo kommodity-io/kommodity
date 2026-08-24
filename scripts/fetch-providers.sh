@@ -20,15 +20,21 @@ for i in $(seq 0 $((count - 1))); do
     continue
   fi
 
-  if [ -n "$go_module" ] && [ "$go_module" != "null" ]; then
-    version=$(go mod graph | grep "$go_module" | head -n1 | awk -F'@' '{print $2}')
-  else
-    version=$(go mod graph | grep "$repo" | head -n1 | awk -F'@' '{print $2}')
-  fi
-  
   # Fetch CRD manifests
   if [ "$file" == "null" ]; then
     echo "'file' field is null. Skipping CRD manifests for $name."
+    continue
+  fi
+
+  # Resolve the provider version from the module graph
+  if [ -n "$go_module" ] && [ "$go_module" != "null" ]; then
+    version=$(go mod graph | awk '{print $2}' | grep -F "${go_module}@" | head -n1 | awk -F'@' '{print $2}')
+  else
+    version=$(go mod graph | awk '{print $2}' | grep -F "/${repo}@" | head -n1 | awk -F'@' '{print $2}')
+  fi
+
+  if [ -z "$version" ]; then
+    echo "Could not resolve version for $name (go_module='$go_module', repo='$repo'). Skipping."
     continue
   fi
   url="https://github.com/${repo}/releases/download/${version}/$file"
