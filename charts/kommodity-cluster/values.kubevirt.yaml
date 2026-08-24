@@ -41,6 +41,8 @@ kommodity:
       #   host: my-host-ip
       #   port: 6443
 
+      # evictionStrategy: "LiveMigrateIfPossible" # Valid values: "LiveMigrateIfPossible", "LiveMigrate", "None", "External"
+
   global:
     strategicPatches:
       # Required when using a Cloud Controller Manager (https://kubernetes.io/docs/tasks/administer-cluster/running-cloud-controller/#running-cloud-controller-manager)
