@@ -34,10 +34,18 @@ jobs:
         run: |
           crds_changed=false
           webhooks_changed=false
+          # Tracked-file modifications.
           if ! git diff --exit-code -- pkg/provider/crds/*.yaml; then
             crds_changed=true
           fi
           if ! git diff --exit-code -- pkg/provider/webhooks/*.yaml; then
+            webhooks_changed=true
+          fi
+          # Newly generated (untracked) files slip past git diff.
+          if [ -n "$(git ls-files --others --exclude-standard -- pkg/provider/crds/*.yaml)" ]; then
+            crds_changed=true
+          fi
+          if [ -n "$(git ls-files --others --exclude-standard -- pkg/provider/webhooks/*.yaml)" ]; then
             webhooks_changed=true
           fi
 
@@ -50,5 +58,5 @@ jobs:
       - name: Fail if providers.yaml changed
         if: ${{ steps.diff.outputs.diff_found == 'true' }}
         run: |
-          echo "Error: One or more files in pkg/provider/crds/*.yaml or pkg/provider/webhooks/*.yaml have changed after running 'make fetch-providers'. Please commit the updated files."
+          echo "Error: One or more files in pkg/provider/crds/*.yaml or pkg/provider/webhooks/*.yaml have changed or been added after running 'make fetch-providers'. Please commit the updated files."
           exit 1

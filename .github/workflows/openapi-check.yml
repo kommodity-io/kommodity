@@ -37,7 +37,12 @@ jobs:
         id: diff
         run: |
           openapi_changed=false
+          # Tracked-file modifications.
           if ! git diff --exit-code -- "openapi/**/*"; then
+            openapi_changed=true
+          fi
+          # Newly generated (untracked) files slip past git diff.
+          if [ -n "$(git ls-files --others --exclude-standard -- "openapi/**/*")" ]; then
             openapi_changed=true
           fi
 
@@ -50,7 +55,7 @@ jobs:
       - name: Fail if openapi spec has changed
         if: ${{ steps.diff.outputs.diff_found == 'true' }}
         run: |
-          echo "Error: One or more files in openapi/**/* have changed after running 'make generate'. Please commit the updated files."
+          echo "Error: One or more files in openapi/**/* have changed or been added after running 'make generate'. Please commit the updated files."
           exit 1
 
   openapi-spec-release:
