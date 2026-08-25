@@ -1,0 +1,199 @@
+# Example of values to create a cluster in Hetzner Cloud (hcloud).
+#
+# Deploy (and upgrade) with:
+#
+#   helm template my-cluster charts/kommodity-cluster \
+#     -f charts/kommodity-cluster/values.hetzner.yaml \
+#     | kubectl --kubeconfig kommodity.yaml apply -f -
+#
+# Use the same command to upgrade. A plain `helm upgrade` conflicts on
+# .spec.controlPlaneEndpoint.host: the chart templates it empty (CAPH needs
+# the field to exist before it creates the load balancer), then CAPH fills in
+# the load balancer address and owns it.
+#
+# Teardown: delete the Cluster resource and wait for CAPH finalizers to remove
+# servers, load balancer, network, and placement groups. Load balancers created
+# by the CCM (Service type LoadBalancer) and volumes created by the CSI driver
+# are not CAPH's to delete and survive teardown; delete those workloads first
+# or sweep with `hcloud load-balancer list` / `hcloud volume list`.
+kommodity:
+  provider:
+    name: Hetzner
+    secret:
+      # Hetzner secret example (one read/write API token per Hetzner project,
+      # Console -> Security -> API tokens):
+      #
+      #   kubectl --kubeconfig kommodity.yaml create secret generic hetzner \
+      #     --from-literal=hcloud=$HCLOUD_TOKEN
+      #
+      # Both the token and Hetzner's rate limit (3600 requests/hour, refilling
+      # one per second) are project-scoped and shared with everything else in
+      # the project - cluster-autoscaler's default scan interval can exhaust it
+      # on its own - so use one project per set of related clusters.
+      name: hetzner
+    # IMMUTABLE AFTER CREATE: CAPH treats hcloudNetwork, loadBalancer.enabled,
+    # controlPlaneEndpoint.port and region (the LB region) as immutable on
+    # HetznerCluster. Kommodity does not run CAPH's validating webhooks, so a
+    # helm upgrade changing any of them is accepted by the API server but has
+    # no effect. Recreate the cluster instead.
+    config:
+      # Hetzner location for the control plane and its load balancer:
+      # one of fsn1, nbg1, hel1, ash, hil, sin (default fsn1).
+      region: fsn1
+      # Optional: name of an SSH key pre-uploaded to the Hetzner project.
+      # Talos has no SSH, so this is usually left unset.
+      # sshKeyName: my-ssh-key
+
+      # Control-plane load balancer (created by CAPH, enabled by default).
+      # Disable it for single-control-plane setups and set controlPlaneEndpoint
+      # to a DNS name pointing at the control-plane machine instead.
+      # loadBalancer:
+      #   enabled: true    # immutable after create
+      #   # One of lb11, lb21, lb31 (default lb11).
+      #   type: lb11
+      # controlPlaneEndpoint:
+      #   host: cp.example.com
+      #   port: 6443       # immutable after create
+
+      # Network zone of the private network when kommodity.network.ipv4.public
+      # is false. One of eu-central (fsn1/nbg1/hel1, the default), us-east (ash),
+      # us-west (hil), ap-southeast (sin).
+      # networkZone: eu-central
+
+    cloudControllerManager:
+      enabled: true
+      image:
+        repository: docker.io/hetznercloud/hcloud-cloud-controller-manager
+        tag: v1.34.0
+
+  global:
+    strategicPatches:
+      # Required when using a Cloud Controller Manager (https://kubernetes.io/docs/tasks/administer-cluster/running-cloud-controller/#running-cloud-controller-manager)
+      machine:
+        kubelet:
+          extraArgs:
+            cloud-provider: external
+
+  network:
+    # Nameservers for the nodes, propagated by Talos to CoreDNS as well.
+    #
+    # Hetzner's platform config points nodes at the provider's own recursors
+    # (185.12.64.1/.2), which serve NXDOMAIN for newly created public records
+    # well past the record's TTL. That breaks in-cluster self-checks of a public
+    # name, cert-manager's HTTP-01 solver most visibly.
+    #
+    # Set to an empty list to keep whatever Hetzner's DHCP hands out.
+    nameservers:
+      - 1.1.1.1
+      - 8.8.8.8
+
+    ipv4:
+      enabled: true
+      # With public: true every node gets a public IPv4/IPv6 address. Setting
+      # public: false attaches nodes to a Hetzner private network instead
+      # (nodeCIDR required) and requires the workflow-built Talos snapshot
+      # (see talos.imageName below), and the kommodity.io/node-cidr annotation
+      # routes Talos API traffic through the talos-cluster-proxy addon, which
+      # must stay enabled.
+      #
+      # Hetzner private networks have no managed NAT gateway, so image pulls
+      # need user-provided egress - two things the chart cannot create for you:
+      # a NAT server (forwarding + masquerading) on the same network, and a
+      # 0.0.0.0/0 network route pointing at its private IP:
+      #
+      #   hcloud network add-route <network> --destination 0.0.0.0/0 --gateway <nat-private-ip>
+      #
+      # Hetzner's DHCP does not announce that route, so with public: false the
+      # chart configures the node-side default route, with the gateway at the
+      # first usable address of nodeCIDR.
+      #
+      # Ordering: CAPH creates the network and cannot adopt an existing one, so
+      # have the NAT server ready to attach as soon as the network appears;
+      # nodes that boot without egress need a reboot once NAT is in place. CAPH
+      # reserves the second usable address of nodeCIDR for the control-plane
+      # load balancer - do not assign it to the NAT server.
+      public: true
+      # Required when public is false. Used as the private network and subnet
+      # CIDR; all subnets/servers of a network share one network zone.
+      # nodeCIDR: 10.0.0.0/16
+
+  controlplane:
+    replicas: 3
+    # Hetzner server type, e.g. cpx32 or ccx23 (x86), cax21 (arm64).
+    # Availability varies per location and generation; check creatable types
+    # with the datacenters API before choosing. Root disk size is fixed by
+    # the server type.
+    sku: cpx32
+    healthCheck:
+      enabled: true
+      unhealthyConditions:
+        - type: Ready
+          status: Unknown
+          timeout: 300s
+        - type: Ready
+          status: "False"
+          timeout: 300s
+
+  nodepools:
+    default:
+      replicas: 2
+      sku: cpx32
+      healthCheck:
+        enabled: true
+        unhealthyConditions:
+          - type: Ready
+            status: Unknown
+            timeout: 300s
+          - type: Ready
+            status: "False"
+            timeout: 300s
+
+  addons:
+    # Hetzner CSI driver providing the hcloud-volumes StorageClass.
+    # Requires the CCM (nodes must be initialized with providerID).
+    hcloud-csi:
+      enabled: true
+      namespace: kube-system
+      lifecycle:
+        install:
+          mode: HelmInstall
+        upgrade:
+          disable: false
+      chart:
+        repository: https://charts.hetzner.cloud
+        name: hcloud-csi
+        version: 2.22.1
+      initialExtraValues:
+        controller:
+          hcloudToken:
+            existingSecret:
+              # Delivered by the kommodity CCM ClusterResourceSet.
+              name: hcloud
+              key: hcloud
+
+talos:
+  # Keep in sync with the Talos version baked into the snapshot below.
+  version: v1.13.0
+  # Talos hcloud snapshot in the Hetzner project. Hetzner has no custom-image
+  # upload, so Talos ships as a snapshot; snapshots have no name, so CAPH
+  # resolves imageName through the (mandatory) caph-image-name label. Build the
+  # image with the talos-cloud-image workflow (platform hcloud), then upload
+  # with https://github.com/apricote/hcloud-upload-image:
+  #
+  #   hcloud-upload-image upload \
+  #     --image-path kommodity-talos-hcloud-v1.13.0.raw \
+  #     --architecture x86 \
+  #     --description kommodity-talos-hcloud-v1.13.0 \
+  #     --labels caph-image-name=kommodity-talos-hcloud-v1.13.0
+  #
+  # Plain factory images work too:
+  #   --image-url https://factory.talos.dev/image/<schematic>/v1.13.0/hcloud-amd64.raw.xz --compression xz
+  # but private clusters (network.ipv4.public: false) require the
+  # workflow-built snapshot: the chart always delivers an
+  # ExtensionServiceConfig for kommodity-autobootstrap, which is baked into
+  # workflow snapshots and absent from factory images, and with no public IP
+  # there is no fallback bootstrap path.
+  #
+  # ARM (CAX) server types need a separate --architecture arm snapshot with its
+  # own image name.
+  imageName: kommodity-talos-hcloud-v1.13.0

@@ -42,7 +42,7 @@ and locked to whoever sold you "sovereign" first.
 Kommodity takes the opposite approach: assemble proven, open-source building
 blocks (Cluster API, Talos Linux, Kine, TPM attestation) and ship them as a
 single binary that speaks the Kubernetes API. The same `kubectl` and Helm
-workflows work across Scaleway, Azure, KubeVirt, Docker, and bare metal.
+workflows work across Scaleway, Azure, Hetzner, KubeVirt, Docker, and bare metal.
 
 | Without Kommodity                               | With Kommodity                                         |
 | ----------------------------------------------- | ------------------------------------------------------ |
@@ -85,7 +85,7 @@ management — see [SECURITY.md](SECURITY.md).
 ### One API, Any Cloud
 
 Provision Kubernetes clusters with vanilla Cluster API resources. Today
-Kommodity ships with providers for Scaleway, Azure, KubeVirt, and Docker; CAPI's
+Kommodity ships with providers for Scaleway, Azure, Hetzner, KubeVirt, and Docker; CAPI's
 provider ecosystem means more can be added without touching Kommodity itself.
 
 ### OIDC Authentication
@@ -323,6 +323,7 @@ make run                              # run locally against the docker-compose s
 make teardown                         # tear down the docker-compose stack
 make run-kubevirt-integration-test    # deploy a workload cluster on local KubeVirt
 make run-scaleway-integration-test    # deploy a workload cluster on Scaleway (costs $$)
+make run-hetzner-integration-test     # deploy a workload cluster on Hetzner Cloud (costs $$)
 make run-helm-unit-tests              # helm unittest for charts/kommodity-cluster
 ```
 
@@ -383,7 +384,7 @@ kommodity:
       sku: PLAY2-NANO
 ```
 
-Provider-specific examples (Scaleway, Azure, KubeVirt, Docker) live in
+Provider-specific examples (Scaleway, Azure, Hetzner, KubeVirt, Docker) live in
 [`charts/kommodity-cluster`](charts/kommodity-cluster).
 
 ### Terraform — Azure
@@ -450,6 +451,7 @@ compatible with Cluster API `v1.10.x`.
 | cluster-api-bootstrap-provider-talos     | v0.6.12  | Bootstrap      |
 | cluster-api-provider-azure               | v1.21.0  | Infrastructure |
 | cluster-api-provider-bringyourowntalos   | v0.3.2   | Infrastructure |
+| cluster-api-provider-hetzner             | v1.1.0-alpha.4 | Infrastructure |
 | cluster-api-provider-kubevirt            | v0.1.10  | Infrastructure |
 | cluster-api-provider-scaleway            | v0.1.6   | Infrastructure |
 

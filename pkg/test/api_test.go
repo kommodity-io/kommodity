@@ -146,6 +146,69 @@ func TestCreateScalewayCluster(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestCreateHetznerCluster(t *testing.T) {
+	t.Parallel()
+
+	client, err := kubernetes.NewForConfig(env.KommodityCfg)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	hcloudToken := os.Getenv("HCLOUD_TOKEN")
+	require.NotEmpty(t, hcloudToken, "HCLOUD_TOKEN environment variable must be set")
+
+	clusterName := os.Getenv("CLUSTER_NAME")
+	if clusterName == "" {
+		clusterName = "hetzner-test-cluster"
+	}
+
+	// Sweep leaked hcloud resources even when the test dies between uninstall
+	// and finalizer completion.
+	t.Cleanup(func() {
+		helpers.CleanupHetznerClusterResources(context.Background(), clusterName)
+	})
+
+	// Create secret that holds the Hetzner Cloud API token
+	_, err = client.CoreV1().Secrets("default").Create(ctx, &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "hetzner",
+		},
+		Type: corev1.SecretTypeOpaque,
+		Data: map[string][]byte{
+			"hcloud": []byte(hcloudToken),
+		},
+	}, metav1.CreateOptions{})
+	require.NoError(t, err)
+
+	// Install Hetzner cluster helm chart in Kommodity
+	helpers.InstallKommodityClusterChartHetzner(t, env, clusterName, "default")
+
+	// Check that CAPI resources are created in Kommodity
+	err = helpers.WaitForK8sResourceCreation(env.KommodityCfg, "default", "worker",
+		machineGroup, machineVersion, machineResource, "", "", 2*time.Minute, 1)
+	require.NoError(t, err)
+
+	// Check that Hetzner servers are created
+	err = helpers.WaitForHetznerServers(ctx, clusterName, helpers.HetznerTestServerCount, 5*time.Minute)
+	require.NoError(t, err)
+
+	// Check that Talos bootstraps a reachable Kubernetes API behind the load balancer
+	err = helpers.WaitForWorkloadClusterReady(ctx, env.KommodityCfg, clusterName, "default", 10*time.Minute)
+	require.NoError(t, err)
+
+	// Uninstall cluster chart
+	log.Println("Uninstalling kommodity-cluster helm chart (Hetzner)...")
+	helpers.UninstallKommodityClusterChart(t, env, clusterName, "default")
+
+	// Check that Hetzner servers are deleted
+	err = helpers.WaitForHetznerServersDeletion(ctx, clusterName, 3*time.Minute)
+	require.NoError(t, err)
+
+	err = helpers.WaitForK8sResourceDeletion(env.KommodityCfg, "default", clusterName,
+		machineGroup, machineVersion, "clusters", "", "", 2*time.Minute)
+	require.NoError(t, err)
+}
+
 func TestCreateKubevirtCluster(t *testing.T) {
 	t.Parallel()
 
