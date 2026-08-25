@@ -63,4 +63,16 @@ var (
 	// was used but its TLS listener never became dialable within the
 	// garbage collector's startup readiness timeout.
 	ErrGarbageCollectorWebhookNotReady = errors.New("garbage collector webhook server was not ready in time")
+
+	// Webhook certificate errors — see webhookcertsecret.go.
+
+	// ErrWebhookCertDataMissing is returned when a webhook cert Secret
+	// exists but its tls.crt/tls.key data is missing.
+	ErrWebhookCertDataMissing = errors.New("webhook cert secret exists but tls.crt/tls.key data is missing")
+	// ErrWebhookCertPEMDecodeFailed is returned when a webhook certificate's
+	// PEM block can't be decoded.
+	ErrWebhookCertPEMDecodeFailed = errors.New("failed to decode webhook certificate PEM block")
+	// ErrWebhookCertDNSNamesRequired is returned when generating a webhook
+	// certificate with no DNS names to embed as its Common Name/SANs.
+	ErrWebhookCertDNSNamesRequired = errors.New("webhook certificate generation requires at least one DNS name")
 )
