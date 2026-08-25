@@ -335,11 +335,21 @@ tests:
           path: spec.infrastructureRef.name
           pattern: ^test-cluster-(cp-cp-0|worker-default-worker-0)-[a-f0-9]{6}$
 
-  - it: should not keep ByotMachine or Machine across helm uninstall (no resource-policy)
+  - it: should not keep ByotMachine across helm uninstall (no resource-policy)
     template: templates/provider/byot/machines.yaml
     documentSelector:
       path: kind
       value: ByotMachine
+      matchMany: true
+    asserts:
+      - notExists:
+          path: metadata.annotations["helm.sh/resource-policy"]
+
+  - it: should not keep Machine across helm uninstall (no resource-policy)
+    template: templates/provider/byot/machines.yaml
+    documentSelector:
+      path: kind
+      value: Machine
       matchMany: true
     asserts:
       - notExists:
@@ -355,7 +365,7 @@ tests:
     asserts:
       - matchRegex:
           path: metadata.name
-          pattern: ^test-cluster-cp-cp-0-c48133$
+          pattern: ^test-cluster-cp-cp-0-f30879$
 
   - it: should roll the control-plane machine name to a different hash on a different kubernetes.version
     template: templates/provider/byot/machines.yaml
@@ -367,4 +377,16 @@ tests:
     asserts:
       - matchRegex:
           path: metadata.name
-          pattern: ^test-cluster-cp-cp-0-9215ae$
+          pattern: ^test-cluster-cp-cp-0-ab2799$
+
+  - it: should roll the control-plane machine name when a static machine publicIP changes
+    template: templates/provider/byot/machines.yaml
+    set:
+      kommodity.controlplane.staticMachines.cp-0.publicIP: 203.0.113.99
+    documentSelector:
+      path: spec.generateType
+      value: init
+    asserts:
+      - matchRegex:
+          path: metadata.name
+          pattern: ^test-cluster-cp-cp-0-170993$

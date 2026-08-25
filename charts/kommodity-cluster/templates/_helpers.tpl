@@ -195,10 +195,12 @@ Any values that should trigger a new Talos config template when changed should b
 	Byot fuses Machine + bootstrap + infra into one static object per publicIP,
 	so a version/spec bump must roll a new Machine (new name) to force cabpt to
 	regenerate the bootstrap secret (cabpt ignores an already-Ready TalosConfig).
-	Only inputs that actually change the rendered Talos machine config are hashed:
-	kubernetes.version (drives the kubelet image), generateType (init vs controlplane
-	vs worker), and per-machine strategicPatches. Gated on Byot so non-Byot hashes
-	stay byte-identical and do not trigger spurious rolls.
+	Only inputs that should trigger a roll are hashed: kubernetes.version (drives
+	the kubelet image), generateType (init vs controlplane vs worker), the
+	per-machine publicIP (immutable on ByotMachine, so a change must roll a new
+	name rather than fail an in-place patch), and per-machine strategicPatches.
+	Gated on Byot so non-Byot hashes stay byte-identical and do not trigger
+	spurious rolls.
 */ -}}
 {{- if eq .allValues.kommodity.provider.name "Byot" -}}
 	{{- $k8sVersion := default .allValues.kubernetes.version (dig "kubernetes" "version" "" .poolValues) -}}
@@ -207,6 +209,9 @@ Any values that should trigger a new Talos config template when changed should b
 		{{- $_ := set $data "generateType" . -}}
 	{{- end -}}
 	{{- with .machineValues -}}
+		{{- with .publicIP -}}
+			{{- $_ := set $data "publicIP" . -}}
+		{{- end -}}
 		{{- if .strategicPatches -}}
 			{{- $_ := set $data "machineStrategicPatches" .strategicPatches -}}
 		{{- end -}}
