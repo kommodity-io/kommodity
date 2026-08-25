@@ -74,6 +74,43 @@ tests:
           path: spec.template.spec.virtualMachineTemplate.spec.template.spec.domain.devices.interfaces[0].bridge
           value: {}
         documentIndex: 1
+  - it: should default evictionStrategy to LiveMigrateIfPossible on controlplane and worker when unset
+    template: templates/provider/kubevirt/machinetemplate.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.evictionStrategy
+          value: LiveMigrateIfPossible
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.evictionStrategy
+          value: LiveMigrateIfPossible
+        documentIndex: 1
+  - it: should produce the same template-name hash whether evictionStrategy is unset or explicitly LiveMigrateIfPossible
+    set:
+      kommodity.provider.config.evictionStrategy: LiveMigrateIfPossible
+    template: templates/provider/kubevirt/machinetemplate.yaml
+    asserts:
+      - equal:
+          path: metadata.name
+          value: test-cluster-controlplane-50c9f1
+        documentIndex: 0
+      - equal:
+          path: metadata.name
+          value: test-cluster-worker-default-a31be7
+        documentIndex: 1
+  - it: should honor a custom evictionStrategy override on both controlplane and worker
+    set:
+      kommodity.provider.config.evictionStrategy: None
+    template: templates/provider/kubevirt/machinetemplate.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.evictionStrategy
+          value: None
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.evictionStrategy
+          value: None
+        documentIndex: 1
   - it: should render instancetype for both controlplane and nodepool with default values
     template: templates/provider/kubevirt/machinetemplate.yaml
     asserts:
