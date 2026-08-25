@@ -7,7 +7,7 @@ on:
       - "Makefile"
       - "pkg/provider/providers.yaml"
       - "pkg/provider/crds.yaml"
-      - ".github/workflows/fetch-providers-check.yaml"
+      - ".github/workflows/fetch-providers-check.yml"
       - "go.mod"
       - "go.sum"
 
