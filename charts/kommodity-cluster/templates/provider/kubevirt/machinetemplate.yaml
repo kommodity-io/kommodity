@@ -85,7 +85,7 @@ spec:
                     - disk:
                         bus: virtio
                       name: dv-volume
-              evictionStrategy: External
+              evictionStrategy: {{ default "LiveMigrateIfPossible" $.Values.kommodity.provider.config.evictionStrategy | quote }}
               volumes:
                 - dataVolume:
                     name: boot-volume
@@ -217,7 +217,7 @@ spec:
                         bus: virtio
                       name: additional-volume-{{ $idx }}
                     {{- end }}
-              evictionStrategy: External
+              evictionStrategy: {{ default "LiveMigrateIfPossible" $.Values.kommodity.provider.config.evictionStrategy | quote }}
               volumes:
                 - dataVolume:
                     name: boot-volume
