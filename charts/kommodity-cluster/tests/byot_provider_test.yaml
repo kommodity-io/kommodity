@@ -69,9 +69,9 @@ tests:
       path: spec.generateType
       value: init
     asserts:
-      - equal:
+      - matchRegex:
           path: metadata.name
-          value: test-cluster-cp-cp-0
+          pattern: ^test-cluster-cp-cp-0-[a-f0-9]{6}$
 
   - it: should mark the worker static machine TalosConfig as worker
     template: templates/provider/byot/machines.yaml
@@ -79,9 +79,9 @@ tests:
       path: spec.generateType
       value: worker
     asserts:
-      - equal:
+      - matchRegex:
           path: metadata.name
-          value: test-cluster-worker-default-worker-0
+          pattern: ^test-cluster-worker-default-worker-0-[a-f0-9]{6}$
 
   - it: should adopt the control plane machine by public IP
     template: templates/provider/byot/machines.yaml
@@ -91,9 +91,9 @@ tests:
     asserts:
       - isKind:
           of: ByotMachine
-      - equal:
+      - matchRegex:
           path: metadata.name
-          value: test-cluster-cp-cp-0
+          pattern: ^test-cluster-cp-cp-0-[a-f0-9]{6}$
 
   - it: should label the control plane Machine as control-plane
     template: templates/provider/byot/machines.yaml
@@ -103,9 +103,9 @@ tests:
     asserts:
       - isKind:
           of: Machine
-      - equal:
+      - matchRegex:
           path: metadata.name
-          value: test-cluster-cp-cp-0
+          pattern: ^test-cluster-cp-cp-0-[a-f0-9]{6}$
 
   - it: should not create a TalosControlPlane for Byot
     template: templates/talos/controlplane.yaml
@@ -317,6 +317,54 @@ tests:
     asserts:
       - isKind:
           of: Machine
-      - equal:
+      - matchRegex:
           path: metadata.name
-          value: test-cluster-worker-default-worker-0
+          pattern: ^test-cluster-worker-default-worker-0-[a-f0-9]{6}$
+
+  - it: should bind the Machine bootstrap and infra refs to the hashed name
+    template: templates/provider/byot/machines.yaml
+    documentSelector:
+      path: kind
+      value: Machine
+      matchMany: true
+    asserts:
+      - matchRegex:
+          path: spec.bootstrap.configRef.name
+          pattern: ^test-cluster-(cp-cp-0|worker-default-worker-0)-[a-f0-9]{6}$
+      - matchRegex:
+          path: spec.infrastructureRef.name
+          pattern: ^test-cluster-(cp-cp-0|worker-default-worker-0)-[a-f0-9]{6}$
+
+  - it: should not keep ByotMachine or Machine across helm uninstall (no resource-policy)
+    template: templates/provider/byot/machines.yaml
+    documentSelector:
+      path: kind
+      value: ByotMachine
+      matchMany: true
+    asserts:
+      - notExists:
+          path: metadata.annotations["helm.sh/resource-policy"]
+
+  - it: should roll the control-plane machine name when kubernetes.version bumps
+    template: templates/provider/byot/machines.yaml
+    set:
+      kubernetes.version: v1.33.4
+    documentSelector:
+      path: spec.generateType
+      value: init
+    asserts:
+      - matchRegex:
+          path: metadata.name
+          pattern: ^test-cluster-cp-cp-0-c48133$
+
+  - it: should roll the control-plane machine name to a different hash on a different kubernetes.version
+    template: templates/provider/byot/machines.yaml
+    set:
+      kubernetes.version: v1.33.5
+    documentSelector:
+      path: spec.generateType
+      value: init
+    asserts:
+      - matchRegex:
+          path: metadata.name
+          pattern: ^test-cluster-cp-cp-0-9215ae$

@@ -2,6 +2,7 @@ package integration_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -155,7 +156,8 @@ func rescueBlockedForeignBundle(
 	helpers.InstallKommodityClusterChartByot(t, env, clusterB, byotNamespace, rescueInfra)
 	defer helpers.UninstallKommodityClusterChart(t, env, clusterB, byotNamespace)
 
-	workerMachine := byotWorkerMachineName(clusterB, rescueInfra.WorkerName)
+	workerMachine := discoverByotMachineName(t, byotNamespace, clusterB,
+		byotWorkerMachineName(clusterB, rescueInfra.WorkerName))
 	reason, _ := helpers.WaitForByotMachineCondition(
 		t, env, byotNamespace, workerMachine,
 		byotJoinPreflightCond, corev1.ConditionFalse, byotConditionTimeout)
@@ -235,15 +237,70 @@ type byotNodes struct {
 }
 
 // byotCPMachineName mirrors the chart's "<release>-cp-<key>" naming for control
-// plane ByotMachines (templates/provider/byot/machines.yaml).
+// plane ByotMachines (templates/provider/byot/machines.yaml). It returns the
+// name PREFIX: the chart appends a config-hash suffix (kommodity-cluster.talosConfigHash)
+// that cannot be reconstructed in Go without duplicating helm logic, so callers
+// resolve the full name with discoverByotMachineName after the chart is installed.
 func byotCPMachineName(releaseName string, key string) string {
 	return releaseName + "-cp-" + key
 }
 
 // byotWorkerMachineName mirrors "<release>-worker-<nodepool>-<key>"; the byot
-// values file always uses the "default" nodepool.
+// values file always uses the "default" nodepool. Returns the name PREFIX; see
+// byotCPMachineName for the hash-suffix caveat.
 func byotWorkerMachineName(releaseName string, key string) string {
 	return releaseName + "-worker-default-" + key
+}
+
+// discoverByotMachineName lists CAPI Machines belonging to clusterName and
+// returns the single one whose name starts with prefix. The chart embeds a
+// config hash in each Machine name, so the test discovers the actual rendered
+// name instead of reconstructing it. It polls because Machine creation can
+// lag the helm install returning.
+func discoverByotMachineName(
+	t *testing.T,
+	namespace string,
+	clusterName string,
+	prefix string,
+) string {
+	t.Helper()
+
+	ctx := context.Background()
+	client, err := dynamic.NewForConfig(env.KommodityCfg)
+	require.NoError(t, err)
+
+	gvr := schema.GroupVersionResource{
+		Group:    machineGroup,
+		Version:  machineVersion,
+		Resource: machineResource,
+	}
+
+	var found string
+
+	require.Eventually(t, func() bool {
+		list, err := client.Resource(gvr).Namespace(namespace).List(ctx, metav1.ListOptions{
+			LabelSelector: "cluster.x-k8s.io/cluster-name=" + clusterName,
+		})
+		if err != nil {
+			return false
+		}
+
+		for _, item := range list.Items {
+			if strings.HasPrefix(item.GetName(), prefix) {
+				if found != "" && found != item.GetName() {
+					require.Failf(t, "ambiguous ByotMachine prefix",
+						"prefix %q matched both %q and %q", prefix, found, item.GetName())
+				}
+
+				found = item.GetName()
+			}
+		}
+
+		return found != ""
+	}, byotConditionTimeout, byotNodePollInterval,
+		"no CAPI Machine with prefix %q found for cluster %q", prefix, clusterName)
+
+	return found
 }
 
 // startFreshByotCluster boots the Talos pair in maintenance mode, installs the
@@ -277,8 +334,10 @@ func startFreshByotCluster(t *testing.T, clusterName string, infra helpers.ByotI
 
 	helpers.InstallKommodityClusterChartByot(t, env, clusterName, byotNamespace, infra)
 
-	cpMachineName := byotCPMachineName(clusterName, infra.ControlPlaneName)
-	workerMachineName := byotWorkerMachineName(clusterName, infra.WorkerName)
+	cpMachineName := discoverByotMachineName(t, byotNamespace, clusterName,
+		byotCPMachineName(clusterName, infra.ControlPlaneName))
+	workerMachineName := discoverByotMachineName(t, byotNamespace, clusterName,
+		byotWorkerMachineName(clusterName, infra.WorkerName))
 
 	waitForKubeconfigSecret(t, clusterName)
 

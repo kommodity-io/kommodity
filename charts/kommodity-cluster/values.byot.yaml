@@ -24,6 +24,18 @@ kommodity:
         - type: Ready
           status: "False"
           timeout: 300s
+    # Rolling-replacement upgrades: a kubernetes.version / talos.version /
+    # strategicPatches bump changes the config hash embedded in each Machine +
+    # ByotMachine + TalosConfig name, so helm creates new objects and deletes the
+    # old ones. The old ByotMachine's splitPolicy governs the delete:
+    #   splitPolicy: Reset (default) wipes the VM (STATE+EPHEMERAL reset) before
+    #     release -> the new Machine re-bootstraps from maintenance mode.
+    #   splitPolicy: None  leaves the VM's config+datastore intact -> the new
+    #     ByotMachine re-adopts the same VM, re-applies the new Talos config, and
+    #     the kubelet restarts at the new version (faster, no etcd member loss).
+    # For k8s version upgrades set splitPolicy: None on every static machine
+    # (and on the controlplane/nodepool block as a default) BEFORE bumping the
+    # version, otherwise each rolled machine is wiped and re-bootstrapped.
     # Optional lifecycle policy defaults for control plane static machines
     # Static machine entries take precedence
     #   joinPolicy: Reset  # wipe each machine before adopting it (defaults to None)
@@ -69,6 +81,9 @@ kommodity:
           - type: Ready
             status: "False"
             timeout: 300s
+      # For k8s version upgrades set splitPolicy: None (here or per static machine)
+      # BEFORE bumping the version, otherwise each rolled worker is wiped and
+      # re-bootstrapped. See the controlplane block for the full rationale.
       staticMachines:
         worker-0:
           publicIP: 203.0.113.20
