@@ -18,7 +18,7 @@ echo "🚀 Setting up kind management cluster..."
 kind create cluster --name kind-management
 
 # Initialize the management cluster
-echo "🔧 Initializing cluster with CAPI, Talos, and Scaleway providers..."
-clusterctl init --infrastructure scaleway --control-plane talos --bootstrap talos
+echo "🔧 Initializing cluster with CAPI, Talos, Scaleway, and Hetzner providers..."
+clusterctl init --infrastructure scaleway,hetzner --control-plane talos --bootstrap talos
 
 echo "✅ Management cluster setup complete."

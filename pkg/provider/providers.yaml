@@ -140,3 +140,19 @@ providers:
     go_module: kubevirt.io/containerized-data-importer-api/pkg/apis
     scheme_locations:
       - core/v1beta1
+  # The pinned CAPH tag has no GitHub release asset, so the cloud (hcloud) CRDs
+  # are fetched individually from the git tag via crd_paths. Bare-metal (Robot)
+  # kinds are intentionally not listed.
+  - name: caph
+    provider: hetzner
+    repository: syself/cluster-api-provider-hetzner
+    go_module: github.com/syself/cluster-api-provider-hetzner
+    crd_paths:
+      - config/crd/bases/infrastructure.cluster.x-k8s.io_hetznerclusters.yaml
+      - config/crd/bases/infrastructure.cluster.x-k8s.io_hetznerclustertemplates.yaml
+      - config/crd/bases/infrastructure.cluster.x-k8s.io_hcloudmachines.yaml
+      - config/crd/bases/infrastructure.cluster.x-k8s.io_hcloudmachinetemplates.yaml
+      - config/crd/bases/infrastructure.cluster.x-k8s.io_hcloudremediations.yaml
+      - config/crd/bases/infrastructure.cluster.x-k8s.io_hcloudremediationtemplates.yaml
+    scheme_locations:
+      - api/v1beta1

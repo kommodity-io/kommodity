@@ -77,7 +77,6 @@ jobs:
         uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6
         with:
           go-version-file: go.mod
-          check-latest: true
 
       - name: Detect semantic release
         uses: docker://ghcr.io/codfish/semantic-release-action@sha256:5d5447090feb2f9252aac2825ef14e244ecf53528fbe87d585b459adb547b914 # v4
@@ -124,7 +123,6 @@ jobs:
         uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6
         with:
           go-version-file: go.mod
-          check-latest: true
 
       - name: Install dependencies
         run: go mod download
@@ -186,7 +184,6 @@ jobs:
         uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6
         with:
           go-version-file: go.mod
-          check-latest: true
 
       - name: Install dependencies
         run: go mod download
@@ -219,7 +216,6 @@ jobs:
         uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6
         with:
           go-version-file: go.mod
-          check-latest: true
 
       - name: Install dependencies
         run: go mod download
@@ -271,7 +267,6 @@ jobs:
         uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6
         with:
           go-version-file: go.mod
-          check-latest: true
 
       - name: Install dependencies
         run: go mod download
