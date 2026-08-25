@@ -31,15 +31,13 @@ jobs:
 
       - name: Check for changes in providers.yaml
         id: diff
-        env:
-          BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
         run: |
           crds_changed=false
           webhooks_changed=false
-          if ! git diff --exit-code origin/$BRANCH_NAME -- pkg/provider/crds/*.yaml; then
+          if ! git diff --exit-code -- pkg/provider/crds/*.yaml; then
             crds_changed=true
           fi
-          if ! git diff --exit-code origin/$BRANCH_NAME -- pkg/provider/webhooks/*.yaml; then
+          if ! git diff --exit-code -- pkg/provider/webhooks/*.yaml; then
             webhooks_changed=true
           fi
 

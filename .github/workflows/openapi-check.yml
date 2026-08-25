@@ -35,11 +35,9 @@ jobs:
 
       - name: Check for changes in openapi folder
         id: diff
-        env:
-          BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
         run: |
           openapi_changed=false
-          if ! git diff --exit-code origin/$BRANCH_NAME -- "openapi/**/*"; then
+          if ! git diff --exit-code -- "openapi/**/*"; then
             openapi_changed=true
           fi
 
