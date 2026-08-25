@@ -89,6 +89,18 @@ func InstallKommodityClusterChartScaleway(
 	return scalewayDefaultZone
 }
 
+// InstallKommodityClusterChartHetzner installs the kommodity-cluster helm chart with Hetzner values.
+func InstallKommodityClusterChartHetzner(
+	t *testing.T,
+	env TestEnvironment,
+	releaseName string,
+	namespace string,
+) {
+	t.Helper()
+
+	installKommodityClusterChart(t, env, releaseName, namespace, HetznerInfra{})
+}
+
 // InstallKommodityClusterChartKubevirt installs the kommodity-cluster helm chart with KubeVirt values.
 func InstallKommodityClusterChartKubevirt(
 	t *testing.T,

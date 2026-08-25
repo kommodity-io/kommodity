@@ -129,7 +129,7 @@ func startKommodityContainer(ctx context.Context, networkName string) (tc.Contai
 				"KOMMODITY_DB_URI": "postgres://kommodity:kommodity@postgres:" +
 					postgresDefaultPort + "/kommodity?sslmode=disable",
 				"KOMMODITY_INSECURE_DISABLE_AUTHENTICATION": "true",
-				"KOMMODITY_INFRASTRUCTURE_PROVIDERS":        "kubevirt,scaleway,byot",
+				"KOMMODITY_INFRASTRUCTURE_PROVIDERS":        "kubevirt,scaleway,byot,hetzner",
 				"KOMMODITY_KINE_URI":                        "unix:///tmp/kine.sock",
 			},
 			WaitingFor: wait.ForHTTP("/readyz").WithPort("5000/tcp").WithStartupTimeout(startupTimeout),

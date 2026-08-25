@@ -23,6 +23,7 @@ on:
           - scaleway
           - azure
           - openstack
+          - hcloud
       push:
         description: "Push image to registry"
         required: false
@@ -143,6 +144,14 @@ jobs:
               "needs_conversion": "true",
               "required_extensions": "ghcr.io/siderolabs/qemu-guest-agent:${{ inputs.qemu_ga_version }}",
               "publish_containerdisk": "true"
+            },
+            {
+              "platform": "hcloud",
+              "image_name": "kommodity-talos-hcloud",
+              "imager_output": "hcloud-amd64.raw.zst",
+              "final_extension": "raw",
+              "artifact_type": "application/vnd.talos.hcloud.image",
+              "needs_conversion": "false"
             }
           ]'
 
@@ -417,6 +426,20 @@ jobs:
               echo "  registry:"
               echo "    url: \"docker://${{ env.REGISTRY }}/${IMAGE_NAME}:${TALOS_VERSION}\""
               echo "\`\`\`"
+            elif [[ "${PLATFORM}" == "hcloud" ]]; then
+              echo "### Upload to Hetzner Cloud"
+              echo "To use this image in Hetzner Cloud (one snapshot per project):"
+              echo ""
+              echo "1. Download the raw file (from artifact or registry)"
+              echo "2. Upload as a snapshot with [hcloud-upload-image](https://github.com/apricote/hcloud-upload-image):"
+              echo "   \`\`\`bash"
+              echo "   hcloud-upload-image upload \\"
+              echo "     --image-path ${IMAGE_NAME}-${TALOS_VERSION}.raw \\"
+              echo "     --architecture x86 \\"
+              echo "     --description ${IMAGE_NAME}-${TALOS_VERSION} \\"
+              echo "     --labels caph-image-name=${IMAGE_NAME}-${TALOS_VERSION}"
+              echo "   \`\`\`"
+              echo "   The \`caph-image-name\` label is how CAPH resolves \`HCloudMachineTemplate.spec.template.spec.imageName\`."
             elif [[ "${PLATFORM}" == "azure" ]]; then
               echo "### Upload to Azure"
               echo "To use this image in Azure:"

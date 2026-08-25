@@ -13,6 +13,7 @@ const (
 	ProviderAzure Provider = "azure"
 	ProviderByot Provider = "byot"
 	ProviderKubevirt Provider = "kubevirt"
+	ProviderHetzner Provider = "hetzner"
 )
 
 // GetAllProviders returns a list of all supported providers without local development providers.
@@ -25,5 +26,6 @@ func GetAllProviders() []Provider {
 		ProviderAzure,
 		ProviderByot,
 		ProviderKubevirt,
+		ProviderHetzner,
 	}
 }
