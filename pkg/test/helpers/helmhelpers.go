@@ -1,6 +1,7 @@
 package helpers
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -36,6 +37,10 @@ func installKommodityClusterChart(
 	cfg := new(action.Configuration)
 	restGetter := genericclioptions.NewConfigFlags(false)
 	apiServer := env.KommodityCfg.Host
+	// Pin the kubeconfig to an empty file so helm talks only to the test
+	// container and never resolves contexts from the developer's ~/.kube/config.
+	emptyKubeconfig := os.DevNull
+	restGetter.KubeConfig = &emptyKubeconfig
 	restGetter.APIServer = &apiServer
 	restGetter.Namespace = &namespace
 
@@ -82,6 +87,18 @@ func InstallKommodityClusterChartScaleway(
 	require.NoError(t, err)
 
 	return scalewayDefaultZone
+}
+
+// InstallKommodityClusterChartHetzner installs the kommodity-cluster helm chart with Hetzner values.
+func InstallKommodityClusterChartHetzner(
+	t *testing.T,
+	env TestEnvironment,
+	releaseName string,
+	namespace string,
+) {
+	t.Helper()
+
+	installKommodityClusterChart(t, env, releaseName, namespace, HetznerInfra{})
 }
 
 // InstallKommodityClusterChartKubevirt installs the kommodity-cluster helm chart with KubeVirt values.
@@ -166,6 +183,10 @@ func UninstallKommodityClusterChart(t *testing.T, env TestEnvironment, releaseNa
 	cfg := new(action.Configuration)
 	restGetter := genericclioptions.NewConfigFlags(false)
 	apiServer := env.KommodityCfg.Host
+	// Pin the kubeconfig to an empty file so helm talks only to the test
+	// container and never resolves contexts from the developer's ~/.kube/config.
+	emptyKubeconfig := os.DevNull
+	restGetter.KubeConfig = &emptyKubeconfig
 	restGetter.APIServer = &apiServer
 	restGetter.Namespace = &namespace
 

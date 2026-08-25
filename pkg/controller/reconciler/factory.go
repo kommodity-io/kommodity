@@ -18,6 +18,7 @@ func NewReconcilerFactory() *FactoryImpl {
 			config.ProviderScaleway: NewScalewayModule(),
 			config.ProviderByot:     NewByotModule(),
 			config.ProviderKubevirt: NewKubevirtModule(),
+			config.ProviderHetzner:  NewHetznerModule(),
 		},
 	}
 }
