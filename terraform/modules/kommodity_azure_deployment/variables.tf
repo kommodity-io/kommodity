@@ -22,6 +22,16 @@ variable "virtual_network" {
   default     = {}
 }
 
+variable "nat_gateway" {
+  type = object({
+    enabled      = optional(bool, false)
+    idle_timeout = optional(number, 30)
+    zone         = optional(string, "1")
+  })
+  description = "NAT gateway for stable Container App outbound IP. Attach to container subnet."
+  default     = {}
+}
+
 variable "database_password" {
   type = object({
     length  = number

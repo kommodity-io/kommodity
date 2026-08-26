@@ -30,3 +30,7 @@ providers = {
 - `app_url` — full HTTPS URL of the custom domain (e.g. `https://kommodity.dev.example.com`); must be a subdomain of `dns.zone`.
 - `dns.zone` — parent DNS zone name (e.g. `example.com`).
 - `dns.az_resource_group` — resource group hosting the DNS zone (defaults to `infrastructure-dns`).
+
+## Optional: stable outbound IP
+
+By default the Container App egresses through Azure's shared platform IP pool. Set `nat_gateway.enabled = true` to attach a NAT gateway with one static public IP to the container subnet; add that IP to downstream allowlists (firewalls, DB, partner APIs). Read the pinned address from the `container_app_egress_ip` output.
