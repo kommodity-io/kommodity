@@ -31,4 +31,11 @@ module "kommodity_azure_deployment" {
     client_id   = module.kommodity_oidc_auth.application_client_id
     admin_group = "my-admin-group-ID"
   }
+
+  # Pin outbound traffic to a single static IP for allowlisting downstream.
+  nat_gateway = {
+    enabled      = true
+    idle_timeout = 30
+    zone         = "1"
+  }
 }

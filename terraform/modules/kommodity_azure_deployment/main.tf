@@ -167,6 +167,40 @@ resource "azurerm_subnet" "kommodity-container-sn" {
   ]
 }
 
+# Stable egress: public IP + NAT gateway bound to the container subnet.
+# Disabled by default; set var.nat_gateway.enabled = true to pin outbound traffic to one IP.
+resource "azurerm_public_ip" "egress" {
+  count               = var.nat_gateway.enabled ? 1 : 0
+  name                = "${var.resource_group.name}-egress-pip"
+  location            = azurerm_resource_group.kommodity-resource-group.location
+  resource_group_name = azurerm_resource_group.kommodity-resource-group.name
+  allocation_method   = "Static"
+  sku                 = "Standard"
+  zones               = var.nat_gateway.zone == null ? [] : [var.nat_gateway.zone]
+}
+
+resource "azurerm_nat_gateway" "this" {
+  count                   = var.nat_gateway.enabled ? 1 : 0
+  name                    = "${var.resource_group.name}-natgw"
+  location                = azurerm_resource_group.kommodity-resource-group.location
+  resource_group_name     = azurerm_resource_group.kommodity-resource-group.name
+  sku_name                = "Standard"
+  idle_timeout_in_minutes = var.nat_gateway.idle_timeout
+  zones                   = var.nat_gateway.zone == null ? [] : [var.nat_gateway.zone]
+}
+
+resource "azurerm_nat_gateway_public_ip_association" "this" {
+  count                = var.nat_gateway.enabled ? 1 : 0
+  nat_gateway_id       = azurerm_nat_gateway.this[0].id
+  public_ip_address_id = azurerm_public_ip.egress[0].id
+}
+
+resource "azurerm_subnet_nat_gateway_association" "container" {
+  count          = var.nat_gateway.enabled ? 1 : 0
+  subnet_id      = azurerm_subnet.kommodity-container-sn.id
+  nat_gateway_id = azurerm_nat_gateway.this[0].id
+}
+
 resource "azurerm_container_app_environment" "kommodity-environment" {
   name                     = "${var.resource_group.name}-environment"
   location                 = azurerm_resource_group.kommodity-resource-group.location
