@@ -328,7 +328,7 @@ tests:
           path: spec.template.spec.virtualMachineTemplate.spec.template.spec.dnsConfig.nameservers[0]
           value: 1.1.1.1
         documentIndex: 1
-  - it: should not render affinity when no zones are set
+  - it: should not render affinity when no zones are set and spreadAcrossHosts is unset
     template: templates/provider/kubevirt/machinetemplate.yaml
     asserts:
       - isNull:
@@ -337,12 +337,44 @@ tests:
       - isNull:
           path: spec.template.spec.virtualMachineTemplate.spec.template.spec.affinity
         documentIndex: 1
-  - it: should inject loose multi-zone nodeAffinity on controlplane when zones are set
+      - isNull:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.metadata
+        documentIndex: 0
+      - isNull:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.metadata
+        documentIndex: 1
+  - it: should render podAntiAffinity (host spread) but no nodeAffinity when spreadAcrossHosts is set without zones
+    template: templates/provider/kubevirt/machinetemplate.yaml
+    set:
+      kommodity.controlplane.spreadAcrossHosts: true
+      kommodity.nodepools.default.spreadAcrossHosts: true
+    asserts:
+      - isNull:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.affinity.nodeAffinity
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.affinity.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].topologyKey
+          value: kubernetes.io/hostname
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.affinity.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].labelSelector.matchLabels["kommodity.io/nodepool"]
+          value: test-cluster-controlplane
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.metadata.labels["kommodity.io/nodepool"]
+          value: test-cluster-controlplane
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.metadata.labels["kommodity.io/nodepool"]
+          value: test-cluster-default
+        documentIndex: 1
+  - it: should inject loose multi-zone nodeAffinity and host-spread podAntiAffinity on controlplane when zones are set
     template: templates/provider/kubevirt/machinetemplate.yaml
     set:
       kommodity.controlplane.zones:
         - zone-a
         - zone-b
+      kommodity.controlplane.spreadAcrossHosts: true
     asserts:
       - equal:
           path: spec.template.spec.virtualMachineTemplate.spec.template.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].key
@@ -360,12 +392,21 @@ tests:
           path: spec.template.spec.virtualMachineTemplate.spec.template.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].values[1]
           value: zone-b
         documentIndex: 0
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.affinity.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].topologyKey
+          value: kubernetes.io/hostname
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.affinity.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].labelSelector.matchLabels["kommodity.io/nodepool"]
+          value: test-cluster-controlplane
+        documentIndex: 0
   - it: should fan out one KubevirtMachineTemplate per nodepool zone with single-zone affinity
     template: templates/provider/kubevirt/machinetemplate.yaml
     set:
       kommodity.nodepools.default.zones:
         - zone-a
         - zone-b
+      kommodity.nodepools.default.spreadAcrossHosts: true
     asserts:
       - hasDocuments:
           count: 3
@@ -392,6 +433,22 @@ tests:
       - equal:
           path: spec.template.spec.virtualMachineTemplate.spec.template.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].values[0]
           value: zone-b
+        documentIndex: 2
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.metadata.labels["kommodity.io/nodepool"]
+          value: test-cluster-default
+        documentIndex: 1
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.metadata.labels["kommodity.io/nodepool"]
+          value: test-cluster-default
+        documentIndex: 2
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.affinity.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].topologyKey
+          value: kubernetes.io/hostname
+        documentIndex: 1
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.affinity.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].topologyKey
+          value: kubernetes.io/hostname
         documentIndex: 2
   - it: should reference the zone-suffixed KubevirtMachineTemplate from each zone MachineDeployment
     template: templates/provider/capi/machinedeployment.yaml
