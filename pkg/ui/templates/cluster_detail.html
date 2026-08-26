@@ -315,6 +315,8 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // Sort machine rows by creation time
+// Comparator lives in /ui/public/sort.js (window.sortMachinesByCreation) so it
+// can be unit tested in node without a DOM.
 document.querySelectorAll('.sort-creation-time').forEach(function(btn) {
     let sortState = 'asc';
 
@@ -324,23 +326,9 @@ document.querySelectorAll('.sort-creation-time').forEach(function(btn) {
         const rows = Array.from(tbody.querySelectorAll('tr'));
         const indicator = btn.querySelector('.sort-indicator');
 
-        if (sortState === 'asc') {
-            sortState = 'desc';
-            indicator.textContent = '↓';
-            rows.sort(function(a, b) {
-                const timeA = a.cells[5].getAttribute('data-creation-time') || '';
-                const timeB = b.cells[5].getAttribute('data-creation-time') || '';
-                return timeB.localeCompare(timeA);
-            });
-        } else {
-            sortState = 'asc';
-            indicator.textContent = '↑';
-            rows.sort(function(a, b) {
-                const timeA = a.cells[5].getAttribute('data-creation-time') || '';
-                const timeB = b.cells[5].getAttribute('data-creation-time') || '';
-                return timeA.localeCompare(timeB);
-            });
-        }
+        sortState = sortState === 'asc' ? 'desc' : 'asc';
+        window.sortMachinesByCreation(rows, sortState);
+        indicator.textContent = window.sortIndicatorFor(sortState);
 
         rows.forEach(function(row) {
             tbody.appendChild(row);

@@ -96,8 +96,12 @@ clean: ## Clean the build artifacts.
 	rm -f bin/kommodity
 
 .PHONY: test
-test: ## Run the tests.
+test: test-ui ## Run the tests.
 	go test -cover -v ./...
+
+.PHONY: test-ui
+test-ui: ## Run the UI JavaScript tests.
+	node pkg/ui/sort.test.js
 
 lint: ## Run the linter.
 	$(LINTER) run
