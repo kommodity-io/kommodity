@@ -38,19 +38,30 @@ Usage: {{ $zones := include "kommodity-cluster.controlPlaneZones" . | fromJsonAr
 {{- end -}}
 
 {{/*
-kommodity.kubevirt.nodeAffinity — render a `nodeAffinity` YAML block that restricts
-VM scheduling to the given zones via the standard `topology.kubernetes.io/zone` label
-on infra-cluster nodes. Returns empty when the zones list is empty.
+kommodity.kubevirt.affinity — render the inner of an `affinity` block (without the
+wrapping `affinity:` key) for a KubevirtMachineTemplate VM spec. It combines:
+
+  - nodeAffinity (required) pinning virt-launcher pods to the given zones via the
+    standard `topology.kubernetes.io/zone` label on infra-cluster nodes. Omitted
+    when the zones list is empty.
+  - podAntiAffinity (required) spreading virt-launcher pods of the same pool across
+    distinct infra-cluster hosts, using the `kubernetes.io/hostname` topology key and
+    a shared `kommodity.io/nodepool` label that the caller must also set on the VMI
+    template metadata. Hard required: if a pool has more replicas than available hosts,
+    the excess pods stay Pending. Omitted when spreadAcrossHosts is false.
 
 KubeVirt provider context: CAPK ignores Machine.Spec.FailureDomain, so the chart's
 per-zone MachineDeployment fan-out does not by itself pin VMs to zones. Injecting
 this affinity on the KubevirtMachineTemplate's VM spec actually constrains where
 virt-launcher pods land on the infra cluster.
 
-Usage: {{ include "kommodity.kubevirt.nodeAffinity" (list "fr-par-1" "fr-par-2") }}
+Usage: {{ include "kommodity.kubevirt.affinity" (dict "zones" (list "fr-par-1" "fr-par-2") "nodepool" "mycluster-default" "spreadAcrossHosts" true) }}
 */}}
-{{- define "kommodity.kubevirt.nodeAffinity" -}}
-{{- if gt (len .) 0 -}}
+{{- define "kommodity.kubevirt.affinity" -}}
+{{- $zones := .zones | default list -}}
+{{- $nodepool := .nodepool -}}
+{{- $spread := .spreadAcrossHosts | default false -}}
+{{- if $zones }}
 nodeAffinity:
   requiredDuringSchedulingIgnoredDuringExecution:
     nodeSelectorTerms:
@@ -58,10 +69,18 @@ nodeAffinity:
           - key: topology.kubernetes.io/zone
             operator: In
             values:
-              {{- range . }}
+              {{- range $zones }}
               - {{ . | quote }}
               {{- end }}
-{{- end -}}
+{{- end }}
+{{- if and $nodepool $spread }}
+podAntiAffinity:
+  requiredDuringSchedulingIgnoredDuringExecution:
+    - labelSelector:
+        matchLabels:
+          kommodity.io/nodepool: {{ $nodepool | quote }}
+      topologyKey: kubernetes.io/hostname
+{{- end }}
 {{- end -}}
 
 {{/*
@@ -217,6 +236,9 @@ Any values that should trigger a new Machine template when changed should be add
 {{- if eq .allValues.kommodity.provider.name "Kubevirt" -}}
 {{- $effectiveEvictionStrategy := default "LiveMigrateIfPossible" (dig "evictionStrategy" "" (default dict .allValues.kommodity.provider.config)) -}}
 {{- $_ := set $data "evictionStrategy" $effectiveEvictionStrategy -}}
+{{- if (dig "spreadAcrossHosts" false .poolValues) -}}
+{{- $_ := set $data "spreadAcrossHosts" true -}}
+{{- end -}}
 {{- end -}}
 {{- $_ := set $data "publicNetworkEnabled" .allValues.kommodity.network.ipv4.public -}}
 {{- $zones := include "kommodity-cluster.poolZones" .poolValues | fromJsonArray -}}

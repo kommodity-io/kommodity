@@ -13,7 +13,9 @@
        cannot fan out per zone here. Instead, when controlplane.zones is set we inject a loose
        nodeAffinity that lets every CP VM land on any of the listed zones. */ -}}
 {{- $cpZones := include "kommodity-cluster.poolZones" .Values.kommodity.controlplane | fromJsonArray }}
-{{- $cpAffinity := include "kommodity.kubevirt.nodeAffinity" $cpZones | trim }}
+{{- $cpSpread := dig "spreadAcrossHosts" false .Values.kommodity.controlplane }}
+{{- $cpPoolLabel := printf "%s-controlplane" .Release.Name }}
+{{- $cpAffinity := include "kommodity.kubevirt.affinity" (dict "zones" $cpZones "nodepool" $cpPoolLabel "spreadAcrossHosts" $cpSpread) | trim }}
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
 kind: KubevirtMachineTemplate
@@ -56,6 +58,11 @@ spec:
           {{- end }}
           runStrategy: Always
           template:
+            {{- if $cpSpread }}
+            metadata:
+              labels:
+                kommodity.io/nodepool: {{ $cpPoolLabel | quote }}
+            {{- end }}
             spec:
               {{- if $cpAffinity }}
               affinity:
@@ -104,6 +111,8 @@ spec:
        its own template with nodeAffinity pinning the VM to that single zone, matching the
        MachineDeployment-per-zone model. With no zones set, emit one template (unsuffixed). */ -}}
 {{- $npZones := include "kommodity-cluster.poolZones" $np | fromJsonArray }}
+{{- $npSpread := dig "spreadAcrossHosts" false $np }}
+{{- $npPoolLabel := printf "%s-%s" $.Release.Name $name }}
 {{- if eq (len $npZones) 0 }}
 {{- $npZones = list "" }}
 {{- end }}
@@ -111,10 +120,12 @@ spec:
 {{- range $zone := $npZones }}
 {{- $tmplName := printf "%s-worker-%s-%s" $.Release.Name $name $hash }}
 {{- $zoneAffinity := "" }}
+{{- $zoneZones := list }}
 {{- if $zone }}
 {{- $tmplName = printf "%s-worker-%s-%s-%s" $.Release.Name $name $zone $hash }}
-{{- $zoneAffinity = include "kommodity.kubevirt.nodeAffinity" (list $zone) | trim }}
+{{- $zoneZones = list $zone }}
 {{- end }}
+{{- $zoneAffinity = include "kommodity.kubevirt.affinity" (dict "zones" $zoneZones "nodepool" $npPoolLabel "spreadAcrossHosts" $npSpread) | trim }}
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
 kind: KubevirtMachineTemplate
@@ -176,6 +187,11 @@ spec:
           {{- end }}
           runStrategy: Always
           template:
+            {{- if $npSpread }}
+            metadata:
+              labels:
+                kommodity.io/nodepool: {{ $npPoolLabel | quote }}
+            {{- end }}
             spec:
               {{- if $zoneAffinity }}
               affinity:

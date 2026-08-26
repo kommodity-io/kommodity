@@ -79,6 +79,8 @@ kommodity:
     # zones:
     #   - fr-par-1
     #   - fr-par-2
+    # Enforce hard host spread.
+    # spreadAcrossHosts: false
     # Exactly one of 'sku' or 'resources' must be set per pool (mutually exclusive).
     # - sku: references a Kubevirt VirtualMachineClusterInstancetype.
     #   Default set: https://github.com/kubevirt/common-instancetypes#series.
@@ -103,6 +105,8 @@ kommodity:
       # zones:
       #   - zone1
       #   - zone2
+      # Enforce hard host spread.
+      # spreadAcrossHosts: false
       # Exactly one of 'sku' or 'resources' must be set (mutually exclusive).
       sku: d1.xlarge
       # resources:
