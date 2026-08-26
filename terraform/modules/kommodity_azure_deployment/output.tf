@@ -20,6 +20,6 @@ output "container_app_environment_id" {
 }
 
 output "container_app_egress_ip" {
-  value       = var.nat_gateway.enabled ? azurerm_public_ip.egress[0].ip_address : null
+  value       = var.nat_gateway.enabled ? one(azurerm_public_ip.egress[*].ip_address) : null
   description = "The static outbound IP of the Kommodity Container App when NAT gateway is enabled; null otherwise."
 }

@@ -26,10 +26,21 @@ variable "nat_gateway" {
   type = object({
     enabled      = optional(bool, false)
     idle_timeout = optional(number, 30)
-    zone         = optional(string, "1")
+    # Set to null for non-zonal regions; "1"-"3" where availability zones exist.
+    zone = optional(string, null)
   })
   description = "NAT gateway for stable Container App outbound IP. Attach to container subnet."
   default     = {}
+
+  validation {
+    condition     = var.nat_gateway.idle_timeout >= 4 && var.nat_gateway.idle_timeout <= 120
+    error_message = "nat_gateway.idle_timeout must be between 4 and 120 minutes."
+  }
+
+  validation {
+    condition     = var.nat_gateway.zone == null || can(regex("^[1-3]$", var.nat_gateway.zone))
+    error_message = "nat_gateway.zone must be null or one of 1, 2, 3."
+  }
 }
 
 variable "database_password" {

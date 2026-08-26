@@ -176,7 +176,7 @@ resource "azurerm_public_ip" "egress" {
   resource_group_name = azurerm_resource_group.kommodity-resource-group.name
   allocation_method   = "Static"
   sku                 = "Standard"
-  zones               = [var.nat_gateway.zone]
+  zones               = var.nat_gateway.zone == null ? [] : [var.nat_gateway.zone]
 }
 
 resource "azurerm_nat_gateway" "this" {
@@ -186,7 +186,7 @@ resource "azurerm_nat_gateway" "this" {
   resource_group_name     = azurerm_resource_group.kommodity-resource-group.name
   sku_name                = "Standard"
   idle_timeout_in_minutes = var.nat_gateway.idle_timeout
-  zones                   = [var.nat_gateway.zone]
+  zones                   = var.nat_gateway.zone == null ? [] : [var.nat_gateway.zone]
 }
 
 resource "azurerm_nat_gateway_public_ip_association" "this" {
