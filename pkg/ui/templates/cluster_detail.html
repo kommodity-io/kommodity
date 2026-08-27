@@ -109,7 +109,7 @@
                                         {{range .Machines}}
                                         <tr class="border-b border-gray-700 last:border-0">
                                             <td class="py-2 px-6">
-                                                {{template "machine_health.html" (dict "Health" .Health "Conditions" .Conditions "Name" .Name)}}
+                                                {{template "machine_health.html" (dict "Health" .Health "Outdated" .Outdated "Conditions" .Conditions "Name" .Name)}}
                                             </td>
                                             <td class="py-2 px-4">
                                                 <code class="px-2 py-1 bg-gray-700 rounded">{{.Phase}}</code>
@@ -217,7 +217,7 @@
                                         {{range .Machines}}
                                         <tr class="border-b border-gray-700 last:border-0">
                                             <td class="py-2 px-6">
-                                                {{template "machine_health.html" (dict "Health" .Health "Conditions" .Conditions "Name" .Name)}}
+                                                {{template "machine_health.html" (dict "Health" .Health "Outdated" .Outdated "Conditions" .Conditions "Name" .Name)}}
                                             </td>
                                             <td class="py-2 px-4">
                                                 <code class="px-2 py-1 bg-gray-700 rounded">{{.Phase}}</code>

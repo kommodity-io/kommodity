@@ -9,6 +9,7 @@ import (
 	taloscontrolplanev1 "github.com/siderolabs/cluster-api-control-plane-provider-talos/api/v1alpha3"
 	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	clientgoclientset "k8s.io/client-go/kubernetes"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -60,6 +61,7 @@ type MachineDetail struct {
 	Phase             string
 	KubernetesVersion string
 	Health            string
+	Outdated          bool
 	Conditions        []MachineConditionDetail
 }
 
@@ -114,13 +116,19 @@ func GetClusterDetail(
 		machineList = &clusterv1.MachineList{}
 	}
 
-	machinesByDeployment, controlPlaneMachines := groupMachines(machineList)
+	// List MachineDeployments and MachineSets once; both are reused to detect
+	// outdated MachineSets and to build the deployment details.
+	mdList, msList, err := listDeploymentResources(ctx, client, clusterName, logger)
+	if err != nil {
+		return nil, err
+	}
+
+	currentMachineSets := currentMachineSetNames(mdList, msList)
+
+	machinesByDeployment, controlPlaneMachines := groupMachines(machineList, currentMachineSets)
 
 	// Get MachineDeployments
-	machineDeployments, err := getMachineDeployments(ctx, client, clusterName, machinesByDeployment)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get machine deployments: %w", err)
-	}
+	machineDeployments := getMachineDeployments(mdList, machinesByDeployment)
 
 	// Get control plane
 	controlPlane, err := getControlPlane(ctx, client, clusterName, controlPlaneMachines, logger)
@@ -202,23 +210,12 @@ func countHealthyMachines(machines []MachineDetail) int {
 	return count
 }
 
-// getMachineDeployments retrieves all MachineDeployments for a cluster.
+// getMachineDeployments builds MachineDeployment details from a pre-fetched list.
 func getMachineDeployments(
-	ctx context.Context,
-	client ctrlclient.Client,
-	clusterName string,
+	mdList *clusterv1.MachineDeploymentList,
 	machinesByDeployment map[string][]MachineDetail,
-) ([]MachineDeploymentDetail, error) {
-	mdList := &clusterv1.MachineDeploymentList{}
-
-	err := client.List(ctx, mdList, ctrlclient.InNamespace(DefaultNamespace), ctrlclient.MatchingLabels{
-		ClusterNameLabel: clusterName,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to list machine deployments: %w", err)
-	}
-
-	var result []MachineDeploymentDetail
+) []MachineDeploymentDetail {
+	result := make([]MachineDeploymentDetail, 0, len(mdList.Items))
 
 	for i := range mdList.Items {
 		deployment := &mdList.Items[i]
@@ -256,11 +253,88 @@ func getMachineDeployments(
 		result = append(result, detail)
 	}
 
-	return result, nil
+	return result
+}
+
+// listDeploymentResources fetches all MachineDeployments and MachineSets for a cluster.
+// MachineSet listing is best-effort: on failure an empty list is returned so the UI
+// degrades gracefully (no outdated detection) instead of erroring the whole page.
+func listDeploymentResources(
+	ctx context.Context,
+	client ctrlclient.Client,
+	clusterName string,
+	logger *zap.Logger,
+) (*clusterv1.MachineDeploymentList, *clusterv1.MachineSetList, error) {
+	mdList := &clusterv1.MachineDeploymentList{}
+
+	err := client.List(ctx, mdList, ctrlclient.InNamespace(DefaultNamespace), ctrlclient.MatchingLabels{
+		ClusterNameLabel: clusterName,
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to list machine deployments: %w", err)
+	}
+
+	msList := &clusterv1.MachineSetList{}
+
+	err = client.List(ctx, msList, ctrlclient.InNamespace(DefaultNamespace), ctrlclient.MatchingLabels{
+		ClusterNameLabel: clusterName,
+	})
+	if err != nil {
+		logger.Warn("Failed to list machine sets",
+			zap.String("cluster", clusterName),
+			zap.Error(err),
+		)
+
+		msList = &clusterv1.MachineSetList{}
+	}
+
+	return mdList, msList, nil
+}
+
+// currentMachineSetNames returns the set of MachineSet names whose template matches
+// the current template of their owning MachineDeployment. A MachineSet is "current"
+// when its spec template is semantically equal to the deployment's template; all
+// other MachineSets owned by the same deployment are stale and their machines are
+// pending rollout.
+func currentMachineSetNames(
+	mdList *clusterv1.MachineDeploymentList,
+	msList *clusterv1.MachineSetList,
+) map[string]struct{} {
+	current := make(map[string]struct{})
+
+	deploymentByName := make(map[string]*clusterv1.MachineDeployment, len(mdList.Items))
+	for i := range mdList.Items {
+		deploymentByName[mdList.Items[i].Name] = &mdList.Items[i]
+	}
+
+	for i := range msList.Items {
+		machineSet := &msList.Items[i]
+
+		deploymentName, ok := getDeploymentNameFromMachineSet(machineSet)
+		if !ok {
+			continue
+		}
+
+		deployment, found := deploymentByName[deploymentName]
+		if !found {
+			continue
+		}
+
+		if apiequality.Semantic.DeepEqual(machineSet.Spec.Template, deployment.Spec.Template) {
+			current[machineSet.Name] = struct{}{}
+		}
+	}
+
+	return current
 }
 
 // groupMachines splits the machine list into per-MachineDeployment groups and a control plane group.
-func groupMachines(machineList *clusterv1.MachineList) (map[string][]MachineDetail, []MachineDetail) {
+// currentMachineSets identifies MachineSets matching their deployment's current template; machines
+// belonging to any other MachineSet are flagged as outdated.
+func groupMachines(
+	machineList *clusterv1.MachineList,
+	currentMachineSets map[string]struct{},
+) (map[string][]MachineDetail, []MachineDetail) {
 	byDeployment := make(map[string][]MachineDetail)
 
 	var controlPlane []MachineDetail
@@ -278,6 +352,12 @@ func groupMachines(machineList *clusterv1.MachineList) (map[string][]MachineDeta
 		deploymentName := getDeploymentNameFromMachine(machine)
 		if deploymentName == "" {
 			continue
+		}
+
+		if machineSetName := getMachineSetNameFromMachine(machine); machineSetName != "" {
+			if _, isCurrent := currentMachineSets[machineSetName]; !isCurrent {
+				detail.Outdated = true
+			}
 		}
 
 		byDeployment[deploymentName] = append(byDeployment[deploymentName], detail)
@@ -439,6 +519,40 @@ func getDeploymentNameFromMachine(machine *clusterv1.Machine) string {
 	}
 
 	return ""
+}
+
+// getMachineSetNameFromMachine returns the MachineSet name owning a machine, preferring
+// the CAPI set-name label (handles long names that are hashed) and falling back to the
+// MachineSet owner reference.
+func getMachineSetNameFromMachine(machine *clusterv1.Machine) string {
+	if name, ok := machine.Labels[clusterv1.MachineSetNameLabel]; ok && name != "" {
+		return name
+	}
+
+	for _, owner := range machine.OwnerReferences {
+		if owner.Kind == "MachineSet" {
+			return owner.Name
+		}
+	}
+
+	return ""
+}
+
+// getDeploymentNameFromMachineSet returns the MachineDeployment name owning a MachineSet,
+// using the deployment-name label first, then the owner reference. The second return is
+// false when the MachineSet is not owned by a MachineDeployment.
+func getDeploymentNameFromMachineSet(machineSet *clusterv1.MachineSet) (string, bool) {
+	if name, ok := machineSet.Labels[clusterv1.MachineDeploymentNameLabel]; ok && name != "" {
+		return name, true
+	}
+
+	for _, owner := range machineSet.OwnerReferences {
+		if owner.Kind == "MachineDeployment" {
+			return owner.Name, true
+		}
+	}
+
+	return "", false
 }
 
 // getAutoscalerAnnotation retrieves and parses an autoscaler annotation.

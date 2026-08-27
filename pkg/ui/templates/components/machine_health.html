@@ -11,6 +11,10 @@
     {{- $color = "text-yellow-500" -}}
     {{- $label = "Check failed" -}}
 {{- end -}}
+{{- if .Outdated -}}
+    {{- $color = "text-purple-500" -}}
+    {{- $label = "Outdated (pending rollout)" -}}
+{{- end -}}
 {{- $tooltipID := printf "machine-conditions-%s" .Name -}}
 <span class="machine-health relative inline-flex items-center gap-2" tabindex="0" title="{{$label}}"{{if .Conditions}} aria-describedby="{{$tooltipID}}"{{end}}>
     <span class="{{$color}} text-base leading-none" aria-hidden="true">●</span>
