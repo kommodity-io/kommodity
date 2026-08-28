@@ -128,8 +128,6 @@ spec:
                     Ready denotes that the cluster infrastructure is ready. Since adopted
                     clusters require no provisioning, this is set to true immediately.
                   type: boolean
-              required:
-                - ready
               type: object
           type: object
       served: true

@@ -39,6 +39,10 @@ spec:
           jsonPath: .status.claimRef.name
           name: Claimed
           type: string
+        - description: Discovered GPU model family
+          jsonPath: .status.hardware.gpus.model
+          name: GPUs
+          type: string
         - description: Failure domain
           jsonPath: .spec.failureDomain
           name: FailureDomain
@@ -110,7 +114,7 @@ spec:
                       description: Namespace of the referent.
                       type: string
                     uid:
-                      description: UID of the referent.
+                      description: UID of the referent (the ByotMachine's UID).
                       type: string
                   required:
                     - kind
@@ -222,10 +226,63 @@ spec:
                         required:
                           - name
                           - size
-                          - systemDisk
                           - type
                         type: object
                       type: array
+                    gpus:
+                      description: |-
+                        GPUs is the discovered GPU summary (count, vendor, model, memory).
+                        Nil when no GPU is present. Mixed models collapse to count+vendor only.
+                      properties:
+                        count:
+                          description: |-
+                            Count is the number of discovered GPUs (display-class PCI devices from
+                            a known vendor).
+                          format: int32
+                          type: integer
+                        deviceId:
+                          description: |-
+                            DeviceID is the raw PCI device id (e.g. "2331") for triage of unknown
+                            devices. Empty for mixed hosts (no single id to report).
+                          type: string
+                        memoryPerGPU:
+                          anyOf:
+                            - type: integer
+                            - type: string
+                          description: |-
+                            MemoryPerGPU is the per-GPU HBM as a resource.Quantity, derived from the
+                            model table (not measured). Zero when the model is unknown or mixed.
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
+                        mixed:
+                          description: |-
+                            Mixed is true when the host has GPUs of more than one vendor:device pair.
+                            Model and DeviceID are empty in that case.
+                          type: boolean
+                        model:
+                          description: |-
+                            Model is the normalized model family (e.g. "h100-pcie", "b300-sxm6"),
+                            from the PCI device-id table. Empty for unknown devices or mixed hosts.
+                          type: string
+                        totalMemory:
+                          anyOf:
+                            - type: integer
+                            - type: string
+                          description: |-
+                            TotalMemory is Count times MemoryPerGPU. Zero when the model is unknown
+                            or mixed.
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
+                        vendor:
+                          description: |-
+                            Vendor is the lowercase GPU vendor (nvidia, amd, intel). Omitted when
+                            the host has GPUs from more than one vendor.
+                          type: string
+                      required:
+                        - count
+                        - memoryPerGPU
+                        - totalMemory
+                      type: object
                     memory:
                       anyOf:
                         - type: integer
@@ -249,7 +306,10 @@ spec:
                   format: date-time
                   type: string
                 maintenanceMode:
-                  description: MaintenanceMode is the last maintenance-liveness probe result.
+                  description: |-
+                    MaintenanceMode is the last maintenance-liveness probe result.
+                    Absent (the default before the first probe completes) is equivalent to
+                    false: the host is not confirmed in maintenance mode.
                   type: boolean
                 phase:
                   description: Phase is the current lifecycle phase.
@@ -268,8 +328,6 @@ spec:
                 talosVersion:
                   description: TalosVersion is the discovered Talos version (from the Version RPC).
                   type: string
-              required:
-                - maintenanceMode
               type: object
           type: object
       served: true

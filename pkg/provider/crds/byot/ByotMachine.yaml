@@ -253,6 +253,16 @@ spec:
                     rate-limit reset attempts while the machine reboots.
                   format: date-time
                   type: string
+                nodeUpdated:
+                  description: |-
+                    NodeUpdated records that the controller has patched the workload
+                    cluster Node's spec.providerID to byot://<resolvedPublicIP>. byot has no
+                    cloud-controller-manager, so unlike cloud providers the controller owns
+                    the Machine<->Node providerID linkage: it patches the downstream Node
+                    once after adoption so CAPI's Machine controller can match
+                    Machine.spec.providerID against Node.spec.providerID and set
+                    status.nodeRef. Gated to run once.
+                  type: boolean
                 ready:
                   description: |-
                     Ready denotes that the machine has been adopted: the machine
