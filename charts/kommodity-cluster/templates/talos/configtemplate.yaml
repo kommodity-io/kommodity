@@ -14,6 +14,16 @@ spec:
     spec:
       generateType: worker
       talosVersion: {{ default (include "kommodity.talosVersion" $) (dig "talos" "version" "" $np) }}
+      {{- /* Byot: bake hostname == InfrastructureName so the workload Node
+           name matches the owning Machine name (CAPI clones the infra
+           machine with Name == Machine.Name), which the ByotMachine
+           controller's updateNodeProviderID relies on to Get the Node by
+           name. Without it the kubelet keeps a Talos-generated hostname and
+           the Machine<->Node link never fires. */ -}}
+      {{- if eq $.Values.kommodity.provider.name "Byot" }}
+      hostname:
+        source: InfrastructureName
+      {{- end }}
       {{- /* Build merged MachineConfig strategic patch for workers */ -}}
       {{- $mergedPatch := include "kommodity-cluster.mergedStrategicPatch" (dict
         "globalPatches" $.Values.kommodity.global.strategicPatches

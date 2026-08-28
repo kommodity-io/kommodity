@@ -57,11 +57,17 @@ spec:
         InfrastructureName matches the node name the infrastructure provider
         and the CCM use.
 
-        Hetzner only. Changing this field makes every existing control plane
-        machine mismatch its TalosConfig, which rolls the control plane, so it
-        is applied where the failure has been observed rather than everywhere.
+        Hetzner and Byot. Byot needs it so the workload Node name matches the
+        owning Machine name (CAPI clones the infra machine with Name ==
+        Machine.Name), which the ByotMachine controller's updateNodeProviderID
+        relies on to Get the Node by name. Without it the kubelet keeps a
+        Talos-generated hostname and the Machine<->Node link never fires.
+        Changing this field makes every existing control plane machine
+        mismatch its TalosConfig, which rolls the control plane, so it is
+        applied where the failure has been observed/needed rather than
+        everywhere.
       */}}
-      {{- if eq $.Values.kommodity.provider.name "Hetzner" }}
+      {{- if or (eq $.Values.kommodity.provider.name "Hetzner") (eq $.Values.kommodity.provider.name "Byot") }}
       hostname:
         source: InfrastructureName
       {{- else }}
