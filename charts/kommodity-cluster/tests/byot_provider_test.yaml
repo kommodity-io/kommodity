@@ -357,6 +357,23 @@ tests:
           path: spec.template.spec.hostSelector.matchLabels["byot.io/available"]
           value: "true"
 
+  - it: should let an operator hostSelector matchLabel override a derived byot.io label
+    template: templates/provider/byot/machinetemplate.yaml
+    documentIndex: 0
+    set:
+      kommodity.controlplane.hostSelector.matchLabels:
+        byot.io/cpu-cores: "8"
+    asserts:
+      - equal:
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/cpu-cores"]
+          value: "8"
+      - equal:
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/memory-class"]
+          value: 16G
+      - equal:
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/available"]
+          value: "true"
+
   - it: should pass operator matchExpressions through verbatim
     template: templates/provider/byot/machinetemplate.yaml
     documentIndex: 0

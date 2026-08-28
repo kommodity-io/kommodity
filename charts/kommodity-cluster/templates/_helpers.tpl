@@ -437,7 +437,8 @@ by the caller.
 {{- $scope := .scope -}}
 {{- $labels := dict -}}
 {{- /* Operator freeform escape hatch is the base; it wins over derived labels
-     on key conflict. */ -}}
+     on key conflict, so each derived label is only set when the operator
+     has not already provided it. */ -}}
 {{- with (dig "hostSelector" "matchLabels" (dict) $p) -}}
 {{- $labels = mustMergeOverwrite $labels (deepCopy .) -}}
 {{- end -}}
@@ -449,7 +450,7 @@ by the caller.
 {{- if not (regexMatch "^[0-9]+$" $cpu) -}}
 {{- fail (printf "%s.resources.cpu must be a plain integer string of physical cores (e.g. \"4\"), got %q; byot.io/cpu-cores is not bucketed and not a k8s quantity (\"4000m\" is rejected)" $scope $cpu) -}}
 {{- end -}}
-{{- $_ := set $labels "byot.io/cpu-cores" $cpu -}}
+{{- if not (hasKey $labels "byot.io/cpu-cores") -}}{{- $_ := set $labels "byot.io/cpu-cores" $cpu -}}{{- end -}}
 {{- /* resources.memory -> byot.io/memory-class (exact bucket). */ -}}
 {{- $memory := dig "resources" "memory" "" $p -}}
 {{- if not $memory -}}
@@ -459,7 +460,7 @@ by the caller.
 {{- if not (has $memory $memoryBuckets) -}}
 {{- fail (printf "%s.resources.memory must be one of 4G 8G 16G 32G 64G 128G (exact bucket matching the controller-promoted byot.io/memory-class label), got %q" $scope $memory) -}}
 {{- end -}}
-{{- $_ := set $labels "byot.io/memory-class" $memory -}}
+{{- if not (hasKey $labels "byot.io/memory-class") -}}{{- $_ := set $labels "byot.io/memory-class" $memory -}}{{- end -}}
 {{- /* os.disk.type -> byot.io/disk-type (lowercase). */ -}}
 {{- $diskType := dig "os" "disk" "type" "" $p -}}
 {{- if not $diskType -}}
@@ -469,7 +470,7 @@ by the caller.
 {{- if not (has $diskType $diskTypes) -}}
 {{- fail (printf "%s.os.disk.type must be one of nvme ssd hdd sd (lowercase, matching the controller-promoted byot.io/disk-type label), got %q" $scope $diskType) -}}
 {{- end -}}
-{{- $_ := set $labels "byot.io/disk-type" $diskType -}}
+{{- if not (hasKey $labels "byot.io/disk-type") -}}{{- $_ := set $labels "byot.io/disk-type" $diskType -}}{{- end -}}
 {{- /* os.disk.size -> byot.io/disk-class (exact bucket). */ -}}
 {{- $diskSize := dig "os" "disk" "size" "" $p -}}
 {{- if not $diskSize -}}
@@ -479,7 +480,7 @@ by the caller.
 {{- if not (has $diskSize $diskClasses) -}}
 {{- fail (printf "%s.os.disk.size must be one of 20G 100G 250G 500G 1T (exact bucket matching the controller-promoted byot.io/disk-class label), got %q" $scope $diskSize) -}}
 {{- end -}}
-{{- $_ := set $labels "byot.io/disk-class" $diskSize -}}
+{{- if not (hasKey $labels "byot.io/disk-class") -}}{{- $_ := set $labels "byot.io/disk-class" $diskSize -}}{{- end -}}
 {{- /* byot.io/available is force-injected last; it cannot be overridden. */ -}}
 {{- $_ := set $labels "byot.io/available" "true" -}}
 hostSelector:
