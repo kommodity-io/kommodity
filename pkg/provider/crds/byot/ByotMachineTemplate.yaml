@@ -70,47 +70,73 @@ spec:
                       description: Spec is the specification of the desired behavior of the machine.
                       properties:
                         failureDomain:
-                          description: FailureDomain is the unique name of the failure domain the machine is placed in.
-                          type: string
-                        joinPolicy:
-                          default: None
                           description: |-
-                            JoinPolicy defines what to do when adopting the machine. "None" (the
-                            default) adopts the machine only if it is in maintenance mode or already
-                            carries this cluster's PKI bundle; a machine carrying a different
-                            cluster's state fails the join preflight instead of being wiped.
-                            "Reset" wipes the machine's STATE and EPHEMERAL system volumes before
-                            the machine configuration is applied. Reset is a pre-adoption latch: it
-                            only takes effect while no configuration has been applied yet
-                            (status.lastAppliedConfigSHA empty).
-                          enum:
-                            - None
-                            - Reset
+                            FailureDomain is the unique name of the failure domain the machine is
+                            placed in. When claiming via hostSelector, it is matched against the
+                            ByotHost's spec.failureDomain.
                           type: string
+                        hostRef:
+                          description: |-
+                            HostRef names the ByotHost to claim explicitly. The host must be
+                            Available (maintenance-live and discovered). Mutually exclusive with
+                            hostSelector.
+                          properties:
+                            name:
+                              description: Name of the referent.
+                              type: string
+                          required:
+                            - name
+                          type: object
+                        hostSelector:
+                          description: |-
+                            HostSelector selects a ByotHost to claim by label selector. The
+                            controller lists Available hosts matching the selector (plus the
+                            failureDomain, when set) and claims the first via claimRef CAS.
+                            Mutually exclusive with hostRef.
+                          properties:
+                            matchExpressions:
+                              description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
+                              items:
+                                description: |-
+                                  A label selector requirement is a selector that contains values, a key, and an operator that
+                                  relates the key and values.
+                                properties:
+                                  key:
+                                    description: key is the label key that the selector applies to.
+                                    type: string
+                                  operator:
+                                    description: |-
+                                      operator represents a key's relationship to a set of values.
+                                      Valid operators are In, NotIn, Exists and DoesNotExist.
+                                    type: string
+                                  values:
+                                    description: |-
+                                      values is an array of string values. If the operator is In or NotIn,
+                                      the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                                      the values array must be empty. This array is replaced during a strategic
+                                      merge patch.
+                                    items:
+                                      type: string
+                                    type: array
+                                    x-kubernetes-list-type: atomic
+                                required:
+                                  - key
+                                  - operator
+                                type: object
+                              type: array
+                              x-kubernetes-list-type: atomic
+                            matchLabels:
+                              additionalProperties:
+                                type: string
+                              description: |-
+                                matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                                map is equivalent to an element of matchExpressions, whose key field is "key", the
+                                operator is "In", and the values array contains only "value". The requirements are ANDed.
+                              type: object
+                          type: object
+                          x-kubernetes-map-type: atomic
                         providerID:
                           description: ProviderID is set by the controller once the machine has been adopted.
-                          type: string
-                        publicIP:
-                          description: |-
-                            PublicIP identifies the machine to adopt. It must be reachable on the
-                            Talos machine API port (50000) in maintenance mode.
-                          minLength: 1
-                          type: string
-                          x-kubernetes-validations:
-                            - message: publicIP is immutable
-                              rule: self == oldSelf
-                        splitPolicy:
-                          default: None
-                          description: |-
-                            SplitPolicy defines what to do when the machine is removed from the
-                            cluster's management. "None" (the default) removes the ByotMachine
-                            object only: the machine keeps running with its configuration and
-                            datastore intact and can be re-adopted without any changes. "Reset"
-                            wipes the machine's STATE and EPHEMERAL system volumes before it is
-                            released, returning it to maintenance mode for reuse elsewhere.
-                          enum:
-                            - None
-                            - Reset
                           type: string
                         talosConfigSecretRef:
                           description: |-
@@ -127,9 +153,12 @@ spec:
                           required:
                             - name
                           type: object
-                      required:
-                        - publicIP
                       type: object
+                      x-kubernetes-validations:
+                        - message: hostRef and hostSelector are mutually exclusive
+                          rule: '!(has(self.hostRef) && has(self.hostSelector))'
+                        - message: one of hostRef or hostSelector is required
+                          rule: has(self.hostRef) || has(self.hostSelector)
                   required:
                     - spec
                   type: object

@@ -1,7 +1,5 @@
-{{- /* TalosControlPlane requires a clonable infra template reference; byot
-       machines are static (one publicIP each), so byot skips this object.
-       See templates/provider/byot/machines.yaml. */ -}}
-{{- if ne $.Values.kommodity.provider.name "Byot" }}
+{{- /* TalosControlPlane renders for all providers including byot, which now
+       uses ByotMachineTemplate (host-registry claim) as its infra template. */ -}}
 ---
 apiVersion: controlplane.cluster.x-k8s.io/v1alpha3
 kind: TalosControlPlane
@@ -39,6 +37,9 @@ spec:
     {{- else if eq $.Values.kommodity.provider.name "Hetzner" }}
     apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
     kind: HCloudMachineTemplate
+    {{- else if eq $.Values.kommodity.provider.name "Byot" }}
+    apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+    kind: ByotMachineTemplate
     {{- else }}
     {{- fail "infrastructure provider is not supported" -}}
     {{- end }}
@@ -122,4 +123,3 @@ spec:
       {{- /* ExtensionServiceConfig for kommodity-attestation extension */ -}}
 {{- include "kommodity.talos.attestationExtensionServiceConfig" (dict "logLevel" $.Values.kommodity.logLevel) | nindent 6 }}
       {{- end }}
-{{- end }}

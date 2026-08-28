@@ -1,20 +1,67 @@
-# Example of values to adopt existing Talos machines running in maintenance
-# mode, or already bootstrapped, identified by public IP (Bring Your Own Talos).
+# Example values to deploy a cluster whose nodes are claimed from a ByotHost
+# registry (Bring Your Own Talos). Operators add ByotHost objects (IP-only
+# records of maintenance-mode Talos boxes) out of band; this chart claims them
+# by label selector and adopts them as control-plane / worker nodes.
+#
+# Hosts are claimed at runtime, so node IPs are NOT known at render time. The
+# control-plane endpoint therefore cannot be auto-derived and MUST be set
+# explicitly (see kommodity.provider.config.controlPlaneEndpoint below).
 kommodity:
   provider:
     name: Byot
+    # Control-plane endpoint (REQUIRED). CAPI's clusterv1.APIEndpoint is a
+    # single {host, port} consumed at cluster creation to generate the admin
+    # kubeconfig and seed node join config, so it must exist before any host
+    # is claimed. CP host IPs are resolved at claim time and cannot be used
+    # here. Pick one:
+    #   - a VIP / load balancer / DNS name fronting the control plane (HA),
+    #   - or one committed CP host IP (dev/smallest config; note: with a bare
+    #     IP the API is unreachable until that specific host is claimed, and
+    #     claim order is non-deterministic, so prefer a VIP for HA).
+    config:
+      controlPlaneEndpoint:
+        host: 203.0.113.10
+        port: 6443
 
   clusterAutoscaler:
-    enabled: false # Static machines cannot be autoscaled in v1.
+    enabled: false # Default off; byot CAN scale if Available ByotHosts exist beyond replicas.
 
   network:
     ipv4:
       enabled: true
-      public: true # Machines are identified by public IP by definition.
+      public: true # Byot hosts are reached by public IP (maintenance API, port 50000).
 
   controlplane:
-    # MachineHealthCheck: detect unhealthy/missing control-plane machines
-    # (e.g. a deleted VM whose Node goes NotReady) so CAPI can remediate.
+    # Control-plane replica count. Must be odd and >= 1 (etcd quorum). Ensure
+    # enough Available ByotHosts match the selector below; a shortfall leaves
+    # Machines stuck pending a claim (no error — diagnose via ByotHost phase).
+    replicas: 3
+    # SKU-driven host selector. The chart maps these to the curated byot.io/
+    # labels the ByotHost controller promotes, and claims Available hosts
+    # matching them (exact-match). All four fields are required.
+    resources:
+      cpu: "4"        # byot.io/cpu-cores: plain integer string of physical cores (NOT a k8s quantity; "4000m" is rejected)
+      memory: "16G"   # byot.io/memory-class: exact bucket, one of 4G 8G 16G 32G 64G 128G
+    os:
+      disk:
+        type: ssd     # byot.io/disk-type: one of nvme ssd hdd sd (lowercase)
+        size: "100G"  # byot.io/disk-class: exact bucket, one of 20G 100G 250G 500G 1T
+    # Optional failure domains (reuses the shared per-FD MachineDeployment
+    # spread). Leave unset for a single domain-less pool.
+    # zones:
+    #   - par01
+    #   - par02
+    # Optional freeform hostSelector escape hatch (full LabelSelector). Merged
+    # on top of the resources/os.disk-derived labels; operator labels win on key
+    # conflict (override a bucket), and matchExpressions pass through verbatim.
+    # byot.io/available: "true" is always force-injected and cannot be dropped.
+    # hostSelector:
+    #   matchLabels:
+    #     site: gefion
+    #   matchExpressions:
+    #     - key: byot.io/platform
+    #       operator: In
+    #       values: [scaleway]
     healthCheck:
       enabled: true
       unhealthyConditions:
@@ -24,33 +71,6 @@ kommodity:
         - type: Ready
           status: "False"
           timeout: 300s
-    # Optional lifecycle policy defaults for control plane static machines
-    # Static machine entries take precedence
-    #   joinPolicy: Reset  # wipe each machine before adopting it (defaults to None)
-    #   splitPolicy: Reset # wipe each machine when it leaves management (defaults to Reset)
-    # One entry per adopted control plane machine, keyed by machine name.
-    # Exactly one entry must set init: true (the bootstrap node); its public
-    # IP also defaults as the cluster control plane endpoint.
-    staticMachines:
-      cp-0:
-        publicIP: 203.0.113.10
-        init: true
-        # Optional: adopt a machine that is already booted and configured (not
-        # in maintenance mode) by pointing at a Secret holding its talosconfig
-        # (YAML under the "talosconfig" key). Used for the join preflight and
-        # for joinPolicy: Reset wipes. Note: adopting a machine that still
-        # carries ANOTHER cluster's state without wiping it will fail the join
-        # preflight (bundle mismatch) — set joinPolicy: Reset for such machines:
-        # talosConfigSecretRef:
-        #   name: old-talosconfig
-        # Optional: wipe the machine (Talos reset on STATE+EPHEMERAL, reboot)
-        # before applying configuration — for machines that may carry stale
-        # state from a previous cluster. Pre-adoption only:
-        # joinPolicy: Reset
-        # Optional per-machine strategic patches
-        # strategicPatches: {}
-      # cp-1:
-      #   publicIP: 203.0.113.11
     # kubernetes:
     #   version: v1.33.4
     # talos:
@@ -58,8 +78,32 @@ kommodity:
 
   nodepools:
     default:
-      # MachineHealthCheck for static worker machines: detect unhealthy/missing
-      # workers (e.g. a deleted VM whose Node goes NotReady).
+      # Worker replica count (REQUIRED, no default). Ensure enough Available
+      # ByotHosts match the selector; a shortfall leaves Machines stuck pending
+      # a claim. With zones set, replicas split evenly across failure domains.
+      replicas: 2
+      resources:
+        cpu: "4"
+        memory: "16G"
+      os:
+        disk:
+          type: ssd
+          size: "100G"
+      # Optional failure domains: one MachineDeployment per domain, each
+      # claiming hosts in its own domain (the ByotMachine controller reads the
+      # owning Machine's failureDomain into the claim selector).
+      zones:
+        - par01
+        - par02
+      # Optional autoscaling (allowed for byot — the host registry supplies
+      # Available hosts). The cluster-autoscaler scales the MachineDeployment
+      # between min/max; byot claims hosts as replicas grow.
+      # autoscaling:
+      #   minReplicas: 2
+      #   maxReplicas: 4
+      # hostSelector:
+      #   matchLabels:
+      #     site: gefion
       healthCheck:
         enabled: true
         unhealthyConditions:
@@ -69,14 +113,7 @@ kommodity:
           - type: Ready
             status: "False"
             timeout: 300s
-      staticMachines:
-        worker-0:
-          publicIP: 203.0.113.20
-          # talosConfigSecretRef:
-          #   name: old-talosconfig
-          # joinPolicy: Reset
-          # strategicPatches: {}
 
 talos:
-  # Talos version must match the maintenance-mode machines being adopted.
+  # Talos version must match the maintenance-mode ByotHosts being claimed.
   version: v1.13.8

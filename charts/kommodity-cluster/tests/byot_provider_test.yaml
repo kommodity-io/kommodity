@@ -7,7 +7,8 @@ release:
 templates:
   - templates/*
 tests:
-  - it: should create a ByotCluster with the control plane endpoint from the first static machine
+  # ByotCluster
+  - it: should create a ByotCluster with the control plane endpoint from values
     template: templates/provider/byot/cluster.yaml
     asserts:
       - isKind:
@@ -21,268 +22,201 @@ tests:
           path: spec.controlPlaneEndpoint.port
           value: 6443
 
-  - it: should override the control plane endpoint host and port when both are set
+  - it: should keep the ByotCluster on helm uninstall
+    template: templates/provider/byot/cluster.yaml
+    asserts:
+      - equal:
+          path: metadata.annotations["helm.sh/resource-policy"]
+          value: keep
+
+  - it: should fail when controlPlaneEndpoint.host is unset
     template: templates/provider/byot/cluster.yaml
     set:
-      kommodity.provider.config.endpoint.host: 198.51.100.5
-      kommodity.provider.config.endpoint.port: 7443
+      kommodity.provider.config.controlPlaneEndpoint: null
+    asserts:
+      - failedTemplate:
+          errorMessage: "kommodity.provider.config.controlPlaneEndpoint.host is required for Byot (a VIP/LB/DNS name fronting the control plane, or one committed CP host IP; CP host IPs are resolved at claim time so cannot be auto-derived)"
+
+  - it: should default the endpoint port to 6443 when only host is set
+    template: templates/provider/byot/cluster.yaml
+    set:
+      kommodity.provider.config.controlPlaneEndpoint:
+        host: 198.51.100.5
     asserts:
       - equal:
           path: spec.controlPlaneEndpoint.host
           value: 198.51.100.5
       - equal:
           path: spec.controlPlaneEndpoint.port
-          value: 7443
+          value: 6443
 
-  - it: should keep the init machine endpoint host when only endpoint.port is overridden
-    template: templates/provider/byot/cluster.yaml
-    set:
-      kommodity.provider.config.endpoint.port: 7443
-    asserts:
-      - equal:
-          path: spec.controlPlaneEndpoint.host
-          value: 203.0.113.10
-      - equal:
-          path: spec.controlPlaneEndpoint.port
-          value: 7443
-
-  - it: should set infrastructureRef to ByotCluster and omit controlPlaneRef on the Cluster
+  # Cluster
+  - it: should reference TalosControlPlane and ByotCluster on the Cluster
     template: templates/provider/capi/cluster.yaml
     asserts:
       - isKind:
           of: Cluster
       - equal:
+          path: spec.controlPlaneRef.kind
+          value: TalosControlPlane
+      - equal:
+          path: spec.controlPlaneRef.name
+          value: test-cluster-controlplane
+      - equal:
           path: spec.infrastructureRef.kind
           value: ByotCluster
-      - notExists:
-          path: spec.controlPlaneRef
 
-  - it: should create one TalosConfig + ByotMachine + Machine per static machine
-    template: templates/provider/byot/machines.yaml
-    asserts:
-      - hasDocuments:
-          count: 6
-
-  - it: should mark the init control plane static machine TalosConfig as init
-    template: templates/provider/byot/machines.yaml
-    documentSelector:
-      path: spec.generateType
-      value: init
-    asserts:
-      - equal:
-          path: metadata.name
-          value: test-cluster-cp-cp-0
-
-  - it: should mark the worker static machine TalosConfig as worker
-    template: templates/provider/byot/machines.yaml
-    documentSelector:
-      path: spec.generateType
-      value: worker
-    asserts:
-      - equal:
-          path: metadata.name
-          value: test-cluster-worker-default-worker-0
-
-  - it: should adopt the control plane machine by public IP
-    template: templates/provider/byot/machines.yaml
-    documentSelector:
-      path: spec.publicIP
-      value: 203.0.113.10
-    asserts:
-      - isKind:
-          of: ByotMachine
-      - equal:
-          path: metadata.name
-          value: test-cluster-cp-cp-0
-
-  - it: should label the control plane Machine as control-plane
-    template: templates/provider/byot/machines.yaml
-    documentSelector:
-      path: metadata.labels["cluster.x-k8s.io/control-plane"]
-      value: ""
-    asserts:
-      - isKind:
-          of: Machine
-      - equal:
-          path: metadata.name
-          value: test-cluster-cp-cp-0
-
-  - it: should not create a TalosControlPlane for Byot
+  # TalosControlPlane
+  - it: should render a TalosControlPlane referencing the CP ByotMachineTemplate
     template: templates/talos/controlplane.yaml
     asserts:
+      - isKind:
+          of: TalosControlPlane
       - hasDocuments:
-          count: 0
+          count: 1
+      - equal:
+          path: spec.replicas
+          value: 3
+      - equal:
+          path: spec.infrastructureTemplate.kind
+          value: ByotMachineTemplate
+      - matchRegex:
+          path: spec.infrastructureTemplate.name
+          pattern: "^test-cluster-controlplane-"
 
-  - it: should not create MachineDeployments for Byot
+  # ByotMachineTemplate (CP)
+  - it: should render one CP + two per-FD worker ByotMachineTemplates (3 total)
+    template: templates/provider/byot/machinetemplate.yaml
+    asserts:
+      - hasDocuments:
+          count: 3
+
+  - it: should render the CP ByotMachineTemplate with a hostSelector and no failureDomain
+    template: templates/provider/byot/machinetemplate.yaml
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: ByotMachineTemplate
+      - matchRegex:
+          path: metadata.name
+          pattern: "^test-cluster-controlplane-"
+      - equal:
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/available"]
+          value: "true"
+      - equal:
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/cpu-cores"]
+          value: "4"
+      - equal:
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/memory-class"]
+          value: 16G
+      - equal:
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/disk-type"]
+          value: ssd
+      - equal:
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/disk-class"]
+          value: 100G
+      - notExists:
+          path: spec.template.spec.failureDomain
+      - notExists:
+          path: spec.template.spec.providerID
+      - notExists:
+          path: spec.template.spec.hostRef
+      - notExists:
+          path: spec.template.spec.talosConfigSecretRef
+      - notExists:
+          path: spec.template.spec.publicIP
+
+  # ByotMachineTemplate (worker per-FD)
+  - it: should render a per-FD worker ByotMachineTemplate for par01
+    template: templates/provider/byot/machinetemplate.yaml
+    documentIndex: 1
+    asserts:
+      - isKind:
+          of: ByotMachineTemplate
+      - matchRegex:
+          path: metadata.name
+          pattern: "^test-cluster-worker-default-par01-"
+      - equal:
+          path: spec.template.metadata.labels["kommodity.io/nodepool"]
+          value: default
+      - equal:
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/available"]
+          value: "true"
+      - notExists:
+          path: spec.template.spec.failureDomain
+
+  - it: should render a per-FD worker ByotMachineTemplate for par02
+    template: templates/provider/byot/machinetemplate.yaml
+    documentIndex: 2
+    asserts:
+      - isKind:
+          of: ByotMachineTemplate
+      - matchRegex:
+          path: metadata.name
+          pattern: "^test-cluster-worker-default-par02-"
+      - equal:
+          path: spec.template.metadata.labels["kommodity.io/nodepool"]
+          value: default
+
+  - it: should render a single worker ByotMachineTemplate when zones are unset
+    template: templates/provider/byot/machinetemplate.yaml
+    set:
+      kommodity.nodepools.default.zones: null
+    asserts:
+      - hasDocuments:
+          count: 2   # CP + one domain-less worker
+
+  # MachineDeployment
+  - it: should render one MachineDeployment per failure domain
     template: templates/provider/capi/machinedeployment.yaml
     asserts:
       - hasDocuments:
-          count: 0
+          count: 2
 
-  - it: should not create TalosConfigTemplates for Byot
+  - it: should set failureDomain on the MachineDeployment template and reference the per-FD ByotMachineTemplate
+    template: templates/provider/capi/machinedeployment.yaml
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: MachineDeployment
+      - equal:
+          path: metadata.name
+          value: test-cluster-worker-default-par01
+      - equal:
+          path: spec.replicas
+          value: 1
+      - equal:
+          path: spec.template.spec.failureDomain
+          value: par01
+      - equal:
+          path: spec.template.spec.infrastructureRef.kind
+          value: ByotMachineTemplate
+      - matchRegex:
+          path: spec.template.spec.infrastructureRef.name
+          pattern: "^test-cluster-worker-default-par01-"
+      - equal:
+          path: spec.template.metadata.labels["kommodity.io/nodepool"]
+          value: default
+
+  - it: should reference the TalosConfigTemplate on the worker MachineDeployment
+    template: templates/provider/capi/machinedeployment.yaml
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: spec.template.spec.bootstrap.configRef.kind
+          value: TalosConfigTemplate
+
+  # TalosConfigTemplate
+  - it: should render a TalosConfigTemplate for the worker pool
     template: templates/talos/configtemplate.yaml
     asserts:
+      - isKind:
+          of: TalosConfigTemplate
       - hasDocuments:
-          count: 0
+          count: 1
 
-  - it: should render talosConfigSecretRef on the ByotMachine when set
-    template: templates/provider/byot/machines.yaml
-    set:
-      kommodity.controlplane.staticMachines.cp-0.talosConfigSecretRef.name: old-talosconfig
-    documentSelector:
-      path: spec.publicIP
-      value: 203.0.113.10
-    asserts:
-      - isKind:
-          of: ByotMachine
-      - equal:
-          path: spec.talosConfigSecretRef.name
-          value: old-talosconfig
-
-  - it: should omit talosConfigSecretRef on the ByotMachine when unset
-    template: templates/provider/byot/machines.yaml
-    documentSelector:
-      path: spec.publicIP
-      value: 203.0.113.10
-    asserts:
-      - isKind:
-          of: ByotMachine
-      - notExists:
-          path: spec.talosConfigSecretRef
-
-  - it: should render policies set per static machine
-    template: templates/provider/byot/machines.yaml
-    set:
-      kommodity.controlplane.staticMachines.cp-0.joinPolicy: Reset
-    documentSelector:
-      path: spec.publicIP
-      value: 203.0.113.10
-    asserts:
-      - isKind:
-          of: ByotMachine
-      - equal:
-          path: spec.joinPolicy
-          value: Reset
-      - equal:
-          path: spec.splitPolicy
-          value: Reset
-
-  - it: should inherit policies from the controlplane block
-    template: templates/provider/byot/machines.yaml
-    set:
-      kommodity.controlplane.joinPolicy: Reset
-      kommodity.controlplane.splitPolicy: Reset
-    documentSelector:
-      path: spec.publicIP
-      value: 203.0.113.10
-    asserts:
-      - isKind:
-          of: ByotMachine
-      - equal:
-          path: spec.joinPolicy
-          value: Reset
-      - equal:
-          path: spec.splitPolicy
-          value: Reset
-
-  - it: should let static machine policies override the controlplane block
-    template: templates/provider/byot/machines.yaml
-    set:
-      kommodity.controlplane.joinPolicy: Reset
-      kommodity.controlplane.staticMachines.cp-0.splitPolicy: Reset
-      kommodity.controlplane.staticMachines.cp-0.joinPolicy: None
-    documentSelector:
-      path: spec.publicIP
-      value: 203.0.113.10
-    asserts:
-      - isKind:
-          of: ByotMachine
-      - equal:
-          path: spec.joinPolicy
-          value: None
-      - equal:
-          path: spec.splitPolicy
-          value: Reset
-
-  - it: should inherit policies from the nodepool block for workers
-    template: templates/provider/byot/machines.yaml
-    set:
-      kommodity.nodepools.default.splitPolicy: Reset
-    documentSelector:
-      path: spec.publicIP
-      value: 203.0.113.20
-    asserts:
-      - isKind:
-          of: ByotMachine
-      - equal:
-          path: spec.splitPolicy
-          value: Reset
-
-  - it: should not inherit controlplane policies into nodepools
-    template: templates/provider/byot/machines.yaml
-    set:
-      kommodity.controlplane.joinPolicy: Reset
-      kommodity.nodepools.default.joinPolicy: None
-      kommodity.nodepools.default.splitPolicy: None
-    documentSelector:
-      path: spec.publicIP
-      value: 203.0.113.20
-    asserts:
-      - isKind:
-          of: ByotMachine
-      - notExists:
-          path: spec.joinPolicy
-      - notExists:
-          path: spec.splitPolicy
-
-  - it: should default policies on the ByotMachine when unset
-    template: templates/provider/byot/machines.yaml
-    documentSelector:
-      path: spec.publicIP
-      value: 203.0.113.10
-    asserts:
-      - isKind:
-          of: ByotMachine
-      - equal:
-          path: spec.joinPolicy
-          value: None
-      - equal:
-          path: spec.splitPolicy
-          value: Reset
-
-  - it: should fail on an invalid joinPolicy
-    template: templates/provider/byot/machines.yaml
-    set:
-      kommodity.controlplane.staticMachines.cp-0.joinPolicy: Wipe
-    asserts:
-      - failedTemplate:
-          errorMessage: 'kommodity.controlplane.staticMachines.cp-0.joinPolicy must be None or Reset, got "Wipe"'
-
-  - it: should fail when no control plane machine is marked init
-    template: templates/provider/byot/machines.yaml
-    set:
-      kommodity.controlplane.staticMachines.cp-0.init: null
-    asserts:
-      - failedTemplate:
-          errorMessage: "kommodity.controlplane.staticMachines: exactly one entry must set init: true (bootstrap node), got 0"
-
-  - it: should fail when a static control plane machine lacks publicIP
-    template: templates/provider/byot/machines.yaml
-    set:
-      kommodity.controlplane.staticMachines.cp-0.publicIP: null
-    asserts:
-      - failedTemplate:
-          errorMessage: "kommodity.controlplane.staticMachines.cp-0 requires publicIP"
-
-  - it: should fail when a static worker machine lacks publicIP
-    template: templates/provider/byot/machines.yaml
-    set:
-      kommodity.nodepools.default.staticMachines.worker-0.publicIP: null
-    asserts:
-      - failedTemplate:
-          errorMessage: "kommodity.nodepools.default.staticMachines.worker-0 requires publicIP"
-
-  - it: should render a control-plane MachineHealthCheck selecting the control-plane machines
+  # MachineHealthCheck
+  - it: should render a CP MachineHealthCheck selecting the control-plane label
     template: templates/provider/capi/machinehealthcheck.yaml
     documentSelector:
       path: metadata.name
@@ -294,7 +228,7 @@ tests:
           path: spec.selector.matchLabels["cluster.x-k8s.io/control-plane"]
           value: ""
 
-  - it: should render a worker MachineHealthCheck selecting by nodepool label
+  - it: should render one worker MachineHealthCheck selecting the nodepool label
     template: templates/provider/capi/machinehealthcheck.yaml
     documentSelector:
       path: metadata.name
@@ -305,18 +239,152 @@ tests:
       - equal:
           path: spec.selector.matchLabels["kommodity.io/nodepool"]
           value: default
-      - equal:
-          path: spec.selector.matchLabels["cluster.x-k8s.io/cluster-name"]
-          value: test-cluster
 
-  - it: should label the worker Machine with its nodepool for health-check selection
-    template: templates/provider/byot/machines.yaml
-    documentSelector:
-      path: metadata.labels["kommodity.io/nodepool"]
-      value: default
+  # Validation: control-plane replicas
+  - it: should fail when control-plane replicas is even
+    template: templates/provider/byot/machinetemplate.yaml
+    set:
+      kommodity.controlplane.replicas: 2
     asserts:
-      - isKind:
-          of: Machine
+      - failedTemplate:
+          errorMessage: "kommodity.controlplane.replicas must be odd for the Byot control plane (etcd quorum), got 2"
+
+  - it: should fail when control-plane replicas is zero
+    template: templates/provider/byot/machinetemplate.yaml
+    set:
+      kommodity.controlplane.replicas: 0
+    asserts:
+      - failedTemplate:
+          errorMessage: "kommodity.controlplane.replicas must be >= 1 for Byot, got 0"
+
+  - it: should fail when control-plane replicas is unset
+    template: templates/provider/byot/machinetemplate.yaml
+    set:
+      kommodity.controlplane.replicas: null
+    asserts:
+      - failedTemplate:
+          errorMessage: "kommodity.controlplane.replicas is required for Byot control plane (odd, >= 1, for etcd quorum)"
+
+  # Validation: worker replicas
+  - it: should fail when worker replicas is unset
+    template: templates/provider/byot/machinetemplate.yaml
+    set:
+      kommodity.nodepools.default.replicas: null
+    asserts:
+      - failedTemplate:
+          errorMessage: "kommodity.nodepools.default.replicas is required for Byot (no default; ensure enough Available ByotHosts match the pool selector)"
+
+  # Validation: resources.cpu
+  - it: should fail when resources.cpu is a k8s quantity
+    template: templates/provider/byot/machinetemplate.yaml
+    set:
+      kommodity.controlplane.resources.cpu: "4000m"
+    asserts:
+      - failedTemplate:
+          errorMessage: 'kommodity.controlplane.resources.cpu must be a plain integer string of physical cores (e.g. "4"), got "4000m"; byot.io/cpu-cores is not bucketed and not a k8s quantity ("4000m" is rejected)'
+
+  - it: should fail when resources.cpu is unset
+    template: templates/provider/byot/machinetemplate.yaml
+    set:
+      kommodity.controlplane.resources.cpu: null
+    asserts:
+      - failedTemplate:
+          errorMessage: 'kommodity.controlplane.resources.cpu is required for Byot (plain integer string of physical cores, e.g. "4")'
+
+  # Validation: resources.memory
+  - it: should fail when resources.memory is not a valid bucket
+    template: templates/provider/byot/machinetemplate.yaml
+    set:
+      kommodity.controlplane.resources.memory: "20G"
+    asserts:
+      - failedTemplate:
+          errorMessage: 'kommodity.controlplane.resources.memory must be one of 4G 8G 16G 32G 64G 128G (exact bucket matching the controller-promoted byot.io/memory-class label), got "20G"'
+
+  - it: should fail when resources.memory is unset
+    template: templates/provider/byot/machinetemplate.yaml
+    set:
+      kommodity.controlplane.resources.memory: null
+    asserts:
+      - failedTemplate:
+          errorMessage: 'kommodity.controlplane.resources.memory is required for Byot (one of: 4G 8G 16G 32G 64G 128G)'
+
+  # Validation: os.disk.type
+  - it: should fail when os.disk.type is invalid
+    template: templates/provider/byot/machinetemplate.yaml
+    set:
+      kommodity.controlplane.os.disk.type: NVME
+    asserts:
+      - failedTemplate:
+          errorMessage: 'kommodity.controlplane.os.disk.type must be one of nvme ssd hdd sd (lowercase, matching the controller-promoted byot.io/disk-type label), got "NVME"'
+
+  - it: should fail when os.disk.type is unset
+    template: templates/provider/byot/machinetemplate.yaml
+    set:
+      kommodity.controlplane.os.disk.type: null
+    asserts:
+      - failedTemplate:
+          errorMessage: 'kommodity.controlplane.os.disk.type is required for Byot (one of: nvme ssd hdd sd)'
+
+  # Validation: os.disk.size
+  - it: should fail when os.disk.size is not a valid bucket
+    template: templates/provider/byot/machinetemplate.yaml
+    set:
+      kommodity.controlplane.os.disk.size: "50G"
+    asserts:
+      - failedTemplate:
+          errorMessage: 'kommodity.controlplane.os.disk.size must be one of 20G 100G 250G 500G 1T (exact bucket matching the controller-promoted byot.io/disk-class label), got "50G"'
+
+  - it: should fail when os.disk.size is unset
+    template: templates/provider/byot/machinetemplate.yaml
+    set:
+      kommodity.controlplane.os.disk.size: null
+    asserts:
+      - failedTemplate:
+          errorMessage: 'kommodity.controlplane.os.disk.size is required for Byot (one of: 20G 100G 250G 500G 1T)'
+
+  # hostSelector escape hatch
+  - it: should merge operator freeform hostSelector labels and keep byot.io/available forced
+    template: templates/provider/byot/machinetemplate.yaml
+    documentIndex: 0
+    set:
+      kommodity.controlplane.hostSelector.matchLabels:
+        site: gefion
+    asserts:
       - equal:
-          path: metadata.name
-          value: test-cluster-worker-default-worker-0
+          path: spec.template.spec.hostSelector.matchLabels["site"]
+          value: gefion
+      - equal:
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/available"]
+          value: "true"
+
+  - it: should pass operator matchExpressions through verbatim
+    template: templates/provider/byot/machinetemplate.yaml
+    documentIndex: 0
+    set:
+      kommodity.controlplane.hostSelector.matchExpressions:
+        - key: byot.io/platform
+          operator: In
+          values: [scaleway]
+    asserts:
+      - equal:
+          path: spec.template.spec.hostSelector.matchExpressions[0].key
+          value: byot.io/platform
+      - equal:
+          path: spec.template.spec.hostSelector.matchExpressions[0].operator
+          value: In
+
+  # Autoscaling allowed for byot
+  - it: should render autoscaler min/max annotations on the MachineDeployment
+    template: templates/provider/capi/machinedeployment.yaml
+    set:
+      kommodity.clusterAutoscaler.enabled: true
+      kommodity.nodepools.default.replicas: null
+      kommodity.nodepools.default.autoscaling:
+        minReplicas: 2
+        maxReplicas: 4
+    asserts:
+      - hasDocuments:
+          count: 2
+      - equal:
+          path: metadata.annotations["cluster.x-k8s.io/cluster-api-autoscaler-node-group-min-size"]
+          value: "1"

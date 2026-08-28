@@ -21,9 +21,9 @@ spec:
 {{- range $name, $np := .Values.kommodity.nodepools }}
 {{- if dig "healthCheck" "enabled" "" $np }}
 {{- if eq $.Values.kommodity.provider.name "Byot" }}
-{{- /* Byot has no MachineDeployment: static worker Machines carry a
-     kommodity.io/nodepool label instead of cluster.x-k8s.io/deployment-name,
-     so emit one MachineHealthCheck per nodepool selecting that label. */ -}}
+{{- /* Byot uses one MachineHealthCheck per nodepool selecting the
+     kommodity.io/nodepool label (injected into every per-FD MachineDeployment's
+     template labels), so a single MHC covers all failure domains of the pool. */ -}}
 ---
 apiVersion: cluster.x-k8s.io/v1beta1
 kind: MachineHealthCheck

@@ -1,7 +1,5 @@
-{{- /* MachineDeployments clone an infra template per replica and cannot carry
-       a distinct publicIP per machine; byot renders static Machines instead,
-       see templates/provider/byot/machines.yaml. */ -}}
-{{- if ne .Values.kommodity.provider.name "Byot" }}
+{{- /* MachineDeployments render for all providers including byot, which now
+       uses ByotMachineTemplate (host-registry claim) as its infra template. */ -}}
 {{- range $name, $np := .Values.kommodity.nodepools }}
 {{- $minReplicas := dig "autoscaling" "minReplicas" nil $np }}
 {{- $maxReplicas := dig "autoscaling" "maxReplicas" nil $np }}
@@ -86,6 +84,9 @@ spec:
         cluster.x-k8s.io/cluster-name: {{ $.Release.Name }}
         cluster.x-k8s.io/deployment-name: {{ $mdName }}
         app.kubernetes.io/managed-by: kommodity
+        {{- if eq $.Values.kommodity.provider.name "Byot" }}
+        kommodity.io/nodepool: {{ $name }}
+        {{- end }}
     spec:
       bootstrap:
         configRef:
@@ -120,12 +121,15 @@ spec:
         {{- else if eq $.Values.kommodity.provider.name "Hetzner" }}
         apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
         kind: HCloudMachineTemplate
+        {{- else if eq $.Values.kommodity.provider.name "Byot" }}
+        apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+        kind: ByotMachineTemplate
+        {{- if $zone }}{{ $tmplSuffix = printf "-%s" $zone }}{{ end }}
         {{- else }}
         {{- fail "infrastructure provider is not supported" -}}
         {{- end }}
         name: {{ $.Release.Name }}-worker-{{ $name }}{{ $tmplSuffix }}-{{ include "kommodity-cluster.machineSpecsHash" (dict "poolValues" $np "allValues" $.Values) }}
         namespace: {{ $.Release.Namespace }}
       version: {{ default $.Values.kubernetes.version (dig "kubernetes" "version" "" $np) -}}
-{{- end }}
 {{- end }}
 {{- end }}

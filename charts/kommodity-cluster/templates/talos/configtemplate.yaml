@@ -1,6 +1,5 @@
-{{- /* byot renders per-machine TalosConfig resources instead; see
-       templates/provider/byot/machines.yaml. */ -}}
-{{- if ne .Values.kommodity.provider.name "Byot" }}
+{{- /* TalosConfigTemplate renders for all providers including byot, which
+       now uses TalosControlPlane + MachineDeployment like every other provider. */ -}}
 {{- range $name, $np := .Values.kommodity.nodepools }}
 ---
 apiVersion: bootstrap.cluster.x-k8s.io/v1alpha3
@@ -61,5 +60,4 @@ spec:
 {{- include "kommodity.talos.resolverConfig" (dict "nameservers" $hetznerNameservers) | nindent 6 }}
       {{- end }}
       {{- end }}
-{{- end }}
 {{- end }}
