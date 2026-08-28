@@ -32,9 +32,16 @@ func (m *byotModule) Setup(ctx context.Context, deps SetupDeps) error {
 func setupByot(ctx context.Context, manager ctrl.Manager, opt ctrlcontroller.Options, clusterCache clustercache.ClusterCache) error {
 	logger := logging.FromContext(ctx)
 
+	logger.Info("Setting up ByotHost controller")
+
+	err := setupByotHostWithManager(manager, opt)
+	if err != nil {
+		return fmt.Errorf("failed to setup ByotHost controller: %w", err)
+	}
+
 	logger.Info("Setting up ByotCluster controller")
 
-	err := setupByotClusterWithManager(manager, opt)
+	err = setupByotClusterWithManager(manager, opt)
 	if err != nil {
 		return fmt.Errorf("failed to setup ByotCluster controller: %w", err)
 	}
@@ -54,6 +61,16 @@ func setupByotClusterWithManager(manager ctrl.Manager, opt ctrlcontroller.Option
 		SetupWithManager(manager, opt)
 	if err != nil {
 		return fmt.Errorf("failed to setup ByotCluster reconciler: %w", err)
+	}
+
+	return nil
+}
+
+func setupByotHostWithManager(manager ctrl.Manager, opt ctrlcontroller.Options) error {
+	err := byot_controller.NewByotHostReconciler(manager.GetClient()).
+		SetupWithManager(manager, opt)
+	if err != nil {
+		return fmt.Errorf("failed to setup ByotHost reconciler: %w", err)
 	}
 
 	return nil
