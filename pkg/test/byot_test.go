@@ -2,6 +2,7 @@ package integration_test
 
 import (
 	"context"
+	"maps"
 	"testing"
 	"time"
 
@@ -10,245 +11,86 @@ import (
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 )
 
 const (
-	byotNamespace            = "default"
-	byotJoinPreflightCond    = "JoinPreflight"
-	byotReasonBundleMatch    = "BundleMatch"
-	byotReasonNoCredentials  = "NoCredentials"
-	byotReasonBundleMismatch = "BundleMismatch"
-	byotNodeReadyTimeout     = 10 * time.Minute
-	byotDeleteTimeout        = 5 * time.Minute
-	byotConditionTimeout     = 5 * time.Minute
-	byotJoinPolicyReset      = "Reset"
-	byotSplitPolicyReset     = "Reset"
-	byotSplitPolicyNone      = "None"
-	byotNodePollInterval     = 5 * time.Second
+	byotNamespace        = "default"
+	byotNodeReadyTimeout = 10 * time.Minute
+	byotDeleteTimeout    = 5 * time.Minute
+	byotConditionTimeout = 5 * time.Minute
+	byotHostPhaseTimeout = 5 * time.Minute
+	byotNodePollInterval = 5 * time.Second
+	byotControlPlanePort = 6443
+
+	// byotScopeLabel is the operator (non-byot.io/) label the test sets on its
+	// ByotHosts and includes in both pools' hostSelector, so the chart claims
+	// only this test's hosts. byot.io/* labels are controller-managed and
+	// cannot be pre-set, so a non-byot.io/ label is the scoping key.
+	byotScopeLabel = "kommodity-test/cluster"
+
+	// byotRoleLabel tags a ByotHost as control-plane or worker so the CP pool
+	// hostSelector can claim only the designated CP host. With role labels + a
+	// per-pool selector, the CP host is deterministic, so the controlPlaneEndpoint
+	// can safely be its IP (no LB in Talos-in-Docker). Operator (non-byot.io/)
+	// role labels are a legit prod pattern: operators tag hosts by role/pool and
+	// selectors match.
+	byotRoleLabel  = "kommodity-test/role"
+	byotRoleCP     = "cp"
+	byotRoleWorker = "worker"
 )
 
-func waitForKubeconfigSecret(t *testing.T, clusterName string) {
-	t.Helper()
-
-	require.NoError(t, helpers.WaitForK8sResourceCreation(
-		env.KommodityCfg, byotNamespace, clusterName+"-kubeconfig",
-		"", "v1", "secrets", "", "", byotConditionTimeout, 1))
-}
-
-// TestByotClusterFreshAdopt verifies fresh adoption: maintenance-mode nodes get
-// a fresh machine config applied and join the workload cluster.
+// TestByotClusterFreshAdopt verifies the full host-registry lifecycle using the
+// production hostSelector claim path (no hostRef pinning):
+//
+//  1. Talos containers boot in maintenance mode.
+//  2. ByotHost objects are created (with a scoping operator label) and the host
+//     controller discovers them and promotes them to Available.
+//  3. The test reads the discovered byot.io/ hardware labels and builds a
+//     resources/os.disk selector matching them (the same SKU path prod uses).
+//  4. The chart is installed; ByotMachines claim matching Available hosts
+//     (ByotHost phase Claimed) and adopt them (machine config applied, join).
+//  5. The cluster becomes healthy (2 ready nodes).
+//  6. Uninstalling the chart releases the hosts: each is reset to maintenance
+//     and returns to Available (re-claimable), proving release-resets-to-
+//     maintenance (Decision 12: no splitPolicy choice).
+//  7. ByotHosts are deleted.
 func TestByotClusterFreshAdopt(t *testing.T) {
 	t.Parallel()
 
+	ctx := context.Background()
+
 	clusterName := "byot-fresh"
-	nodes := startFreshByotCluster(t, clusterName, helpers.ByotInfra{})
 
+	defer helpers.DumpByotMachines(ctx, env, byotNamespace)
+	defer helpers.DumpByotHosts(ctx, env, byotNamespace)
+
+	nodes := startByotHosts(t, clusterName)
 	defer helpers.TerminateTalosNodes(t, nodes.CP, nodes.Worker)
 
-	helpers.UninstallKommodityClusterChart(t, env, clusterName, byotNamespace)
-}
+	infra := buildByotInfraFromDiscoveredHosts(t, clusterName, nodes)
 
-// TestByotClusterSplitNoneRoundTrip verifies Split=None is lossless: deleting a
-// worker Machine leaves the host untouched (still carrying the cluster bundle),
-// and re-creating the Machine re-adopts it via BundleMatch.
-func TestByotClusterSplitNoneRoundTrip(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	defer helpers.DumpByotMachines(ctx, env, byotNamespace)
-
-	clusterName := "byot-roundtrip"
-	nodes := startFreshByotCluster(t, clusterName, helpers.ByotInfra{
-		SplitPolicy:       byotSplitPolicyNone,
-		WorkerSplitPolicy: byotSplitPolicyNone,
-	})
-
-	defer helpers.TerminateTalosNodes(t, nodes.CP, nodes.Worker)
-
-	workloadClient := helpers.GetWorkloadClient(t, env, clusterName, byotNamespace, nodes.APIServerURL)
-
-	workerMachine := nodes.WorkerMachineName
-
-	deleteCAPIMachine(t, workerMachine, byotNamespace)
-	require.NoError(t, helpers.WaitForK8sResourceDeletion(
-		env.KommodityCfg, byotNamespace, workerMachine,
-		machineGroup, machineVersion, machineResource, "", "", byotDeleteTimeout))
-
-	waitForNodeCount(t, workloadClient, 1)
-	assertHostKeepsBundle(t, nodes.Worker, clusterName)
-
-	// CAPI cascade-deletes the worker ByotMachine after its finalizer is
-	// removed (splitPolicy=None releases immediately), but that lags the
-	// Machine deletion. Wait for the ByotMachine to be gone before upgrading:
-	// otherwise helm sees the still-terminating object and skips recreating
-	// it, leaving the new Machine with no infra ref to re-adopt.
-	helpers.WaitForByotMachineDeletion(t, env, byotNamespace, workerMachine, byotDeleteTimeout)
-
-	helpers.UpgradeKommodityClusterChartByot(t, env, clusterName, byotNamespace, nodes.Infra)
-
-	// The recreated ByotMachine can only join once the join preflight accepted
-	// the old bundle; once adopted the preflight condition is frozen.
-	waitForNodeCount(t, workloadClient, 2)
-
-	status, reason := helpers.ByotMachineConditionState(
-		t, env, byotNamespace, workerMachine, byotJoinPreflightCond)
-	assert.Equal(t, corev1.ConditionTrue, status, "join preflight must have been accepted on re-adopt")
-	assert.Equal(t, byotReasonBundleMatch, reason)
-
-	helpers.UninstallKommodityClusterChart(t, env, clusterName, byotNamespace)
-}
-
-// TestByotClusterJoinBlockedThenReset verifies PLA-6479: a machine
-// carrying a foreign bundle is blocked by the join preflight without and with
-// credentials, and only wiped once joinPolicy=Reset is set.
-func TestByotClusterJoinBlockedThenReset(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	defer helpers.DumpByotMachines(ctx, env, byotNamespace)
-
-	clusterA := "byot-victim"
-	victim := startFreshByotCluster(t, clusterA, helpers.ByotInfra{
-		SplitPolicy:       byotSplitPolicyNone,
-		WorkerSplitPolicy: byotSplitPolicyNone,
-	})
-
-	defer helpers.TerminateTalosNodes(t, victim.CP, victim.Worker)
-
-	victimTalosconfig := helpers.GetClusterTalosconfig(t, env, clusterA, byotNamespace)
-
-	helpers.UninstallKommodityClusterChart(t, env, clusterA, byotNamespace)
+	installAndClaimCluster(t, clusterName, infra)
+	assertClusterHealthy(t, clusterName, nodes)
+	releaseAndCleanupHosts(t, clusterName, nodes)
 
 	require.NoError(t, helpers.WaitForK8sResourceDeletion(
-		env.KommodityCfg, byotNamespace, clusterA,
+		env.KommodityCfg, byotNamespace, clusterName,
 		machineGroup, machineVersion, "clusters", "", "", byotDeleteTimeout))
-
-	require.Eventually(t, func() bool {
-		return helpers.ProbeAuthenticated(ctx, victim.Worker.TalosAPIAddr, victim.Worker.InternalIP, victimTalosconfig) &&
-			!helpers.ProbeMaintenance(ctx, victim.Worker.TalosAPIAddr, victim.Worker.InternalIP)
-	}, byotConditionTimeout, 5*time.Second,
-		"worker must still carry victim cluster's bundle after Split=None")
-
-	rescueBlockedForeignBundle(t, victim, victimTalosconfig)
 }
 
-// rescueBlockedForeignBundle drives the rescue cluster (clusterB) that tries
-// to adopt the victim's worker, which still carries a foreign bundle. It
-// asserts the join preflight blocks without credentials, blocks again once
-// the foreign talosconfig is supplied (bundle mismatch), and only proceeds
-// once joinPolicy=Reset wipes the machine.
-func rescueBlockedForeignBundle(
-	t *testing.T,
-	victim byotNodes,
-	victimTalosconfig []byte,
-) {
-	t.Helper()
-
-	clusterB := "byot-rescue"
-	rescueInfra := victim.Infra
-	rescueInfra.ControlPlaneName = clusterB + "-cp0"
-	rescueInfra.WorkerName = clusterB + "-worker0"
-
-	helpers.InstallKommodityClusterChartByot(t, env, clusterB, byotNamespace, rescueInfra)
-	defer helpers.UninstallKommodityClusterChart(t, env, clusterB, byotNamespace)
-
-	workerMachine := byotWorkerMachineName(clusterB, rescueInfra.WorkerName)
-	reason, _ := helpers.WaitForByotMachineCondition(
-		t, env, byotNamespace, workerMachine,
-		byotJoinPreflightCond, corev1.ConditionFalse, byotConditionTimeout)
-	assert.Equal(t, byotReasonNoCredentials, reason)
-
-	secretName := "foreign-talosconfig"
-	helpers.CreateTalosconfigSecret(t, env, secretName, byotNamespace, victimTalosconfig)
-
-	rescueInfra.WorkerTalosConfigRef = secretName
-	rescueInfra.TalosConfigRef = secretName
-	helpers.UpgradeKommodityClusterChartByot(t, env, clusterB, byotNamespace, rescueInfra)
-
-	reason, _ = helpers.WaitForByotMachineCondition(
-		t, env, byotNamespace, workerMachine,
-		byotJoinPreflightCond, corev1.ConditionFalse, byotConditionTimeout)
-	assert.Equal(t, byotReasonBundleMismatch, reason)
-
-	rescueInfra.WorkerJoinPolicy = byotJoinPolicyReset
-	rescueInfra.JoinPolicy = byotJoinPolicyReset
-	helpers.UpgradeKommodityClusterChartByot(t, env, clusterB, byotNamespace, rescueInfra)
-
-	reason, _ = helpers.WaitForByotMachineCondition(
-		t, env, byotNamespace, workerMachine,
-		"ResetPerformed", corev1.ConditionFalse, byotConditionTimeout)
-	assert.Equal(t, "ResetFailed", reason,
-		"joinPolicy=Reset must attempt a wipe; on docker (no block devices) the wipe fails")
+// byotHosts bundles the Talos containers and the ByotHost names claiming them.
+type byotHosts struct {
+	CP         helpers.TalosNode
+	Worker     helpers.TalosNode
+	CPHost     string
+	WorkerHost string
 }
 
-// TestByotClusterSplitResetWipesMachines verifies Split=Reset: deleting the
-// cluster issues wipe attempts. Talos-in-docker has no block devices, so the
-// wipe stays blocked (ResetFailed, retrying) and the hosts keep the cluster
-// bundle until pre-cleaned manually.
-func TestByotClusterSplitResetWipesMachines(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	clusterName := "byot-splitreset"
-	infra := helpers.ByotInfra{
-		SplitPolicy:       byotSplitPolicyReset,
-		WorkerSplitPolicy: byotSplitPolicyReset,
-	}
-
-	nodes := startFreshByotCluster(t, clusterName, infra)
-	defer helpers.TerminateTalosNodes(t, nodes.CP, nodes.Worker)
-	defer helpers.DumpByotMachines(ctx, env, byotNamespace)
-
-	clusterTalosconfig := helpers.GetClusterTalosconfig(t, env, clusterName, byotNamespace)
-
-	helpers.UninstallKommodityClusterChart(t, env, clusterName, byotNamespace)
-
-	require.Eventually(t, func() bool {
-		return helpers.ByotMachineTerminating(ctx, env, byotNamespace, nodes.CPMachineName) &&
-			helpers.ByotMachineTerminating(ctx, env, byotNamespace, nodes.WorkerMachineName)
-	}, byotDeleteTimeout, 5*time.Second, "BYOT machines must be terminating after uninstall")
-
-	// Split=Reset retries the wipe silently on the deletion path (no
-	// ResetFailed condition). On docker the wipe cannot succeed (no block
-	// devices); the machines stay stuck terminating and keep the bundle.
-	require.Eventually(t, func() bool {
-		return helpers.ProbeAuthenticated(ctx, nodes.Worker.TalosAPIAddr, nodes.Worker.InternalIP, clusterTalosconfig) &&
-			!helpers.ProbeMaintenance(ctx, nodes.Worker.TalosAPIAddr, nodes.Worker.InternalIP)
-	}, byotConditionTimeout, 5*time.Second,
-		"host must still carry the cluster bundle while the wipe cannot complete")
-
-	helpers.CleanupTerminatingByotMachines(ctx, env, byotNamespace,
-		nodes.CPMachineName, nodes.WorkerMachineName)
-}
-
-// byotNodes bundles everything a test needs about the started node pair.
-type byotNodes struct {
-	CP                helpers.TalosNode
-	Worker            helpers.TalosNode
-	Infra             helpers.ByotInfra
-	APIServerURL      string
-	CPMachineName     string
-	WorkerMachineName string
-}
-
-// byotCPMachineName mirrors the chart's "<release>-cp-<key>" naming for control
-// plane ByotMachines (templates/provider/byot/machines.yaml).
-func byotCPMachineName(releaseName string, key string) string {
-	return releaseName + "-cp-" + key
-}
-
-// byotWorkerMachineName mirrors "<release>-worker-<nodepool>-<key>"; the byot
-// values file always uses the "default" nodepool.
-func byotWorkerMachineName(releaseName string, key string) string {
-	return releaseName + "-worker-default-" + key
-}
-
-// startFreshByotCluster boots the Talos pair in maintenance mode, installs the
-// helm chart, and blocks until both ByotMachines passed the join preflight.
-func startFreshByotCluster(t *testing.T, clusterName string, infra helpers.ByotInfra) byotNodes {
+// startByotHosts boots the Talos pair in maintenance mode, creates ByotHost
+// records pointing at their internal docker IPs (with a scoping label), and
+// waits for the host controller to discover + mark them Available.
+func startByotHosts(t *testing.T, clusterName string) byotHosts {
 	t.Helper()
 
 	ctx := context.Background()
@@ -256,61 +98,191 @@ func startFreshByotCluster(t *testing.T, clusterName string, infra helpers.ByotI
 
 	controlPlane, worker := helpers.StartTalosNodes(t, env, clusterName, talosVersion)
 
-	cpName := clusterName + "-cp0"
-	workerName := clusterName + "-worker0"
-
-	if infra.ControlPlaneName == "" {
-		infra.ControlPlaneName = cpName
-	}
-
-	if infra.WorkerName == "" {
-		infra.WorkerName = workerName
-	}
-
-	infra.ControlPlaneIP = controlPlane.InternalIP
-	infra.WorkerIP = worker.InternalIP
-
 	require.Eventually(t, func() bool {
 		return helpers.ProbeMaintenance(ctx, controlPlane.TalosAPIAddr, controlPlane.InternalIP) &&
 			helpers.ProbeMaintenance(ctx, worker.TalosAPIAddr, worker.InternalIP)
 	}, byotConditionTimeout, byotNodePollInterval, "nodes must start in maintenance mode")
 
-	helpers.InstallKommodityClusterChartByot(t, env, clusterName, byotNamespace, infra)
+	cpHost := clusterName + "-cp-host"
+	workerHost := clusterName + "-worker-host"
 
-	cpMachineName := byotCPMachineName(clusterName, infra.ControlPlaneName)
-	workerMachineName := byotWorkerMachineName(clusterName, infra.WorkerName)
+	// ByotHost publicIP is the container IP on the shared docker network: the
+	// kommodity container (running the host + machine controllers) reaches the
+	// Talos maintenance API there. Discovery + adoption both happen in-process
+	// inside kommodity, so the internal docker IP is the right address.
+	// The scoping label lets this test's hostSelector claim only its own hosts
+	// even when other byot tests run in parallel in the same namespace.
+	scopeLabels := map[string]string{byotScopeLabel: clusterName}
+	cpLabels := mergeLabels(scopeLabels, map[string]string{byotRoleLabel: byotRoleCP})
+	workerLabels := mergeLabels(scopeLabels, map[string]string{byotRoleLabel: byotRoleWorker})
 
-	waitForKubeconfigSecret(t, clusterName)
+	helpers.CreateByotHost(t, env, cpHost, byotNamespace, controlPlane.InternalIP, cpLabels)
+	helpers.CreateByotHost(t, env, workerHost, byotNamespace, worker.InternalIP, workerLabels)
 
-	workloadClient := helpers.GetWorkloadClient(t, env, clusterName, byotNamespace, controlPlane.APIServerURL)
-	waitForNodeCount(t, workloadClient, 2)
+	// Wait for the host controller to discover the maintenance API and mark
+	// the hosts Available (claimable). Discovery runs Version/Memory/Disks/
+	// Dmesg/LS over the maintenance API; liveness is confirmed first.
+	helpers.WaitForByotHostPhase(t, env, cpHost, byotNamespace,
+		helpers.ByotHostPhaseAvailable, byotHostPhaseTimeout)
+	helpers.WaitForByotHostPhase(t, env, workerHost, byotNamespace,
+		helpers.ByotHostPhaseAvailable, byotHostPhaseTimeout)
 
-	return byotNodes{
-		CP:                controlPlane,
-		Worker:            worker,
-		Infra:             infra,
-		APIServerURL:      controlPlane.APIServerURL,
-		CPMachineName:     cpMachineName,
-		WorkerMachineName: workerMachineName,
+	return byotHosts{
+		CP:         controlPlane,
+		Worker:     worker,
+		CPHost:     cpHost,
+		WorkerHost: workerHost,
 	}
 }
 
-// deleteCAPIMachine deletes a CAPI Machine object to trigger the split flow.
-func deleteCAPIMachine(t *testing.T, machineName string, namespace string) {
+// buildByotInfraFromDiscoveredHosts reads the byot.io/ hardware labels the host
+// controller promoted from discovery and builds a ByotInfra whose
+// resources/os.disk selector matches them (the prod SKU path). Both Talos
+// containers are identical, so reading one host's labels suffices for both
+// pools. The scoping operator label is included in the hostSelector so only
+// this test's hosts are claimable.
+func buildByotInfraFromDiscoveredHosts(t *testing.T, clusterName string, nodes byotHosts) helpers.ByotInfra {
 	t.Helper()
 
-	client, err := dynamic.NewForConfig(env.KommodityCfg)
-	require.NoError(t, err)
+	labels := helpers.ByotHostLabels(t, env, nodes.CPHost, byotNamespace)
 
-	gvr := schema.GroupVersionResource{
-		Group:    machineGroup,
-		Version:  machineVersion,
-		Resource: machineResource,
+	cpu := labels["byot.io/cpu-cores"]
+	memory := labels["byot.io/memory-class"]
+	diskType := labels["byot.io/disk-type"]
+	diskSize := labels["byot.io/disk-class"]
+
+	require.NotEmpty(t, cpu, "discovered byot.io/cpu-cores label must be set on %s", nodes.CPHost)
+	require.NotEmpty(t, memory, "discovered byot.io/memory-class label must be set on %s", nodes.CPHost)
+	require.NotEmpty(t, diskType, "discovered byot.io/disk-type label must be set on %s", nodes.CPHost)
+	require.NotEmpty(t, diskSize, "discovered byot.io/disk-class label must be set on %s", nodes.CPHost)
+
+	return helpers.ByotInfra{
+		ControlPlaneEndpointHost:            nodes.CP.InternalIP,
+		ControlPlaneEndpointPort:            byotControlPlanePort,
+		CPU:                                 cpu,
+		Memory:                              memory,
+		DiskType:                            diskType,
+		DiskSize:                            diskSize,
+		HostSelectorMatchLabels:             map[string]string{byotScopeLabel: clusterName},
+		ControlPlaneHostSelectorMatchLabels: map[string]string{byotRoleLabel: byotRoleCP},
+	}
+}
+
+// installAndClaimCluster installs the chart with the discovered-SKU selector
+// and waits for both hosts to be claimed by ByotMachines of the cluster.
+func installAndClaimCluster(t *testing.T, clusterName string, infra helpers.ByotInfra) {
+	t.Helper()
+
+	helpers.InstallKommodityClusterChartByot(t, env, clusterName, byotNamespace, infra)
+
+	// The chart renders ByotMachineTemplates with a hostSelector; CAPI clones a
+	// ByotMachine per replica and the byot controller claims a matching
+	// Available host via claimRef CAS. Wait for both test hosts to be claimed.
+	helpers.WaitForByotHostPhase(t, env, clusterName+"-cp-host", byotNamespace,
+		helpers.ByotHostPhaseClaimed, byotConditionTimeout)
+	helpers.WaitForByotHostPhase(t, env, clusterName+"-worker-host", byotNamespace,
+		helpers.ByotHostPhaseClaimed, byotConditionTimeout)
+
+	// Each host's claimRef must name a ByotMachine belonging to this cluster.
+	assertByotHostClaimedByClusterMachine(t, clusterName+"-cp-host", clusterName)
+	assertByotHostClaimedByClusterMachine(t, clusterName+"-worker-host", clusterName)
+}
+
+// assertClusterHealthy waits for the CAPI kubeconfig secret and the expected
+// ready node count in the workload cluster.
+func assertClusterHealthy(t *testing.T, clusterName string, nodes byotHosts) {
+	t.Helper()
+
+	waitForKubeconfigSecret(t, clusterName)
+
+	workloadClient := helpers.GetWorkloadClient(t, env, clusterName, byotNamespace, nodes.CP.APIServerURL)
+	waitForNodeCount(t, workloadClient, 2)
+}
+
+// releaseAndCleanupHosts uninstalls the chart, asserts both hosts return to
+// Available (reset to maintenance, claimRef cleared), then deletes the ByotHost
+// records and waits for their deletion.
+func releaseAndCleanupHosts(t *testing.T, clusterName string, nodes byotHosts) {
+	t.Helper()
+
+	ctx := context.Background()
+
+	// Release: uninstall triggers CAPI cascade-delete of Machines → ByotMachines
+	// release their host (reset to maintenance, claimRef cleared, phase Releasing)
+	// → the host liveness loop flips it back to Available.
+	helpers.UninstallKommodityClusterChart(t, env, clusterName, byotNamespace)
+
+	// Confirm the machine layer is gone (ByotMachines deleted by CAPI cascade).
+	helpers.WaitForClusterByotMachinesDeletion(t, env, clusterName, byotNamespace, byotDeleteTimeout)
+
+	// Both hosts must return to Available (re-claimable), proving
+	// release-resets-to-maintenance.
+	helpers.WaitForByotHostPhase(t, env, nodes.CPHost, byotNamespace,
+		helpers.ByotHostPhaseAvailable, byotHostPhaseTimeout)
+	helpers.WaitForByotHostPhase(t, env, nodes.WorkerHost, byotNamespace,
+		helpers.ByotHostPhaseAvailable, byotHostPhaseTimeout)
+
+	// claimRef cleared on release.
+	assert.Empty(t, helpers.ByotHostClaimRefName(t, env, nodes.CPHost, byotNamespace),
+		"CP host claimRef must be cleared after release")
+	assert.Empty(t, helpers.ByotHostClaimRefName(t, env, nodes.WorkerHost, byotNamespace),
+		"worker host claimRef must be cleared after release")
+
+	// The hosts are back in maintenance mode (reset wiped the cluster config).
+	require.True(t,
+		helpers.ProbeMaintenance(ctx, nodes.CP.TalosAPIAddr, nodes.CP.InternalIP),
+		"CP host must be back in maintenance mode after release")
+	require.True(t,
+		helpers.ProbeMaintenance(ctx, nodes.Worker.TalosAPIAddr, nodes.Worker.InternalIP),
+		"worker host must be back in maintenance mode after release")
+
+	// Cleanup the ByotHost records (finalizers are gone now the claim is released).
+	helpers.DeleteByotHost(t, env, nodes.CPHost, byotNamespace)
+	helpers.DeleteByotHost(t, env, nodes.WorkerHost, byotNamespace)
+
+	helpers.WaitForByotHostDeletion(t, env, nodes.CPHost, byotNamespace, byotDeleteTimeout)
+	helpers.WaitForByotHostDeletion(t, env, nodes.WorkerHost, byotNamespace, byotDeleteTimeout)
+}
+
+// assertByotHostClaimedByClusterMachine verifies the ByotHost's claimRef names
+// a ByotMachine carrying the cluster-name label (CAPI clones infra machines
+// with Name == Machine.Name, and the chart labels them cluster.x-k8s.io/
+// cluster-name). The exact Machine name is controller-generated, so match by
+// label rather than by hard-coded name.
+func assertByotHostClaimedByClusterMachine(t *testing.T, hostName string, clusterName string) {
+	t.Helper()
+
+	require.Eventually(t, func() bool {
+		claimName := helpers.ByotHostClaimRefName(t, env, hostName, byotNamespace)
+		if claimName == "" {
+			return false
+		}
+
+		return helpers.ByotMachineExistsForCluster(t, env, claimName, byotNamespace, clusterName)
+	}, byotConditionTimeout, byotNodePollInterval,
+		"ByotHost %s must be claimed by a ByotMachine of cluster %s", hostName, clusterName)
+}
+
+// mergeLabels combines two label maps (override winning on key conflict).
+// Returns a new map (nil when both empty).
+func mergeLabels(base map[string]string, override map[string]string) map[string]string {
+	if len(base) == 0 && len(override) == 0 {
+		return nil
 	}
 
-	err = client.Resource(gvr).Namespace(namespace).Delete(
-		context.Background(), machineName, metav1.DeleteOptions{})
-	require.NoError(t, err)
+	out := make(map[string]string, len(base)+len(override))
+	maps.Copy(out, base)
+	maps.Copy(out, override)
+
+	return out
+}
+
+func waitForKubeconfigSecret(t *testing.T, clusterName string) {
+	t.Helper()
+
+	require.NoError(t, helpers.WaitForK8sResourceCreation(
+		env.KommodityCfg, byotNamespace, clusterName+"-kubeconfig",
+		"", "v1", "secrets", "", "", byotConditionTimeout, 1))
 }
 
 // waitForNodeCount waits until the workload cluster reports the expected Ready
@@ -356,24 +328,4 @@ func countReadyNodes(nodes []corev1.Node) int {
 	}
 
 	return ready
-}
-
-// assertHostKeepsBundle verifies a node still carries the given cluster's
-// bundle: it answers the Talos API with that cluster's credentials and is NOT
-// back in maintenance mode. talosAPIAddr is the host-mapped Talos endpoint.
-func assertHostKeepsBundle(t *testing.T, node helpers.TalosNode, clusterName string) {
-	t.Helper()
-
-	talosconfig := helpers.GetClusterTalosconfig(t, env, clusterName, byotNamespace)
-
-	ctx := context.Background()
-
-	require.Eventually(t, func() bool {
-		return helpers.ProbeAuthenticated(ctx, node.TalosAPIAddr, node.InternalIP, talosconfig) &&
-			!helpers.ProbeMaintenance(ctx, node.TalosAPIAddr, node.InternalIP)
-	}, byotConditionTimeout, byotNodePollInterval,
-		"host %s must still answer with the cluster's talosconfig after Split=None", node.InternalIP)
-	assert.False(t,
-		helpers.ProbeMaintenance(ctx, node.TalosAPIAddr, node.InternalIP),
-		"host %s must not be in maintenance mode after Split=None", node.InternalIP)
 }
