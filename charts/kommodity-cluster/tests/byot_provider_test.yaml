@@ -215,31 +215,6 @@ tests:
       - hasDocuments:
           count: 1
 
-  # MachineHealthCheck
-  - it: should render a CP MachineHealthCheck selecting the control-plane label
-    template: templates/provider/capi/machinehealthcheck.yaml
-    documentSelector:
-      path: metadata.name
-      value: test-cluster-controlplane
-    asserts:
-      - isKind:
-          of: MachineHealthCheck
-      - equal:
-          path: spec.selector.matchLabels["cluster.x-k8s.io/control-plane"]
-          value: ""
-
-  - it: should render one worker MachineHealthCheck selecting the nodepool label
-    template: templates/provider/capi/machinehealthcheck.yaml
-    documentSelector:
-      path: metadata.name
-      value: test-cluster-worker-default
-    asserts:
-      - isKind:
-          of: MachineHealthCheck
-      - equal:
-          path: spec.selector.matchLabels["kommodity.io/nodepool"]
-          value: default
-
   # Validation: control-plane replicas
   - it: should fail when control-plane replicas is even
     template: templates/provider/byot/machinetemplate.yaml

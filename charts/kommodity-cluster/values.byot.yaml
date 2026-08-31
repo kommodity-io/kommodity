@@ -78,9 +78,9 @@ kommodity:
         disk:
           type: ssd
           size: "100G"
-      # zones:
-      #   - par01
-      #   - par02
+      zones:
+        - par01
+        - par02
       # autoscaling:
       #   minReplicas: 2
       #   maxReplicas: 4

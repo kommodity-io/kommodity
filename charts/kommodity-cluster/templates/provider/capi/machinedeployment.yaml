@@ -1,5 +1,3 @@
-{{- /* MachineDeployments render for all providers including byot, which now
-       uses ByotMachineTemplate (host-registry claim) as its infra template. */ -}}
 {{- range $name, $np := .Values.kommodity.nodepools }}
 {{- $minReplicas := dig "autoscaling" "minReplicas" nil $np }}
 {{- $maxReplicas := dig "autoscaling" "maxReplicas" nil $np }}
