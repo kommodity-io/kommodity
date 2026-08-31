@@ -29,7 +29,12 @@ func (m *byotModule) Setup(ctx context.Context, deps SetupDeps) error {
 	return setupByot(ctx, deps.Manager, deps.Options, deps.ClusterCache)
 }
 
-func setupByot(ctx context.Context, manager ctrl.Manager, opt ctrlcontroller.Options, clusterCache clustercache.ClusterCache) error {
+func setupByot(
+	ctx context.Context,
+	manager ctrl.Manager,
+	opt ctrlcontroller.Options,
+	clusterCache clustercache.ClusterCache,
+) error {
 	logger := logging.FromContext(ctx)
 
 	logger.Info("Setting up ByotHost controller")
@@ -76,7 +81,11 @@ func setupByotHostWithManager(manager ctrl.Manager, opt ctrlcontroller.Options) 
 	return nil
 }
 
-func setupByotMachineWithManager(manager ctrl.Manager, opt ctrlcontroller.Options, clusterCache clustercache.ClusterCache) error {
+func setupByotMachineWithManager(
+	manager ctrl.Manager,
+	opt ctrlcontroller.Options,
+	clusterCache clustercache.ClusterCache,
+) error {
 	reconciler := byot_controller.NewByotMachineReconciler(manager.GetClient())
 	reconciler.SetClusterCache(clusterCache)
 
