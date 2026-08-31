@@ -19,7 +19,6 @@
 {{- if eq .Values.kommodity.provider.name "Byot" }}
 {{- /* Control plane ByotMachineTemplate. */ -}}
 {{- $cp := .Values.kommodity.controlplane -}}
-{{- include "kommodity-cluster.byotValidateReplicas" (dict "poolValues" $cp "scope" "kommodity.controlplane" "controlPlane" true) -}}
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
 kind: ByotMachineTemplate
@@ -41,7 +40,6 @@ spec:
      domain when zones are set (mirrors the per-FD MachineDeployment naming
      in templates/provider/capi/machinedeployment.yaml). */ -}}
 {{- range $poolName, $np := .Values.kommodity.nodepools }}
-{{- include "kommodity-cluster.byotValidateReplicas" (dict "poolValues" $np "scope" (printf "kommodity.nodepools.%s" $poolName) "controlPlane" false) -}}
 {{- $zones := include "kommodity-cluster.poolZones" $np | fromJsonArray }}
 {{- if eq (len $zones) 0 }}
 {{- $zones = list "" }}

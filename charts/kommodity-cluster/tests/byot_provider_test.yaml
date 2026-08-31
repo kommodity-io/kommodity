@@ -215,40 +215,6 @@ tests:
       - hasDocuments:
           count: 1
 
-  # Validation: control-plane replicas
-  - it: should fail when control-plane replicas is even
-    template: templates/provider/byot/machinetemplate.yaml
-    set:
-      kommodity.controlplane.replicas: 2
-    asserts:
-      - failedTemplate:
-          errorMessage: "kommodity.controlplane.replicas must be odd for the Byot control plane (etcd quorum), got 2"
-
-  - it: should fail when control-plane replicas is zero
-    template: templates/provider/byot/machinetemplate.yaml
-    set:
-      kommodity.controlplane.replicas: 0
-    asserts:
-      - failedTemplate:
-          errorMessage: "kommodity.controlplane.replicas must be >= 1 for Byot, got 0"
-
-  - it: should fail when control-plane replicas is unset
-    template: templates/provider/byot/machinetemplate.yaml
-    set:
-      kommodity.controlplane.replicas: null
-    asserts:
-      - failedTemplate:
-          errorMessage: "kommodity.controlplane.replicas is required for Byot control plane (odd, >= 1, for etcd quorum)"
-
-  # Validation: worker replicas
-  - it: should fail when worker replicas is unset
-    template: templates/provider/byot/machinetemplate.yaml
-    set:
-      kommodity.nodepools.default.replicas: null
-    asserts:
-      - failedTemplate:
-          errorMessage: "kommodity.nodepools.default.replicas is required for Byot (no default; ensure enough Available ByotHosts match the pool selector)"
-
   # Validation: resources.cpu
   - it: should fail when resources.cpu is a k8s quantity
     template: templates/provider/byot/machinetemplate.yaml
@@ -343,11 +309,11 @@ tests:
     documentIndex: 0
     set:
       kommodity.controlplane.hostSelector.matchLabels:
-        site: gefion
+        site: copenhagen
     asserts:
       - equal:
           path: spec.template.spec.hostSelector.matchLabels["site"]
-          value: gefion
+          value: copenhagen
       - equal:
           path: spec.template.spec.hostSelector.matchLabels["byot.io/available"]
           value: "true"

@@ -1,5 +1,3 @@
-{{- /* TalosConfigTemplate renders for all providers including byot, which
-       now uses TalosControlPlane + MachineDeployment like every other provider. */ -}}
 {{- range $name, $np := .Values.kommodity.nodepools }}
 ---
 apiVersion: bootstrap.cluster.x-k8s.io/v1alpha3

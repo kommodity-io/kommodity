@@ -1,5 +1,3 @@
-{{- /* TalosControlPlane renders for all providers including byot, which now
-       uses ByotMachineTemplate (host-registry claim) as its infra template. */ -}}
 ---
 apiVersion: controlplane.cluster.x-k8s.io/v1alpha3
 kind: TalosControlPlane

@@ -2,29 +2,16 @@
 # registry (Bring Your Own Talos). Operators add ByotHost objects (IP-only
 # records of maintenance-mode Talos boxes) out of band; this chart claims them
 # by label selector and adopts them as control-plane / worker nodes.
-#
-# Hosts are claimed at runtime, so node IPs are NOT known at render time. The
-# control-plane endpoint therefore cannot be auto-derived and MUST be set
-# explicitly (see kommodity.provider.config.controlPlaneEndpoint below).
 kommodity:
   provider:
     name: Byot
-    # Control-plane endpoint (REQUIRED). CAPI's clusterv1.APIEndpoint is a
-    # single {host, port} consumed at cluster creation to generate the admin
-    # kubeconfig and seed node join config, so it must exist before any host
+    # Control-plane endpoint (REQUIRED). Must exist before any host
     # is claimed. CP host IPs are resolved at claim time and cannot be used
-    # here. Pick one:
-    #   - a VIP / load balancer / DNS name fronting the control plane (HA),
-    #   - or one committed CP host IP (dev/smallest config; note: with a bare
-    #     IP the API is unreachable until that specific host is claimed, and
-    #     claim order is non-deterministic, so prefer a VIP for HA).
+    # here (VIP / load balancer / DNS name fronting the control plane (HA)).
     config:
       controlPlaneEndpoint:
         host: 203.0.113.10
         port: 6443
-
-  clusterAutoscaler:
-    enabled: false # Default off; byot CAN scale if Available ByotHosts exist beyond replicas.
 
   network:
     ipv4:
@@ -49,7 +36,7 @@ kommodity:
     # Optional freeform hostSelector
     # hostSelector:
     #   matchLabels:
-    #     site: gefion
+    #     site: copenhagen
     #   matchExpressions:
     #     - key: byot.io/platform
     #       operator: In
@@ -86,7 +73,7 @@ kommodity:
       #   maxReplicas: 4
       # hostSelector:
       #   matchLabels:
-      #     site: gefion
+      #     site: copenhagen
       healthCheck:
         enabled: true
         unhealthyConditions:
