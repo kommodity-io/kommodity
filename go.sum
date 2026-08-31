@@ -649,8 +649,8 @@ github.com/kkHAIKE/contextcheck v1.1.6 h1:7HIyRcnyzxL9Lz06NGhiKvenXq7Zw6Q0UQu/tt
 github.com/kkHAIKE/contextcheck v1.1.6/go.mod h1:3dDbMRNBFaq8HFXWC1JyvDSPm43CmE6IuHam8Wr0rkg=
 github.com/klauspost/compress v1.18.5 h1:/h1gH5Ce+VWNLSWqPzOVn6XBO+vJbCNGvjoaGBFW2IE=
 github.com/klauspost/compress v1.18.5/go.mod h1:cwPg85FWrGar70rWktvGQj8/hthj3wpl0PGDogxkrSQ=
-github.com/kommodity-io/cluster-api-provider-bringyourowntalos v0.3.3-0.20260831072825-1fcd468200e7 h1:Q+TntANsXDKbCbL3Dx2pMAkzatwpTLk3qQQ6vNp7NVM=
-github.com/kommodity-io/cluster-api-provider-bringyourowntalos v0.3.3-0.20260831072825-1fcd468200e7/go.mod h1:mETn8spUC2SVkwl7B2IHqUWwlM3C06MdryIT0yfOtRg=
+github.com/kommodity-io/cluster-api-provider-bringyourowntalos v0.3.3-0.20260831075009-c5a26b71aa02 h1:ySPTkQWHY4ai6HScvnkkM5P5L6I3my+1cLxGx94CYU4=
+github.com/kommodity-io/cluster-api-provider-bringyourowntalos v0.3.3-0.20260831075009-c5a26b71aa02/go.mod h1:mETn8spUC2SVkwl7B2IHqUWwlM3C06MdryIT0yfOtRg=
 github.com/kr/pretty v0.1.0/go.mod h1:dAy3ld7l9f0ibDNOQOHHMYYIIbhfbHSm3C4ZsoJORNo=
 github.com/kr/pretty v0.2.0/go.mod h1:ipq/a2n7PKx3OHsz4KJII5eveXtPO4qwEXGdVfWzfnI=
 github.com/kr/pretty v0.3.1 h1:flRD4NNwYAUpkphVc1HcthR4KEIFJ65n8Mw5qdRn3LE=
