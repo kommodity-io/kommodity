@@ -32,29 +32,21 @@ kommodity:
       public: true # Byot hosts are reached by public IP (maintenance API, port 50000).
 
   controlplane:
-    # Control-plane replica count. Must be odd and >= 1 (etcd quorum). Ensure
-    # enough Available ByotHosts match the selector below; a shortfall leaves
-    # Machines stuck pending a claim (no error — diagnose via ByotHost phase).
     replicas: 3
     # SKU-driven host selector. The chart maps these to the curated byot.io/
     # labels the ByotHost controller promotes, and claims Available hosts
-    # matching them (exact-match). All four fields are required.
+    # matching them (exact-match).
     resources:
-      cpu: "4"        # byot.io/cpu-cores: plain integer string of physical cores (NOT a k8s quantity; "4000m" is rejected)
-      memory: "16G"   # byot.io/memory-class: exact bucket, one of 4G 8G 16G 32G 64G 128G
+      cpu: "4" # Required
+      memory: "16G" # Required (one of 4G 8G 16G 32G 64G 128G)
     os:
       disk:
-        type: ssd     # byot.io/disk-type: one of nvme ssd hdd sd (lowercase)
-        size: "100G"  # byot.io/disk-class: exact bucket, one of 20G 100G 250G 500G 1T
-    # Optional failure domains (reuses the shared per-FD MachineDeployment
-    # spread). Leave unset for a single domain-less pool.
+        type: ssd # Optional (one of nvme ssd hdd sd)
+        size: "100G" # Optional (one of 20G 100G 250G 500G 1T)
     # zones:
     #   - par01
     #   - par02
-    # Optional freeform hostSelector escape hatch (full LabelSelector). Merged
-    # on top of the resources/os.disk-derived labels; operator labels win on key
-    # conflict (override a bucket), and matchExpressions pass through verbatim.
-    # byot.io/available: "true" is always force-injected and cannot be dropped.
+    # Optional freeform hostSelector
     # hostSelector:
     #   matchLabels:
     #     site: gefion
@@ -78,9 +70,6 @@ kommodity:
 
   nodepools:
     default:
-      # Worker replica count (REQUIRED, no default). Ensure enough Available
-      # ByotHosts match the selector; a shortfall leaves Machines stuck pending
-      # a claim. With zones set, replicas split evenly across failure domains.
       replicas: 2
       resources:
         cpu: "4"
@@ -89,15 +78,9 @@ kommodity:
         disk:
           type: ssd
           size: "100G"
-      # Optional failure domains: one MachineDeployment per domain, each
-      # claiming hosts in its own domain (the ByotMachine controller reads the
-      # owning Machine's failureDomain into the claim selector).
-      zones:
-        - par01
-        - par02
-      # Optional autoscaling (allowed for byot — the host registry supplies
-      # Available hosts). The cluster-autoscaler scales the MachineDeployment
-      # between min/max; byot claims hosts as replicas grow.
+      # zones:
+      #   - par01
+      #   - par02
       # autoscaling:
       #   minReplicas: 2
       #   maxReplicas: 4

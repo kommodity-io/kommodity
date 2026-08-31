@@ -225,7 +225,8 @@ Any values that should trigger a new Machine template when changed should be add
 {{- with (dig "resources" "" .poolValues) -}}
 {{- $_ := set $data "resources" . -}}
 {{- end -}}
-{{- $_ := set $data "diskSize" (dig "os" "disk" "size" "" .poolValues) -}}
+{{- $disk := default (dict) (dig "os" "disk" (dict) .poolValues) -}}
+{{- $_ := set $data "diskSize" (dig "size" "" $disk) -}}
 {{- $_ := set $data "gpus" (dig "gpus" "" .poolValues) -}}
 {{- if and (eq .allValues.kommodity.provider.name "Azure") (hasKey .poolValues "acceleratedNetworking") -}}
 {{- $_ := set $data "acceleratedNetworking" .poolValues.acceleratedNetworking -}}
@@ -246,7 +247,9 @@ Any values that should trigger a new Machine template when changed should be add
      so hash the merged selector inputs. byot.io/available is constant and
      omitted from the hash. */ -}}
 {{- if eq .allValues.kommodity.provider.name "Byot" -}}
-{{- $_ := set $data "diskType" (dig "os" "disk" "type" "" .poolValues) -}}
+{{- $disk := default (dict) (dig "os" "disk" (dict) .poolValues) -}}
+{{- $_ := set $data "diskType" (dig "type" "" $disk) -}}
+{{- $_ := set $data "diskSize" (dig "size" "" $disk) -}}
 {{- $_ := set $data "byotHostSelector" (dig "hostSelector" "" .poolValues) -}}
 {{- end -}}
 {{- $_ := set $data "publicNetworkEnabled" .allValues.kommodity.network.ipv4.public -}}
@@ -421,11 +424,13 @@ derived labels on key conflict, and matchExpressions pass through verbatim.
 `byot.io/available` is always forced last and cannot be overridden.
 
 All four hardware fields (resources.cpu, resources.memory, os.disk.type,
-os.disk.size) are required per pool and validated against the curated label
-value sets. cpu-cores is a plain integer string (not bucketed); the others
-are bucketed. Exact-match semantics: a value no host ever carries matches
-nothing, so invalid values fail the template rather than silently sticking
-Machines.
+os.disk.size) map to curated byot.io/ labels. resources.cpu and resources.memory
+are always required; os.disk.type and os.disk.size are optional (omit both
+for a disk-agnostic selector that matches diskless hosts like Talos-in-Docker,
+or set both to pin a disk type+class). When set, each field is validated against
+its curated value set. Exact-match semantics: a value no host ever carries
+matches nothing, so invalid values fail the template rather than silently
+sticking Machines.
 
 Input: dict "poolValues" (controlplane/nodepool values) "scope" (value path
 for error messages, e.g. "kommodity.controlplane").
@@ -461,26 +466,34 @@ by the caller.
 {{- fail (printf "%s.resources.memory must be one of 4G 8G 16G 32G 64G 128G (exact bucket matching the controller-promoted byot.io/memory-class label), got %q" $scope $memory) -}}
 {{- end -}}
 {{- if not (hasKey $labels "byot.io/memory-class") -}}{{- $_ := set $labels "byot.io/memory-class" $memory -}}{{- end -}}
-{{- /* os.disk.type -> byot.io/disk-type (lowercase). */ -}}
-{{- $diskType := dig "os" "disk" "type" "" $p -}}
-{{- if not $diskType -}}
-{{- fail (printf "%s.os.disk.type is required for Byot (one of: nvme ssd hdd sd)" $scope) -}}
-{{- end -}}
+{{- /* os.disk is OPTIONAL. Some hosts (e.g. Talos-in-Docker, diskless
+     boot) promote no byot.io/disk-* labels, so requiring a disk selector
+     would make them unclaimable. When either os.disk.type or os.disk.size is
+     set, BOTH must be set and valid (a disk claim is type+class together);
+     when neither is set, the selector omits byot.io/disk-* and matches any
+     host regardless of disk. Operator freeform hostSelector labels can still
+     pin a disk if needed. */ -}}
+{{- $disk := default (dict) (dig "os" "disk" (dict) $p) -}}
+{{- $diskType := dig "type" "" $disk -}}
+{{- $diskSize := dig "size" "" $disk -}}
 {{- $diskTypes := list "nvme" "ssd" "hdd" "sd" -}}
+{{- $diskClasses := list "20G" "100G" "250G" "500G" "1T" -}}
+{{- if or $diskType $diskSize -}}
+{{- if not $diskType -}}
+{{- fail (printf "%s.os.disk.type is required when os.disk.size is set (one of: nvme ssd hdd sd); omit both for a disk-agnostic selector" $scope) -}}
+{{- end -}}
 {{- if not (has $diskType $diskTypes) -}}
 {{- fail (printf "%s.os.disk.type must be one of nvme ssd hdd sd (lowercase, matching the controller-promoted byot.io/disk-type label), got %q" $scope $diskType) -}}
 {{- end -}}
-{{- if not (hasKey $labels "byot.io/disk-type") -}}{{- $_ := set $labels "byot.io/disk-type" $diskType -}}{{- end -}}
-{{- /* os.disk.size -> byot.io/disk-class (exact bucket). */ -}}
-{{- $diskSize := dig "os" "disk" "size" "" $p -}}
 {{- if not $diskSize -}}
-{{- fail (printf "%s.os.disk.size is required for Byot (one of: 20G 100G 250G 500G 1T)" $scope) -}}
+{{- fail (printf "%s.os.disk.size is required when os.disk.type is set (one of: 20G 100G 250G 500G 1T); omit both for a disk-agnostic selector" $scope) -}}
 {{- end -}}
-{{- $diskClasses := list "20G" "100G" "250G" "500G" "1T" -}}
 {{- if not (has $diskSize $diskClasses) -}}
 {{- fail (printf "%s.os.disk.size must be one of 20G 100G 250G 500G 1T (exact bucket matching the controller-promoted byot.io/disk-class label), got %q" $scope $diskSize) -}}
 {{- end -}}
+{{- if not (hasKey $labels "byot.io/disk-type") -}}{{- $_ := set $labels "byot.io/disk-type" $diskType -}}{{- end -}}
 {{- if not (hasKey $labels "byot.io/disk-class") -}}{{- $_ := set $labels "byot.io/disk-class" $diskSize -}}{{- end -}}
+{{- end -}}
 {{- /* byot.io/available is force-injected last; it cannot be overridden. */ -}}
 {{- $_ := set $labels "byot.io/available" "true" -}}
 hostSelector:

@@ -77,43 +77,46 @@ type ByotInfra struct {
 // ValuesFile returns the Helm values file for BYOT testing.
 func (b ByotInfra) ValuesFile() string { return byotValuesFile }
 
-// Overrides returns the Helm value overrides for BYOT testing. The chart
-// derives a hostSelector from resources/os.disk (the prod SKU path) and claims
-// Available ByotHosts matching it; the optional operator HostSelectorMatchLabels
-// scope the claim to this test's hosts. Replicas are 1 each for the single
-// CP + single worker test pair.
+// Overrides returns the Helm value overrides for BYOT testing as flat dotted
+// keys (the shape setNestedValue/SetNestedField expects; values must be
+// JSON-deep-copyable, so ints are int64). The chart derives a hostSelector from
+// resources/os.disk (the prod SKU path) and claims Available ByotHosts
+// matching it; the optional operator hostSelector matchLabels scope the claim
+// to this test's hosts. Replicas are 1 each for the single CP + single worker
+// test pair.
 func (b ByotInfra) Overrides() map[string]any {
-	cpPool := map[string]any{
-		"replicas":         1,
-		"resources":        map[string]any{"cpu": b.CPU, "memory": b.Memory},
-		"os":               map[string]any{"disk": map[string]any{"type": b.DiskType, "size": b.DiskSize}},
-		"strategicPatches": talosInDockerPatch(),
+	overrides := map[string]any{
+		"kommodity.provider.config.controlPlaneEndpoint.host": b.ControlPlaneEndpointHost,
+		"kommodity.provider.config.controlPlaneEndpoint.port": int64(b.ControlPlaneEndpointPort),
+
+		"kommodity.controlplane.replicas":         int64(1),
+		"kommodity.controlplane.resources.cpu":    b.CPU,
+		"kommodity.controlplane.resources.memory": b.Memory,
+		"kommodity.controlplane.os.disk.type":     b.DiskType,
+		"kommodity.controlplane.os.disk.size":     b.DiskSize,
+		"kommodity.controlplane.strategicPatches": talosInDockerPatch(),
+
+		"kommodity.nodepools.default.replicas":         int64(1),
+		"kommodity.nodepools.default.resources.cpu":    b.CPU,
+		"kommodity.nodepools.default.resources.memory": b.Memory,
+		"kommodity.nodepools.default.os.disk.type":     b.DiskType,
+		"kommodity.nodepools.default.os.disk.size":     b.DiskSize,
+		"kommodity.nodepools.default.strategicPatches": talosInDockerPatch(),
+		// Unset the per-FD zones from values.byot.yaml so the test runs a single
+		// domain-less worker MachineDeployment (one worker, not split across FDs).
+		"kommodity.nodepools.default.zones": nil,
 	}
 
 	cpSelector := mergeMatchLabels(b.HostSelectorMatchLabels, b.ControlPlaneHostSelectorMatchLabels)
 	if len(cpSelector) > 0 {
-		cpPool["hostSelector"] = map[string]any{"matchLabels": cpSelector}
-	}
-
-	workerPool := map[string]any{
-		"replicas":         1,
-		"resources":        map[string]any{"cpu": b.CPU, "memory": b.Memory},
-		"os":               map[string]any{"disk": map[string]any{"type": b.DiskType, "size": b.DiskSize}},
-		"strategicPatches": talosInDockerPatch(),
+		overrides["kommodity.controlplane.hostSelector.matchLabels"] = toStringAnyMap(cpSelector)
 	}
 
 	if len(b.HostSelectorMatchLabels) > 0 {
-		workerPool["hostSelector"] = map[string]any{"matchLabels": b.HostSelectorMatchLabels}
+		overrides["kommodity.nodepools.default.hostSelector.matchLabels"] = toStringAnyMap(b.HostSelectorMatchLabels)
 	}
 
-	return map[string]any{
-		"kommodity.provider.config.controlPlaneEndpoint": map[string]any{
-			"host": b.ControlPlaneEndpointHost,
-			"port": b.ControlPlaneEndpointPort,
-		},
-		"kommodity.controlplane":      cpPool,
-		"kommodity.nodepools.default": workerPool,
-	}
+	return overrides
 }
 
 // mergeMatchLabels combines a base operator selector with an override map,
@@ -126,6 +129,19 @@ func mergeMatchLabels(base map[string]string, override map[string]string) map[st
 	out := make(map[string]string, len(base)+len(override))
 	maps.Copy(out, base)
 	maps.Copy(out, override)
+
+	return out
+}
+
+// toStringAnyMap converts a map[string]string to map[string]any. Helm values
+// are JSON-marshalled and deep-copied via k8s DeepCopyJSONValue, which only
+// handles map[string]any (not map[string]string), so label maps must be
+// converted before being set as nested values.
+func toStringAnyMap(in map[string]string) map[string]any {
+	out := make(map[string]any, len(in))
+	for k, v := range in {
+		out[k] = v
+	}
 
 	return out
 }
@@ -643,6 +659,62 @@ func WaitForByotMachineDeletion(
 	require.NoError(t, WaitForK8sResourceDeletion(
 		env.KommodityCfg, namespace, machineName,
 		byotMachineGroup, byotMachineVersion, byotMachineResource, "", "", timeout))
+}
+
+// ClusterByotMachineNames returns the names of all ByotMachines carrying the
+// cluster.x-k8s.io/cluster-name label for clusterName. Used to strip finalizers
+// on hosts where the release reset cannot complete (docker).
+func ClusterByotMachineNames(t *testing.T, env TestEnvironment, clusterName string, namespace string) []string {
+	t.Helper()
+
+	client, err := dynamic.NewForConfig(env.KommodityCfg)
+	require.NoError(t, err)
+
+	list, err := client.Resource(byotMachineGVR()).Namespace(namespace).List(
+		context.Background(), metav1.ListOptions{
+			LabelSelector: "cluster.x-k8s.io/cluster-name=" + clusterName,
+		})
+	require.NoError(t, err)
+
+	names := make([]string, 0, len(list.Items))
+	for _, item := range list.Items {
+		names = append(names, item.GetName())
+	}
+
+	return names
+}
+
+// ClusterByotMachinesTerminating reports whether every ByotMachine of the
+// given cluster has a non-nil deletionTimestamp (the finalizer is running).
+// Returns true when there are no machines left (already deleted) or all are
+// terminating; false when at least one is still live.
+func ClusterByotMachinesTerminating(t *testing.T, env TestEnvironment, clusterName string, namespace string) bool {
+	t.Helper()
+
+	client, err := dynamic.NewForConfig(env.KommodityCfg)
+	if err != nil {
+		return false
+	}
+
+	list, err := client.Resource(byotMachineGVR()).Namespace(namespace).List(
+		context.Background(), metav1.ListOptions{
+			LabelSelector: "cluster.x-k8s.io/cluster-name=" + clusterName,
+		})
+	if err != nil {
+		return false
+	}
+
+	if len(list.Items) == 0 {
+		return true // all gone
+	}
+
+	for _, item := range list.Items {
+		if item.GetDeletionTimestamp() == nil {
+			return false // at least one not yet terminating
+		}
+	}
+
+	return true
 }
 
 // WaitForClusterByotMachinesDeletion polls until no ByotMachines carrying the

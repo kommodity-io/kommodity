@@ -308,7 +308,7 @@ tests:
       - failedTemplate:
           errorMessage: 'kommodity.controlplane.resources.memory is required for Byot (one of: 4G 8G 16G 32G 64G 128G)'
 
-  # Validation: os.disk.type
+  # Validation: os.disk (optional; when either field is set, both must be set + valid)
   - it: should fail when os.disk.type is invalid
     template: templates/provider/byot/machinetemplate.yaml
     set:
@@ -317,15 +317,22 @@ tests:
       - failedTemplate:
           errorMessage: 'kommodity.controlplane.os.disk.type must be one of nvme ssd hdd sd (lowercase, matching the controller-promoted byot.io/disk-type label), got "NVME"'
 
-  - it: should fail when os.disk.type is unset
+  - it: should fail when os.disk.type is set but os.disk.size is unset
+    template: templates/provider/byot/machinetemplate.yaml
+    set:
+      kommodity.controlplane.os.disk.size: null
+    asserts:
+      - failedTemplate:
+          errorMessage: 'kommodity.controlplane.os.disk.size is required when os.disk.type is set (one of: 20G 100G 250G 500G 1T); omit both for a disk-agnostic selector'
+
+  - it: should fail when os.disk.size is set but os.disk.type is unset
     template: templates/provider/byot/machinetemplate.yaml
     set:
       kommodity.controlplane.os.disk.type: null
     asserts:
       - failedTemplate:
-          errorMessage: 'kommodity.controlplane.os.disk.type is required for Byot (one of: nvme ssd hdd sd)'
+          errorMessage: 'kommodity.controlplane.os.disk.type is required when os.disk.size is set (one of: nvme ssd hdd sd); omit both for a disk-agnostic selector'
 
-  # Validation: os.disk.size
   - it: should fail when os.disk.size is not a valid bucket
     template: templates/provider/byot/machinetemplate.yaml
     set:
@@ -334,13 +341,26 @@ tests:
       - failedTemplate:
           errorMessage: 'kommodity.controlplane.os.disk.size must be one of 20G 100G 250G 500G 1T (exact bucket matching the controller-promoted byot.io/disk-class label), got "50G"'
 
-  - it: should fail when os.disk.size is unset
+  # Optional os.disk: omitting both yields a disk-agnostic selector (no byot.io/disk-* labels)
+  - it: should omit byot.io/disk-* labels when both os.disk fields are unset
     template: templates/provider/byot/machinetemplate.yaml
+    documentIndex: 0
     set:
-      kommodity.controlplane.os.disk.size: null
+      kommodity.controlplane.os.disk: null
     asserts:
-      - failedTemplate:
-          errorMessage: 'kommodity.controlplane.os.disk.size is required for Byot (one of: 20G 100G 250G 500G 1T)'
+      - notExists:
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/disk-type"]
+      - notExists:
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/disk-class"]
+      - equal:
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/cpu-cores"]
+          value: "4"
+      - equal:
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/memory-class"]
+          value: 16G
+      - equal:
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/available"]
+          value: "true"
 
   # hostSelector escape hatch
   - it: should merge operator freeform hostSelector labels and keep byot.io/available forced
