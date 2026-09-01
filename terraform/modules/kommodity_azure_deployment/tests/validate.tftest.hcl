@@ -4,6 +4,8 @@ mock_provider "azurerm" {
   alias = "dns"
 }
 
+mock_provider "azapi" {}
+
 mock_provider "random" {}
 
 mock_provider "time" {}
