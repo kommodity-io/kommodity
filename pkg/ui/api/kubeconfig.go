@@ -243,6 +243,10 @@ func getOIDCConfigFromCluster(
 		oidcConfig.ExtraScopes = trimmedScopes
 	}
 
+	// Ensure the "profile" scope is included when a groups claim is configured,
+	// as it is required by Azure AD / Entra ID to return group claims in the token.
+	oidcConfig.ExtraScopes = config.EnsureProfileScope(oidcConfig.ExtraScopes, oidcConfig.GroupsClaim)
+
 	return oidcConfig, nil
 }
 
