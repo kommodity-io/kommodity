@@ -39,12 +39,12 @@ By default the Container App egresses through Azure's shared platform IP pool. S
 
 `ingress_ip_restrictions` whitelists inbound traffic to the Container App. Each entry becomes an Azure Container Apps [`ip_security_restriction`](https://learn.microsoft.com/azure/container-apps/ingress-overview#ip-restrictions) rule.
 
-| Field         | Type   | Default | Description |
-| ------------- | ------ | ------- | ----------- |
+| Field         | Type   | Default | Description                                         |
+| ------------- | ------ | ------- | --------------------------------------------------- |
 | `cidr`        | string | —       | IP range in CIDR notation (e.g. `203.0.113.10/32`). |
-| `action`      | string | `Allow` | `Allow` or `Deny`. |
-| `name`        | string | —       | Rule name. |
-| `description` | string | `""`    | Free-form description. |
+| `action`      | string | `Allow` | `Allow` or `Deny`.                                  |
+| `name`        | string | —       | Rule name.                                          |
+| `description` | string | `""`    | Free-form description.                              |
 
 Azure evaluates rules **top-down; first match wins**, so list order determines priority. Any traffic not matching an `Allow` rule is denied — this is how a whitelist is enforced. Omit the variable (or pass `[]`) to leave ingress open to all traffic, the default behavior.
 
