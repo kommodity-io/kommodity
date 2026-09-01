@@ -27,6 +27,7 @@ const (
 	envOIDCClientID                       = "KOMMODITY_OIDC_CLIENT_ID"
 	envOIDCUsernameClaim                  = "KOMMODITY_OIDC_USERNAME_CLAIM"
 	envOIDCGroupsClaim                    = "KOMMODITY_OIDC_GROUPS_CLAIM"
+	envOIDCExtraScopes                    = "KOMMODITY_OIDC_EXTRA_SCOPES"
 	envDatabaseURI                        = "KOMMODITY_DB_URI"
 	envAttestationNonceTTL                = "KOMMODITY_ATTESTATION_NONCE_TTL"
 	envDevelopmentMode                    = "KOMMODITY_DEVELOPMENT_MODE"
@@ -345,6 +346,7 @@ func getOIDCConfig(ctx context.Context) *OIDCConfig {
 	clientID := os.Getenv(envOIDCClientID)
 	usernameClaim := os.Getenv(envOIDCUsernameClaim)
 	groupsClaim := os.Getenv(envOIDCGroupsClaim)
+	extraScopes := parseExtraScopes(os.Getenv(envOIDCExtraScopes))
 
 	if usernameClaim == "" {
 		logger.Info(configurationNotSpecified,
@@ -373,7 +375,41 @@ func getOIDCConfig(ctx context.Context) *OIDCConfig {
 		ClientID:      clientID,
 		UsernameClaim: usernameClaim,
 		GroupsClaim:   groupsClaim,
+		ExtraScopes:   EnsureProfileScope(extraScopes, groupsClaim),
 	}
+}
+
+// parseExtraScopes splits a comma-separated string of OIDC scopes into a slice.
+func parseExtraScopes(raw string) []string {
+	if raw == "" {
+		return nil
+	}
+
+	var scopes []string
+
+	for scope := range strings.SplitSeq(raw, ",") {
+		trimmed := strings.TrimSpace(scope)
+		if trimmed != "" {
+			scopes = append(scopes, trimmed)
+		}
+	}
+
+	return scopes
+}
+
+// EnsureProfileScope adds the "profile" scope if a groups claim is configured
+// and "profile" is not already present. The profile scope is required by Azure
+// AD / Entra ID to include group claims in the ID token.
+func EnsureProfileScope(scopes []string, groupsClaim string) []string {
+	if groupsClaim == "" {
+		return scopes
+	}
+
+	if slices.Contains(scopes, "profile") {
+		return scopes
+	}
+
+	return append(scopes, "profile")
 }
 
 func getAdminGroup() (string, error) {
