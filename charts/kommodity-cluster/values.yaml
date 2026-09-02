@@ -16,7 +16,6 @@ kommodity:
     # These are kubelogin (client) flags, NOT kube-apiserver flags.
     clientExtraFlags:
       - "--oidc-extra-scope=email"
-      - "--oidc-extra-scope=groups"
 
   kms:
     enabled: false
