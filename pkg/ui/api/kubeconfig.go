@@ -186,8 +186,6 @@ func getKubeConfig(ctx context.Context, clusterName string, kubeClient *clientgo
 
 // getOIDCConfigFromCluster fetches the machine config from the downstream Talos cluster
 // and extracts OIDC configuration from cluster.apiServer.extraArgs.
-//
-//nolint:cyclop
 func getOIDCConfigFromCluster(
 	ctx context.Context,
 	clusterName string,
@@ -298,12 +296,12 @@ func getFirstMachineConfig(
 	return provider, nil
 }
 
-// oidcClientSecretName is the suffix of the Secret rendered by the
+// oidcClientObjectName is the suffix of the Secret rendered by the
 // kommodity-cluster chart (templates/talos/oidc-client-secret.yaml) carrying the
 // kubelogin client flags (and possibly a client secret) for the cluster's UI
 // kubeconfig. A Secret rather than a ConfigMap because the flags may carry
 // sensitive material such as --oidc-client-secret.
-const oidcClientSecretName = "-oidc-client"
+const oidcClientObjectName = "-oidc-client"
 
 // getOIDCClientExtraFlags reads the cluster's OIDC client Secret from the
 // management cluster and returns the literal kubelogin flags it carries. Returns
@@ -315,7 +313,7 @@ func getOIDCClientExtraFlags(
 	kubeClient *clientgoclientset.Clientset,
 ) ([]string, error) {
 	secret, err := kubeClient.CoreV1().Secrets(namespace).Get(
-		ctx, clusterName+oidcClientSecretName, metav1.GetOptions{},
+		ctx, clusterName+oidcClientObjectName, metav1.GetOptions{},
 	)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
@@ -323,7 +321,7 @@ func getOIDCClientExtraFlags(
 		}
 
 		return nil, fmt.Errorf("failed to get OIDC client secret %s/%s: %w",
-			namespace, clusterName+oidcClientSecretName, err)
+			namespace, clusterName+oidcClientObjectName, err)
 	}
 
 	raw, ok := secret.Data["clientExtraFlags"]
@@ -332,7 +330,9 @@ func getOIDCClientExtraFlags(
 	}
 
 	var flags []string
-	if err := json.Unmarshal(raw, &flags); err != nil {
+
+	err = json.Unmarshal(raw, &flags)
+	if err != nil {
 		return nil, fmt.Errorf("failed to parse clientExtraFlags from %s/%s: %w",
 			namespace, secret.Name, err)
 	}
