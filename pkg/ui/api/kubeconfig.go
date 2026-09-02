@@ -232,8 +232,8 @@ func getOIDCConfigFromCluster(
 
 	// Client-side kubelogin flags (e.g. --oidc-extra-scope=...) are not apiserver
 	// flags, so they cannot travel via the machine config. They are rendered by the
-	// chart into a ConfigMap in the management cluster, labelled with the cluster
-	// name, and read here.
+	// chart into a Secret in the management cluster (named "<clusterName>-oidc-client")
+	// and read here.
 	clientExtraFlags, err := getOIDCClientExtraFlags(ctx, clusterName, namespace, kubeClient)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get OIDC client extra flags: %w", err)
