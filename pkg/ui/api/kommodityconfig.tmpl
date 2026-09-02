@@ -29,7 +29,7 @@ users:
           - --oidc-issuer-url={{ $.OIDCConfig.IssuerURL }}
           - --oidc-client-id={{ $.OIDCConfig.ClientID }}
           {{- range $.OIDCConfig.ClientExtraFlags }}
-          - {{ . }}
+          - {{ . | quote }}
           {{- end }}
         interactiveMode: Always
   {{- else }}
