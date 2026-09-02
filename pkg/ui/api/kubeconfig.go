@@ -6,6 +6,7 @@ import (
 	"context"
 	"embed"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"html/template"
@@ -17,6 +18,7 @@ import (
 	"github.com/kommodity-io/kommodity/pkg/config"
 	talosconfig "github.com/siderolabs/talos/pkg/machinery/config"
 	"github.com/siderolabs/talos/pkg/machinery/config/configloader"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientgoclientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
@@ -228,20 +230,16 @@ func getOIDCConfigFromCluster(
 		oidcConfig.GroupsClaim = groupsClaim
 	}
 
-	// Handle extra scopes - they may be comma-separated or multiple entries
-	if extraScopes, ok := extraArgs["oidc-extra-scope"]; ok {
-		trimmedScopes := make([]string, 0, len(extraScopes))
-		for _, entry := range extraScopes {
-			for scope := range strings.SplitSeq(entry, ",") {
-				trimmed := strings.TrimSpace(scope)
-				if trimmed != "" {
-					trimmedScopes = append(trimmedScopes, trimmed)
-				}
-			}
-		}
-
-		oidcConfig.ExtraScopes = trimmedScopes
+	// Client-side kubelogin flags (e.g. --oidc-extra-scope=...) are not apiserver
+	// flags, so they cannot travel via the machine config. They are rendered by the
+	// chart into a ConfigMap in the management cluster, labelled with the cluster
+	// name, and read here.
+	clientExtraFlags, err := getOIDCClientExtraFlags(ctx, clusterName, namespace, kubeClient)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get OIDC client extra flags: %w", err)
 	}
+
+	oidcConfig.ClientExtraFlags = clientExtraFlags
 
 	return oidcConfig, nil
 }
@@ -298,4 +296,46 @@ func getFirstMachineConfig(
 	}
 
 	return provider, nil
+}
+
+// oidcClientSecretName is the name of the Secret rendered by the
+// kommodity-cluster chart (templates/talos/oidc-client-config.yaml) carrying the
+// kubelogin client flags (and possibly a client secret) for the cluster's UI
+// kubeconfig. A Secret rather than a ConfigMap because the flags may carry
+// sensitive material such as --oidc-client-secret.
+const oidcClientSecretName = "-oidc-client"
+
+// getOIDCClientExtraFlags reads the cluster's OIDC client Secret from the
+// management cluster and returns the literal kubelogin flags it carries. Returns
+// nil (no error) when the Secret is absent — client flags are optional.
+func getOIDCClientExtraFlags(
+	ctx context.Context,
+	clusterName string,
+	namespace string,
+	kubeClient *clientgoclientset.Clientset,
+) ([]string, error) {
+	secret, err := kubeClient.CoreV1().Secrets(namespace).Get(
+		ctx, clusterName+oidcClientSecretName, metav1.GetOptions{},
+	)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil, nil
+		}
+
+		return nil, fmt.Errorf("failed to get OIDC client secret %s/%s: %w",
+			namespace, clusterName+oidcClientSecretName, err)
+	}
+
+	raw, ok := secret.Data["clientExtraFlags"]
+	if !ok || len(strings.TrimSpace(string(raw))) == 0 {
+		return nil, nil
+	}
+
+	var flags []string
+	if err := json.Unmarshal(raw, &flags); err != nil {
+		return nil, fmt.Errorf("failed to parse clientExtraFlags from %s/%s: %w",
+			namespace, secret.Name, err)
+	}
+
+	return flags, nil
 }
