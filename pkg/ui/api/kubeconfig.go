@@ -298,8 +298,8 @@ func getFirstMachineConfig(
 	return provider, nil
 }
 
-// oidcClientSecretName is the name of the Secret rendered by the
-// kommodity-cluster chart (templates/talos/oidc-client-config.yaml) carrying the
+// oidcClientSecretName is the suffix of the Secret rendered by the
+// kommodity-cluster chart (templates/talos/oidc-client-secret.yaml) carrying the
 // kubelogin client flags (and possibly a client secret) for the cluster's UI
 // kubeconfig. A Secret rather than a ConfigMap because the flags may carry
 // sensitive material such as --oidc-client-secret.
