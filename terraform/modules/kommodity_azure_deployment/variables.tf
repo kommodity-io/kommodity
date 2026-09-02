@@ -43,6 +43,32 @@ variable "nat_gateway" {
   }
 }
 
+variable "ingress_ip_restrictions" {
+  type = list(object({
+    cidr        = string
+    action      = optional(string, "Allow")
+    name        = string
+    description = optional(string, "")
+  }))
+  description = "IP/CIDR restrictions on the Container App ingress. Empty list = all traffic allowed. Add Allow entries to make a whitelist; unmatched traffic is denied."
+  default     = []
+
+  validation {
+    condition     = alltrue([for r in var.ingress_ip_restrictions : contains(["Allow", "Deny"], r.action)])
+    error_message = "ingress_ip_restrictions[].action must be \"Allow\" or \"Deny\"."
+  }
+
+  validation {
+    condition     = alltrue([for r in var.ingress_ip_restrictions : can(cidrnetmask(r.cidr))])
+    error_message = "ingress_ip_restrictions[].cidr must be valid CIDR notation (e.g. 10.0.0.0/8 or 203.0.113.5/32)."
+  }
+
+  validation {
+    condition     = alltrue([for r in var.ingress_ip_restrictions : r.name != ""])
+    error_message = "ingress_ip_restrictions[].name must not be empty."
+  }
+}
+
 variable "database_password" {
   type = object({
     length  = number

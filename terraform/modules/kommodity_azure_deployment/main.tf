@@ -271,6 +271,16 @@ resource "azurerm_container_app" "kommodity-app" {
       percentage      = 100
       latest_revision = true
     }
+
+    dynamic "ip_security_restriction" {
+      for_each = var.ingress_ip_restrictions
+      content {
+        ip_address_range = ip_security_restriction.value.cidr
+        action           = ip_security_restriction.value.action
+        name             = ip_security_restriction.value.name
+        description      = ip_security_restriction.value.description
+      }
+    }
   }
 
   template {

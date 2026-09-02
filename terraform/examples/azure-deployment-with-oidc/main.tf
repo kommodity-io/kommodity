@@ -38,4 +38,20 @@ module "kommodity_azure_deployment" {
     idle_timeout = 30
     zone         = "1"
   }
+
+  # Restrict ingress to known networks. Unmatched traffic is denied.
+  # Azure evaluates rules top-down; first match wins, so order matters.
+  # Omit this block (or set to []) to leave ingress open to all traffic.
+  ingress_ip_restrictions = [
+    {
+      cidr        = "203.0.113.10/32"
+      name        = "office-nat"
+      description = "Office public egress IP"
+    },
+    {
+      cidr        = "198.51.100.0/24"
+      name        = "vpn-range"
+      description = "VPN subnet"
+    },
+  ]
 }
