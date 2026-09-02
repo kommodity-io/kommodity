@@ -8,16 +8,16 @@ kommodity:
 
   oidc:
     enabled: false
-    # issuerURL: https://login.microsoftonline.com/<YOUR_TENANT_ID>/v2.0 # sets apiserver flag and kubeconfig --oidc-issuer-url flag in UI
-    # clientID: <YOUR_OIDC_CLIENT_ID> # sets apiserver flag and kubeconfig --oidc-client-id flag in UI
-    # usernameClaim: email # sets apiserver flag
-    # groupsClaim: groups # sets apiserver flag
-    # # Extra flags for the OIDC client in the kubeconfig exec block served by the UI.
-    # # These are kubelogin (client) flags, NOT kube-apiserver flags.
-    # clientExtraFlags:
-    #   - "--oidc-extra-scope=email"
-    #   - "--oidc-extra-scope=groups"
-    #   - "--oidc-client-secret=<secret-name>" # optional — only if your IdP requires it
+    issuerURL: <YOUR_ISSUER_URL> # sets apiserver flag and kubeconfig --oidc-issuer-url flag in UI
+    clientID: <YOUR_OIDC_CLIENT_ID> # sets apiserver flag and kubeconfig --oidc-client-id flag in UI
+    usernameClaim: email # sets apiserver flag
+    groupsClaim: groups # sets apiserver flag
+    # Extra flags for the OIDC client in the kubeconfig exec block served by the UI.
+    # These are kubelogin (client) flags, NOT kube-apiserver flags.
+    clientExtraFlags:
+      - "--oidc-extra-scope=email"
+      - "--oidc-extra-scope=groups"
+    #   - "--oidc-client-secret=<secret-name>" # if your IdP requires it
 
   kms:
     enabled: false
