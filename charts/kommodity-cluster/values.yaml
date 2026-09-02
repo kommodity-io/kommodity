@@ -17,7 +17,6 @@ kommodity:
     clientExtraFlags:
       - "--oidc-extra-scope=email"
       - "--oidc-extra-scope=groups"
-    #   - "--oidc-client-secret=<secret-name>" # if your IdP requires it
 
   kms:
     enabled: false
