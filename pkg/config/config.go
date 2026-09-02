@@ -151,7 +151,7 @@ type ClientConfig struct {
 // OIDCConfig holds the OIDC configuration settings from the environment variables.
 // For the management cluster's own UI kubeconfig these come from env vars; for a
 // downstream cluster they are assembled by the UI from the cluster's machine
-// config (apiserver validation flags) plus the cluster's OIDC client ConfigMap
+// config (apiserver validation flags) plus the cluster's OIDC client Secret
 // (kubelogin exec-block flags).
 type OIDCConfig struct {
 	IssuerURL         string
