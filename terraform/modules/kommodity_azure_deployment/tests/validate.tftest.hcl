@@ -4,6 +4,8 @@ mock_provider "azurerm" {
   alias = "dns"
 }
 
+mock_provider "azapi" {}
+
 mock_provider "random" {}
 
 mock_provider "time" {}
@@ -27,4 +29,13 @@ variables {
 
 run "validate" {
   command = plan
+}
+
+run "ingress_ip_restrictions_empty_default_allows_all" {
+  command = plan
+
+  assert {
+    condition     = length(azurerm_container_app.kommodity-app.ingress[0].ip_security_restriction) == 0
+    error_message = "Default (empty list) must produce no IP security restrictions."
+  }
 }
