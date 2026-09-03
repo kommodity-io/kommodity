@@ -9,7 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"html/template"
+	"text/template"
 	"os"
 	"sort"
 	"strings"
