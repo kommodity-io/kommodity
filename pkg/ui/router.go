@@ -2,6 +2,7 @@ package ui
 
 import (
 	"embed"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -24,9 +25,13 @@ import (
 )
 
 // KubeconfigSection holds configuration for rendering a kubeconfig section.
+// ContentBase64 carries the kubeconfig base64-encoded so html/template cannot
+// HTML-escape it; entities inside a <script> tag are not decoded by the browser,
+// so escaped quotes would render literally. The frontend decodes it via atob.
 type KubeconfigSection struct {
-	ID      string
-	Content string
+	ID             string
+	Content        string
+	ContentBase64  string
 }
 
 // MetricCard holds data for a single metric card.
@@ -151,8 +156,9 @@ func (r *Router) handleApp(writer http.ResponseWriter, req *http.Request) {
 		"Clusters": clusters,
 		"Version":  getKommodityVersion(),
 		"KubeconfigSection": KubeconfigSection{
-			ID:      "kommodity",
-			Content: kubeconfigContent,
+			ID:            "kommodity",
+			Content:       kubeconfigContent,
+			ContentBase64: base64.StdEncoding.EncodeToString([]byte(kubeconfigContent)),
 		},
 	}
 
@@ -466,8 +472,9 @@ func buildClusterDetailData(
 		"HasAutoscaler":  hasAutoscaler,
 		"Version":        getKommodityVersion(),
 		"KubeconfigSection": KubeconfigSection{
-			ID:      clusterName,
-			Content: kubeconfigContent,
+			ID:            clusterName,
+			Content:       kubeconfigContent,
+			ContentBase64: base64.StdEncoding.EncodeToString([]byte(kubeconfigContent)),
 		},
 	}
 }
