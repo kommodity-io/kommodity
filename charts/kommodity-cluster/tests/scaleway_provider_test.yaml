@@ -235,3 +235,35 @@ tests:
     asserts:
       - notExists:
           path: spec.failureDomains
+
+  - it: should default scalewaySecretName to scaleway-secret when provider.secret is not set
+    template: templates/provider/scaleway/cluster.yaml
+    asserts:
+      - equal:
+          path: spec.scalewaySecretName
+          value: scaleway-secret
+
+  - it: should default ccm-secret-name to scaleway-secret when provider.secret is not set
+    template: templates/provider/capi/cluster.yaml
+    asserts:
+      - equal:
+          path: metadata.annotations["kommodity.io/ccm-secret-name"]
+          value: scaleway-secret
+
+  - it: should honour an explicit provider.secret.name override for scalewaySecretName
+    template: templates/provider/scaleway/cluster.yaml
+    set:
+      kommodity.provider.secret.name: my-custom-secret
+    asserts:
+      - equal:
+          path: spec.scalewaySecretName
+          value: my-custom-secret
+
+  - it: should honour an explicit provider.secret.name override for ccm-secret-name
+    template: templates/provider/capi/cluster.yaml
+    set:
+      kommodity.provider.secret.name: my-custom-secret
+    asserts:
+      - equal:
+          path: metadata.annotations["kommodity.io/ccm-secret-name"]
+          value: my-custom-secret

@@ -22,7 +22,7 @@ spec:
   {{- fail "missing required projectID in kommodity.provider.config for Scaleway" -}}
   {{- end }}
   region: {{ .Values.kommodity.region }}
-  scalewaySecretName: {{ .Values.kommodity.provider.secret.name }}
+  scalewaySecretName: {{ dig "secret" "name" "scaleway-secret" .Values.kommodity.provider }}
   {{- if and .Values.kommodity.network.ipv4.enabled (not .Values.kommodity.network.ipv4.public) }}
   network:
     privateNetwork:

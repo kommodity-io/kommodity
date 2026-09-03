@@ -39,7 +39,11 @@ metadata:
   {{- $_ := set $annotations "kommodity.io/ccm-secret-name" $azureCCMSecret }}
   {{- $_ := set $annotations "kommodity.io/ccm-downstream-secret-name" "azure-cloud-provider" }}
   {{- else }}
-  {{- $_ := set $annotations "kommodity.io/ccm-secret-name" .Values.kommodity.provider.secret.name }}
+  {{- $nonAzureSecret := dig "secret" "name" "" .Values.kommodity.provider }}
+  {{- if eq .Values.kommodity.provider.name "Scaleway" }}
+  {{- $nonAzureSecret = default "scaleway-secret" $nonAzureSecret }}
+  {{- end }}
+  {{- $_ := set $annotations "kommodity.io/ccm-secret-name" $nonAzureSecret }}
   {{- if eq .Values.kommodity.provider.name "Kubevirt" }}
   {{- $_ := set $annotations "kommodity.io/ccm-downstream-secret-name" "kubevirt-cloud-controller-manager" }}
   {{- else if eq .Values.kommodity.provider.name "Scaleway" }}
