@@ -430,6 +430,11 @@ talos:
     maxBackoff: 2m
     # Node probe timeout
     scanTimeout: 2s
+    # CIDR range to scan for peer control-plane nodes. Empty = scan full node CIDR (default).
+    scanCIDR: ""
+    # Number of concurrent scan probes. Default 128. Setting to 0 or leaving
+    # unset omits the env var, falling back to the extension default (128).
+    scanConcurrency: 128
 
   # If true, the Talos CNI will be disabled. Useful when using a different CNI such as Cilium.
   disableCNI: true

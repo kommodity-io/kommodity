@@ -337,6 +337,48 @@ tests:
           path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
           pattern: "TALOS_AUTO_BOOTSTRAP_QUORUM_NODES=2"
 
+  - it: should emit TALOS_AUTO_BOOTSTRAP_SCAN_CIDR when scanCIDR is set
+    template: templates/talos/controlplane.yaml
+    set:
+      talos.autoBootstrap.scanCIDR: 10.0.0.0/24
+    asserts:
+      - hasDocuments:
+          count: 1
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "TALOS_AUTO_BOOTSTRAP_SCAN_CIDR=10.0.0.0/24"
+
+  - it: should not emit TALOS_AUTO_BOOTSTRAP_SCAN_CIDR when scanCIDR is empty
+    template: templates/talos/controlplane.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - notMatchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "TALOS_AUTO_BOOTSTRAP_SCAN_CIDR"
+
+  - it: should emit TALOS_AUTO_BOOTSTRAP_SCAN_CONCURRENCY when scanConcurrency is set
+    template: templates/talos/controlplane.yaml
+    set:
+      talos.autoBootstrap.scanConcurrency: 256
+    asserts:
+      - hasDocuments:
+          count: 1
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "TALOS_AUTO_BOOTSTRAP_SCAN_CONCURRENCY=256"
+
+  - it: should not emit TALOS_AUTO_BOOTSTRAP_SCAN_CONCURRENCY when scanConcurrency is 0
+    template: templates/talos/controlplane.yaml
+    set:
+      talos.autoBootstrap.scanConcurrency: 0
+    asserts:
+      - hasDocuments:
+          count: 1
+      - notMatchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "TALOS_AUTO_BOOTSTRAP_SCAN_CONCURRENCY"
+
   # Kubernetes version precedence test
   - it: should make sure Kubernetes version defined in controlplane's config takes precedence
     template: templates/talos/controlplane.yaml
