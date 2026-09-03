@@ -29,9 +29,8 @@ import (
 // HTML-escape it; entities inside a <script> tag are not decoded by the browser,
 // so escaped quotes would render literally. The frontend decodes it via atob.
 type KubeconfigSection struct {
-	ID             string
-	Content        string
-	ContentBase64  string
+	ID            string
+	ContentBase64 string
 }
 
 // MetricCard holds data for a single metric card.
@@ -157,7 +156,6 @@ func (r *Router) handleApp(writer http.ResponseWriter, req *http.Request) {
 		"Version":  getKommodityVersion(),
 		"KubeconfigSection": KubeconfigSection{
 			ID:            "kommodity",
-			Content:       kubeconfigContent,
 			ContentBase64: base64.StdEncoding.EncodeToString([]byte(kubeconfigContent)),
 		},
 	}
@@ -473,7 +471,6 @@ func buildClusterDetailData(
 		"Version":        getKommodityVersion(),
 		"KubeconfigSection": KubeconfigSection{
 			ID:            clusterName,
-			Content:       kubeconfigContent,
 			ContentBase64: base64.StdEncoding.EncodeToString([]byte(kubeconfigContent)),
 		},
 	}
