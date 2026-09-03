@@ -1,7 +1,3 @@
-{{- /* TalosControlPlane requires a clonable infra template reference; byot
-       machines are static (one publicIP each), so byot skips this object.
-       See templates/provider/byot/machines.yaml. */ -}}
-{{- if ne $.Values.kommodity.provider.name "Byot" }}
 ---
 apiVersion: controlplane.cluster.x-k8s.io/v1alpha3
 kind: TalosControlPlane
@@ -39,6 +35,9 @@ spec:
     {{- else if eq $.Values.kommodity.provider.name "Hetzner" }}
     apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
     kind: HCloudMachineTemplate
+    {{- else if eq $.Values.kommodity.provider.name "Byot" }}
+    apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+    kind: ByotMachineTemplate
     {{- else }}
     {{- fail "infrastructure provider is not supported" -}}
     {{- end }}
@@ -56,11 +55,17 @@ spec:
         InfrastructureName matches the node name the infrastructure provider
         and the CCM use.
 
-        Hetzner only. Changing this field makes every existing control plane
-        machine mismatch its TalosConfig, which rolls the control plane, so it
-        is applied where the failure has been observed rather than everywhere.
+        Hetzner and Byot. Byot needs it so the workload Node name matches the
+        owning Machine name (CAPI clones the infra machine with Name ==
+        Machine.Name), which the ByotMachine controller's updateNodeProviderID
+        relies on to Get the Node by name. Without it the kubelet keeps a
+        Talos-generated hostname and the Machine<->Node link never fires.
+        Changing this field makes every existing control plane machine
+        mismatch its TalosConfig, which rolls the control plane, so it is
+        applied where the failure has been observed/needed rather than
+        everywhere.
       */}}
-      {{- if eq $.Values.kommodity.provider.name "Hetzner" }}
+      {{- if or (eq $.Values.kommodity.provider.name "Hetzner") (eq $.Values.kommodity.provider.name "Byot") }}
       hostname:
         source: InfrastructureName
       {{- else }}
@@ -122,4 +127,3 @@ spec:
       {{- /* ExtensionServiceConfig for kommodity-attestation extension */ -}}
 {{- include "kommodity.talos.attestationExtensionServiceConfig" (dict "logLevel" $.Values.kommodity.logLevel) | nindent 6 }}
       {{- end }}
-{{- end }}

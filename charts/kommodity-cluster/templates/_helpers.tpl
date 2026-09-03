@@ -225,7 +225,8 @@ Any values that should trigger a new Machine template when changed should be add
 {{- with (dig "resources" "" .poolValues) -}}
 {{- $_ := set $data "resources" . -}}
 {{- end -}}
-{{- $_ := set $data "diskSize" (dig "os" "disk" "size" "" .poolValues) -}}
+{{- $disk := default (dict) (dig "os" "disk" (dict) .poolValues) -}}
+{{- $_ := set $data "diskSize" (dig "size" "" $disk) -}}
 {{- $_ := set $data "gpus" (dig "gpus" "" .poolValues) -}}
 {{- if and (eq .allValues.kommodity.provider.name "Azure") (hasKey .poolValues "acceleratedNetworking") -}}
 {{- $_ := set $data "acceleratedNetworking" .poolValues.acceleratedNetworking -}}
@@ -239,6 +240,17 @@ Any values that should trigger a new Machine template when changed should be add
 {{- if (dig "spreadAcrossHosts" false .poolValues) -}}
 {{- $_ := set $data "spreadAcrossHosts" true -}}
 {{- end -}}
+{{- end -}}
+{{- /* Byot: the ByotMachineTemplate spec is a hostSelector derived from
+     resources/os.disk plus the operator freeform hostSelector. Any of these
+     changing must roll the template (CAPI infra templates are immutable),
+     so hash the merged selector inputs. byot.io/available is constant and
+     omitted from the hash. */ -}}
+{{- if eq .allValues.kommodity.provider.name "Byot" -}}
+{{- $disk := default (dict) (dig "os" "disk" (dict) .poolValues) -}}
+{{- $_ := set $data "diskType" (dig "type" "" $disk) -}}
+{{- $_ := set $data "diskSize" (dig "size" "" $disk) -}}
+{{- $_ := set $data "byotHostSelector" (dig "hostSelector" "" .poolValues) -}}
 {{- end -}}
 {{- $_ := set $data "publicNetworkEnabled" .allValues.kommodity.network.ipv4.public -}}
 {{- $zones := include "kommodity-cluster.poolZones" .poolValues | fromJsonArray -}}
@@ -399,22 +411,98 @@ id: {{ printf "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Compute/i
 {{- end -}}
 
 {{/*
-Resolve byot join/split policies for a static machine.
-Precedence: static machine > parent block (controlplane or nodepool) > default "None".
-Renders joinPolicy/splitPolicy lines only when at least one policy is non-default.
-Input: dict "scope" (value path for error messages) "parent" (controlplane/nodepool values) "machine" (static machine values).
+kommodity-cluster.byotHostSelector — build the ByotMachineTemplate
+spec.template.spec.hostSelector block for a byot pool (controlplane or nodepool).
+
+byot claims ByotHosts from the registry by label selector. The chart derives
+the selector from a SKU-style `resources` + `os.disk` block, mapping each field
+to a curated byot.io/ label (exact-match against the controller-promoted
+ByotHost labels), and force-injects `byot.io/available: "true"` (a derived index
+the controller honors regardless). An optional operator `hostSelector` escape
+hatch (full LabelSelector) is merged: operator freeform matchLabels win over
+derived labels on key conflict, and matchExpressions pass through verbatim.
+`byot.io/available` is always forced last and cannot be overridden.
+
+All four hardware fields (resources.cpu, resources.memory, os.disk.type,
+os.disk.size) map to curated byot.io/ labels. resources.cpu and resources.memory
+are always required; os.disk.type and os.disk.size are optional (omit both
+for a disk-agnostic selector that matches diskless hosts like Talos-in-Docker,
+or set both to pin a disk type+class). When set, each field is validated against
+its curated value set. Exact-match semantics: a value no host ever carries
+matches nothing, so invalid values fail the template rather than silently
+sticking Machines.
+
+Input: dict "poolValues" (controlplane/nodepool values) "scope" (value path
+for error messages, e.g. "kommodity.controlplane").
+Returns the `hostSelector:` YAML block (empty matchLabels omitted), indented
+by the caller.
 */}}
-{{- define "kommodity-cluster.byotPolicies" -}}
-{{- $joinPolicy := default (default "None" .parent.joinPolicy) .machine.joinPolicy -}}
-{{- $splitPolicy := default (default "Reset" .parent.splitPolicy) .machine.splitPolicy -}}
-{{- if not (or (eq $joinPolicy "None") (eq $joinPolicy "Reset")) -}}
-{{- fail (printf "%s.joinPolicy must be None or Reset, got %q" .scope $joinPolicy) -}}
+{{- define "kommodity-cluster.byotHostSelector" -}}
+{{- $p := .poolValues -}}
+{{- $scope := .scope -}}
+{{- $labels := dict -}}
+{{- /* Operator freeform escape hatch is the base; it wins over derived labels
+     on key conflict, so each derived label is only set when the operator
+     has not already provided it. */ -}}
+{{- with (dig "hostSelector" "matchLabels" (dict) $p) -}}
+{{- $labels = mustMergeOverwrite $labels (deepCopy .) -}}
 {{- end -}}
-{{- if not (or (eq $splitPolicy "None") (eq $splitPolicy "Reset")) -}}
-{{- fail (printf "%s.splitPolicy must be None or Reset, got %q" .scope $splitPolicy) -}}
+{{- /* resources.cpu -> byot.io/cpu-cores (plain integer string). */ -}}
+{{- $cpu := dig "resources" "cpu" "" $p -}}
+{{- if not $cpu -}}
+{{- fail (printf "%s.resources.cpu is required for Byot (plain integer string of physical cores, e.g. \"4\")" $scope) -}}
 {{- end -}}
-{{- if or (ne $joinPolicy "None") (ne $splitPolicy "None") }}
-joinPolicy: {{ $joinPolicy | quote }}
-splitPolicy: {{ $splitPolicy | quote }}
+{{- if not (regexMatch "^[0-9]+$" $cpu) -}}
+{{- fail (printf "%s.resources.cpu must be a plain integer string of physical cores (e.g. \"4\"), got %q; byot.io/cpu-cores is not bucketed and not a k8s quantity (\"4000m\" is rejected)" $scope $cpu) -}}
 {{- end -}}
+{{- if not (hasKey $labels "byot.io/cpu-cores") -}}{{- $_ := set $labels "byot.io/cpu-cores" $cpu -}}{{- end -}}
+{{- /* resources.memory -> byot.io/memory-class (exact bucket). */ -}}
+{{- $memory := dig "resources" "memory" "" $p -}}
+{{- if not $memory -}}
+{{- fail (printf "%s.resources.memory is required for Byot (one of: 4G 8G 16G 32G 64G 128G)" $scope) -}}
+{{- end -}}
+{{- $memoryBuckets := list "4G" "8G" "16G" "32G" "64G" "128G" -}}
+{{- if not (has $memory $memoryBuckets) -}}
+{{- fail (printf "%s.resources.memory must be one of 4G 8G 16G 32G 64G 128G (exact bucket matching the controller-promoted byot.io/memory-class label), got %q" $scope $memory) -}}
+{{- end -}}
+{{- if not (hasKey $labels "byot.io/memory-class") -}}{{- $_ := set $labels "byot.io/memory-class" $memory -}}{{- end -}}
+{{- /* os.disk is OPTIONAL. Some hosts (e.g. Talos-in-Docker, diskless
+     boot) promote no byot.io/disk-* labels, so requiring a disk selector
+     would make them unclaimable. When either os.disk.type or os.disk.size is
+     set, BOTH must be set and valid (a disk claim is type+class together);
+     when neither is set, the selector omits byot.io/disk-* and matches any
+     host regardless of disk. Operator freeform hostSelector labels can still
+     pin a disk if needed. */ -}}
+{{- $disk := default (dict) (dig "os" "disk" (dict) $p) -}}
+{{- $diskType := dig "type" "" $disk -}}
+{{- $diskSize := dig "size" "" $disk -}}
+{{- $diskTypes := list "nvme" "ssd" "hdd" "sd" -}}
+{{- $diskClasses := list "20G" "100G" "250G" "500G" "1T" -}}
+{{- if or $diskType $diskSize -}}
+{{- if not $diskType -}}
+{{- fail (printf "%s.os.disk.type is required when os.disk.size is set (one of: nvme ssd hdd sd); omit both for a disk-agnostic selector" $scope) -}}
+{{- end -}}
+{{- if not (has $diskType $diskTypes) -}}
+{{- fail (printf "%s.os.disk.type must be one of nvme ssd hdd sd (lowercase, matching the controller-promoted byot.io/disk-type label), got %q" $scope $diskType) -}}
+{{- end -}}
+{{- if not $diskSize -}}
+{{- fail (printf "%s.os.disk.size is required when os.disk.type is set (one of: 20G 100G 250G 500G 1T); omit both for a disk-agnostic selector" $scope) -}}
+{{- end -}}
+{{- if not (has $diskSize $diskClasses) -}}
+{{- fail (printf "%s.os.disk.size must be one of 20G 100G 250G 500G 1T (exact bucket matching the controller-promoted byot.io/disk-class label), got %q" $scope $diskSize) -}}
+{{- end -}}
+{{- if not (hasKey $labels "byot.io/disk-type") -}}{{- $_ := set $labels "byot.io/disk-type" $diskType -}}{{- end -}}
+{{- if not (hasKey $labels "byot.io/disk-class") -}}{{- $_ := set $labels "byot.io/disk-class" $diskSize -}}{{- end -}}
+{{- end -}}
+{{- /* byot.io/available is force-injected last; it cannot be overridden. */ -}}
+{{- $_ := set $labels "byot.io/available" "true" -}}
+hostSelector:
+  matchLabels:
+{{- $labels | toYaml | nindent 4 }}
+{{- with (dig "hostSelector" "matchExpressions" (list) .poolValues) }}
+{{- if gt (len .) 0 }}
+  matchExpressions:
+{{- . | toYaml | nindent 4 }}
+{{- end }}
+{{- end }}
 {{- end -}}

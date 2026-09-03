@@ -1,0 +1,70 @@
+{{- /* ByotMachineTemplate objects for the byot provider.
+
+   byot claims ByotHosts from the host registry by label selector. The chart
+   renders one ByotMachineTemplate per pool (control plane + each nodepool),
+   carrying a hostSelector derived from the pool's `resources` + `os.disk`
+   block (see kommodity-cluster.byotHostSelector). CAPI clones a ByotMachine
+   from the template per replica (TalosControlPlane for CP, MachineDeployment
+   for workers) and the byot controller claims a matching ByotHost at runtime.
+
+   failureDomain is intentionally UNSET on the template (decision #4,
+   provider-chooses): spread is applied at the MachineDeployment/Machine layer
+   (one MachineDeployment per failure domain, each Machine carrying
+   template.spec.failureDomain), and the byot controller reads the owning
+   Machine's failureDomain into the claim selector. One ByotMachineTemplate
+   therefore serves all failure domains of a nodepool — but the template NAME
+   is suffixed per failure domain so each per-FD MachineDeployment references
+   a distinct template object (CAPI infra templates are immutable; a name
+   change rolls the pool). */ -}}
+{{- if eq .Values.kommodity.provider.name "Byot" }}
+{{- /* Control plane ByotMachineTemplate. */ -}}
+{{- $cp := .Values.kommodity.controlplane -}}
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: ByotMachineTemplate
+metadata:
+  name: {{ .Release.Name }}-controlplane-{{ include "kommodity-cluster.machineSpecsHash" (dict "poolValues" $cp "allValues" .Values) }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: kommodity
+    cluster.x-k8s.io/cluster-name: {{ .Release.Name }}
+spec:
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/managed-by: kommodity
+        cluster.x-k8s.io/cluster-name: {{ .Release.Name }}
+    spec:
+{{- include "kommodity-cluster.byotHostSelector" (dict "poolValues" $cp "scope" "kommodity.controlplane") | nindent 6 }}
+{{- /* Worker ByotMachineTemplates: one per nodepool, suffixed per failure
+     domain when zones are set (mirrors the per-FD MachineDeployment naming
+     in templates/provider/capi/machinedeployment.yaml). */ -}}
+{{- range $poolName, $np := .Values.kommodity.nodepools }}
+{{- $zones := include "kommodity-cluster.poolZones" $np | fromJsonArray }}
+{{- if eq (len $zones) 0 }}
+{{- $zones = list "" }}
+{{- end }}
+{{- range $zone := $zones }}
+{{- $tmplSuffix := "" }}
+{{- if $zone }}{{ $tmplSuffix = printf "-%s" $zone }}{{ end }}
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: ByotMachineTemplate
+metadata:
+  name: {{ $.Release.Name }}-worker-{{ $poolName }}{{ $tmplSuffix }}-{{ include "kommodity-cluster.machineSpecsHash" (dict "poolValues" $np "allValues" $.Values) }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: kommodity
+    cluster.x-k8s.io/cluster-name: {{ $.Release.Name }}
+spec:
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/managed-by: kommodity
+        cluster.x-k8s.io/cluster-name: {{ $.Release.Name }}
+        kommodity.io/nodepool: {{ $poolName }}
+    spec:
+{{- include "kommodity-cluster.byotHostSelector" (dict "poolValues" $np "scope" (printf "kommodity.nodepools.%s" $poolName)) | nindent 6 }}
+{{- end }}
+{{- end }}
+{{- end }}

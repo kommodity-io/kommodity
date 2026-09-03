@@ -1,20 +1,46 @@
-# Example of values to adopt existing Talos machines running in maintenance
-# mode, or already bootstrapped, identified by public IP (Bring Your Own Talos).
+# Example values to deploy a cluster whose nodes are claimed from a ByotHost
+# registry (Bring Your Own Talos). Operators add ByotHost objects (IP-only
+# records of maintenance-mode Talos boxes) out of band; this chart claims them
+# by label selector and adopts them as control-plane / worker nodes.
 kommodity:
   provider:
     name: Byot
-
-  clusterAutoscaler:
-    enabled: false # Static machines cannot be autoscaled in v1.
+    # Control-plane endpoint (REQUIRED). Must exist before any host
+    # is claimed. CP host IPs are resolved at claim time and cannot be used
+    # here (VIP / load balancer / DNS name fronting the control plane (HA)).
+    config:
+      controlPlaneEndpoint:
+        host: 203.0.113.10
+        port: 6443
 
   network:
     ipv4:
       enabled: true
-      public: true # Machines are identified by public IP by definition.
+      public: true # Byot hosts are reached by public IP (maintenance API, port 50000).
 
   controlplane:
-    # MachineHealthCheck: detect unhealthy/missing control-plane machines
-    # (e.g. a deleted VM whose Node goes NotReady) so CAPI can remediate.
+    replicas: 3
+    # SKU-driven host selector. The chart maps these to the curated byot.io/
+    # labels the ByotHost controller promotes, and claims Available hosts
+    # matching them (exact-match).
+    resources:
+      cpu: "4" # Required
+      memory: "16G" # Required (one of 4G 8G 16G 32G 64G 128G)
+    os:
+      disk:
+        type: ssd # Optional (one of nvme ssd hdd sd)
+        size: "100G" # Optional (one of 20G 100G 250G 500G 1T)
+    # zones:
+    #   - par01
+    #   - par02
+    # Optional freeform hostSelector
+    # hostSelector:
+    #   matchLabels:
+    #     site: copenhagen
+    #   matchExpressions:
+    #     - key: byot.io/platform
+    #       operator: In
+    #       values: [scaleway]
     healthCheck:
       enabled: true
       unhealthyConditions:
@@ -24,33 +50,6 @@ kommodity:
         - type: Ready
           status: "False"
           timeout: 300s
-    # Optional lifecycle policy defaults for control plane static machines
-    # Static machine entries take precedence
-    #   joinPolicy: Reset  # wipe each machine before adopting it (defaults to None)
-    #   splitPolicy: Reset # wipe each machine when it leaves management (defaults to Reset)
-    # One entry per adopted control plane machine, keyed by machine name.
-    # Exactly one entry must set init: true (the bootstrap node); its public
-    # IP also defaults as the cluster control plane endpoint.
-    staticMachines:
-      cp-0:
-        publicIP: 203.0.113.10
-        init: true
-        # Optional: adopt a machine that is already booted and configured (not
-        # in maintenance mode) by pointing at a Secret holding its talosconfig
-        # (YAML under the "talosconfig" key). Used for the join preflight and
-        # for joinPolicy: Reset wipes. Note: adopting a machine that still
-        # carries ANOTHER cluster's state without wiping it will fail the join
-        # preflight (bundle mismatch) — set joinPolicy: Reset for such machines:
-        # talosConfigSecretRef:
-        #   name: old-talosconfig
-        # Optional: wipe the machine (Talos reset on STATE+EPHEMERAL, reboot)
-        # before applying configuration — for machines that may carry stale
-        # state from a previous cluster. Pre-adoption only:
-        # joinPolicy: Reset
-        # Optional per-machine strategic patches
-        # strategicPatches: {}
-      # cp-1:
-      #   publicIP: 203.0.113.11
     # kubernetes:
     #   version: v1.33.4
     # talos:
@@ -58,8 +57,23 @@ kommodity:
 
   nodepools:
     default:
-      # MachineHealthCheck for static worker machines: detect unhealthy/missing
-      # workers (e.g. a deleted VM whose Node goes NotReady).
+      replicas: 2
+      resources:
+        cpu: "4"
+        memory: "16G"
+      os:
+        disk:
+          type: ssd
+          size: "100G"
+      zones:
+        - par01
+        - par02
+      # autoscaling:
+      #   minReplicas: 2
+      #   maxReplicas: 4
+      # hostSelector:
+      #   matchLabels:
+      #     site: copenhagen
       healthCheck:
         enabled: true
         unhealthyConditions:
@@ -69,14 +83,7 @@ kommodity:
           - type: Ready
             status: "False"
             timeout: 300s
-      staticMachines:
-        worker-0:
-          publicIP: 203.0.113.20
-          # talosConfigSecretRef:
-          #   name: old-talosconfig
-          # joinPolicy: Reset
-          # strategicPatches: {}
 
 talos:
-  # Talos version must match the maintenance-mode machines being adopted.
+  # Talos version must match the maintenance-mode ByotHosts being claimed.
   version: v1.13.8
