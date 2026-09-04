@@ -37,10 +37,10 @@ tests:
           path: metadata.annotations["kommodity.io/ccm-secret-name"]
           value: test-cluster-cloud-provider
 
-  - it: should honour an explicit provider.secret.name override for ccm-secret-name
+  - it: should honour an explicit provider.Azure.secret.name override for ccm-secret-name
     template: templates/provider/capi/cluster.yaml
     set:
-      kommodity.provider.secret.name: my-own-cloud-provider
+      kommodity.provider.Azure.secret.name: my-own-cloud-provider
     asserts:
       - equal:
           path: metadata.annotations["kommodity.io/ccm-secret-name"]
@@ -397,8 +397,8 @@ tests:
   - it: should build the image id from imageName + talosImageResourceGroup
     template: templates/provider/azure/machinetemplate.yaml
     set:
-      kommodity.provider.config.subscriptionID: sub-1234
-      kommodity.provider.config.talosImageResourceGroup: shared-images-rg
+      kommodity.provider.Azure.config.subscriptionID: sub-1234
+      kommodity.provider.Azure.config.talosImageResourceGroup: shared-images-rg
       talos.imageName: kommodity-talos-azure-v1.13.0
     asserts:
       - equal:
@@ -414,11 +414,11 @@ tests:
   - it: should require talosImageResourceGroup when only imageName is set
     template: templates/provider/azure/machinetemplate.yaml
     set:
-      kommodity.provider.config.talosImageResourceGroup: null
+      kommodity.provider.Azure.config.talosImageResourceGroup: null
       talos.imageName: kommodity-talos-azure-v1.13.0
     asserts:
       - failedTemplate:
-          errorMessage: talos.imageName requires kommodity.provider.config.talosImageResourceGroup (the resource group holding the Talos managed image) to build the Talos image resource ID
+          errorMessage: talos.imageName requires kommodity.provider.Azure.config.talosImageResourceGroup (the resource group holding the Talos managed image) to build the Talos image resource ID
 
   # Escape hatch: an explicit full ARM id takes precedence over imageName.
   - it: should use an explicit image id when configured

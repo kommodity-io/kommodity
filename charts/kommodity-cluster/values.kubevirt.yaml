@@ -2,47 +2,47 @@
 kommodity:
   provider:
     name: Kubevirt
-    secret:
-      # Kubevirt secret example (contains a kubeconfig used to connect to the Kubevirt cluster):
-      #
-      # apiVersion: v1
-      # kind: Secret
-      # metadata:
-      #   name: kubevirt-credentials
-      #   namespace: <release-namespace>
-      # data:
-      #   kubeconfig: <base64-encoded-kubeconfig>
-      # type: Opaque
-      name: kubevirt-credentials
-
     cloudControllerManager:
       enabled: true
       image:
         repository: quay.io/kubevirt/kubevirt-cloud-controller-manager
         tag: v0.6.0
 
-    config:
-      # Namespace in the external Kubevirt cluster where the VMs will be deployed
-      infraClusterNamespace: kubevirt-cluster-namespace
+    Kubevirt:
+      secret:
+        # Kubevirt secret example (contains a kubeconfig used to connect to the Kubevirt cluster):
+        #
+        # apiVersion: v1
+        # kind: Secret
+        # metadata:
+        #   name: kubevirt-credentials
+        #   namespace: <release-namespace>
+        # data:
+        #   kubeconfig: <base64-encoded-kubeconfig>
+        # type: Opaque
+        name: kubevirt-credentials
 
-      # Specify a storageClassName if needed
-      # storageClassName: my-storage-class
+      config:
+        # Namespace in the external Kubevirt cluster where the VMs will be deployed
+        infraClusterNamespace: kubevirt-cluster-namespace
 
-      # Specify a controlPlaneServiceTemplate if needed
-      # Defaults: no annotations, spec.type=LoadBalancer
-      # controlPlaneServiceTemplate:
-      #   annotations:
-      #     my-annotation: my-value
-      #   spec:
-      #     type: LoadBalancer # Valid values are ExternalName, ClusterIP, NodePort, and LoadBalancer.
+        # Specify a storageClassName if needed
+        # storageClassName: my-storage-class
 
-      # Specify a controlPlaneEndpoint if needed
-      # controlPlaneEndpoint:
-      #   host: my-host-ip
-      #   port: 6443
+        # Specify a controlPlaneServiceTemplate if needed
+        # Defaults: no annotations, spec.type=LoadBalancer
+        # controlPlaneServiceTemplate:
+        #   annotations:
+        #     my-annotation: my-value
+        #   spec:
+        #     type: LoadBalancer # Valid values are ExternalName, ClusterIP, NodePort, and LoadBalancer.
 
-      # evictionStrategy: "LiveMigrateIfPossible" # Valid values: "LiveMigrateIfPossible", "LiveMigrate", "None", "External"
+        # Specify a controlPlaneEndpoint if needed
+        # controlPlaneEndpoint:
+        #   host: my-host-ip
+        #   port: 6443
 
+        # evictionStrategy: "LiveMigrateIfPossible" # Valid values: "LiveMigrateIfPossible", "LiveMigrate", "None", "External"
   global:
     strategicPatches:
       # Required when using a Cloud Controller Manager (https://kubernetes.io/docs/tasks/administer-cluster/running-cloud-controller/#running-cloud-controller-manager)

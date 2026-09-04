@@ -58,7 +58,7 @@ tests:
 
   - it: should not include identityRef when identity is not configured
     set:
-      kommodity.provider.identity: null
+      kommodity.provider.Azure.identity: null
     asserts:
       - notExists:
           path: spec.identityRef
@@ -96,14 +96,14 @@ tests:
 
   - it: should fail when subscriptionID is missing
     set:
-      kommodity.provider.config.subscriptionID: null
+      kommodity.provider.Azure.config.subscriptionID: null
     asserts:
       - failedTemplate:
-          errorMessage: "missing required subscriptionID in kommodity.provider.config for Azure"
+          errorMessage: "missing required subscriptionID in kommodity.provider.Azure.config for Azure"
 
   - it: should default resourceGroup to the release name when not set
     set:
-      kommodity.provider.config.resourceGroup: null
+      kommodity.provider.Azure.config.resourceGroup: null
     asserts:
       - equal:
           path: spec.resourceGroup
@@ -111,10 +111,10 @@ tests:
 
   - it: should fail when location is missing
     set:
-      kommodity.provider.config.location: null
+      kommodity.provider.Azure.config.location: null
     asserts:
       - failedTemplate:
-          errorMessage: "missing required location in kommodity.provider.config for Azure"
+          errorMessage: "missing required location in kommodity.provider.Azure.config for Azure"
 
   - it: should include internal apiServerLB and full networkSpec when cluster is private
     asserts:
@@ -364,16 +364,16 @@ tests:
   # updated to match the new release name) must fail fast at render time.
   - it: should fail when resourceGroup does not match the release name
     set:
-      kommodity.provider.config.resourceGroup: some-other-cluster
+      kommodity.provider.Azure.config.resourceGroup: some-other-cluster
     asserts:
       - failedTemplate:
-          errorMessage: 'Azure resourceGroup "some-other-cluster" does not match the Helm release name "test-cluster". This usually means a values file was copied from another cluster without updating kommodity.provider.config.resourceGroup, which would make this release share the other cluster''s resource group and corrupt both. Rename the resource group to "test-cluster", or set kommodity.provider.config.allowSharedResourceGroup=true to intentionally share one.'
+          errorMessage: 'Azure resourceGroup "some-other-cluster" does not match the Helm release name "test-cluster". This usually means a values file was copied from another cluster without updating kommodity.provider.Azure.config.resourceGroup, which would make this release share the other cluster''s resource group and corrupt both. Rename the resource group to "test-cluster", or set kommodity.provider.Azure.config.allowSharedResourceGroup=true to intentionally share one.'
 
   # The opt-in escape hatch disables the resource-group check for intentional sharing.
   - it: should allow a mismatched resourceGroup when allowSharedResourceGroup is set
     set:
-      kommodity.provider.config.resourceGroup: shared-rg
-      kommodity.provider.config.allowSharedResourceGroup: true
+      kommodity.provider.Azure.config.resourceGroup: shared-rg
+      kommodity.provider.Azure.config.allowSharedResourceGroup: true
     asserts:
       - isKind:
           of: AzureCluster
