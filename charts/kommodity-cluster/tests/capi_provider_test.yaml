@@ -312,3 +312,33 @@ tests:
       - equal:
           path: spec.template.spec.version
           value: "nodepool-kubernetes-version"
+
+  # Test nodeDrainTimeout / nodeDeletionTimeout are rendered into the Machine template spec
+  - it: should render nodeDrainTimeout and nodeDeletionTimeout into the Machine template spec when set on the nodepool
+    template: templates/provider/capi/machinedeployment.yaml
+    set:
+      kommodity.nodepools.default.nodeDrainTimeout: "10m0s"
+      kommodity.nodepools.default.nodeDeletionTimeout: "30s"
+    asserts:
+      - isKind:
+          of: MachineDeployment
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: spec.template.spec.nodeDrainTimeout
+          value: "10m0s"
+      - equal:
+          path: spec.template.spec.nodeDeletionTimeout
+          value: "30s"
+
+  - it: should omit nodeDrainTimeout and nodeDeletionTimeout when not set on the nodepool
+    template: templates/provider/capi/machinedeployment.yaml
+    asserts:
+      - isKind:
+          of: MachineDeployment
+      - hasDocuments:
+          count: 1
+      - notExists:
+          path: spec.template.spec.nodeDrainTimeout
+      - notExists:
+          path: spec.template.spec.nodeDeletionTimeout

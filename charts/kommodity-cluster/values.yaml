@@ -362,6 +362,13 @@ kommodity:
 
     #   kubernetes:
     #     version: v1.33.4
+    #   # Drain/delete timeouts applied to the Machine template spec. nodeDrainTimeout
+    #   # bounds how long CAPI waits for pod eviction before force-deleting the node;
+    #   # unset (default) means CAPI waits indefinitely, so PDB-blocked drains can
+    #   # stall a rolling update forever. nodeDeletionTimeout bounds node object
+    #   # deletion after the drain succeeds (CAPI default 10s).
+    #   nodeDrainTimeout: 10m0s
+    #   nodeDeletionTimeout: 10s
     #   # Talos version and imageName can be overridden here, otherwise the top-level talos.version and talos.imageName are used
     #   talos:
     #     version: v1.13.0
