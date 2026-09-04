@@ -333,6 +333,9 @@ tests:
 
   - it: should omit nodeDrainTimeout and nodeDeletionTimeout when not set on the nodepool
     template: templates/provider/capi/machinedeployment.yaml
+    set:
+      kommodity.nodepools.default.nodeDrainTimeout: null
+      kommodity.nodepools.default.nodeDeletionTimeout: null
     asserts:
       - isKind:
           of: MachineDeployment
