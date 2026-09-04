@@ -156,7 +156,7 @@ tests:
   - it: should render when provider config is null rather than an empty map
     template: templates/provider/hetzner/cluster.yaml
     set:
-      kommodity.provider.config: null
+      kommodity.provider.Hetzner.config: null
     asserts:
       - isKind:
           of: HetznerCluster

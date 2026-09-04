@@ -235,7 +235,7 @@ Any values that should trigger a new Machine template when changed should be add
 	{{- $_ := set $data "additionalVolumes" . -}}
 {{- end -}}
 {{- if eq .allValues.kommodity.provider.name "Kubevirt" -}}
-{{- $effectiveEvictionStrategy := default "LiveMigrateIfPossible" (dig "evictionStrategy" "" (default dict .allValues.kommodity.provider.config)) -}}
+{{- $effectiveEvictionStrategy := default "LiveMigrateIfPossible" (dig "Kubevirt" "config" "evictionStrategy" "" .allValues.kommodity.provider) -}}
 {{- $_ := set $data "evictionStrategy" $effectiveEvictionStrategy -}}
 {{- if (dig "spreadAcrossHosts" false .poolValues) -}}
 {{- $_ := set $data "spreadAcrossHosts" true -}}
@@ -347,7 +347,7 @@ credential materializer refuses to take over a Secret owned by another cluster â
 see ErrSecretOwnedByAnotherCluster â€” so this template intentionally does not
 constrain provider.secret.name, which has a legitimate custom-override use case.)
 
-Set kommodity.provider.config.allowSharedResourceGroup: true to intentionally
+Set kommodity.provider.Azure.config.allowSharedResourceGroup: true to intentionally
 place multiple clusters in one resource group (you are then responsible for
 non-colliding resource names and CIDRs).
 
@@ -355,10 +355,10 @@ Usage: {{ include "kommodity.azure.validateNaming" . }}
 */}}
 {{- define "kommodity.azure.validateNaming" -}}
 {{- if eq .Values.kommodity.provider.name "Azure" -}}
-{{- if not (dig "config" "allowSharedResourceGroup" false .Values.kommodity.provider) -}}
-{{- $rg := dig "config" "resourceGroup" "" .Values.kommodity.provider -}}
+{{- if not (dig "Azure" "config" "allowSharedResourceGroup" false .Values.kommodity.provider) -}}
+{{- $rg := dig "Azure" "config" "resourceGroup" "" .Values.kommodity.provider -}}
 {{- if and $rg (ne $rg .Release.Name) -}}
-{{- fail (printf "Azure resourceGroup %q does not match the Helm release name %q. This usually means a values file was copied from another cluster without updating kommodity.provider.config.resourceGroup, which would make this release share the other cluster's resource group and corrupt both. Rename the resource group to %q, or set kommodity.provider.config.allowSharedResourceGroup=true to intentionally share one." $rg .Release.Name .Release.Name) -}}
+{{- fail (printf "Azure resourceGroup %q does not match the Helm release name %q. This usually means a values file was copied from another cluster without updating kommodity.provider.Azure.config.resourceGroup, which would make this release share the other cluster's resource group and corrupt both. Rename the resource group to %q, or set kommodity.provider.Azure.config.allowSharedResourceGroup=true to intentionally share one." $rg .Release.Name .Release.Name) -}}
 {{- end -}}
 {{- end -}}
 {{- end -}}
@@ -402,11 +402,11 @@ computeGallery:
 {{- else if dig "id" "" $talos -}}
 id: {{ $talos.id }}
 {{- else if dig "imageName" "" $talos -}}
-{{- $subID := required "talos.imageName requires kommodity.provider.config.subscriptionID to build the Talos image resource ID" (dig "config" "subscriptionID" "" .Values.kommodity.provider) -}}
-{{- $imageRG := required "talos.imageName requires kommodity.provider.config.talosImageResourceGroup (the resource group holding the Talos managed image) to build the Talos image resource ID" (dig "config" "talosImageResourceGroup" "" .Values.kommodity.provider) -}}
+{{- $subID := required "talos.imageName requires kommodity.provider.Azure.config.subscriptionID to build the Talos image resource ID" (dig "Azure" "config" "subscriptionID" "" .Values.kommodity.provider) -}}
+{{- $imageRG := required "talos.imageName requires kommodity.provider.Azure.config.talosImageResourceGroup (the resource group holding the Talos managed image) to build the Talos image resource ID" (dig "Azure" "config" "talosImageResourceGroup" "" .Values.kommodity.provider) -}}
 id: {{ printf "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Compute/images/%s" $subID $imageRG $talos.imageName }}
 {{- else -}}
-{{- fail "no Talos image configured for Azure: set talos.imageName (recommended) together with kommodity.provider.config.talosImageResourceGroup, or use talos.id / talos.computeGallery / talos.marketplace" -}}
+{{- fail "no Talos image configured for Azure: set talos.imageName (recommended) together with kommodity.provider.Azure.config.talosImageResourceGroup, or use talos.id / talos.computeGallery / talos.marketplace" -}}
 {{- end -}}
 {{- end -}}
 

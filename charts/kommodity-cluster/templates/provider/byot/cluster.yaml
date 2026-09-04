@@ -1,7 +1,7 @@
 {{- if eq .Values.kommodity.provider.name "Byot" }}
-{{- $endpoint := dig "config" "controlPlaneEndpoint" (dict) .Values.kommodity.provider }}
+{{- $endpoint := dig "Byot" "config" "controlPlaneEndpoint" (dict) .Values.kommodity.provider }}
 {{- if not (dig "host" "" (default (dict) $endpoint)) }}
-{{- fail "kommodity.provider.config.controlPlaneEndpoint.host is required for Byot (a VIP/LB/DNS name fronting the control plane, or one committed CP host IP; CP host IPs are resolved at claim time so cannot be auto-derived)" -}}
+{{- fail "kommodity.provider.Byot.config.controlPlaneEndpoint.host is required for Byot (a VIP/LB/DNS name fronting the control plane, or one committed CP host IP; CP host IPs are resolved at claim time so cannot be auto-derived)" -}}
 {{- end }}
 {{- $endpointPort := 6443 }}
 {{- if dig "port" nil (default (dict) $endpoint) }}

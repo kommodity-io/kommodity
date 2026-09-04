@@ -31,20 +31,27 @@ metadata:
     Azure's CCM cloud-config Secret is materialized per cluster (not hand-created),
     so its management-side name defaults to <release>-cloud-provider — unique per
     release, letting multiple Azure clusters share one namespace without colliding.
-    An explicit provider.secret.name overrides it (e.g. to point at a Secret you
+    An explicit provider.Azure.secret.name overrides it (e.g. to point at a Secret you
     manage yourself). The downstream name inside each workload cluster is always
     azure-cloud-provider (separate clusters, no collision).
   */}}
-  {{- $azureCCMSecret := dig "secret" "name" "" .Values.kommodity.provider | default (printf "%s-cloud-provider" .Release.Name) }}
+  {{- $azureProvider := dig "Azure" (dict) .Values.kommodity.provider }}
+  {{- $azureCCMSecret := dig "secret" "name" "" $azureProvider | default (printf "%s-cloud-provider" .Release.Name) }}
   {{- $_ := set $annotations "kommodity.io/ccm-secret-name" $azureCCMSecret }}
   {{- $_ := set $annotations "kommodity.io/ccm-downstream-secret-name" "azure-cloud-provider" }}
   {{- else }}
-  {{- $_ := set $annotations "kommodity.io/ccm-secret-name" .Values.kommodity.provider.secret.name }}
-  {{- if eq .Values.kommodity.provider.name "Kubevirt" }}
+  {{- $providerName := .Values.kommodity.provider.name }}
+  {{- $providerConfig := dig $providerName (dict) .Values.kommodity.provider }}
+  {{- $ccmSecretName := dig "secret" "name" "" $providerConfig }}
+  {{- if and (eq $providerName "Scaleway") (not $ccmSecretName) }}
+  {{- $ccmSecretName = "scaleway-secret" }}
+  {{- end }}
+  {{- $_ := set $annotations "kommodity.io/ccm-secret-name" $ccmSecretName }}
+  {{- if eq $providerName "Kubevirt" }}
   {{- $_ := set $annotations "kommodity.io/ccm-downstream-secret-name" "kubevirt-cloud-controller-manager" }}
-  {{- else if eq .Values.kommodity.provider.name "Scaleway" }}
+  {{- else if eq $providerName "Scaleway" }}
   {{- $_ := set $annotations "kommodity.io/ccm-downstream-secret-name" "scaleway-secret" }}
-  {{- else if eq .Values.kommodity.provider.name "Hetzner" }}
+  {{- else if eq $providerName "Hetzner" }}
   {{- /* hcloud CCM and CSI both expect the token Secret to be named "hcloud". */}}
   {{- $_ := set $annotations "kommodity.io/ccm-downstream-secret-name" "hcloud" }}
   {{- end }}

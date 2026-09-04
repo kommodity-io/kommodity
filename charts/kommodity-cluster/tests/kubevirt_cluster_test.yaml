@@ -81,7 +81,7 @@ tests:
   - it: should honor controlPlaneServiceTemplate annotations and type from values
     template: templates/provider/kubevirt/cluster.yaml
     set:
-      kommodity.provider.config.controlPlaneServiceTemplate:
+      kommodity.provider.Kubevirt.config.controlPlaneServiceTemplate:
         annotations:
           service.beta.kubernetes.io/scw-loadbalancer-zone: fr-par-1
         spec:

@@ -178,7 +178,7 @@ metadata:
   namespace: kube-system
 data:
   cloud-config: |
-    namespace: {{ .Values.kommodity.provider.config.infraClusterNamespace }}
+    namespace: {{ dig "Kubevirt" "config" "infraClusterNamespace" "" .Values.kommodity.provider }}
     kubeconfig: /etc/kubernetes/kubeconfig/value
 ---
 apiVersion: apps/v1
