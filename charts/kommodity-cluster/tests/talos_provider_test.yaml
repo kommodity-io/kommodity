@@ -357,6 +357,38 @@ tests:
           path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
           pattern: "TALOS_AUTO_BOOTSTRAP_SCAN_CIDR"
 
+  - it: should auto-derive scanCIDR from controlplaneSubnet when scanCIDR is empty
+    template: templates/talos/controlplane.yaml
+    set:
+      kommodity.network.ipv4.controlplaneSubnet.cidrBlock: 10.0.0.0/16
+    asserts:
+      - hasDocuments:
+          count: 1
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "TALOS_AUTO_BOOTSTRAP_SCAN_CIDR=10.0.0.0/16"
+
+  - it: should prefer explicit scanCIDR over controlplaneSubnet
+    template: templates/talos/controlplane.yaml
+    set:
+      talos.autoBootstrap.scanCIDR: 10.0.0.0/24
+      kommodity.network.ipv4.controlplaneSubnet.cidrBlock: 10.0.0.0/16
+    asserts:
+      - hasDocuments:
+          count: 1
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "TALOS_AUTO_BOOTSTRAP_SCAN_CIDR=10.0.0.0/24"
+
+  - it: should not emit scanCIDR when neither scanCIDR nor controlplaneSubnet is set
+    template: templates/talos/controlplane.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - notMatchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "TALOS_AUTO_BOOTSTRAP_SCAN_CIDR"
+
   - it: should emit TALOS_AUTO_BOOTSTRAP_SCAN_CONCURRENCY when scanConcurrency is set
     template: templates/talos/controlplane.yaml
     set:
