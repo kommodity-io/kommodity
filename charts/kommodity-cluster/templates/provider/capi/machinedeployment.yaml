@@ -128,6 +128,14 @@ spec:
         {{- end }}
         name: {{ $.Release.Name }}-worker-{{ $name }}{{ $tmplSuffix }}-{{ include "kommodity-cluster.machineSpecsHash" (dict "poolValues" $np "allValues" $.Values) }}
         namespace: {{ $.Release.Namespace }}
+      {{- $nodeDrainTimeout := dig "nodeDrainTimeout" "" $np }}
+      {{- if $nodeDrainTimeout }}
+      nodeDrainTimeout: {{ $nodeDrainTimeout | quote }}
+      {{- end }}
+      {{- $nodeDeletionTimeout := dig "nodeDeletionTimeout" "" $np }}
+      {{- if $nodeDeletionTimeout }}
+      nodeDeletionTimeout: {{ $nodeDeletionTimeout | quote }}
+      {{- end }}
       version: {{ default $.Values.kubernetes.version (dig "kubernetes" "version" "" $np) -}}
 {{- end }}
 {{- end }}
