@@ -366,6 +366,12 @@ kommodity:
     #   # before force-deleting the node.
     #   nodeDrainTimeout: 10m0s # default waits indefinitely
     #   nodeDeletionTimeout: 10s # node deletion timeout after the drain succeeds (default 10s)
+    #
+    #   # Rolling update strategy for the MachineDeployment. Higher maxSurge lets
+    #   # replacement machines join before old ones are removed; keep maxUnavailable at 0 for storage nodepools.
+    #   rollingUpdate:
+    #     maxSurge: 1       # default 1
+    #     maxUnavailable: 0 # default 0
 
     #   # Talos version and imageName can be overridden here, otherwise the top-level talos.version and talos.imageName are used
     #   talos:
