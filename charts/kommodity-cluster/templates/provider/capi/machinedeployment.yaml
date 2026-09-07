@@ -71,8 +71,8 @@ spec:
 {{- end }}
   strategy:
     rollingUpdate:
-      maxSurge: 1
-      maxUnavailable: 0
+      maxSurge: {{ dig "rollingUpdate" "maxSurge" 1 $np }}
+      maxUnavailable: {{ dig "rollingUpdate" "maxUnavailable" 0 $np }}
     type: RollingUpdate
   selector:
     matchLabels: null
