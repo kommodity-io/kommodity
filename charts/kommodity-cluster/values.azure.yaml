@@ -10,45 +10,45 @@ kommodity:
     # `<release>-cloud-provider` (unique per release), so multiple Azure clusters can
     # share one namespace without colliding. The only Azure secret you create by hand
     # is the AzureClusterIdentity's clientSecret Secret (see identity, below).
-    #
-    # secret:
-    #   # Optional override: point at a Secret you manage yourself instead. The
-    #   # materializer leaves any Secret without its managed-by label untouched.
-    #   name: my-cloud-provider-secret
-    identity:
-      name: azure-cluster-identity
-      # AzureClusterIdentity resource name for authentication.
-      # Create this resource in the management cluster before deploying:
-      #
-      # apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
-      # kind: AzureClusterIdentity
-      # metadata:
-      #   name: azure-cluster-identity
-      #   namespace: default
-      # spec:
-      #   type: ServicePrincipal
-      #   tenantID: <YOUR_TENANT_ID>
-      #   clientID: <YOUR_CLIENT_ID>
-      #   clientSecret:
-      #     name: azure-cluster-identity-secret
-      #     namespace: default
-      #   allowedNamespaces: {}
-    config:
-      subscriptionID: <YOUR_SUBSCRIPTION_ID>
-      # Optional: defaults to the Helm release name. The chart fails fast at
-      # install time if an explicitly-set resourceGroup does not match the
-      # release name — this catches a values file copied from another cluster
-      # without updating this field, which would otherwise silently share that
-      # cluster's resource group and corrupt both. Set allowSharedResourceGroup:
-      # true below to place multiple clusters in one resource group on purpose.
-      # resourceGroup: <YOUR_RESOURCE_GROUP>
-      location: westeurope
-      # Resource group that holds the Talos managed image referenced by
-      # talos.imageName. Combined with subscriptionID above, the chart builds the
-      # full image ARM ID, so you only provide the image name (Scaleway-aligned).
-      # May differ from the cluster resourceGroup (images are often shared).
-      talosImageResourceGroup: <YOUR_IMAGE_RESOURCE_GROUP>
-      # allowSharedResourceGroup: true   # opt out of the release-name == RG check
+    Azure:
+      # secret:
+      #   # Optional override: point at a Secret you manage yourself instead. The
+      #   # materializer leaves any Secret without its managed-by label untouched.
+      #   name: my-cloud-provider-secret
+      identity:
+        name: azure-cluster-identity
+        # AzureClusterIdentity resource name for authentication.
+        # Create this resource in the management cluster before deploying:
+        #
+        # apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+        # kind: AzureClusterIdentity
+        # metadata:
+        #   name: azure-cluster-identity
+        #   namespace: default
+        # spec:
+        #   type: ServicePrincipal
+        #   tenantID: <YOUR_TENANT_ID>
+        #   clientID: <YOUR_CLIENT_ID>
+        #   clientSecret:
+        #     name: azure-cluster-identity-secret
+        #     namespace: default
+        #   allowedNamespaces: {}
+      config:
+        subscriptionID: <YOUR_SUBSCRIPTION_ID>
+        # Optional: defaults to the Helm release name. The chart fails fast at
+        # install time if an explicitly-set resourceGroup does not match the
+        # release name — this catches a values file copied from another cluster
+        # without updating this field, which would otherwise silently share that
+        # cluster's resource group and corrupt both. Set allowSharedResourceGroup:
+        # true below to place multiple clusters in one resource group on purpose.
+        # resourceGroup: <YOUR_RESOURCE_GROUP>
+        location: westeurope
+        # Resource group that holds the Talos managed image referenced by
+        # talos.imageName. Combined with subscriptionID above, the chart builds the
+        # full image ARM ID, so you only provide the image name (Scaleway-aligned).
+        # May differ from the cluster resourceGroup (images are often shared).
+        talosImageResourceGroup: <YOUR_IMAGE_RESOURCE_GROUP>
+        # allowSharedResourceGroup: true   # opt out of the release-name == RG check
 
     cloudControllerManager:
       enabled: true

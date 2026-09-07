@@ -19,46 +19,47 @@
 kommodity:
   provider:
     name: Hetzner
-    secret:
-      # Hetzner secret example (one read/write API token per Hetzner project,
-      # Console -> Security -> API tokens):
-      #
-      #   kubectl --kubeconfig kommodity.yaml create secret generic hetzner \
-      #     --from-literal=hcloud=$HCLOUD_TOKEN
-      #
-      # Both the token and Hetzner's rate limit (3600 requests/hour, refilling
-      # one per second) are project-scoped and shared with everything else in
-      # the project - cluster-autoscaler's default scan interval can exhaust it
-      # on its own - so use one project per set of related clusters.
-      name: hetzner
-    # IMMUTABLE AFTER CREATE: CAPH treats hcloudNetwork, loadBalancer.enabled,
-    # controlPlaneEndpoint.port and region (the LB region) as immutable on
-    # HetznerCluster. Kommodity does not run CAPH's validating webhooks, so a
-    # helm upgrade changing any of them is accepted by the API server but has
-    # no effect. Recreate the cluster instead.
-    config:
-      # Hetzner location for the control plane and its load balancer:
-      # one of fsn1, nbg1, hel1, ash, hil, sin (default fsn1).
-      region: fsn1
-      # Optional: name of an SSH key pre-uploaded to the Hetzner project.
-      # Talos has no SSH, so this is usually left unset.
-      # sshKeyName: my-ssh-key
+    Hetzner:
+      secret:
+        # Hetzner secret example (one read/write API token per Hetzner project,
+        # Console -> Security -> API tokens):
+        #
+        #   kubectl --kubeconfig kommodity.yaml create secret generic hetzner \
+        #     --from-literal=hcloud=$HCLOUD_TOKEN
+        #
+        # Both the token and Hetzner's rate limit (3600 requests/hour, refilling
+        # one per second) are project-scoped and shared with everything else in
+        # the project - cluster-autoscaler's default scan interval can exhaust it
+        # on its own - so use one project per set of related clusters.
+        name: hetzner
+      # IMMUTABLE AFTER CREATE: CAPH treats hcloudNetwork, loadBalancer.enabled,
+      # controlPlaneEndpoint.port and region (the LB region) as immutable on
+      # HetznerCluster. Kommodity does not run CAPH's validating webhooks, so a
+      # helm upgrade changing any of them is accepted by the API server but has
+      # no effect. Recreate the cluster instead.
+      config:
+        # Hetzner location for the control plane and its load balancer:
+        # one of fsn1, nbg1, hel1, ash, hil, sin (default fsn1).
+        region: fsn1
+        # Optional: name of an SSH key pre-uploaded to the Hetzner project.
+        # Talos has no SSH, so this is usually left unset.
+        # sshKeyName: my-ssh-key
 
-      # Control-plane load balancer (created by CAPH, enabled by default).
-      # Disable it for single-control-plane setups and set controlPlaneEndpoint
-      # to a DNS name pointing at the control-plane machine instead.
-      # loadBalancer:
-      #   enabled: true    # immutable after create
-      #   # One of lb11, lb21, lb31 (default lb11).
-      #   type: lb11
-      # controlPlaneEndpoint:
-      #   host: cp.example.com
-      #   port: 6443       # immutable after create
+        # Control-plane load balancer (created by CAPH, enabled by default).
+        # Disable it for single-control-plane setups and set controlPlaneEndpoint
+        # to a DNS name pointing at the control-plane machine instead.
+        # loadBalancer:
+        #   enabled: true    # immutable after create
+        #   # One of lb11, lb21, lb31 (default lb11).
+        #   type: lb11
+        # controlPlaneEndpoint:
+        #   host: cp.example.com
+        #   port: 6443       # immutable after create
 
-      # Network zone of the private network when kommodity.network.ipv4.public
-      # is false. One of eu-central (fsn1/nbg1/hel1, the default), us-east (ash),
-      # us-west (hil), ap-southeast (sin).
-      # networkZone: eu-central
+        # Network zone of the private network when kommodity.network.ipv4.public
+        # is false. One of eu-central (fsn1/nbg1/hel1, the default), us-east (ash),
+        # us-west (hil), ap-southeast (sin).
+        # networkZone: eu-central
 
     cloudControllerManager:
       enabled: true

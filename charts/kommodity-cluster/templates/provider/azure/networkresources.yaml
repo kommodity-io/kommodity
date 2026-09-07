@@ -33,7 +33,7 @@
 {{- $nodeNSGName := printf "%s-node-nsg" .Release.Name }}
 {{- $rtName := printf "%s-node-routetable" .Release.Name }}
 {{- $asoSecret := printf "%s-aso-secret" .Release.Name }}
-{{- $location := required "missing required location in kommodity.provider.config for Azure" (dig "config" "location" "" .Values.kommodity.provider) }}
+{{- $location := required "missing required location in kommodity.provider.Azure.config for Azure" (dig "Azure" "config" "location" "" .Values.kommodity.provider) }}
 ---
 apiVersion: network.azure.com/v1api20240301
 kind: NetworkSecurityGroup

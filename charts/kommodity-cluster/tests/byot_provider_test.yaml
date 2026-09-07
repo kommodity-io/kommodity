@@ -32,15 +32,15 @@ tests:
   - it: should fail when controlPlaneEndpoint.host is unset
     template: templates/provider/byot/cluster.yaml
     set:
-      kommodity.provider.config.controlPlaneEndpoint: null
+      kommodity.provider.Byot.config.controlPlaneEndpoint: null
     asserts:
       - failedTemplate:
-          errorMessage: "kommodity.provider.config.controlPlaneEndpoint.host is required for Byot (a VIP/LB/DNS name fronting the control plane, or one committed CP host IP; CP host IPs are resolved at claim time so cannot be auto-derived)"
+          errorMessage: "kommodity.provider.Byot.config.controlPlaneEndpoint.host is required for Byot (a VIP/LB/DNS name fronting the control plane, or one committed CP host IP; CP host IPs are resolved at claim time so cannot be auto-derived)"
 
   - it: should default the endpoint port to 6443 when only host is set
     template: templates/provider/byot/cluster.yaml
     set:
-      kommodity.provider.config.controlPlaneEndpoint:
+      kommodity.provider.Byot.config.controlPlaneEndpoint:
         host: 198.51.100.5
     asserts:
       - equal:

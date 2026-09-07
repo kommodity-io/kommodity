@@ -241,7 +241,7 @@ tests:
       - ../values.kubevirt.yaml
     set:
       kommodity.network.ipv4.nodeCIDR: "10.200.0.0/20"
-      kommodity.provider.config.infraClusterNamespace: my-infra-ns
+      kommodity.provider.Kubevirt.config.infraClusterNamespace: my-infra-ns
     documentSelector:
       path: kind
       value: ConfigMap
