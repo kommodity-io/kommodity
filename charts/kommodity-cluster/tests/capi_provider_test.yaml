@@ -345,3 +345,36 @@ tests:
           path: spec.template.spec.nodeDrainTimeout
       - notExists:
           path: spec.template.spec.nodeDeletionTimeout
+
+  # Test rollingUpdate.maxSurge / maxUnavailable are rendered into the
+  # MachineDeployment strategy when set on the nodepool.
+  - it: should render rollingUpdate.maxSurge and maxUnavailable when set on the nodepool
+    template: templates/provider/capi/machinedeployment.yaml
+    set:
+      kommodity.nodepools.default.rollingUpdate.maxSurge: 3
+      kommodity.nodepools.default.rollingUpdate.maxUnavailable: 0
+    asserts:
+      - isKind:
+          of: MachineDeployment
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: spec.strategy.rollingUpdate.maxSurge
+          value: 3
+      - equal:
+          path: spec.strategy.rollingUpdate.maxUnavailable
+          value: 0
+
+  - it: should default rollingUpdate.maxSurge to 1 and maxUnavailable to 0 when unset
+    template: templates/provider/capi/machinedeployment.yaml
+    asserts:
+      - isKind:
+          of: MachineDeployment
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: spec.strategy.rollingUpdate.maxSurge
+          value: 1
+      - equal:
+          path: spec.strategy.rollingUpdate.maxUnavailable
+          value: 0
