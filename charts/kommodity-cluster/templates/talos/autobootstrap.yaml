@@ -1,12 +1,23 @@
 {{/*
 Returns the autoBootstrap ExtensionServiceConfig as a strategic merge patch.
 This configures environment variables for the kommodity-autobootstrap extension service.
+
+scanCIDR resolution order:
+  1. Explicit talos.autoBootstrap.scanCIDR (user override, always wins)
+  2. network.ipv4.controlplaneSubnet.cidrBlock (when set in values — BYO-subnet
+     scenarios where the CP subnet is narrower than the VNet supernet)
+  3. Omit the env var entirely — the extension falls back to scanning all
+     node interfaces, which is safer than deriving from nodeCIDR (potentially
+     a /8 on Azure = 16M IPs).
 */}}
 {{- define "kommodity.talos.autoBootstrapExtensionServiceConfig" -}}
 {{- $autoBootstrap := .autoBootstrap -}}
 {{- $logLevel := .logLevel -}}
 {{- $replicas := .replicas -}}
+{{- $network := .network -}}
 {{- $defaultQuorum := add (div (sub $replicas 1) 2) 1 -}}
+{{- /* Resolve scanCIDR: explicit override > controlplaneSubnet.cidrBlock > omit */ -}}
+{{- $scanCIDR := $autoBootstrap.scanCIDR | default (dig "ipv4" "controlplaneSubnet" "cidrBlock" "" $network) }}
 - |
   apiVersion: v1alpha1
   kind: ExtensionServiceConfig
@@ -18,4 +29,10 @@ This configures environment variables for the kommodity-autobootstrap extension 
     - TALOS_AUTO_BOOTSTRAP_PRE_BOOTSTRAP_DELAY={{ $autoBootstrap.preBootstrapDelay }}
     - TALOS_AUTO_BOOTSTRAP_MAX_BACKOFF={{ $autoBootstrap.maxBackoff }}
     - TALOS_AUTO_BOOTSTRAP_SCAN_TIMEOUT={{ $autoBootstrap.scanTimeout }}
+{{- if $scanCIDR }}
+    - TALOS_AUTO_BOOTSTRAP_SCAN_CIDR={{ $scanCIDR }}
+{{- end }}
+{{- if $autoBootstrap.scanConcurrency }}
+    - TALOS_AUTO_BOOTSTRAP_SCAN_CONCURRENCY={{ $autoBootstrap.scanConcurrency }}
+{{- end }}
 {{- end -}}
