@@ -1,10 +1,25 @@
 {{/*
 Returns the Talos installer image URL as a string.
 See: https://docs.siderolabs.com/talos/v1.12/reference/configuration/v1alpha1/config#install
+
+installer.imageName is the bare image name (no tag); when .version is
+non-empty it is appended as the tag, keeping the initial install in sync
+with the resolved talosVersion / desiredTalosVersion so an upgrade does not
+install a stale image and then upgrade post-boot. When .version is empty
+the installer image is used verbatim (legacy behavior, imageName may carry
+its own tag).
 */}}
 {{- define "kommodity.talos.installer.image" -}}
 {{- $installer := .installer -}}
-{{- printf "%s/%s" $installer.repository $installer.imageName -}}
+{{- $image := $installer.imageName -}}
+{{- with .version -}}
+{{- $image = printf "%s:%s" $installer.imageName . -}}
+{{- end -}}
+{{- if $installer.repository -}}
+{{- printf "%s/%s" $installer.repository $image -}}
+{{- else -}}
+{{- $image -}}
+{{- end -}}
 {{- end -}}
 
 {{/*

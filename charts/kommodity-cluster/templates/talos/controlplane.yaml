@@ -88,6 +88,7 @@ spec:
         "annotations" $cpAnnotations
         "oidc" $oidc
         "installer" $.Values.talos.installer
+        "version" (default $.Values.talos.version (dig "talos" "version" "" $.Values.kommodity.controlplane))
         "logLevel" $.Values.kommodity.logLevel
         "disableCNI" $.Values.talos.disableCNI
         "disableProxy" $.Values.talos.disableKubeProxy

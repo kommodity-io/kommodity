@@ -251,6 +251,10 @@ Any values that should trigger a new Machine template when changed should be add
 {{- $_ := set $data "diskType" (dig "type" "" $disk) -}}
 {{- $_ := set $data "diskSize" (dig "size" "" $disk) -}}
 {{- $_ := set $data "byotHostSelector" (dig "hostSelector" "" .poolValues) -}}
+{{- /* desiredTalosVersion drives the post-adoption Talos upgrade; a version
+     change must roll the template (immutable) so CAPI clones new machines on
+     the new version. */ -}}
+{{- $_ := set $data "desiredTalosVersion" (default .allValues.talos.version (dig "talos" "version" "" .poolValues)) -}}
 {{- end -}}
 {{- $_ := set $data "publicNetworkEnabled" .allValues.kommodity.network.ipv4.public -}}
 {{- $zones := include "kommodity-cluster.poolZones" .poolValues | fromJsonArray -}}
@@ -295,7 +299,7 @@ to preserve YAML block scalar formatting for multi-line contents.
 
 {{- /* Add installer image */ -}}
 {{- if .installer -}}
-{{- $installerImage := include "kommodity.talos.installer.image" (dict "installer" .installer) -}}
+{{- $installerImage := include "kommodity.talos.installer.image" (dict "installer" .installer "version" .version) -}}
 {{- $_ := mustMergeOverwrite $result (dict "machine" (dict "install" (dict "image" $installerImage))) -}}
 {{- end -}}
 {{- /* Add global Kommodity environment variables */ -}}
@@ -505,4 +509,32 @@ hostSelector:
 {{- . | toYaml | nindent 4 }}
 {{- end }}
 {{- end }}
+{{- end -}}
+
+{{/*
+kommodity-cluster.byotDesiredTalosVersion — build the ByotMachineTemplate
+spec.template.spec.desiredTalosVersion (an installer image ref) for a byot pool.
+
+The version is resolved with nodepool precedence — poolValues.talos.version
+overrides the global talos.version — mirroring the talosVersion field on the
+TalosConfigTemplate. The installer image name (repository + imageName) is
+taken from the global talos.installer block (the same image used for the
+initial install); its tag is replaced with the resolved version so an upgrade
+targets that version. Returns an empty string (omitting desiredTalosVersion,
+opt-out of version management) when the version or talos.installer is unset.
+
+Input: dict "poolValues" (controlplane/nodepool values) "allValues" (.Values).
+Returns the installer image ref string (empty to omit).
+*/ -}}
+{{- define "kommodity-cluster.byotDesiredTalosVersion" -}}
+{{- $version := default .allValues.talos.version (dig "talos" "version" "" .poolValues) -}}
+{{- $installer := .allValues.talos.installer -}}
+{{- if and $version $installer $installer.imageName -}}
+{{- $image := printf "%s:%s" $installer.imageName $version -}}
+{{- if $installer.repository -}}
+{{- printf "%s/%s" $installer.repository $image -}}
+{{- else -}}
+{{- $image -}}
+{{- end -}}
+{{- end -}}
 {{- end -}}
