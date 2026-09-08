@@ -37,6 +37,14 @@ spec:
           jsonPath: .spec.providerID
           name: ProviderID
           type: string
+        - description: Live Talos version
+          jsonPath: .status.currentTalosVersion
+          name: Talos
+          type: string
+        - description: Upgrade state
+          jsonPath: .status.upgradeState
+          name: Upgrade
+          type: string
       name: v1alpha1
       schema:
         openAPIV3Schema:
@@ -71,6 +79,18 @@ spec:
                 machine at the host's public IP. Either hostRef (explicit) or hostSelector
                 (label-based) selects the host; they are mutually exclusive.
               properties:
+                desiredTalosVersion:
+                  description: |-
+                    DesiredTalosVersion is an installer image ref (e.g.
+                    ghcr.io/siderolabs/installer:v1.14.0) the claimed host is upgraded to
+                    at claim time, before the bootstrap configuration is applied. Empty
+                    (the default) opts out of version management: no Version probe runs and
+                    existing adoption behavior is unchanged. Stamped from the
+                    ByotMachineTemplate; effectively immutable once Ready=true, since the
+                    upgrade path is post-adoption only (a post-Ready edit of a running node
+                    does retrigger an in-place upgrade; roll a new template for the
+                    host-swap rollout model).
+                  type: string
                 failureDomain:
                   description: |-
                     FailureDomain is the unique name of the failure domain the machine is
@@ -239,6 +259,13 @@ spec:
                       - type
                     type: object
                   type: array
+                currentTalosVersion:
+                  description: |-
+                    CurrentTalosVersion is the live Talos version tag (from the Version
+                    RPC) of the claimed host. Populated only when DesiredTalosVersion is
+                    set; the upgrade-on-claim path uses it to decide whether a reset+upgrade
+                    is needed before applying the bootstrap configuration.
+                  type: string
                 lastAppliedConfigSHA:
                   description: |-
                     LastAppliedConfigSHA records the SHA256 hash of the last machine
@@ -277,6 +304,31 @@ spec:
                   description: |-
                     ResolvedPublicIP is the public IP of the claimed ByotHost, used as the
                     adoption target.
+                  type: string
+                upgradeAttemptGeneration:
+                  description: |-
+                    UpgradeAttemptGeneration records the spec.generation observed when the
+                    current upgrade attempt started. After the controller stops on a probe
+                    or upgrade failure, an operator retriggers the upgrade by editing
+                    DesiredTalosVersion (bumping generation); the controller detects the
+                    mismatch and clears Failed to retry.
+                  format: int64
+                  type: integer
+                upgradeProbeFailures:
+                  description: |-
+                    UpgradeProbeFailures is the count of consecutive Version RPC failures
+                    during the current upgrade phase (pre-upgrade probe or InFlight poll).
+                    Reset on success. Used to bound retries before flipping to Failed.
+                  format: int32
+                  type: integer
+                upgradeState:
+                  description: |-
+                    UpgradeState drives the post-adoption upgrade state machine. "" means no
+                    upgrade is pending; "InFlight" means the Upgrade RPC was issued (over the
+                    cluster talosconfig, preserve=true) and the controller is polling the
+                    Version RPC until it reports the desired tag; "Failed" means the
+                    probe/upgrade exhausted its retries and the controller stopped (retrigger
+                    by editing DesiredTalosVersion). Only set when DesiredTalosVersion is set.
                   type: string
               type: object
           type: object

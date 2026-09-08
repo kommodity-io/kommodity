@@ -424,7 +424,7 @@ talos:
   version: v1.13.0
   imageName: my-talos-image
   # installer:
-  #   imageName: kommodity-talos-installer:v1.13.0
+  #   imageName: kommodity-talos-installer
   #   repository: ghcr.io/kommodity-io
   autoBootstrap:
     # Network Discovery frequency
