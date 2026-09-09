@@ -10,7 +10,7 @@ kommodity:
     # here (VIP / load balancer / DNS name fronting the control plane (HA)).
     config:
       controlPlaneEndpoint:
-        host: 51.159.191.13
+        host: <REPLACE_ME>
         port: 6443
 
   network:
@@ -19,24 +19,24 @@ kommodity:
       public: true # Byot hosts are reached by public IP (maintenance API, port 50000).
 
   controlplane:
-    replicas: 1
+    replicas: 3
     # SKU-driven host selector. The chart maps these to the curated byot.io/
     # labels the ByotHost controller promotes, and claims Available hosts
     # matching them (exact-match).
     resources:
-      cpu: "3" # Required
-      memory: "4G" # Required (one of 4G 8G 16G 32G 64G 128G)
+      cpu: "4" # Required
+      memory: "16G" # Required (one of 4G 8G 16G 32G 64G 128G)
     os:
       disk:
-        type: hdd # Optional (one of nvme ssd hdd sd)
-        size: "20G" # Optional (one of 20G 100G 250G 500G 1T)
+        type: ssd # Optional (one of nvme ssd hdd sd)
+        size: "100G" # Optional (one of 20G 100G 250G 500G 1T)
     # zones:
     #   - par01
     #   - par02
     # Optional freeform hostSelector
-    hostSelector:
-      matchLabels:
-        role: control-plane
+    # hostSelector:
+    #   matchLabels:
+    #     site: copenhagen
     #   matchExpressions:
     #     - key: byot.io/platform
     #       operator: In
@@ -53,29 +53,21 @@ kommodity:
     # kubernetes:
     #   version: v1.33.4
     # talos:
-    #   # Overrides the global talos.version for this nodepool's machines.
-    #   # Drives ByotMachineTemplate.spec.desiredTalosVersion (post-adoption
-    #   # Talos upgrade target) with nodepool precedence over the global value.
     #   version: v1.13.0
 
   nodepools:
     default:
-      talos:
-        version: v1.13.9
-      replicas: 1
+      replicas: 2
       resources:
-        cpu: "3"
-        memory: "4G"
+        cpu: "4"
+        memory: "16G"
       os:
         disk:
-          type: hdd
-          size: "20G"
-      # zones:
-      #   - par01
-      #   - par02
-      hostSelector:
-        matchLabels:
-          role: worker
+          type: ssd
+          size: "100G"
+      zones:
+        - par01
+        - par02
       # autoscaling:
       #   minReplicas: 2
       #   maxReplicas: 4
@@ -94,16 +86,8 @@ kommodity:
 
 talos:
   # Talos version must match the maintenance-mode ByotHosts being claimed.
-  # For Byot this also drives ByotMachineTemplate.spec.desiredTalosVersion
-  # (the post-adoption upgrade target installer image). A nodepool-level
-  # talos.version overrides this for that nodepool's machines. Omitted
-  # (opt-out of version management) unless talos.installer is set.
   version: v1.13.8
-  # installer is the bare Talos installer image (no tag); the resolved
-  # talos.version (global or nodepool override) is appended as the tag, so
-  # the initial install and the ByotMachineTemplate desiredTalosVersion stay
-  # in sync. Without this block desiredTalosVersion is omitted (opt-out of
-  # version management) and the install image falls back to talos.imageName.
+  # installer is the Talos installer image that will be used to upgrade the host
   installer:
     repository: ghcr.io/siderolabs
     imageName: installer
