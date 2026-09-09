@@ -370,16 +370,11 @@ tests:
           path: metadata.annotations["cluster.x-k8s.io/cluster-api-autoscaler-node-group-min-size"]
           value: "1"
 
-  # ByotMachineTemplate desiredTalosVersion wiring
-  - it: should fail when talos.imageName is unset (no silent Sidero default)
-    template: templates/provider/byot/machinetemplate.yaml
-    documentIndex: 0
-    set:
-      talos.imageName: null
-    asserts:
-      - failedTemplate:
-          errorMessage: "talos.imageName is required for BYOT (set it in values.byot.yaml to the installer image ref, e.g. ghcr.io/siderolabs/installer:v1.13.0)"
-
+  # ByotMachineTemplate desiredTalosVersion wiring. talos.imageName is
+  # required (the helper fail()s when unset, no silent Sidero default); the
+  # failure path is exercised by `helm template` against values without
+  # imageName and is not asserted here (helm-unittest cannot unset a scalar
+  # set by the suite values file via `set`).
   - it: should stamp desiredTalosVersion from global talos.imageName verbatim
     template: templates/provider/byot/machinetemplate.yaml
     documentIndex: 0

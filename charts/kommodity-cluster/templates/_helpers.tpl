@@ -251,7 +251,7 @@ Any values that should trigger a new Machine template when changed should be add
 {{- $_ := set $data "diskType" (dig "type" "" $disk) -}}
 {{- $_ := set $data "diskSize" (dig "size" "" $disk) -}}
 {{- $_ := set $data "byotHostSelector" (dig "hostSelector" "" .poolValues) -}}
-{{- $_ := set $data "desiredTalosVersion" (default .allValues.talos.version (dig "talos" "version" "" .poolValues)) -}}
+{{- $_ := set $data "desiredTalosVersion" (include "kommodity-cluster.byotDesiredTalosVersion" (dict "poolValues" .poolValues "allValues" .allValues)) -}}
 {{- end -}}
 {{- $_ := set $data "publicNetworkEnabled" .allValues.kommodity.network.ipv4.public -}}
 {{- $zones := include "kommodity-cluster.poolZones" .poolValues | fromJsonArray -}}

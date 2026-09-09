@@ -88,10 +88,4 @@ talos:
   # Talos version must match the maintenance-mode ByotHosts being claimed.
   version: v1.13.8
   # for BYOT, imageName is the installer image ref used to upgrade adopted BYOT hosts
-  # via LifecycleClient.Upgrade (the host is adopted in maintenance mode and
-  # upgraded by running /bin/installer from this ref). Required: this value is
-  # the default — no silent fallback to the public Sidero image, so custom-registry
-  # installs never accidentally pull from ghcr.io/siderolabs. Use a custom-built
-  # installer (Image Factory schematic, or a kommodity-built installer with
-  # extensions) to ship extensions to the host; the tag is opaque to Talos.
   imageName: ghcr.io/siderolabs/installer:v1.13.8
