@@ -29,7 +29,6 @@ spec:
         "taints" $np.taints
         "labels" $np.labels
         "annotations" $np.annotations
-        "installer" $.Values.talos.installer
         "version" (default $.Values.talos.version (dig "talos" "version" "" $np))
         "logLevel" $.Values.kommodity.logLevel
       ) | trim -}}
