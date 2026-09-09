@@ -4,14 +4,13 @@ on:
   workflow_dispatch:
     inputs:
       talos_version:
-        description: "Talos version (e.g., v1.12.0)"
+        description: "Talos version (e.g., v1.13.0)"
         required: true
-        default: "v1.12.0"
+        default: "v1.13.0"
         type: string
       extensions:
-        description: "Comma-separated list of extension images"
+        description: "Comma-separated list of extension images ('none' for no extensions, empty for defaults)"
         required: false
-        default: ""
         type: string
       platforms:
         description: "Platforms to build for (comma-separated)"
@@ -28,10 +27,29 @@ on:
         required: false
         default: ""
         type: string
+      attestation_extension_version:
+        description: "Version of kommodity-attestation-extension"
+        required: true
+        default: "v1.1.1"
+        type: string
+      autobootstrap_extension_version:
+        description: "Version of kommodity-autobootstrap-extension"
+        required: true
+        default: "v1.6.0"
+        type: string
+      extra_kernel_args:
+        description: "Extra kernel args passed to imager (space-separated, e.g. 'console=ttyS0 net.ifnames=0')"
+        required: false
+        type: string
+      image_name:
+        description: "Override image name (defaults to kommodity-talos-installer)"
+        required: false
+        default: "kommodity-talos-installer"
+        type: string
 
 env:
   REGISTRY: ghcr.io/kommodity-io
-  IMAGE_NAME: kommodity-talos-installer
+  DEFAULT_EXTENSIONS: "ghcr.io/kommodity-io/kommodity-attestation-extension:${{ inputs.attestation_extension_version }},ghcr.io/kommodity-io/kommodity-autobootstrap-extension:${{ inputs.autobootstrap_extension_version }}"
 
 jobs:
   build:
@@ -43,9 +61,9 @@ jobs:
     steps:
       - name: Validate inputs
         run: |
-          # Validate talos_version format (must be semver like v1.12.0)
+          # Validate talos_version format (must be semver like v1.13.0)
           if [[ ! "${{ inputs.talos_version }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
-            echo "::error::Invalid talos_version format. Expected semver (e.g., v1.12.0)"
+            echo "::error::Invalid talos_version format. Expected semver (e.g., v1.13.0)"
             exit 1
           fi
 
@@ -80,12 +98,23 @@ jobs:
       - name: Build and push images
         env:
           TALOS_VERSION: ${{ inputs.talos_version }}
-          EXTENSIONS: ${{ inputs.extensions }}
+          EXTENSIONS_INPUT: ${{ inputs.extensions }}
           PLATFORMS: ${{ inputs.platforms }}
           PUSH: ${{ inputs.push }}
+          EXTRA_KERNEL_ARGS: ${{ inputs.extra_kernel_args }}
+          IMAGE_NAME: ${{ inputs.image_name }}
         run: |
-
           set -euo pipefail
+
+          # Resolve extensions: 'none' = no extensions, empty = use defaults, otherwise = user list
+          EXTENSIONS=""
+          if [[ "${EXTENSIONS_INPUT}" == "none" ]]; then
+            EXTENSIONS=""
+          elif [[ -z "${EXTENSIONS_INPUT}" ]]; then
+            EXTENSIONS="${DEFAULT_EXTENSIONS}"
+          else
+            EXTENSIONS="${EXTENSIONS_INPUT}"
+          fi
 
           # Optionally use a custom base installer image (e.g. with a patched kernel)
           BASE_INSTALLER_ARG=""
@@ -102,6 +131,22 @@ jobs:
               [[ -n "$ext" ]] && EXTENSION_ARGS="${EXTENSION_ARGS} --system-extension-image ${ext}"
             done
           fi
+
+          # Parse extra kernel args (space-separated) into repeatable --extra-kernel-arg flags
+          KERNEL_ARGS=""
+          if [[ -n "${EXTRA_KERNEL_ARGS}" ]]; then
+            read -ra KARG_ARRAY <<< "${EXTRA_KERNEL_ARGS}"
+            for karg in "${KARG_ARRAY[@]}"; do
+              [[ -n "$karg" ]] && KERNEL_ARGS="${KERNEL_ARGS} --extra-kernel-arg ${karg}"
+            done
+          fi
+
+          echo "=========================================="
+          echo "Building Talos installer ${TALOS_VERSION}..."
+          echo "Image name: ${IMAGE_NAME}"
+          echo "Extensions: ${EXTENSIONS:-none}"
+          echo "Extra kernel args: ${EXTRA_KERNEL_ARGS:-none}"
+          echo "=========================================="
 
           # Build and push for each platform
           ARCH_IMAGES=()
@@ -127,11 +172,12 @@ jobs:
               installer \
               --arch "${ARCH}" \
               ${BASE_INSTALLER_ARG} \
-              ${EXTENSION_ARGS}
+              ${EXTENSION_ARGS} \
+              ${KERNEL_ARGS}
 
             # Load the image and get its ID directly from docker load output
             LOADED_IMAGE=$(docker load -i "_out/installer-${ARCH}.tar" | grep "Loaded image:" | awk '{print $3}')
-            TARGET_IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${TALOS_VERSION}-${ARCH}"
+            TARGET_IMAGE="${{ env.REGISTRY }}/${IMAGE_NAME}:${TALOS_VERSION}-${ARCH}"
 
             docker tag "${LOADED_IMAGE}" "${TARGET_IMAGE}"
             echo "Tagged: ${TARGET_IMAGE}"
@@ -150,8 +196,8 @@ jobs:
 
           # Create and push multi-arch manifest
           if [[ "${PUSH}" == "true" ]]; then
-            MANIFEST_TAG="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${TALOS_VERSION}"
-            LATEST_TAG="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
+            MANIFEST_TAG="${{ env.REGISTRY }}/${IMAGE_NAME}:${TALOS_VERSION}"
+            LATEST_TAG="${{ env.REGISTRY }}/${IMAGE_NAME}:latest"
 
             echo "=========================================="
             echo "Creating multi-arch manifest..."
@@ -172,17 +218,27 @@ jobs:
         if: always()
         env:
           TALOS_VERSION: ${{ inputs.talos_version }}
-          EXTENSIONS: ${{ inputs.extensions }}
+          EXTENSIONS_INPUT: ${{ inputs.extensions }}
           PLATFORMS: ${{ inputs.platforms }}
           PUSH: ${{ inputs.push }}
+          EXTRA_KERNEL_ARGS: ${{ inputs.extra_kernel_args }}
+          IMAGE_NAME: ${{ inputs.image_name }}
         run: |
+          # Resolve extensions for display (mirror build step logic)
+          EXTENSIONS="${EXTENSIONS_INPUT}"
+          if [[ -z "${EXTENSIONS}" && "${EXTENSIONS}" != "none" ]]; then
+            EXTENSIONS="${DEFAULT_EXTENSIONS}"
+          fi
+
           {
-            echo "## Talos Image Build Summary"
+            echo "## Talos Installer Image Build Summary"
             echo ""
             echo "| Setting | Value |"
             echo "|---------|-------|"
             echo "| Talos Version | \`${TALOS_VERSION}\` |"
+            echo "| Image Name | \`${IMAGE_NAME}\` |"
             echo "| Extensions | \`${EXTENSIONS:-none}\` |"
+            echo "| Extra kernel args | \`${EXTRA_KERNEL_ARGS:-none}\` |"
             echo "| Platforms | \`${PLATFORMS}\` |"
             echo "| Push | \`${PUSH}\` |"
             echo ""
@@ -190,14 +246,14 @@ jobs:
             if [[ "${PUSH}" == "true" ]]; then
               echo "### Published Images"
               echo "\`\`\`"
-              echo "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${TALOS_VERSION}"
-              echo "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
+              echo "${{ env.REGISTRY }}/${IMAGE_NAME}:${TALOS_VERSION}"
+              echo "${{ env.REGISTRY }}/${IMAGE_NAME}:latest"
               echo "\`\`\`"
               echo ""
               echo "### Usage"
               echo "\`\`\`yaml"
               echo "talos:"
-              echo "  imageName: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${TALOS_VERSION}"
+              echo "  imageName: ${{ env.REGISTRY }}/${IMAGE_NAME}:${TALOS_VERSION}"
               echo "\`\`\`"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
