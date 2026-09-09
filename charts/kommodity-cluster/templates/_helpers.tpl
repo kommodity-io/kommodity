@@ -294,11 +294,6 @@ to preserve YAML block scalar formatting for multi-line contents.
 {{- $_ := mustMergeOverwrite $result (dict "cluster" (dict "apiServer" (dict "extraArgs" $oidcExtraArgs))) -}}
 {{- end -}}
 
-{{- /* Add installer image */ -}}
-{{- if .installer -}}
-{{- $installerImage := include "kommodity.talos.installer.image" (dict "installer" .installer "version" .version) -}}
-{{- $_ := mustMergeOverwrite $result (dict "machine" (dict "install" (dict "image" $installerImage))) -}}
-{{- end -}}
 {{- /* Add global Kommodity environment variables */ -}}
 {{- if .logLevel -}}
 {{- $globalEnv := include "kommodity.talos.globalEnv" (dict "logLevel" .logLevel) | fromJson -}}
@@ -512,26 +507,25 @@ hostSelector:
 kommodity-cluster.byotDesiredTalosVersion — build the ByotMachineTemplate
 spec.template.spec.desiredTalosVersion (an installer image ref) for a byot pool.
 
-The version is resolved with nodepool precedence — poolValues.talos.version
-overrides the global talos.version — mirroring the talosVersion field on the
-TalosConfigTemplate. The installer image name (repository + imageName) is
-taken from the global talos.installer block (the same image used for the
-initial install); its tag is replaced with the resolved version so an upgrade
-targets that version. Returns an empty string (omitting desiredTalosVersion,
-opt-out of version management) when the version or talos.installer is unset.
+For BYOT the image is always an installer: the host is adopted in maintenance
+mode and upgraded via LifecycleClient.Upgrade, which runs /bin/installer from
+the ref. talos.imageName carries the full installer ref (e.g.
+ghcr.io/siderolabs/installer:v1.13.0, a factory.talos.dev schematic installer,
+or a custom-built installer with extensions). The tag is opaque to Talos, so
+any tag works (extensions ship through the installer image, not the machine
+config). Resolved with nodepool precedence — poolValues.talos.imageName
+overrides the global talos.imageName. Required: when imageName is unset the
+helper fails (no silent Sidero default); the default lives in values.byot.yaml
+so operators opt in explicitly and custom-registry installs never silently
+fall back to the public Sidero image.
 
 Input: dict "poolValues" (controlplane/nodepool values) "allValues" (.Values).
-Returns the installer image ref string (empty to omit).
+Returns the installer image ref string.
 */ -}}
 {{- define "kommodity-cluster.byotDesiredTalosVersion" -}}
-{{- $version := default .allValues.talos.version (dig "talos" "version" "" .poolValues) -}}
-{{- $installer := .allValues.talos.installer -}}
-{{- if and $version $installer $installer.imageName -}}
-{{- $image := printf "%s:%s" $installer.imageName $version -}}
-{{- if $installer.repository -}}
-{{- printf "%s/%s" $installer.repository $image -}}
-{{- else -}}
-{{- $image -}}
+{{- $imageName := default .allValues.talos.imageName (dig "talos" "imageName" "" .poolValues) -}}
+{{- if not $imageName -}}
+{{- fail "talos.imageName is required for BYOT (set it in values.byot.yaml to the installer image ref, e.g. ghcr.io/siderolabs/installer:v1.13.0)" -}}
 {{- end -}}
-{{- end -}}
+{{- $imageName -}}
 {{- end -}}

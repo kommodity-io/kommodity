@@ -1,0 +1,8 @@
+{{/*
+Returns global Kommodity environment variables as JSON.
+Used by combinedConfigPatches to merge with other machine.env patches.
+*/}}
+{{- define "kommodity.talos.globalEnv" -}}
+{{- $env := dict "LOG_LEVEL" .logLevel -}}
+{{- $env | toJson -}}
+{{- end -}}

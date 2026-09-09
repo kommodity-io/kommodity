@@ -371,74 +371,66 @@ tests:
           value: "1"
 
   # ByotMachineTemplate desiredTalosVersion wiring
-  - it: should omit desiredTalosVersion when talos.installer is unset (opt-out)
+  - it: should fail when talos.imageName is unset (no silent Sidero default)
     template: templates/provider/byot/machinetemplate.yaml
     documentIndex: 0
     set:
-      talos.installer: null
+      talos.imageName: null
     asserts:
-      - notExists:
-          path: spec.template.spec.desiredTalosVersion
+      - failedTemplate:
+          errorMessage: "talos.imageName is required for BYOT (set it in values.byot.yaml to the installer image ref, e.g. ghcr.io/siderolabs/installer:v1.13.0)"
 
-  - it: should stamp desiredTalosVersion from global talos.version + talos.installer
+  - it: should stamp desiredTalosVersion from global talos.imageName verbatim
     template: templates/provider/byot/machinetemplate.yaml
     documentIndex: 0
     set:
-      talos.installer:
-        repository: ghcr.io/siderolabs
-        imageName: installer
-      talos.version: v1.13.8
+      talos.imageName: ghcr.io/siderolabs/installer:v1.13.8
     asserts:
       - equal:
           path: spec.template.spec.desiredTalosVersion
           value: ghcr.io/siderolabs/installer:v1.13.8
 
-  - it: should let a nodepool talos.version override the global value for desiredTalosVersion
+  - it: should let a nodepool talos.imageName override the global value for desiredTalosVersion
     template: templates/provider/byot/machinetemplate.yaml
     # Worker template (documentIndex 1) — nodepool default overrides global.
     documentIndex: 1
     set:
-      talos.installer:
-        repository: ghcr.io/siderolabs
-        imageName: installer
-      talos.version: v1.13.8
-      kommodity.nodepools.default.talos.version: v1.13.9
+      talos.imageName: ghcr.io/siderolabs/installer:v1.13.8
+      kommodity.nodepools.default.talos.imageName: ghcr.io/corti/installer:v1.13.9-gpu
     asserts:
       - equal:
           path: spec.template.spec.desiredTalosVersion
-          value: ghcr.io/siderolabs/installer:v1.13.9
+          value: ghcr.io/corti/installer:v1.13.9-gpu
 
-  # TalosConfigTemplate install.image follows the resolved talos.version
-  - it: should re-tag the install image with the resolved talos.version (worker)
+  # TalosConfigTemplate talosVersion follows the resolved talos.version.
+  # machine.install.image is no longer populated (extensions ship through
+  # the installer image ref on desiredTalosVersion, not the machine config).
+  - it: should stamp the resolved talos.version (worker)
     template: templates/talos/configtemplate.yaml
     documentIndex: 0
     set:
-      talos.installer:
-        repository: ghcr.io/siderolabs
-        imageName: installer
+      talos.imageName: ghcr.io/siderolabs/installer:v1.13.8
       talos.version: v1.13.8
       kommodity.nodepools.default.talos.version: v1.13.9
     asserts:
       - equal:
           path: spec.template.spec.talosVersion
           value: v1.13.9
-      - matchRegex:
+      - notMatchRegex:
           path: spec.template.spec.strategicPatches[0]
-          pattern: "image: ghcr.io/siderolabs/installer:v1.13.9"
+          pattern: "install:"
 
-  - it: should re-tag the install image with the control-plane talos.version
+  - it: should stamp the control-plane talos.version
     template: templates/talos/controlplane.yaml
     documentIndex: 0
     set:
-      talos.installer:
-        repository: ghcr.io/siderolabs
-        imageName: installer
+      talos.imageName: ghcr.io/siderolabs/installer:v1.13.8
       talos.version: v1.13.8
       kommodity.controlplane.talos.version: v1.14.0
     asserts:
       - equal:
           path: spec.controlPlaneConfig.controlplane.talosVersion
           value: v1.14.0
-      - matchRegex:
+      - notMatchRegex:
           path: spec.controlPlaneConfig.controlplane.strategicPatches[0]
-          pattern: "image: ghcr.io/siderolabs/installer:v1.14.0"
+          pattern: "install:"
