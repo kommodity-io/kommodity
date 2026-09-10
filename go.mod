@@ -501,5 +501,3 @@ require (
 	sigs.k8s.io/kustomize/kyaml v0.20.1 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
 )
-
-replace github.com/kommodity-io/cluster-api-provider-bringyourowntalos => /Users/pth/Documents/Code/cluster-api-provider-bringyourowntalos
