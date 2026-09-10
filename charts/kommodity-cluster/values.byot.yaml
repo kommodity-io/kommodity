@@ -25,11 +25,11 @@ kommodity:
     # matching them (exact-match).
     resources:
       cpu: "4" # Required
-      memory: "16G" # Required (one of 4G 8G 16G 32G 64G 128G)
+      memory: "16G" # Required (rounded value like 16G, 64G, 1T)
     os:
       disk:
         type: ssd # Optional (one of nvme ssd hdd sd)
-        size: "100G" # Optional (one of 20G 100G 250G 500G 1T)
+        size: "100G" # Optional (rounded value like 100G, 250G, 1T)
     # zones:
     #   - par01
     #   - par02

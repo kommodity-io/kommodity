@@ -147,20 +147,20 @@ func buildByotInfraFromDiscoveredHosts(t *testing.T, clusterName string, nodes b
 	t.Logf("discovered byot.io/ labels on %s: %v", nodes.CPHost, labels)
 
 	cpu := labels["byot.io/cpu-cores"]
-	memory := labels["byot.io/memory-class"]
+	memory := labels["byot.io/memory"]
 	diskType := labels["byot.io/disk-type"]
-	diskSize := labels["byot.io/disk-class"]
+	diskSize := labels["byot.io/disk-size"]
 
 	require.NotEmpty(t, cpu, "discovered byot.io/cpu-cores label must be set on %s", nodes.CPHost)
-	require.NotEmpty(t, memory, "discovered byot.io/memory-class label must be set on %s", nodes.CPHost)
+	require.NotEmpty(t, memory, "discovered byot.io/memory label must be set on %s", nodes.CPHost)
 
 	// Disk labels are optional: diskless hosts (e.g. Talos-in-Docker, which
 	// boots off overlay/tmpfs) promote no byot.io/disk-* labels. Only pin a disk
 	// selector when discovery actually found one; otherwise leave DiskType/
 	// DiskSize empty for a disk-agnostic selector the chart accepts.
 	if diskType != "" || diskSize != "" {
-		require.NotEmpty(t, diskType, "byot.io/disk-type set without byot.io/disk-class on %s", nodes.CPHost)
-		require.NotEmpty(t, diskSize, "byot.io/disk-class set without byot.io/disk-type on %s", nodes.CPHost)
+		require.NotEmpty(t, diskType, "byot.io/disk-type set without byot.io/disk-size on %s", nodes.CPHost)
+		require.NotEmpty(t, diskSize, "byot.io/disk-size set without byot.io/disk-type on %s", nodes.CPHost)
 	}
 
 	return helpers.ByotInfra{
