@@ -10,7 +10,7 @@ kommodity:
     # here (VIP / load balancer / DNS name fronting the control plane (HA)).
     config:
       controlPlaneEndpoint:
-        host: 62.210.236.35
+        host: <REPLACE-ME>
         port: 6443
 
   network:
