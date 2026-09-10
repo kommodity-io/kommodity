@@ -25,7 +25,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
 	github.com/k3s-io/kine v1.14.2
-	github.com/kommodity-io/cluster-api-provider-bringyourowntalos v0.6.0
+	github.com/kommodity-io/cluster-api-provider-bringyourowntalos v0.7.0
 	github.com/scaleway/cluster-api-provider-scaleway v0.1.6
 	github.com/siderolabs/cluster-api-bootstrap-provider-talos v0.6.12
 	github.com/siderolabs/cluster-api-control-plane-provider-talos v0.5.13
@@ -501,3 +501,5 @@ require (
 	sigs.k8s.io/kustomize/kyaml v0.20.1 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
 )
+
+replace github.com/kommodity-io/cluster-api-provider-bringyourowntalos => /Users/pth/Documents/Code/cluster-api-provider-bringyourowntalos

@@ -81,13 +81,17 @@ spec:
               properties:
                 desiredTalosVersion:
                   description: |-
-                    DesiredTalosVersion is an installer image ref (e.g.
-                    ghcr.io/siderolabs/installer:v1.14.0) the claimed host is upgraded to
-                    after the machine is adopted. Empty (the default) opts out of version
-                    management: no Version probe runs and existing adoption behavior is
-                    unchanged. Stamped from the ByotMachineTemplate. Mutable; editing after
-                    Ready=true retriggers an in-place upgrade via generation bump. For the
-                    host-swap rollout model, roll a new template instead.
+                    DesiredTalosVersion is an installer image ref the claimed host is
+                    upgraded to after the machine is adopted, via the Talos
+                    LifecycleClient.Upgrade RPC. The ref may be a stock Sidero installer
+                    (ghcr.io/siderolabs/installer:v1.14.0), an Image Factory installer
+                    (factory.talos.dev/installer/<schematic>:v1.14.0), or a custom-built
+                    installer with extensions. Empty (the default) opts out
+                    of version management: no upgrade runs and existing adoption behavior
+                    is unchanged. Stamped from the ByotMachineTemplate. Mutable; editing
+                    after Ready=true retriggers an in-place upgrade via generation bump.
+                    A same-ref re-issue with a matching attempt generation is deduped
+                    (already applied); bump generation to force a same-ref reinstall.
                   type: string
                 failureDomain:
                   description: |-
@@ -303,6 +307,14 @@ spec:
                     ResolvedPublicIP is the public IP of the claimed ByotHost, used as the
                     adoption target.
                   type: string
+                upgradeAppliedImageRef:
+                  description: |-
+                    UpgradeAppliedImageRef is the installer image ref the host was last
+                    successfully upgraded to (recorded at completion). Used to dedup
+                    no-op re-issues: when DesiredTalosVersion equals this ref and the
+                    attempt generation matches, the upgrade is skipped (already applied).
+                    An operator forces a same-ref reinstall by bumping generation.
+                  type: string
                 upgradeAttemptGeneration:
                   description: |-
                     UpgradeAttemptGeneration records the spec.generation observed when the
@@ -312,6 +324,15 @@ spec:
                     mismatch and clears Failed to retry.
                   format: int64
                   type: integer
+                upgradePreRebootBootID:
+                  description: |-
+                    UpgradePreRebootBootID is the host boot-id captured just before the
+                    post-install Reboot RPC is issued. The InFlight poll completes when the
+                    live boot-id differs from it (the host rebooted into the new version).
+                    Empty when capture failed or read permission was denied; in that case
+                    InFlight falls back to a reachability + version-change completion
+                    check. Cleared on completion.
+                  type: string
                 upgradeProbeFailures:
                   description: |-
                     UpgradeProbeFailures is the count of consecutive Version RPC failures
