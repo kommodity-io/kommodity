@@ -61,6 +61,9 @@ kommodity:
       resources:
         cpu: "4"
         memory: "16G"
+        # gpu:
+        #   model: "h100-pcie"
+        #   count: "1" (defaults to 1)
       os:
         disk:
           type: ssd

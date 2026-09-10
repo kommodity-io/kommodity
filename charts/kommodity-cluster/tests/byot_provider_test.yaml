@@ -306,6 +306,81 @@ tests:
           path: spec.template.spec.hostSelector.matchLabels["byot.io/available"]
           value: "true"
 
+  # resources.gpu -> byot.io/gpu-*
+  - it: should map resources.gpu.count and gpu.model to byot.io/gpu-* labels
+    template: templates/provider/byot/machinetemplate.yaml
+    documentIndex: 0
+    set:
+      kommodity.controlplane.resources.gpu.count: 1
+      kommodity.controlplane.resources.gpu.model: h100-pcie
+    asserts:
+      - equal:
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/gpu-count"]
+          value: "1"
+      - equal:
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/gpu-model"]
+          value: h100-pcie
+      - equal:
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/available"]
+          value: "true"
+
+  - it: should default gpu-count to 1 when only gpu.model is set
+    template: templates/provider/byot/machinetemplate.yaml
+    documentIndex: 0
+    set:
+      kommodity.controlplane.resources.gpu.model: h100-pcie
+    asserts:
+      - equal:
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/gpu-count"]
+          value: "1"
+      - equal:
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/gpu-model"]
+          value: h100-pcie
+
+  - it: should omit byot.io/gpu-* labels when resources.gpu is unset
+    template: templates/provider/byot/machinetemplate.yaml
+    documentIndex: 0
+    asserts:
+      - notExists:
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/gpu-count"]
+      - notExists:
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/gpu-model"]
+
+  - it: should fail when gpu is set without model
+    template: templates/provider/byot/machinetemplate.yaml
+    documentIndex: 0
+    set:
+      kommodity.controlplane.resources.gpu.count: "1"
+    asserts:
+      - failedTemplate:
+          errorMessage: 'kommodity.controlplane.resources.gpu.model is required when resources.gpu is set (model string matching the controller-promoted byot.io/gpu-model label, e.g. "h100-pcie")'
+
+  - it: should fail when gpu.count is not a plain integer
+    template: templates/provider/byot/machinetemplate.yaml
+    documentIndex: 0
+    set:
+      kommodity.controlplane.resources.gpu.count: "1.5"
+      kommodity.controlplane.resources.gpu.model: h100-pcie
+    asserts:
+      - failedTemplate:
+          errorMessage: 'kommodity.controlplane.resources.gpu.count must be a plain integer string of GPUs (e.g. "1"), got "1.5"; byot.io/gpu-count is not a k8s quantity'
+
+  - it: should let an operator hostSelector matchLabel override a derived byot.io/gpu label
+    template: templates/provider/byot/machinetemplate.yaml
+    documentIndex: 0
+    set:
+      kommodity.controlplane.resources.gpu.count: 1
+      kommodity.controlplane.resources.gpu.model: h100-pcie
+      kommodity.controlplane.hostSelector.matchLabels:
+        byot.io/gpu-count: "2"
+    asserts:
+      - equal:
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/gpu-count"]
+          value: "2"
+      - equal:
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/gpu-model"]
+          value: h100-pcie
+
   # hostSelector escape hatch
   - it: should merge operator freeform hostSelector labels and keep byot.io/available forced
     template: templates/provider/byot/machinetemplate.yaml

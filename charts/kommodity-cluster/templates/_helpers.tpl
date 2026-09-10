@@ -462,6 +462,21 @@ by the caller.
 {{- fail (printf "%s.resources.memory must be one of 4G 8G 16G 32G 64G 128G (exact bucket matching the controller-promoted byot.io/memory-class label), got %q" $scope $memory) -}}
 {{- end -}}
 {{- if not (hasKey $labels "byot.io/memory-class") -}}{{- $_ := set $labels "byot.io/memory-class" $memory -}}{{- end -}}
+{{- $gpu := default (dict) (dig "resources" "gpu" (dict) $p) -}}
+{{- $gpuCount := dig "count" "" $gpu | toString -}}
+{{- $gpuModel := dig "model" "" $gpu -}}
+{{- if or $gpuCount $gpuModel -}}
+{{- if not $gpuModel -}}
+{{- fail (printf "%s.resources.gpu.model is required when resources.gpu is set (model string matching the controller-promoted byot.io/gpu-model label, e.g. \"h100-pcie\")" $scope) -}}
+{{- end -}}
+{{- /* count defaults to 1 when only model is provided. */ -}}
+{{- if not $gpuCount -}}{{- $gpuCount = "1" -}}{{- end -}}
+{{- if not (regexMatch "^[0-9]+$" $gpuCount) -}}
+{{- fail (printf "%s.resources.gpu.count must be a plain integer string of GPUs (e.g. \"1\"), got %q; byot.io/gpu-count is not a k8s quantity" $scope $gpuCount) -}}
+{{- end -}}
+{{- if not (hasKey $labels "byot.io/gpu-count") -}}{{- $_ := set $labels "byot.io/gpu-count" $gpuCount -}}{{- end -}}
+{{- if not (hasKey $labels "byot.io/gpu-model") -}}{{- $_ := set $labels "byot.io/gpu-model" $gpuModel -}}{{- end -}}
+{{- end -}}
 {{- /* os.disk is OPTIONAL. Some hosts (e.g. Talos-in-Docker, diskless
      boot) promote no byot.io/disk-* labels, so requiring a disk selector
      would make them unclaimable. When either os.disk.type or os.disk.size is
