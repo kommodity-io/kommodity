@@ -218,40 +218,6 @@ tests:
       - hasDocuments:
           count: 1
 
-  # Validation: resources.cpu
-  - it: should fail when resources.cpu is a k8s quantity
-    template: templates/provider/byot/machinetemplate.yaml
-    set:
-      kommodity.controlplane.resources.cpu: "4000m"
-    asserts:
-      - failedTemplate:
-          errorMessage: 'kommodity.controlplane.resources.cpu must be a plain integer string of physical cores (e.g. "4"), got "4000m"; byot.io/cpu-cores is not bucketed and not a k8s quantity ("4000m" is rejected)'
-
-  - it: should fail when resources.cpu is unset
-    template: templates/provider/byot/machinetemplate.yaml
-    set:
-      kommodity.controlplane.resources.cpu: null
-    asserts:
-      - failedTemplate:
-          errorMessage: 'kommodity.controlplane.resources.cpu is required for Byot (plain integer string of physical cores, e.g. "4")'
-
-  # Validation: resources.memory
-  - it: should fail when resources.memory is not a valid bucket
-    template: templates/provider/byot/machinetemplate.yaml
-    set:
-      kommodity.controlplane.resources.memory: "20G"
-    asserts:
-      - failedTemplate:
-          errorMessage: 'kommodity.controlplane.resources.memory must be one of 4G 8G 16G 32G 64G 128G (exact bucket matching the controller-promoted byot.io/memory-class label), got "20G"'
-
-  - it: should fail when resources.memory is unset
-    template: templates/provider/byot/machinetemplate.yaml
-    set:
-      kommodity.controlplane.resources.memory: null
-    asserts:
-      - failedTemplate:
-          errorMessage: 'kommodity.controlplane.resources.memory is required for Byot (one of: 4G 8G 16G 32G 64G 128G)'
-
   # Validation: os.disk (optional; when either field is set, both must be set + valid)
   - it: should fail when os.disk.type is invalid
     template: templates/provider/byot/machinetemplate.yaml
@@ -345,6 +311,33 @@ tests:
           path: spec.template.spec.hostSelector.matchLabels["byot.io/gpu-count"]
       - notExists:
           path: spec.template.spec.hostSelector.matchLabels["byot.io/gpu-model"]
+
+  # cpu/memory are OPTIONAL and passed through verbatim (no validation)
+  - it: should pass resources.cpu and memory through to byot.io labels verbatim
+    template: templates/provider/byot/machinetemplate.yaml
+    documentIndex: 0
+    set:
+      kommodity.controlplane.resources.cpu: "4000m"
+      kommodity.controlplane.resources.memory: "256G"
+    asserts:
+      - equal:
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/cpu-cores"]
+          value: "4000m"
+      - equal:
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/memory-class"]
+          value: 256G
+
+  - it: should omit byot.io/cpu-cores and byot.io/memory-class when unset
+    template: templates/provider/byot/machinetemplate.yaml
+    documentIndex: 0
+    set:
+      kommodity.controlplane.resources.cpu: null
+      kommodity.controlplane.resources.memory: null
+    asserts:
+      - notExists:
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/cpu-cores"]
+      - notExists:
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/memory-class"]
 
   - it: should fail when gpu is set without model
     template: templates/provider/byot/machinetemplate.yaml

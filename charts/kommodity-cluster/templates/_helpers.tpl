@@ -443,25 +443,14 @@ by the caller.
 {{- with (dig "hostSelector" "matchLabels" (dict) $p) -}}
 {{- $labels = mustMergeOverwrite $labels (deepCopy .) -}}
 {{- end -}}
-{{- /* resources.cpu -> byot.io/cpu-cores (plain integer string). */ -}}
+{{- /* resources.cpu -> byot.io/cpu-cores (plain integer string), OPTIONAL.
+     Not validated; passed through verbatim when set. */ -}}
 {{- $cpu := dig "resources" "cpu" "" $p -}}
-{{- if not $cpu -}}
-{{- fail (printf "%s.resources.cpu is required for Byot (plain integer string of physical cores, e.g. \"4\")" $scope) -}}
-{{- end -}}
-{{- if not (regexMatch "^[0-9]+$" $cpu) -}}
-{{- fail (printf "%s.resources.cpu must be a plain integer string of physical cores (e.g. \"4\"), got %q; byot.io/cpu-cores is not bucketed and not a k8s quantity (\"4000m\" is rejected)" $scope $cpu) -}}
-{{- end -}}
-{{- if not (hasKey $labels "byot.io/cpu-cores") -}}{{- $_ := set $labels "byot.io/cpu-cores" $cpu -}}{{- end -}}
-{{- /* resources.memory -> byot.io/memory-class (exact bucket). */ -}}
+{{- if and $cpu (not (hasKey $labels "byot.io/cpu-cores")) -}}{{- $_ := set $labels "byot.io/cpu-cores" $cpu -}}{{- end -}}
+{{- /* resources.memory -> byot.io/memory-class, OPTIONAL. Not validated;
+     passed through verbatim when set. */ -}}
 {{- $memory := dig "resources" "memory" "" $p -}}
-{{- if not $memory -}}
-{{- fail (printf "%s.resources.memory is required for Byot (one of: 4G 8G 16G 32G 64G 128G)" $scope) -}}
-{{- end -}}
-{{- $memoryBuckets := list "4G" "8G" "16G" "32G" "64G" "128G" -}}
-{{- if not (has $memory $memoryBuckets) -}}
-{{- fail (printf "%s.resources.memory must be one of 4G 8G 16G 32G 64G 128G (exact bucket matching the controller-promoted byot.io/memory-class label), got %q" $scope $memory) -}}
-{{- end -}}
-{{- if not (hasKey $labels "byot.io/memory-class") -}}{{- $_ := set $labels "byot.io/memory-class" $memory -}}{{- end -}}
+{{- if and $memory (not (hasKey $labels "byot.io/memory-class")) -}}{{- $_ := set $labels "byot.io/memory-class" $memory -}}{{- end -}}
 {{- $gpu := default (dict) (dig "resources" "gpu" (dict) $p) -}}
 {{- $gpuCount := dig "count" "" $gpu | toString -}}
 {{- $gpuModel := dig "model" "" $gpu -}}
