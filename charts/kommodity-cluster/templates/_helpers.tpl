@@ -447,10 +447,10 @@ by the caller.
      Not validated; passed through verbatim when set. */ -}}
 {{- $cpu := dig "resources" "cpu" "" $p -}}
 {{- if and $cpu (not (hasKey $labels "byot.io/cpu-cores")) -}}{{- $_ := set $labels "byot.io/cpu-cores" $cpu -}}{{- end -}}
-{{- /* resources.memory -> byot.io/memory-class, OPTIONAL. Not validated;
+{{- /* resources.memory -> byot.io/memory, OPTIONAL. Not validated;
      passed through verbatim when set. */ -}}
 {{- $memory := dig "resources" "memory" "" $p -}}
-{{- if and $memory (not (hasKey $labels "byot.io/memory-class")) -}}{{- $_ := set $labels "byot.io/memory-class" $memory -}}{{- end -}}
+{{- if and $memory (not (hasKey $labels "byot.io/memory")) -}}{{- $_ := set $labels "byot.io/memory" $memory -}}{{- end -}}
 {{- $gpu := default (dict) (dig "resources" "gpu" (dict) $p) -}}
 {{- $gpuCount := dig "count" "" $gpu | toString -}}
 {{- $gpuModel := dig "model" "" $gpu -}}
@@ -477,7 +477,6 @@ by the caller.
 {{- $diskType := dig "type" "" $disk -}}
 {{- $diskSize := dig "size" "" $disk -}}
 {{- $diskTypes := list "nvme" "ssd" "hdd" "sd" -}}
-{{- $diskClasses := list "20G" "100G" "250G" "500G" "1T" -}}
 {{- if or $diskType $diskSize -}}
 {{- if not $diskType -}}
 {{- fail (printf "%s.os.disk.type is required when os.disk.size is set (one of: nvme ssd hdd sd); omit both for a disk-agnostic selector" $scope) -}}
@@ -486,13 +485,13 @@ by the caller.
 {{- fail (printf "%s.os.disk.type must be one of nvme ssd hdd sd (lowercase, matching the controller-promoted byot.io/disk-type label), got %q" $scope $diskType) -}}
 {{- end -}}
 {{- if not $diskSize -}}
-{{- fail (printf "%s.os.disk.size is required when os.disk.type is set (one of: 20G 100G 250G 500G 1T); omit both for a disk-agnostic selector" $scope) -}}
+{{- fail (printf "%s.os.disk.size is required when os.disk.type is set (a rounded value like 250G or 1T, matching the controller-promoted byot.io/disk-size label); omit both for a disk-agnostic selector" $scope) -}}
 {{- end -}}
-{{- if not (has $diskSize $diskClasses) -}}
-{{- fail (printf "%s.os.disk.size must be one of 20G 100G 250G 500G 1T (exact bucket matching the controller-promoted byot.io/disk-class label), got %q" $scope $diskSize) -}}
+{{- if not (regexMatch "^[0-9]+[GT]$" $diskSize) -}}
+{{- fail (printf "%s.os.disk.size must be a rounded value like 250G or 1T (integer + G/T suffix, matching the controller-promoted byot.io/disk-size label), got %q" $scope $diskSize) -}}
 {{- end -}}
 {{- if not (hasKey $labels "byot.io/disk-type") -}}{{- $_ := set $labels "byot.io/disk-type" $diskType -}}{{- end -}}
-{{- if not (hasKey $labels "byot.io/disk-class") -}}{{- $_ := set $labels "byot.io/disk-class" $diskSize -}}{{- end -}}
+{{- if not (hasKey $labels "byot.io/disk-size") -}}{{- $_ := set $labels "byot.io/disk-size" $diskSize -}}{{- end -}}
 {{- end -}}
 {{- /* byot.io/available is force-injected last; it cannot be overridden. */ -}}
 {{- $_ := set $labels "byot.io/available" "true" -}}

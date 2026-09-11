@@ -110,13 +110,13 @@ tests:
           path: spec.template.spec.hostSelector.matchLabels["byot.io/cpu-cores"]
           value: "4"
       - equal:
-          path: spec.template.spec.hostSelector.matchLabels["byot.io/memory-class"]
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/memory"]
           value: 16G
       - equal:
           path: spec.template.spec.hostSelector.matchLabels["byot.io/disk-type"]
           value: ssd
       - equal:
-          path: spec.template.spec.hostSelector.matchLabels["byot.io/disk-class"]
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/disk-size"]
           value: 100G
       - notExists:
           path: spec.template.spec.failureDomain
@@ -233,7 +233,7 @@ tests:
       kommodity.controlplane.os.disk.size: null
     asserts:
       - failedTemplate:
-          errorMessage: 'kommodity.controlplane.os.disk.size is required when os.disk.type is set (one of: 20G 100G 250G 500G 1T); omit both for a disk-agnostic selector'
+          errorMessage: 'kommodity.controlplane.os.disk.size is required when os.disk.type is set (a rounded value like 250G or 1T, matching the controller-promoted byot.io/disk-size label); omit both for a disk-agnostic selector'
 
   - it: should fail when os.disk.size is set but os.disk.type is unset
     template: templates/provider/byot/machinetemplate.yaml
@@ -243,13 +243,13 @@ tests:
       - failedTemplate:
           errorMessage: 'kommodity.controlplane.os.disk.type is required when os.disk.size is set (one of: nvme ssd hdd sd); omit both for a disk-agnostic selector'
 
-  - it: should fail when os.disk.size is not a valid bucket
+  - it: should fail when os.disk.size is not a valid rounded value
     template: templates/provider/byot/machinetemplate.yaml
     set:
-      kommodity.controlplane.os.disk.size: "50G"
+      kommodity.controlplane.os.disk.size: "50"
     asserts:
       - failedTemplate:
-          errorMessage: 'kommodity.controlplane.os.disk.size must be one of 20G 100G 250G 500G 1T (exact bucket matching the controller-promoted byot.io/disk-class label), got "50G"'
+          errorMessage: 'kommodity.controlplane.os.disk.size must be a rounded value like 250G or 1T (integer + G/T suffix, matching the controller-promoted byot.io/disk-size label), got "50"'
 
   # Optional os.disk: omitting both yields a disk-agnostic selector (no byot.io/disk-* labels)
   - it: should omit byot.io/disk-* labels when both os.disk fields are unset
@@ -261,12 +261,12 @@ tests:
       - notExists:
           path: spec.template.spec.hostSelector.matchLabels["byot.io/disk-type"]
       - notExists:
-          path: spec.template.spec.hostSelector.matchLabels["byot.io/disk-class"]
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/disk-size"]
       - equal:
           path: spec.template.spec.hostSelector.matchLabels["byot.io/cpu-cores"]
           value: "4"
       - equal:
-          path: spec.template.spec.hostSelector.matchLabels["byot.io/memory-class"]
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/memory"]
           value: 16G
       - equal:
           path: spec.template.spec.hostSelector.matchLabels["byot.io/available"]
@@ -324,10 +324,10 @@ tests:
           path: spec.template.spec.hostSelector.matchLabels["byot.io/cpu-cores"]
           value: "4000m"
       - equal:
-          path: spec.template.spec.hostSelector.matchLabels["byot.io/memory-class"]
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/memory"]
           value: 256G
 
-  - it: should omit byot.io/cpu-cores and byot.io/memory-class when unset
+  - it: should omit byot.io/cpu-cores and byot.io/memory when unset
     template: templates/provider/byot/machinetemplate.yaml
     documentIndex: 0
     set:
@@ -337,7 +337,7 @@ tests:
       - notExists:
           path: spec.template.spec.hostSelector.matchLabels["byot.io/cpu-cores"]
       - notExists:
-          path: spec.template.spec.hostSelector.matchLabels["byot.io/memory-class"]
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/memory"]
 
   - it: should fail when gpu is set without model
     template: templates/provider/byot/machinetemplate.yaml
@@ -400,7 +400,7 @@ tests:
           path: spec.template.spec.hostSelector.matchLabels["byot.io/cpu-cores"]
           value: "8"
       - equal:
-          path: spec.template.spec.hostSelector.matchLabels["byot.io/memory-class"]
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/memory"]
           value: 16G
       - equal:
           path: spec.template.spec.hostSelector.matchLabels["byot.io/available"]

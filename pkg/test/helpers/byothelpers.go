@@ -53,13 +53,13 @@ type ByotInfra struct {
 	// CPU is the resources.cpu value (plain integer string of physical cores)
 	// mapped to the byot.io/cpu-cores selector label.
 	CPU string
-	// Memory is the resources.memory bucket (4G 8G 16G 32G 64G 128G) mapped to
-	// the byot.io/memory-class selector label.
+	// Memory is the resources.memory value (e.g. 64G) mapped to
+	// the byot.io/memory selector label.
 	Memory string
 	// DiskType is the os.disk.type (nvme ssd hdd sd) mapped to byot.io/disk-type.
 	DiskType string
-	// DiskSize is the os.disk.size bucket (20G 100G 250G 500G 1T) mapped to
-	// byot.io/disk-class.
+	// DiskSize is the os.disk.size value (e.g. 250G 1T) mapped to
+	// byot.io/disk-size.
 	DiskSize string
 	// HostSelectorMatchLabels is an optional freeform operator label selector
 	// merged on top of the derived byot.io/ labels. Used here to scope a test's
@@ -942,7 +942,7 @@ func DeleteByotHost(t *testing.T, env TestEnvironment, name string, namespace st
 
 // ByotHostLabels returns the metadata.labels of a ByotHost. The host
 // controller promotes curated byot.io/ labels from discovery (cpu-cores,
-// memory-class, disk-type, disk-class, available, ...) and preserves operator
+// memory, disk-type, disk-size, available, ...) and preserves operator
 // (non-byot.io/) labels; tests read the promoted labels to build a matching
 // resources/os.disk selector.
 func ByotHostLabels(t *testing.T, env TestEnvironment, name string, namespace string) map[string]string {
