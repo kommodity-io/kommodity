@@ -29,7 +29,7 @@ spec:
         "taints" $np.taints
         "labels" $np.labels
         "annotations" $np.annotations
-        "installer" $.Values.talos.installer
+        "version" (default $.Values.talos.version (dig "talos" "version" "" $np))
         "logLevel" $.Values.kommodity.logLevel
       ) | trim -}}
       {{- $hetznerPrivate := and (eq $.Values.kommodity.provider.name "Hetzner") (not $.Values.kommodity.network.ipv4.public) }}

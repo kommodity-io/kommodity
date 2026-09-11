@@ -69,6 +69,20 @@ spec:
                     spec:
                       description: Spec is the specification of the desired behavior of the machine.
                       properties:
+                        desiredTalosVersion:
+                          description: |-
+                            DesiredTalosVersion is an installer image ref the claimed host is
+                            upgraded to after the machine is adopted, via the Talos
+                            LifecycleClient.Upgrade RPC. The ref may be a stock Sidero installer
+                            (ghcr.io/siderolabs/installer:v1.14.0), an Image Factory installer
+                            (factory.talos.dev/installer/<schematic>:v1.14.0), or a custom-built
+                            installer with extensions. Empty (the default) opts out
+                            of version management: no upgrade runs and existing adoption behavior
+                            is unchanged. Stamped from the ByotMachineTemplate. Mutable; editing
+                            after Ready=true retriggers an in-place upgrade via generation bump.
+                            A same-ref re-issue with a matching attempt generation is deduped
+                            (already applied); bump generation to force a same-ref reinstall.
+                          type: string
                         failureDomain:
                           description: |-
                             FailureDomain is the unique name of the failure domain the machine is

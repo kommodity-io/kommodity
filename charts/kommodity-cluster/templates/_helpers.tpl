@@ -251,6 +251,7 @@ Any values that should trigger a new Machine template when changed should be add
 {{- $_ := set $data "diskType" (dig "type" "" $disk) -}}
 {{- $_ := set $data "diskSize" (dig "size" "" $disk) -}}
 {{- $_ := set $data "byotHostSelector" (dig "hostSelector" "" .poolValues) -}}
+{{- $_ := set $data "desiredTalosVersion" (include "kommodity-cluster.byotDesiredTalosVersion" (dict "poolValues" .poolValues "allValues" .allValues)) -}}
 {{- end -}}
 {{- $_ := set $data "publicNetworkEnabled" .allValues.kommodity.network.ipv4.public -}}
 {{- $zones := include "kommodity-cluster.poolZones" .poolValues | fromJsonArray -}}
@@ -293,11 +294,6 @@ to preserve YAML block scalar formatting for multi-line contents.
 {{- $_ := mustMergeOverwrite $result (dict "cluster" (dict "apiServer" (dict "extraArgs" $oidcExtraArgs))) -}}
 {{- end -}}
 
-{{- /* Add installer image */ -}}
-{{- if .installer -}}
-{{- $installerImage := include "kommodity.talos.installer.image" (dict "installer" .installer) -}}
-{{- $_ := mustMergeOverwrite $result (dict "machine" (dict "install" (dict "image" $installerImage))) -}}
-{{- end -}}
 {{- /* Add global Kommodity environment variables */ -}}
 {{- if .logLevel -}}
 {{- $globalEnv := include "kommodity.talos.globalEnv" (dict "logLevel" .logLevel) | fromJson -}}
@@ -447,25 +443,29 @@ by the caller.
 {{- with (dig "hostSelector" "matchLabels" (dict) $p) -}}
 {{- $labels = mustMergeOverwrite $labels (deepCopy .) -}}
 {{- end -}}
-{{- /* resources.cpu -> byot.io/cpu-cores (plain integer string). */ -}}
+{{- /* resources.cpu -> byot.io/cpu-cores (plain integer string), OPTIONAL.
+     Not validated; passed through verbatim when set. */ -}}
 {{- $cpu := dig "resources" "cpu" "" $p -}}
-{{- if not $cpu -}}
-{{- fail (printf "%s.resources.cpu is required for Byot (plain integer string of physical cores, e.g. \"4\")" $scope) -}}
-{{- end -}}
-{{- if not (regexMatch "^[0-9]+$" $cpu) -}}
-{{- fail (printf "%s.resources.cpu must be a plain integer string of physical cores (e.g. \"4\"), got %q; byot.io/cpu-cores is not bucketed and not a k8s quantity (\"4000m\" is rejected)" $scope $cpu) -}}
-{{- end -}}
-{{- if not (hasKey $labels "byot.io/cpu-cores") -}}{{- $_ := set $labels "byot.io/cpu-cores" $cpu -}}{{- end -}}
-{{- /* resources.memory -> byot.io/memory-class (exact bucket). */ -}}
+{{- if and $cpu (not (hasKey $labels "byot.io/cpu-cores")) -}}{{- $_ := set $labels "byot.io/cpu-cores" $cpu -}}{{- end -}}
+{{- /* resources.memory -> byot.io/memory, OPTIONAL. Not validated;
+     passed through verbatim when set. */ -}}
 {{- $memory := dig "resources" "memory" "" $p -}}
-{{- if not $memory -}}
-{{- fail (printf "%s.resources.memory is required for Byot (one of: 4G 8G 16G 32G 64G 128G)" $scope) -}}
+{{- if and $memory (not (hasKey $labels "byot.io/memory")) -}}{{- $_ := set $labels "byot.io/memory" $memory -}}{{- end -}}
+{{- $gpu := default (dict) (dig "resources" "gpu" (dict) $p) -}}
+{{- $gpuCount := dig "count" "" $gpu | toString -}}
+{{- $gpuModel := dig "model" "" $gpu -}}
+{{- if or $gpuCount $gpuModel -}}
+{{- if not $gpuModel -}}
+{{- fail (printf "%s.resources.gpu.model is required when resources.gpu is set (model string matching the controller-promoted byot.io/gpu-model label, e.g. \"h100-pcie\")" $scope) -}}
 {{- end -}}
-{{- $memoryBuckets := list "4G" "8G" "16G" "32G" "64G" "128G" -}}
-{{- if not (has $memory $memoryBuckets) -}}
-{{- fail (printf "%s.resources.memory must be one of 4G 8G 16G 32G 64G 128G (exact bucket matching the controller-promoted byot.io/memory-class label), got %q" $scope $memory) -}}
+{{- /* count defaults to 1 when only model is provided. */ -}}
+{{- if not $gpuCount -}}{{- $gpuCount = "1" -}}{{- end -}}
+{{- if not (regexMatch "^[0-9]+$" $gpuCount) -}}
+{{- fail (printf "%s.resources.gpu.count must be a plain integer string of GPUs (e.g. \"1\"), got %q; byot.io/gpu-count is not a k8s quantity" $scope $gpuCount) -}}
 {{- end -}}
-{{- if not (hasKey $labels "byot.io/memory-class") -}}{{- $_ := set $labels "byot.io/memory-class" $memory -}}{{- end -}}
+{{- if not (hasKey $labels "byot.io/gpu-count") -}}{{- $_ := set $labels "byot.io/gpu-count" $gpuCount -}}{{- end -}}
+{{- if not (hasKey $labels "byot.io/gpu-model") -}}{{- $_ := set $labels "byot.io/gpu-model" $gpuModel -}}{{- end -}}
+{{- end -}}
 {{- /* os.disk is OPTIONAL. Some hosts (e.g. Talos-in-Docker, diskless
      boot) promote no byot.io/disk-* labels, so requiring a disk selector
      would make them unclaimable. When either os.disk.type or os.disk.size is
@@ -477,7 +477,6 @@ by the caller.
 {{- $diskType := dig "type" "" $disk -}}
 {{- $diskSize := dig "size" "" $disk -}}
 {{- $diskTypes := list "nvme" "ssd" "hdd" "sd" -}}
-{{- $diskClasses := list "20G" "100G" "250G" "500G" "1T" -}}
 {{- if or $diskType $diskSize -}}
 {{- if not $diskType -}}
 {{- fail (printf "%s.os.disk.type is required when os.disk.size is set (one of: nvme ssd hdd sd); omit both for a disk-agnostic selector" $scope) -}}
@@ -486,13 +485,13 @@ by the caller.
 {{- fail (printf "%s.os.disk.type must be one of nvme ssd hdd sd (lowercase, matching the controller-promoted byot.io/disk-type label), got %q" $scope $diskType) -}}
 {{- end -}}
 {{- if not $diskSize -}}
-{{- fail (printf "%s.os.disk.size is required when os.disk.type is set (one of: 20G 100G 250G 500G 1T); omit both for a disk-agnostic selector" $scope) -}}
+{{- fail (printf "%s.os.disk.size is required when os.disk.type is set (a rounded value like 250G or 1T, matching the controller-promoted byot.io/disk-size label); omit both for a disk-agnostic selector" $scope) -}}
 {{- end -}}
-{{- if not (has $diskSize $diskClasses) -}}
-{{- fail (printf "%s.os.disk.size must be one of 20G 100G 250G 500G 1T (exact bucket matching the controller-promoted byot.io/disk-class label), got %q" $scope $diskSize) -}}
+{{- if not (regexMatch "^[0-9]+[GT]$" $diskSize) -}}
+{{- fail (printf "%s.os.disk.size must be a rounded value like 250G or 1T (integer + G/T suffix, matching the controller-promoted byot.io/disk-size label), got %q" $scope $diskSize) -}}
 {{- end -}}
 {{- if not (hasKey $labels "byot.io/disk-type") -}}{{- $_ := set $labels "byot.io/disk-type" $diskType -}}{{- end -}}
-{{- if not (hasKey $labels "byot.io/disk-class") -}}{{- $_ := set $labels "byot.io/disk-class" $diskSize -}}{{- end -}}
+{{- if not (hasKey $labels "byot.io/disk-size") -}}{{- $_ := set $labels "byot.io/disk-size" $diskSize -}}{{- end -}}
 {{- end -}}
 {{- /* byot.io/available is force-injected last; it cannot be overridden. */ -}}
 {{- $_ := set $labels "byot.io/available" "true" -}}
@@ -505,4 +504,31 @@ hostSelector:
 {{- . | toYaml | nindent 4 }}
 {{- end }}
 {{- end }}
+{{- end -}}
+
+{{/*
+kommodity-cluster.byotDesiredTalosVersion — build the ByotMachineTemplate
+spec.template.spec.desiredTalosVersion (an installer image ref) for a byot pool.
+
+For BYOT the image is always an installer: the host is adopted in maintenance
+mode and upgraded via LifecycleClient.Upgrade, which runs /bin/installer from
+the ref. talos.imageName carries the full installer ref (e.g.
+ghcr.io/siderolabs/installer:v1.13.0, a factory.talos.dev schematic installer,
+or a custom-built installer with extensions). The tag is opaque to Talos, so
+any tag works (extensions ship through the installer image, not the machine
+config). Resolved with nodepool precedence — poolValues.talos.imageName
+overrides the global talos.imageName. Required: when imageName is unset the
+helper fails (no silent Sidero default); the default lives in values.byot.yaml
+so operators opt in explicitly and custom-registry installs never silently
+fall back to the public Sidero image.
+
+Input: dict "poolValues" (controlplane/nodepool values) "allValues" (.Values).
+Returns the installer image ref string.
+*/ -}}
+{{- define "kommodity-cluster.byotDesiredTalosVersion" -}}
+{{- $imageName := default .allValues.talos.imageName (dig "talos" "imageName" "" .poolValues) -}}
+{{- if not $imageName -}}
+{{- fail "talos.imageName is required for BYOT (set it in values.byot.yaml to the installer image ref, e.g. ghcr.io/siderolabs/installer:v1.13.0)" -}}
+{{- end -}}
+{{- $imageName -}}
 {{- end -}}

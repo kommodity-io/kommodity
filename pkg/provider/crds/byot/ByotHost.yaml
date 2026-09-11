@@ -292,14 +292,48 @@ spec:
                       x-kubernetes-int-or-string: true
                     networkInterfaces:
                       description: |-
-                        NetworkInterfaces lists interface names from /sys/class/net (MACs are
-                        unavailable in maintenance mode).
+                        NetworkInterfaces lists interface names from /sys/class/net. Per-
+                        interface MACs are not collected here; the first-up NIC MAC used for
+                        machine identity is in status.identity.hardwareAddr.
                       items:
                         type: string
                       type: array
                   required:
                     - cpu
                     - memory
+                  type: object
+                identity:
+                  description: |-
+                    Identity holds the reboot-stable hardware identity (SMBIOS UUID + first
+                    NIC MAC) used to verify the host is the same physical board across
+                    reboots/upgrades. Populated by discovery; empty when the firmware or NIC
+                    exposes nothing usable.
+                  properties:
+                    hardwareAddr:
+                      description: |-
+                        HardwareAddr is the colon-separated MAC of the first-up physical NIC
+                        (the address Talos uses for machine identity), from the network.HardwareAddr
+                        resource. Spoofable from userspace and zero on some virtual NICs, so it is
+                        a cross-check rather than a primary identity.
+                      type: string
+                    manufacturer:
+                      description: |-
+                        Manufacturer is the SMBIOS Type 1 manufacturer string. Empty when
+                        unavailable.
+                      type: string
+                    productName:
+                      description: ProductName is the SMBIOS Type 1 product name. Empty when unavailable.
+                      type: string
+                    serialNumber:
+                      description: |-
+                        SerialNumber is the SMBIOS Type 1 board serial number, kept as an
+                        additional cross-check. Empty when unavailable.
+                      type: string
+                    systemUUID:
+                      description: |-
+                        SystemUUID is the SMBIOS Type 1 UUID (firmware-burned, survives Talos
+                        upgrades and reinstalls). Empty when the firmware does not expose one.
+                      type: string
                   type: object
                 lastProbedAt:
                   description: LastProbedAt records when the host was last probed.

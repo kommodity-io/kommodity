@@ -37,6 +37,14 @@ spec:
           jsonPath: .spec.providerID
           name: ProviderID
           type: string
+        - description: Live Talos version
+          jsonPath: .status.currentTalosVersion
+          name: Talos
+          type: string
+        - description: Upgrade state
+          jsonPath: .status.upgradeState
+          name: Upgrade
+          type: string
       name: v1alpha1
       schema:
         openAPIV3Schema:
@@ -71,6 +79,20 @@ spec:
                 machine at the host's public IP. Either hostRef (explicit) or hostSelector
                 (label-based) selects the host; they are mutually exclusive.
               properties:
+                desiredTalosVersion:
+                  description: |-
+                    DesiredTalosVersion is an installer image ref the claimed host is
+                    upgraded to after the machine is adopted, via the Talos
+                    LifecycleClient.Upgrade RPC. The ref may be a stock Sidero installer
+                    (ghcr.io/siderolabs/installer:v1.14.0), an Image Factory installer
+                    (factory.talos.dev/installer/<schematic>:v1.14.0), or a custom-built
+                    installer with extensions. Empty (the default) opts out
+                    of version management: no upgrade runs and existing adoption behavior
+                    is unchanged. Stamped from the ByotMachineTemplate. Mutable; editing
+                    after Ready=true retriggers an in-place upgrade via generation bump.
+                    A same-ref re-issue with a matching attempt generation is deduped
+                    (already applied); bump generation to force a same-ref reinstall.
+                  type: string
                 failureDomain:
                   description: |-
                     FailureDomain is the unique name of the failure domain the machine is
@@ -239,6 +261,13 @@ spec:
                       - type
                     type: object
                   type: array
+                currentTalosVersion:
+                  description: |-
+                    CurrentTalosVersion is the live Talos version tag (from the Version
+                    RPC) of the claimed host. Populated only when DesiredTalosVersion is
+                    set; the post-adoption upgrade path uses it to decide whether an
+                    Upgrade RPC is needed.
+                  type: string
                 lastAppliedConfigSHA:
                   description: |-
                     LastAppliedConfigSHA records the SHA256 hash of the last machine
@@ -277,6 +306,48 @@ spec:
                   description: |-
                     ResolvedPublicIP is the public IP of the claimed ByotHost, used as the
                     adoption target.
+                  type: string
+                upgradeAppliedImageRef:
+                  description: |-
+                    UpgradeAppliedImageRef is the installer image ref the host was last
+                    successfully upgraded to (recorded at completion). Used to dedup
+                    no-op re-issues: when DesiredTalosVersion equals this ref and the
+                    attempt generation matches, the upgrade is skipped (already applied).
+                    An operator forces a same-ref reinstall by bumping generation.
+                  type: string
+                upgradeAttemptGeneration:
+                  description: |-
+                    UpgradeAttemptGeneration records the spec.generation observed when the
+                    current upgrade attempt started. After the controller stops on a probe
+                    or upgrade failure, an operator retriggers the upgrade by editing
+                    DesiredTalosVersion (bumping generation); the controller detects the
+                    mismatch and clears Failed to retry.
+                  format: int64
+                  type: integer
+                upgradePreRebootBootID:
+                  description: |-
+                    UpgradePreRebootBootID is the host boot-id captured just before the
+                    post-install Reboot RPC is issued. The InFlight poll completes when the
+                    live boot-id differs from it (the host rebooted into the new version).
+                    Empty when capture failed or read permission was denied; in that case
+                    InFlight falls back to a reachability + version-change completion
+                    check. Cleared on completion.
+                  type: string
+                upgradeProbeFailures:
+                  description: |-
+                    UpgradeProbeFailures is the count of consecutive Version RPC failures
+                    during the current upgrade phase (pre-upgrade probe or InFlight poll).
+                    Reset on success. Used to bound retries before flipping to Failed.
+                  format: int32
+                  type: integer
+                upgradeState:
+                  description: |-
+                    UpgradeState drives the post-adoption upgrade state machine. "" means no
+                    upgrade is pending; "InFlight" means the Upgrade RPC was issued (over the
+                    cluster talosconfig, preserve=true) and the controller is polling the
+                    Version RPC until it reports the desired tag; "Failed" means the
+                    probe/upgrade exhausted its retries and the controller stopped (retrigger
+                    by editing DesiredTalosVersion). Only set when DesiredTalosVersion is set.
                   type: string
               type: object
           type: object

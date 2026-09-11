@@ -10,7 +10,7 @@ kommodity:
     # here (VIP / load balancer / DNS name fronting the control plane (HA)).
     config:
       controlPlaneEndpoint:
-        host: 203.0.113.10
+        host: <REPLACE-ME>
         port: 6443
 
   network:
@@ -25,11 +25,11 @@ kommodity:
     # matching them (exact-match).
     resources:
       cpu: "4" # Required
-      memory: "16G" # Required (one of 4G 8G 16G 32G 64G 128G)
+      memory: "16G" # Required (rounded value like 16G, 64G, 1T)
     os:
       disk:
         type: ssd # Optional (one of nvme ssd hdd sd)
-        size: "100G" # Optional (one of 20G 100G 250G 500G 1T)
+        size: "100G" # Optional (rounded value like 100G, 250G, 1T)
     # zones:
     #   - par01
     #   - par02
@@ -61,6 +61,9 @@ kommodity:
       resources:
         cpu: "4"
         memory: "16G"
+        # gpu:
+        #   model: "h100-pcie"
+        #   count: "1" (defaults to 1)
       os:
         disk:
           type: ssd
@@ -87,3 +90,5 @@ kommodity:
 talos:
   # Talos version must match the maintenance-mode ByotHosts being claimed.
   version: v1.13.8
+  # for BYOT, imageName is the installer image ref used to upgrade adopted BYOT hosts
+  imageName: ghcr.io/siderolabs/installer:v1.13.8

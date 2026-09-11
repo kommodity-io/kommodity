@@ -36,6 +36,10 @@ spec:
         cluster.x-k8s.io/cluster-name: {{ .Release.Name }}
     spec:
 {{- include "kommodity-cluster.byotHostSelector" (dict "poolValues" $cp "scope" "kommodity.controlplane") | nindent 6 }}
+{{- $cpDesired := include "kommodity-cluster.byotDesiredTalosVersion" (dict "poolValues" $cp "allValues" .Values) -}}
+{{- if $cpDesired }}
+      desiredTalosVersion: {{ $cpDesired }}
+{{- end }}
 {{- /* Worker ByotMachineTemplates: one per nodepool, suffixed per failure
      domain when zones are set (mirrors the per-FD MachineDeployment naming
      in templates/provider/capi/machinedeployment.yaml). */ -}}
@@ -65,6 +69,10 @@ spec:
         kommodity.io/nodepool: {{ $poolName }}
     spec:
 {{- include "kommodity-cluster.byotHostSelector" (dict "poolValues" $np "scope" (printf "kommodity.nodepools.%s" $poolName)) | nindent 6 }}
+{{- $npDesired := include "kommodity-cluster.byotDesiredTalosVersion" (dict "poolValues" $np "allValues" $.Values) -}}
+{{- if $npDesired }}
+      desiredTalosVersion: {{ $npDesired }}
+{{- end }}
 {{- end }}
 {{- end }}
 {{- end }}
