@@ -72,6 +72,12 @@ providers:
       - AzureASOManagedControlPlaneTemplate
       - AzureASOManagedMachinePool
       - AzureASOManagedMachinePoolTemplate
+      - AzureManagedCluster
+      - AzureManagedClusterTemplate
+      - AzureManagedControlPlane
+      - AzureManagedControlPlaneTemplate
+      - AzureManagedMachinePool
+      - AzureManagedMachinePoolTemplate
       - BastionHost
       - FleetsMember
       - ManagedCluster
@@ -80,6 +86,40 @@ providers:
       - api/v1alpha1
       - api/v1beta1
       - exp/api/v1beta1
+    webhooks:
+      - config/webhook/manifests.yaml
+  - name: aso-resources
+    provider: azure
+    go_module: github.com/Azure/azure-service-operator/v2
+    scheme_locations:
+      - api/resources/v1api20200601
+      - api/resources/v1api20200601/storage
+  - name: aso-network-v1api20201101
+    provider: azure
+    go_module: github.com/Azure/azure-service-operator/v2
+    scheme_locations:
+      - api/network/v1api20201101
+      - api/network/v1api20201101/storage
+  - name: aso-network-v1api20220701
+    provider: azure
+    go_module: github.com/Azure/azure-service-operator/v2
+    scheme_locations:
+      - api/network/v1api20220701
+      - api/network/v1api20220701/storage
+  - name: aso-network-v1api20240301
+    provider: azure
+    go_module: github.com/Azure/azure-service-operator/v2
+    scheme_locations:
+      - api/network/v1api20240301
+      - api/network/v1api20240301/storage
+  - name: byot
+    provider: byot
+    repository: kommodity-io/cluster-api-provider-bringyourowntalos
+    go_module: github.com/kommodity-io/cluster-api-provider-bringyourowntalos
+    file_name: infrastructure-components.yaml
+    filter: select(.kind == "CustomResourceDefinition")
+    scheme_locations:
+      - api/v1alpha1
   - name: kubevirt
     provider: kubevirt
     repository: kubernetes-sigs/cluster-api-provider-kubevirt
@@ -100,3 +140,19 @@ providers:
     go_module: kubevirt.io/containerized-data-importer-api/pkg/apis
     scheme_locations:
       - core/v1beta1
+  # The pinned CAPH tag has no GitHub release asset, so the cloud (hcloud) CRDs
+  # are fetched individually from the git tag via crd_paths. Bare-metal (Robot)
+  # kinds are intentionally not listed.
+  - name: caph
+    provider: hetzner
+    repository: syself/cluster-api-provider-hetzner
+    go_module: github.com/syself/cluster-api-provider-hetzner
+    crd_paths:
+      - config/crd/bases/infrastructure.cluster.x-k8s.io_hetznerclusters.yaml
+      - config/crd/bases/infrastructure.cluster.x-k8s.io_hetznerclustertemplates.yaml
+      - config/crd/bases/infrastructure.cluster.x-k8s.io_hcloudmachines.yaml
+      - config/crd/bases/infrastructure.cluster.x-k8s.io_hcloudmachinetemplates.yaml
+      - config/crd/bases/infrastructure.cluster.x-k8s.io_hcloudremediations.yaml
+      - config/crd/bases/infrastructure.cluster.x-k8s.io_hcloudremediationtemplates.yaml
+    scheme_locations:
+      - api/v1beta1

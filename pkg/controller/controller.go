@@ -12,6 +12,7 @@ import (
 	"github.com/kommodity-io/kommodity/pkg/controller/reconciler"
 	"github.com/kommodity-io/kommodity/pkg/controller/webhook"
 	"github.com/kommodity-io/kommodity/pkg/logging"
+	"github.com/kommodity-io/kommodity/pkg/talosproxy"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -31,20 +32,35 @@ const (
 	MaxConcurrentReconciles = 10
 )
 
+// AggregatedControllerManagerDeps bundles the dependencies for NewAggregatedControllerManager.
+type AggregatedControllerManagerDeps struct {
+	KommodityConfig     *config.KommodityConfig
+	GenericServerConfig *genericapiserver.RecommendedConfig
+	Scheme              *runtime.Scheme
+	SigningKeyDeps      reconciler.SigningKeyDeps
+	// WebhookCertPEM and WebhookKeyPEM are the persisted serving certificate/key for the
+	// webhook server. They must match the caBundle injected into the CRDs (apply-crds hook),
+	// so the conversion webhook stays trusted across restarts.
+	WebhookCertPEM []byte
+	WebhookKeyPEM  []byte
+}
+
 // NewAggregatedControllerManager creates a new controller manager with all relevant providers.
 //
 //nolint:funlen // Function length is long because of NewManager initialization.
 func NewAggregatedControllerManager(ctx context.Context,
-	kommodityConfig *config.KommodityConfig,
-	genericServerConfig *genericapiserver.RecommendedConfig,
-	scheme *runtime.Scheme,
-	signingKeyDeps reconciler.SigningKeyDeps) (ctrl.Manager, error) {
+	deps AggregatedControllerManagerDeps) (ctrl.Manager, error) {
+	kommodityConfig := deps.KommodityConfig
+	genericServerConfig := deps.GenericServerConfig
+	scheme := deps.Scheme
+	signingKeyDeps := deps.SigningKeyDeps
+
 	logger := zapr.NewLogger(logging.FromContext(ctx))
 	ctrl.SetLogger(logger)
 
 	logger.Info("Creating controller manager")
 
-	webhookServer := getWebhookServerConfig(genericServerConfig, kommodityConfig)
+	webhookServer := getWebhookServerConfig(kommodityConfig, deps.WebhookCertPEM, deps.WebhookKeyPEM)
 	webhookServer.Register("/convert", crwebconv.NewWebhookHandler(scheme))
 
 	manager, err := ctrl.NewManager(
@@ -102,27 +118,92 @@ func NewAggregatedControllerManager(ctx context.Context,
 		return nil, fmt.Errorf("failed to setup reconcilers: %w", err)
 	}
 
+	err = setupTalosProxy(ctx, kommodityConfig, manager, controllerOpts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to setup Talos proxy: %w", err)
+	}
+
+	err = setupGarbageCollector(ctx, gcDeps{
+		manager:    manager,
+		restConfig: genericServerConfig.LoopbackClientConfig,
+		gcConfig:   kommodityConfig.GarbageCollectorConfig,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to setup garbage collector: %w", err)
+	}
+
 	logger.Info("Controller manager created")
 
 	return manager, nil
 }
 
-func getWebhookServerConfig(genericServerConfig *genericapiserver.RecommendedConfig,
-	kommodityConfig *config.KommodityConfig) ctrlwebhook.Server {
+func getWebhookServerConfig(kommodityConfig *config.KommodityConfig,
+	certPEM []byte, keyPEM []byte) ctrlwebhook.Server {
 	return ctrlwebhook.NewServer(ctrlwebhook.Options{
 		Port:    kommodityConfig.WebhookPort,
-		TLSOpts: setupWebhookTLSOptions(genericServerConfig),
+		TLSOpts: setupWebhookTLSOptions(certPEM, keyPEM),
 	})
 }
 
-func setupWebhookTLSOptions(gsc *genericapiserver.RecommendedConfig) []func(*tls.Config) {
+func setupTalosProxy(ctx context.Context,
+	kommodityConfig *config.KommodityConfig,
+	manager ctrl.Manager,
+	controllerOpts controller.Options) error {
+	proxyConfig := kommodityConfig.TalosProxyConfig
+	if proxyConfig == nil || !proxyConfig.Enabled {
+		return nil
+	}
+
+	logger := logging.FromContext(ctx)
+	logger.Info("Setting up Talos proxy")
+
+	proxy := talosproxy.NewProxy(talosproxy.ProxyDeps{
+		Config: proxyConfig,
+		Client: manager.GetClient(),
+		Logger: logger,
+	})
+
+	err := proxy.Listen(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to bind Talos proxy listener: %w", err)
+	}
+
+	err = talosproxy.SetProxyEnv(logging.FromContext(ctx), proxy.Addr())
+	if err != nil {
+		return fmt.Errorf("failed to set proxy environment variables: %w", err)
+	}
+
+	err = manager.Add(proxy)
+	if err != nil {
+		return fmt.Errorf("failed to add Talos proxy to manager: %w", err)
+	}
+
+	err = (&talosproxy.Reconciler{
+		Client: manager.GetClient(),
+		Proxy:  proxy,
+	}).SetupWithManager(ctx, manager, controllerOpts)
+	if err != nil {
+		return fmt.Errorf("failed to setup TalosProxy reconciler: %w", err)
+	}
+
+	logger.Info("Talos proxy setup complete")
+
+	return nil
+}
+
+func setupWebhookTLSOptions(certPEM []byte, keyPEM []byte) []func(*tls.Config) {
 	return []func(*tls.Config){
 		func(c *tls.Config) {
-			certPEM, keyPEM := gsc.SecureServing.Cert.CurrentCertKeyContent()
-
+			// Parse once; the closure surfaces any parse error on every handshake so a bad
+			// certificate fails loudly instead of silently falling back to a different cert
+			// (which would diverge from the persisted caBundle and break conversion webhooks).
 			pair, err := tls.X509KeyPair(certPEM, keyPEM)
-			if err == nil {
-				c.GetCertificate = func(*tls.ClientHelloInfo) (*tls.Certificate, error) { return &pair, nil }
+			c.GetCertificate = func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
+				if err != nil {
+					return nil, fmt.Errorf("failed to load webhook serving cert: %w", err)
+				}
+
+				return &pair, nil
 			}
 		},
 	}

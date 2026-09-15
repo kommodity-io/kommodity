@@ -1,3 +1,16 @@
+locals {
+  # This module deploys Kommodity to manage Azure clusters, so the Azure provider
+  # must be enabled for the embedded CAPZ/ASO controllers and CRDs to be reconciled.
+  # Append "azure" to any explicitly-provided provider list that lacks it; an empty
+  # value leaves Kommodity on its defaults (which already include azure).
+  infrastructure_providers = (
+    var.kommodity_container.infrastructure_providers != "" &&
+    !contains([for p in split(",", var.kommodity_container.infrastructure_providers) : trimspace(p)], "azure")
+    ? "${var.kommodity_container.infrastructure_providers},azure"
+    : var.kommodity_container.infrastructure_providers
+  )
+}
+
 # Resource Group
 resource "azurerm_resource_group" "kommodity-resource-group" {
   name     = var.resource_group.name
@@ -10,6 +23,8 @@ resource "azurerm_virtual_network" "kommodity-vn" {
   location            = azurerm_resource_group.kommodity-resource-group.location
   resource_group_name = azurerm_resource_group.kommodity-resource-group.name
   address_space       = ["${var.virtual_network.address_space}"]
+
+  depends_on = [azurerm_resource_group.kommodity-resource-group]
 }
 
 resource "azurerm_subnet" "kommodity-db-sn" {
@@ -27,11 +42,18 @@ resource "azurerm_subnet" "kommodity-db-sn" {
       ]
     }
   }
+
+  depends_on = [
+    azurerm_resource_group.kommodity-resource-group,
+    azurerm_virtual_network.kommodity-vn,
+  ]
 }
 
 resource "azurerm_private_dns_zone" "kommodity-dns" {
   name                = "${var.resource_group.name}.postgres.database.azure.com"
   resource_group_name = azurerm_resource_group.kommodity-resource-group.name
+
+  depends_on = [azurerm_resource_group.kommodity-resource-group]
 }
 
 resource "azurerm_private_dns_zone_virtual_network_link" "kommodity-dns-vnet-link" {
@@ -39,7 +61,12 @@ resource "azurerm_private_dns_zone_virtual_network_link" "kommodity-dns-vnet-lin
   private_dns_zone_name = azurerm_private_dns_zone.kommodity-dns.name
   virtual_network_id    = azurerm_virtual_network.kommodity-vn.id
   resource_group_name   = azurerm_resource_group.kommodity-resource-group.name
-  depends_on            = [azurerm_subnet.kommodity-db-sn]
+  depends_on = [
+    azurerm_resource_group.kommodity-resource-group,
+    azurerm_virtual_network.kommodity-vn,
+    azurerm_subnet.kommodity-db-sn,
+    azurerm_private_dns_zone.kommodity-dns,
+  ]
 }
 
 # Database
@@ -71,8 +98,11 @@ resource "azurerm_postgresql_flexible_server" "kommodity-db" {
   storage_mb   = var.database.storage_mb
   storage_tier = var.database.storage_tier
 
-  sku_name   = var.database.sku_name
-  depends_on = [azurerm_private_dns_zone_virtual_network_link.kommodity-dns-vnet-link]
+  sku_name = var.database.sku_name
+  depends_on = [
+    azurerm_resource_group.kommodity-resource-group,
+    azurerm_private_dns_zone_virtual_network_link.kommodity-dns-vnet-link,
+  ]
 
   geo_redundant_backup_enabled = var.database.storage_georedundant_enabled
 
@@ -98,18 +128,22 @@ resource "azurerm_postgresql_flexible_server_database" "this" {
   charset   = "UTF8"
   collation = var.database.collation
 
+  depends_on = [azurerm_postgresql_flexible_server.kommodity-db]
+
   lifecycle {
     prevent_destroy = true
   }
 }
 
-# Log Analytics Workspace for Container Apps
+# Log Analytics Workspace for Azure Monitor diagnostic settings
 resource "azurerm_log_analytics_workspace" "kommodity-log-analytics" {
   name                = "${var.resource_group.name}-log-analytics"
   location            = azurerm_resource_group.kommodity-resource-group.location
   resource_group_name = azurerm_resource_group.kommodity-resource-group.name
   sku                 = var.log_analytics.workspace_sku
   retention_in_days   = var.log_analytics.workspace_retention
+
+  depends_on = [azurerm_resource_group.kommodity-resource-group]
 }
 
 # Networking resources for Container App
@@ -118,20 +152,110 @@ resource "azurerm_subnet" "kommodity-container-sn" {
   resource_group_name  = azurerm_resource_group.kommodity-resource-group.name
   virtual_network_name = azurerm_virtual_network.kommodity-vn.name
   address_prefixes     = ["${var.virtual_network.container_subnet_prefix}"]
+
+  delegation {
+    name = "Microsoft.App.environments"
+    service_delegation {
+      name    = "Microsoft.App/environments"
+      actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+    }
+  }
+
+  depends_on = [
+    azurerm_resource_group.kommodity-resource-group,
+    azurerm_virtual_network.kommodity-vn,
+  ]
+}
+
+# Stable egress: public IP + NAT gateway bound to the container subnet.
+# Disabled by default; set var.nat_gateway.enabled = true to pin outbound traffic to one IP.
+resource "azurerm_public_ip" "egress" {
+  count               = var.nat_gateway.enabled ? 1 : 0
+  name                = "${var.resource_group.name}-egress-pip"
+  location            = azurerm_resource_group.kommodity-resource-group.location
+  resource_group_name = azurerm_resource_group.kommodity-resource-group.name
+  allocation_method   = "Static"
+  sku                 = "Standard"
+  zones               = var.nat_gateway.zone == null ? [] : [var.nat_gateway.zone]
+}
+
+resource "azurerm_nat_gateway" "this" {
+  count                   = var.nat_gateway.enabled ? 1 : 0
+  name                    = "${var.resource_group.name}-natgw"
+  location                = azurerm_resource_group.kommodity-resource-group.location
+  resource_group_name     = azurerm_resource_group.kommodity-resource-group.name
+  sku_name                = "Standard"
+  idle_timeout_in_minutes = var.nat_gateway.idle_timeout
+  zones                   = var.nat_gateway.zone == null ? [] : [var.nat_gateway.zone]
+}
+
+resource "azurerm_nat_gateway_public_ip_association" "this" {
+  count                = var.nat_gateway.enabled ? 1 : 0
+  nat_gateway_id       = azurerm_nat_gateway.this[0].id
+  public_ip_address_id = azurerm_public_ip.egress[0].id
+}
+
+resource "azurerm_subnet_nat_gateway_association" "container" {
+  count          = var.nat_gateway.enabled ? 1 : 0
+  subnet_id      = azurerm_subnet.kommodity-container-sn.id
+  nat_gateway_id = azurerm_nat_gateway.this[0].id
 }
 
 resource "azurerm_container_app_environment" "kommodity-environment" {
-  name                       = "${var.resource_group.name}-environment"
-  location                   = azurerm_resource_group.kommodity-resource-group.location
-  resource_group_name        = azurerm_resource_group.kommodity-resource-group.name
-  log_analytics_workspace_id = azurerm_log_analytics_workspace.kommodity-log-analytics.id
-  infrastructure_subnet_id   = azurerm_subnet.kommodity-container-sn.id
+  name                     = "${var.resource_group.name}-environment"
+  location                 = azurerm_resource_group.kommodity-resource-group.location
+  resource_group_name      = azurerm_resource_group.kommodity-resource-group.name
+  logs_destination         = "azure-monitor"
+  infrastructure_subnet_id = azurerm_subnet.kommodity-container-sn.id
+
+  depends_on = [
+    azurerm_resource_group.kommodity-resource-group,
+    azurerm_subnet.kommodity-container-sn,
+  ]
+
+  lifecycle {
+    ignore_changes = [infrastructure_resource_group_name, workload_profile]
+  }
+}
+
+resource "time_sleep" "wait_for_environment" {
+  create_duration = "60s"
+  triggers = {
+    environment_id = azurerm_container_app_environment.kommodity-environment.id
+  }
+}
+
+resource "azurerm_monitor_diagnostic_setting" "kommodity-environment" {
+  name                           = "${var.resource_group.name}-environment-logs"
+  target_resource_id             = azurerm_container_app_environment.kommodity-environment.id
+  log_analytics_workspace_id     = azurerm_log_analytics_workspace.kommodity-log-analytics.id
+  log_analytics_destination_type = "Dedicated"
+
+  enabled_log {
+    category = "ContainerAppConsoleLogs"
+  }
+
+  enabled_log {
+    category = "ContainerAppSystemLogs"
+  }
+
+  enabled_metric {
+    category = "AllMetrics"
+  }
+
+  depends_on = [
+    azurerm_container_app_environment.kommodity-environment,
+    azurerm_log_analytics_workspace.kommodity-log-analytics,
+  ]
 }
 
 # Container App for kommodity service
 resource "azurerm_container_app" "kommodity-app" {
   depends_on = [
-    azurerm_postgresql_flexible_server.kommodity-db,
+    azurerm_resource_group.kommodity-resource-group,
+    azurerm_container_app_environment.kommodity-environment,
+    azurerm_postgresql_flexible_server_database.this,
+    time_sleep.wait_for_environment,
   ]
   name                         = "${var.resource_group.name}-app"
   container_app_environment_id = azurerm_container_app_environment.kommodity-environment.id
@@ -146,6 +270,16 @@ resource "azurerm_container_app" "kommodity-app" {
     traffic_weight {
       percentage      = 100
       latest_revision = true
+    }
+
+    dynamic "ip_security_restriction" {
+      for_each = var.ingress_ip_restrictions
+      content {
+        ip_address_range = ip_security_restriction.value.cidr
+        action           = ip_security_restriction.value.action
+        name             = ip_security_restriction.value.name
+        description      = ip_security_restriction.value.description
+      }
     }
   }
 
@@ -200,7 +334,7 @@ resource "azurerm_container_app" "kommodity-app" {
       }
       env {
         name  = "KOMMODITY_BASE_URL"
-        value = var.kommodity_container.base_url
+        value = var.app_url
       }
       env {
         name  = "KOMMODITY_ADMIN_GROUP"
@@ -208,8 +342,143 @@ resource "azurerm_container_app" "kommodity-app" {
       }
       env {
         name  = "KOMMODITY_INFRASTRUCTURE_PROVIDERS"
-        value = var.kommodity_container.infrastructure_providers
+        value = local.infrastructure_providers
+      }
+      env {
+        name  = "KOMMODITY_GARBAGE_COLLECTOR_ENABLED"
+        value = var.kommodity_container.garbage_collector_enabled
+      }
+      env {
+        name  = "KOMMODITY_AUDIT_ENABLED"
+        value = var.kommodity_container.audit_enabled
+      }
+      dynamic "env" {
+        for_each = var.kommodity_container.azure_default_credential_secret != "" ? [var.kommodity_container.azure_default_credential_secret] : []
+        content {
+          name  = "KOMMODITY_AZURE_DEFAULT_CREDENTIAL_SECRET"
+          value = env.value
+        }
+      }
+
+      liveness_probe {
+        transport = "HTTP"
+        port      = var.kommodity_container.port
+        path      = "/livez"
+      }
+
+      readiness_probe {
+        transport = "HTTP"
+        port      = var.kommodity_container.port
+        path      = "/readyz"
       }
     }
   }
+
+  lifecycle {
+    ignore_changes = [workload_profile_name]
+  }
+}
+
+resource "azurerm_monitor_diagnostic_setting" "kommodity-app" {
+  name                           = "${var.resource_group.name}-app-metrics"
+  target_resource_id             = azurerm_container_app.kommodity-app.id
+  log_analytics_workspace_id     = azurerm_log_analytics_workspace.kommodity-log-analytics.id
+  log_analytics_destination_type = "Dedicated"
+
+  enabled_metric {
+    category = "AllMetrics"
+  }
+
+  depends_on = [
+    azurerm_container_app.kommodity-app,
+    azurerm_log_analytics_workspace.kommodity-log-analytics,
+  ]
+}
+
+# Custom domain DNS + managed certificate for the Container App
+locals {
+  custom_domain_name = trimsuffix(regex("^(?:https?://)?(.*)$", var.app_url)[0], ".${var.dns.zone}") # e.g. https://kommodity.dev.example.com -> kommodity.dev
+}
+
+data "azurerm_dns_zone" "this" {
+  provider            = azurerm.dns
+  name                = var.dns.zone
+  resource_group_name = var.dns.az_resource_group
+}
+
+resource "azurerm_dns_cname_record" "kommodity" {
+  provider            = azurerm.dns
+  name                = local.custom_domain_name
+  zone_name           = data.azurerm_dns_zone.this.name
+  resource_group_name = var.dns.az_resource_group
+  ttl                 = var.dns.ttl
+  record              = azurerm_container_app.kommodity-app.ingress[0].fqdn
+}
+
+resource "azurerm_management_lock" "cname_lock" {
+  provider   = azurerm.dns
+  name       = azurerm_dns_cname_record.kommodity.name
+  scope      = azurerm_dns_cname_record.kommodity.id
+  lock_level = "CanNotDelete"
+  notes      = "Locked to prevent accidental deletion"
+}
+
+resource "azurerm_dns_txt_record" "verification" {
+  provider            = azurerm.dns
+  name                = "asuid.${local.custom_domain_name}"
+  zone_name           = data.azurerm_dns_zone.this.name
+  resource_group_name = var.dns.az_resource_group
+  ttl                 = var.dns.ttl
+
+  record {
+    value = azurerm_container_app.kommodity-app.custom_domain_verification_id
+  }
+}
+
+resource "azurerm_management_lock" "txt_lock" {
+  provider   = azurerm.dns
+  name       = azurerm_dns_txt_record.verification.name
+  scope      = azurerm_dns_txt_record.verification.id
+  lock_level = "CanNotDelete"
+  notes      = "Locked to prevent accidental deletion"
+}
+
+resource "azurerm_container_app_custom_domain" "this" {
+  name             = trimsuffix(azurerm_dns_cname_record.kommodity.fqdn, ".")
+  container_app_id = azurerm_container_app.kommodity-app.id
+
+  depends_on = [azurerm_dns_cname_record.kommodity, azurerm_dns_txt_record.verification]
+
+  lifecycle {
+    // When using an Azure created Managed Certificate these values must be added to ignore_changes to prevent resource recreation.
+    ignore_changes = [certificate_binding_type, container_app_environment_certificate_id]
+  }
+}
+
+resource "azurerm_container_app_environment_managed_certificate" "this" {
+  name                         = trimsuffix(azurerm_dns_cname_record.kommodity.fqdn, ".")
+  container_app_environment_id = azurerm_container_app_environment.kommodity-environment.id
+  subject_name                 = trimsuffix(azurerm_dns_cname_record.kommodity.fqdn, ".")
+  domain_control_validation    = "CNAME"
+
+  depends_on = [azurerm_container_app_custom_domain.this, time_sleep.wait_for_environment]
+}
+
+resource "azapi_update_resource" "bind_cert" {
+  type        = "Microsoft.App/containerApps@2024-03-01"
+  resource_id = azurerm_container_app.kommodity-app.id
+  body = {
+    properties = {
+      configuration = {
+        ingress = {
+          customDomains = [{
+            name          = trimsuffix(azurerm_dns_cname_record.kommodity.fqdn, ".")
+            bindingType   = "SniEnabled"
+            certificateId = azurerm_container_app_environment_managed_certificate.this.id
+          }]
+        }
+      }
+    }
+  }
+  depends_on = [azurerm_container_app_environment_managed_certificate.this]
 }

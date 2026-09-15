@@ -34,5 +34,14 @@ func SetupWebhooks(ctx context.Context,
 		return fmt.Errorf("failed to setup Talos webhooks: %w", err)
 	}
 
+	// CAPZ webhooks
+
+	logger.Info("Setting up CAPZ webhooks")
+
+	err = setupCAPZ(ctx, *manager)
+	if err != nil {
+		return fmt.Errorf("failed to setup CAPZ webhooks: %w", err)
+	}
+
 	return nil
 }

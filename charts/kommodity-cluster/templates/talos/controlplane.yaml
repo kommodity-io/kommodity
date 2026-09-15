@@ -1,61 +1,3 @@
-{{- $anyAddonEnabled := false }}
-{{- if .Values.kommodity.addons -}}
-{{- range $name, $addon := .Values.kommodity.addons }}
-  {{- if $addon.enabled }}
-    {{- $anyAddonEnabled = true }}
-  {{- end }}
-{{- end }}
-{{- end }}
-
-{{/*
-Output inline manifest items for enabled addons as YAML text.
-This preserves proper YAML block scalar formatting for multi-line contents.
-*/}}
-{{- define "kommodity.addonsInlineManifests" -}}
-{{- $root := . -}}
-{{- range $name, $addon := $root.Values.kommodity.addons }}
-{{- if $addon.enabled }}
-  {{- $contents := "" }}
-  {{- if $addon.manifest }}
-    {{- $contents = tpl $addon.manifest $root }}
-  {{- else }}
-    {{- $addonTemplateName := printf "kommodity.addon.%s" $name }}
-    {{- if hasKey $.Template $addonTemplateName }}
-      {{- $contents = include $addonTemplateName $root }}
-    {{- else }}
-      {{- $contents = "" }}
-    {{- end }}
-    {{- if $addon.initialExtraValues }}
-- name: {{ $name }}-extra-values
-  contents: |
-{{ include "kommodity.addon.extra-values" (dict
-  "name"               $name
-  "namespace"          (default .name $addon.namespace)
-  "initialExtraValues" $addon.initialExtraValues
-) | indent 4 }}
-    {{- end }}
-    {{- if $addon.namespace }}
-- name: {{ $name }}-namespace
-  contents: |
-{{ include "kommodity.addon.namespace" (dict
-  "namespace"  $addon.namespace
-) | indent 4 }}
-    {{- end }}
-{{- if $contents }}
-- name: {{ $name }}
-  contents: |
-{{ $contents | indent 4 }}
-{{- end }}
-- name: {{ $name }}-installer
-  contents: |
-{{ include "kommodity.addon.installer" (dict
-  "name"  $name
-  "addon" $addon
-) | indent 4 }}
-  {{- end }}
-{{- end }}
-{{- end }}
-{{- end }}
 ---
 apiVersion: controlplane.cluster.x-k8s.io/v1alpha3
 kind: TalosControlPlane
@@ -87,6 +29,15 @@ spec:
     {{- else if eq $.Values.kommodity.provider.name "Kubevirt" }}
     apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
     kind: KubevirtMachineTemplate
+    {{- else if eq $.Values.kommodity.provider.name "Azure" }}
+    apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+    kind: AzureMachineTemplate
+    {{- else if eq $.Values.kommodity.provider.name "Hetzner" }}
+    apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+    kind: HCloudMachineTemplate
+    {{- else if eq $.Values.kommodity.provider.name "Byot" }}
+    apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+    kind: ByotMachineTemplate
     {{- else }}
     {{- fail "infrastructure provider is not supported" -}}
     {{- end }}
@@ -96,67 +47,83 @@ spec:
     controlplane:
       generateType: controlplane
       talosVersion: {{ default (include "kommodity.talosVersion" $) (dig "talos" "version" "" $.Values.kommodity.controlplane) }}
+      {{- /*
+        Bake the hostname into the machine config so it is set before etcd
+        starts. Without a source the node keeps the hostname Talos generates
+        for itself until the platform applies the real one, and an etcd member
+        that registers under the generated name cannot rejoin once it changes.
+        InfrastructureName matches the node name the infrastructure provider
+        and the CCM use.
+
+        Hetzner and Byot. Byot needs it so the workload Node name matches the
+        owning Machine name (CAPI clones the infra machine with Name ==
+        Machine.Name), which the ByotMachine controller's updateNodeProviderID
+        relies on to Get the Node by name. Without it the kubelet keeps a
+        Talos-generated hostname and the Machine<->Node link never fires.
+        Changing this field makes every existing control plane machine
+        mismatch its TalosConfig, which rolls the control plane, so it is
+        applied where the failure has been observed/needed rather than
+        everywhere.
+      */}}
+      {{- if or (eq $.Values.kommodity.provider.name "Hetzner") (eq $.Values.kommodity.provider.name "Byot") }}
+      hostname:
+        source: InfrastructureName
+      {{- else }}
       hostname: {}
+      {{- end }}
       {{- $cp := $.Values.kommodity.controlplane }}
-      {{- $cpPatches := dig "configPatches" nil $cp }}
-      {{- $globalPatches := dig "global" "configPatches" nil $.Values.kommodity }}
+      {{- $cpPatches := dig "strategicPatches" nil $cp }}
+      {{- $globalPatches := dig "global" "strategicPatches" nil $.Values.kommodity }}
       {{- $cpTaints := dig "taints" nil $cp }}
       {{- $cpLabels := dig "labels" nil $cp }}
       {{- $cpAnnotations := dig "annotations" nil $cp }}
-      {{- $disableTalosNetwork := or $.Values.talos.disableCNI $.Values.talos.disableKubeProxy }}
       {{- $oidc := dig "oidc" nil $.Values.kommodity }}
-      {{- $oidcEnabled := and $oidc $oidc.enabled }}
-      {{- $hasExtraConfigPatches := or $cpPatches $globalPatches $cpTaints $cpLabels $cpAnnotations $oidcEnabled }}
-      {{- /* Check if user has /cluster/inlineManifests in global.configPatches */ -}}
-      {{- $userInlineManifests := list }}
-      {{- range $globalPatches }}
-        {{- if and (eq .op "add") (eq .path "/cluster/inlineManifests") }}
-          {{- $userInlineManifests = .value }}
-        {{- end }}
-      {{- end }}
-      {{- $hasInlineManifests := or $anyAddonEnabled (gt (len $userInlineManifests) 0) }}
-      {{- if or $hasInlineManifests $hasExtraConfigPatches $disableTalosNetwork $.Values.talos.installer $.Values.kommodity.logLevel }}
-      configPatches:
-      {{- end }}
-      {{- /* Output /cluster/inlineManifests patch with merged addon + user manifests */ -}}
-      {{- if $hasInlineManifests }}
-        - op: add
-          path: /cluster/inlineManifests
-          value:
-      {{- if $anyAddonEnabled }}
-{{- include "kommodity.addonsInlineManifests" . | trim | nindent 12 }}
-      {{- end }}
-      {{- range $userInlineManifests }}
-            - name: {{ .name }}
-              contents: |
-{{ .contents | indent 16 }}
-      {{- end }}
-      {{- end }}
-      {{- /* Output other patches (excluding /cluster/inlineManifests which is handled above) */ -}}
-      {{- if or $hasExtraConfigPatches $.Values.talos.installer $.Values.kommodity.logLevel }}
-{{- include "kommodity-cluster.combinedConfigPatches" (dict "globalConfigPatches" $globalPatches "nodepoolConfigPatches" $cpPatches "taints" $cpTaints "labels" $cpLabels "annotations" $cpAnnotations "oidc" $oidc "installer" $.Values.talos.installer "logLevel" $.Values.kommodity.logLevel) | trim | nindent 8 }}
-      {{- end }}
-      {{- if $.Values.talos.disableCNI }}
-      {{- include "kommodity.talos.cni.disable" . | nindent 8 }}
-      {{- end }}
-      {{- if $.Values.talos.disableKubeProxy }}
-      {{- include "kommodity.talos.proxy.disable" . | nindent 8 }}
-      {{- end }}
-      {{- if $.Values.kommodity.provider.cloudControllerManager.enabled }}
-      {{- include "kommodity.talos.ccm" (dict "manifest" $.Values.kommodity.provider.cloudControllerManager.manifest) | nindent 8 }}
-      {{- end }}
-    {{- if or $.Values.kommodity.kms.enabled $.Values.talos.autoBootstrap $.Values.kommodity.security.enabled }}
+      {{- $hetznerPrivate := and (eq $.Values.kommodity.provider.name "Hetzner") (not $.Values.kommodity.network.ipv4.public) }}
+      {{- /* Build merged MachineConfig strategic patch */ -}}
+      {{- $mergedPatch := include "kommodity-cluster.mergedStrategicPatch" (dict
+        "globalPatches" $globalPatches
+        "nodepoolPatches" $cpPatches
+        "taints" $cpTaints
+        "labels" $cpLabels
+        "annotations" $cpAnnotations
+        "oidc" $oidc
+        "version" (default $.Values.talos.version (dig "talos" "version" "" $.Values.kommodity.controlplane))
+        "logLevel" $.Values.kommodity.logLevel
+        "disableCNI" $.Values.talos.disableCNI
+        "disableProxy" $.Values.talos.disableKubeProxy
+      ) | trim }}
+      {{- $hetznerNameservers := ternary (dig "nameservers" (list) $.Values.kommodity.network) (list) (eq $.Values.kommodity.provider.name "Hetzner") }}
+      {{- $kmsEndpoint := "" -}}
+      {{- if $.Values.kommodity.kms.enabled }}{{- $kmsEndpoint = $.Values.kommodity.kms.endpoint -}}{{- end -}}
+      {{- $additionalVolumesPatch := include "kommodity.talos.additionalVolumes" (dict "additionalVolumes" $.Values.kommodity.controlplane.additionalVolumes "kmsEndpoint" $kmsEndpoint) | trim }}
       strategicPatches:
-    {{- if $.Values.kommodity.kms.enabled }}
-    {{- /* Use VolumeConfig for disk encryption (Talos v1.12+) instead of deprecated machine.systemDiskEncryption */}}
-{{- include "kommodity.talos.volumeEncryption" (dict "endpoint" $.Values.kommodity.kms.endpoint) | nindent 8 }}
-    {{- end }}
-    {{- if $.Values.talos.autoBootstrap }}
-    {{- /* ExtensionServiceConfig for kommodity-autobootstrap extension */}}
-{{- include "kommodity.talos.autoBootstrapExtensionServiceConfig" (dict "autoBootstrap" $.Values.talos.autoBootstrap "logLevel" $.Values.kommodity.logLevel) | nindent 8 }}
-    {{- end }}
-    {{- if $.Values.kommodity.security.enabled }}
-    {{- /* ExtensionServiceConfig for kommodity-attestation extension */}}
-{{- include "kommodity.talos.attestationExtensionServiceConfig" (dict "logLevel" $.Values.kommodity.logLevel) | nindent 8 }}
-    {{- end }}
-    {{- end }}
+      {{- /* Merged MachineConfig patch (labels, taints, annotations, env, installer, OIDC, CNI, proxy, CCM, user patches) */ -}}
+      {{- if not (empty $mergedPatch) }}
+{{ $mergedPatch | nindent 6 }}
+      {{- end }}
+      {{- if $.Values.kommodity.kms.enabled }}
+      {{- /* VolumeConfig for disk encryption (Talos v1.12+) */ -}}
+{{- include "kommodity.talos.volumeEncryption" (dict "endpoint" $.Values.kommodity.kms.endpoint) | nindent 6 }}
+      {{- end }}
+      {{- if $.Values.kommodity.controlplane.instanceVolumes }}
+      {{- /* UserVolumeConfig for instance-local disks (not cloud-provisioned) */ -}}
+{{- include "kommodity.talos.instanceVolumes" (dict "instanceVolumes" $.Values.kommodity.controlplane.instanceVolumes "kmsEndpoint" $kmsEndpoint "kmsEnabled" $.Values.kommodity.kms.enabled) | nindent 6 }}
+      {{- end }}
+      {{- if $hetznerPrivate }}
+      {{- /* Hetzner's DHCP does not announce the network's 0.0.0.0/0 route */ -}}
+{{- include "kommodity.talos.defaultRoute" (dict "nodeCIDR" $.Values.kommodity.network.ipv4.nodeCIDR) | nindent 6 }}
+      {{- end }}
+      {{- if $hetznerNameservers }}
+      {{- /* Nameservers for the node, propagated by Talos to CoreDNS */ -}}
+{{- include "kommodity.talos.resolverConfig" (dict "nameservers" $hetznerNameservers) | nindent 6 }}
+      {{- end }}
+      {{- if not (empty $additionalVolumesPatch) }}
+      {{- /* UserVolumeConfig for cloud-provisioned data disks (Azure dataDisks, etc.) */ -}}
+{{ $additionalVolumesPatch | nindent 6 }}
+      {{- end }}
+      {{- /* ExtensionServiceConfig for kommodity-autobootstrap extension */ -}}
+{{- include "kommodity.talos.autoBootstrapExtensionServiceConfig" (dict "autoBootstrap" $.Values.talos.autoBootstrap "logLevel" $.Values.kommodity.logLevel "replicas" (default 1 $.Values.kommodity.controlplane.replicas) "network" $.Values.kommodity.network) | nindent 6 }}
+      {{- if $.Values.kommodity.security.enabled }}
+      {{- /* ExtensionServiceConfig for kommodity-attestation extension */ -}}
+{{- include "kommodity.talos.attestationExtensionServiceConfig" (dict "logLevel" $.Values.kommodity.logLevel) | nindent 6 }}
+      {{- end }}

@@ -1,9 +1,12 @@
 package reconciler
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-logr/zapr"
 	"github.com/kommodity-io/kommodity/pkg/logging"
@@ -22,6 +25,10 @@ import (
 const (
 	// SigningKeyControllerName is the name of the signing key controller.
 	SigningKeyControllerName = "kommodity-signing-key-controller"
+	// SigningKeyDataKey is the key in the secret data that stores the private key PEM.
+	SigningKeyDataKey = "key"
+	// SigningKeyUpdatedAnnotation is the annotation key used to indicate when the signing key was last updated.
+	SigningKeyUpdatedAnnotation = "kommodity.io/signing-key-updated"
 
 	// serviceAccountNameAnnotation is the annotation key for the service account name.
 	serviceAccountNameAnnotation = "kubernetes.io/service-account.name"
@@ -44,13 +51,26 @@ type SigningKeyReconciler struct {
 	GetOrCreateSigningKey func(ctx context.Context, client corev1client.CoreV1Interface) (any, error)
 }
 
-func deleteOnlyPredicate() predicate.Predicate {
+func deleteOrUpdatePredicate() predicate.Predicate {
 	return predicate.Funcs{
 		CreateFunc: func(_ event.CreateEvent) bool {
 			return false
 		},
-		UpdateFunc: func(_ event.UpdateEvent) bool {
-			return false
+		UpdateFunc: func(updateEvent event.UpdateEvent) bool {
+			oldSecret, success := updateEvent.ObjectOld.(*corev1.Secret)
+			if !success {
+				return false
+			}
+
+			newSecret, success := updateEvent.ObjectNew.(*corev1.Secret)
+			if !success {
+				return false
+			}
+
+			// Only trigger if the key data actually changed
+			return !bytes.Equal(
+				oldSecret.Data[SigningKeyDataKey],
+				newSecret.Data[SigningKeyDataKey])
 		},
 		DeleteFunc: func(_ event.DeleteEvent) bool {
 			return true
@@ -61,26 +81,12 @@ func deleteOnlyPredicate() predicate.Predicate {
 // SetupWithManager sets up the reconciler with the provided manager.
 func (r *SigningKeyReconciler) SetupWithManager(ctx context.Context,
 	mgr ctrl.Manager, opt controller.Options) error {
-	// Register field indexer for secret type to enable filtering by type in List calls
-	err := mgr.GetFieldIndexer().IndexField(ctx, &corev1.Secret{}, "type",
-		func(obj client.Object) []string {
-			secret, ok := obj.(*corev1.Secret)
-			if !ok {
-				return nil
-			}
-
-			return []string{string(secret.Type)}
-		})
-	if err != nil {
-		return fmt.Errorf("failed to create field indexer for secret type: %w", err)
-	}
-
 	builder := ctrl.NewControllerManagedBy(mgr).
 		Named(SigningKeyControllerName).
 		For(&corev1.Secret{}).
 		WithOptions(opt).
 		WithEventFilter(predicate.And(
-			deleteOnlyPredicate(),
+			deleteOrUpdatePredicate(),
 			predicates.ResourceNotPausedAndHasFilterLabel(
 				mgr.GetScheme(),
 				zapr.NewLogger(logging.FromContext(ctx)),
@@ -88,7 +94,7 @@ func (r *SigningKeyReconciler) SetupWithManager(ctx context.Context,
 			),
 		))
 
-	err = builder.Complete(r)
+	err := builder.Complete(r)
 	if err != nil {
 		return fmt.Errorf("failed setting up with a controller manager: %w", err)
 	}
@@ -98,30 +104,29 @@ func (r *SigningKeyReconciler) SetupWithManager(ctx context.Context,
 
 // Reconcile handles the deletion of the signing key secret.
 // When the signing key secret is deleted, it:
-// 1. Regenerates a new signing key
+// 1. Fetch signing key
 // 2. Finds all service account token secrets
 // 3. Deletes and recreates them to trigger token regeneration with the new key.
+//
+//nolint:funlen // Mostly long due to logging and error handling for each step of the process.
 func (r *SigningKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := logging.FromContext(ctx)
 	logger.Info("Signing key secret was deleted, regenerating key and rotating tokens",
 		zap.String("secret", req.String()))
 
-	// Regenerate the signing key secret
 	_, err := r.GetOrCreateSigningKey(ctx, r.CoreV1Client)
 	if err != nil {
-		logger.Error("Failed to regenerate signing key", zap.Error(err))
+		logger.Error("Failed to fetch or regenerate signing key", zap.Error(err))
 
 		return ctrl.Result{Requeue: true, RequeueAfter: RequeueAfter},
-			fmt.Errorf("failed to regenerate signing key: %w", err)
+			fmt.Errorf("failed to fetch or regenerate signing key: %w", err)
 	}
 
-	logger.Info("Successfully regenerated signing key secret")
+	logger.Info("Successfully fetched or regenerated signing key secret")
 
 	secretList := &corev1.SecretList{}
 
-	err = r.List(ctx, secretList,
-		client.MatchingFields{"type": string(corev1.SecretTypeServiceAccountToken)},
-	)
+	err = r.List(ctx, secretList, client.InNamespace("kube-system"))
 	if err != nil {
 		logger.Error("Failed to list secrets", zap.Error(err))
 
@@ -129,9 +134,14 @@ func (r *SigningKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			fmt.Errorf("failed to list secrets: %w", err)
 	}
 
-	// Process each service account token secret
+	// Process each service account token secret (filter client-side since
+	// Kubernetes API server doesn't support field selectors on Secret.Type)
 	for i := range secretList.Items {
 		secret := &secretList.Items[i]
+
+		if secret.Type != corev1.SecretTypeServiceAccountToken {
+			continue
+		}
 
 		saName, ok := secret.Annotations[serviceAccountNameAnnotation]
 		if !ok {
@@ -155,6 +165,10 @@ func (r *SigningKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			return ctrl.Result{Requeue: true, RequeueAfter: RequeueAfter},
 				fmt.Errorf("failed to rotate service account token secret %s: %w", secret.Name, err)
 		}
+
+		logger.Info("Successfully rotated service account token secret",
+			zap.String("secret", secret.Name),
+			zap.String("serviceAccount", saName))
 	}
 
 	logger.Info("Successfully rotated all service account token secrets")
@@ -162,29 +176,26 @@ func (r *SigningKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	return ctrl.Result{}, nil
 }
 
-// rotateServiceAccountTokenSecret deletes and recreates a service account token secret.
-// This triggers the TokensController to generate a new token with the current signing key.
-func (r *SigningKeyReconciler) rotateServiceAccountTokenSecret(ctx context.Context, oldSecret *corev1.Secret) error {
-	logger := logging.FromContext(ctx)
-
-	saName, ok := oldSecret.Annotations[serviceAccountNameAnnotation]
-	if !ok {
-		return fmt.Errorf("%w: secret: %s, annotation: %s",
+// extractSecretMetadata extracts the cluster name, labels, and annotations from the old secret.
+func extractSecretMetadata(oldSecret *corev1.Secret) (string, map[string]string, map[string]string, error) {
+	saName, exists := oldSecret.Annotations[serviceAccountNameAnnotation]
+	if !exists {
+		return "", nil, nil, fmt.Errorf("%w: secret: %s, annotation: %s",
 			ErrSecretMissingAnnotation, oldSecret.Name, serviceAccountNameAnnotation)
 	}
 
-	labels := make(map[string]string)
-
-	if clusterName, ok := oldSecret.Labels[clusterNameLabel]; ok {
-		labels[clusterNameLabel] = clusterName
+	clusterName, exists := oldSecret.Labels[clusterNameLabel]
+	if !exists {
+		return "", nil, nil, fmt.Errorf("%w: secret: %s, label: %s",
+			ErrSecretMissingLabel, oldSecret.Name, clusterNameLabel)
 	}
 
-	if managedBy, ok := oldSecret.Labels[managedByLabel]; ok {
+	labels := map[string]string{clusterNameLabel: clusterName}
+	if managedBy, found := oldSecret.Labels[managedByLabel]; found {
 		labels[managedByLabel] = managedBy
 	}
 
-	annotations := make(map[string]string)
-	annotations[serviceAccountNameAnnotation] = saName
+	annotations := map[string]string{serviceAccountNameAnnotation: saName}
 
 	for k, v := range oldSecret.Annotations {
 		if strings.HasPrefix(k, "meta.helm.sh") {
@@ -192,13 +203,28 @@ func (r *SigningKeyReconciler) rotateServiceAccountTokenSecret(ctx context.Conte
 		}
 	}
 
-	err := r.Delete(ctx, oldSecret)
+	return clusterName, labels, annotations, nil
+}
+
+// rotateServiceAccountTokenSecret deletes and recreates a service account token secret.
+// This triggers the TokensController to generate a new token with the current signing key.
+func (r *SigningKeyReconciler) rotateServiceAccountTokenSecret(
+	ctx context.Context,
+	oldSecret *corev1.Secret,
+) error {
+	logger := logging.FromContext(ctx)
+
+	clusterName, labels, annotations, err := extractSecretMetadata(oldSecret)
+	if err != nil {
+		return fmt.Errorf("failed to extract metadata from old secret: %w", err)
+	}
+
+	err = r.Delete(ctx, oldSecret)
 	if err != nil {
 		return fmt.Errorf("failed to delete old secret %s: %w", oldSecret.Name, err)
 	}
 
-	logger.Info("Deleted old service account token secret",
-		zap.String("secret", oldSecret.Name))
+	logger.Info("Deleted old service account token secret", zap.String("secret", oldSecret.Name))
 
 	newSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
@@ -217,7 +243,48 @@ func (r *SigningKeyReconciler) rotateServiceAccountTokenSecret(ctx context.Conte
 
 	logger.Info("Created new service account token secret",
 		zap.String("secret", newSecret.Name),
-		zap.String("serviceAccount", saName))
+		zap.String("serviceAccount", annotations[serviceAccountNameAnnotation]))
+
+	err = r.updateAutoscalerConfigMap(ctx, clusterName, oldSecret.Namespace)
+	if err != nil {
+		logger.Warn("Failed to update autoscaler ConfigMap with signing key timestamp",
+			zap.String("clusterName", clusterName),
+			zap.Error(err))
+	}
+
+	return nil
+}
+
+// updateAutoscalerConfigMap fetches the cluster autoscaler ConfigMap and adds
+// the SigningKeyUpdatedAnnotation with the current unix timestamp.
+func (r *SigningKeyReconciler) updateAutoscalerConfigMap(
+	ctx context.Context,
+	clusterName string,
+	namespace string,
+) error {
+	configMapName := clusterName + AutoscalerConfigMapSuffix
+
+	configMap := &corev1.ConfigMap{}
+	configMapKey := client.ObjectKey{
+		Namespace: namespace,
+		Name:      configMapName,
+	}
+
+	err := r.Get(ctx, configMapKey, configMap)
+	if err != nil {
+		return fmt.Errorf("failed to get autoscaler ConfigMap %s: %w", configMapName, err)
+	}
+
+	if configMap.Annotations == nil {
+		configMap.Annotations = make(map[string]string)
+	}
+
+	configMap.Annotations[SigningKeyUpdatedAnnotation] = strconv.FormatInt(time.Now().Unix(), 10)
+
+	err = r.Update(ctx, configMap)
+	if err != nil {
+		return fmt.Errorf("failed to update autoscaler ConfigMap %s: %w", configMapName, err)
+	}
 
 	return nil
 }

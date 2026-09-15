@@ -11,4 +11,15 @@ output "container_app_id" {
 output "custom_domain_verification_id" {
   value       = azurerm_container_app.kommodity-app.custom_domain_verification_id
   description = "The Custom Domain Verification ID of the Kommodity Container App"
+  sensitive   = true
+}
+
+output "container_app_environment_id" {
+  value       = azurerm_container_app_environment.kommodity-environment.id
+  description = "The ID of the Kommodity Container App Environment"
+}
+
+output "container_app_egress_ip" {
+  value       = var.nat_gateway.enabled ? one(azurerm_public_ip.egress[*].ip_address) : null
+  description = "The static outbound IP of the Kommodity Container App when NAT gateway is enabled; null otherwise."
 }

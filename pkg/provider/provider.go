@@ -3,6 +3,8 @@ package provider
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -18,10 +20,16 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer/yaml"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 
 	"embed"
 )
+
+// conversionWebhookPath is the HTTP path the in-process conversion webhook server serves
+// (see controller.NewAggregatedControllerManager, which registers "/convert"). The embedded
+// CRDs all declare this same service path; it must stay in sync with the webhook server.
+const conversionWebhookPath = "/convert"
 
 //go:embed crds/**/*.yaml
 var crds embed.FS
@@ -133,6 +141,75 @@ func (pc *Cache) ApplyCRDProviders(ctx context.Context,
 			if err != nil {
 				return fmt.Errorf("failed to load CRD for group %s: %w", group, err)
 			}
+		}
+	}
+
+	return nil
+}
+
+// ReconcileConversionCABundles forcibly patches the conversion webhook clientConfig (URL + caBundle)
+// on every conversion-webhook provider CRD via a JSON merge patch, so the caBundle always matches the
+// current serving certificate — including on already-existing CRDs after a restart.
+//
+// A targeted merge patch is used instead of relying on the create-or-replace path in load(): a
+// full-object Update of an existing CRD was observed to leave the stored caBundle untouched (the
+// served cert and the persisted caBundle then diverge, breaking all CRD conversions). The merge
+// patch is a server-side read-modify-write of just the clientConfig, which reliably updates it.
+func (pc *Cache) ReconcileConversionCABundles(
+	ctx context.Context,
+	client *dynamic.DynamicClient,
+	webhookURL string,
+	webhookCRT []byte,
+) error {
+	logger := logging.FromContext(ctx)
+
+	fingerprint := sha256.Sum256(webhookCRT)
+	logger.Info("Reconciling conversion webhook caBundles",
+		zap.String("certFingerprint", hex.EncodeToString(fingerprint[:8])))
+
+	crdGVR := apiextensionsv1.SchemeGroupVersion.WithResource("customresourcedefinitions")
+
+	for _, objs := range pc.providerCRDs {
+		for _, obj := range objs {
+			strategy, found, _ := unstructured.NestedString(obj.Object, "spec", "conversion", "strategy")
+			if !found || strategy != "Webhook" {
+				continue
+			}
+
+			name := obj.GetName()
+
+			// Set url + caBundle and remove the service reference (clientConfig must have exactly
+			// one of url/service); a JSON merge patch deletes service via an explicit null.
+			// The path is the fixed conversion endpoint, NOT clientConfig.service.path: by the time
+			// this runs, ApplyCRDProviders has already replaced service with url on the shared
+			// in-memory object, so service.path is empty — using it would drop "/convert" from the
+			// URL and every multi-version conversion would hit the wrong path.
+			patch := map[string]any{
+				"spec": map[string]any{
+					"conversion": map[string]any{
+						"strategy": "Webhook",
+						"webhook": map[string]any{
+							"clientConfig": map[string]any{
+								"url":      webhookURL + conversionWebhookPath,
+								"caBundle": webhookCRT,
+								"service":  nil,
+							},
+						},
+					},
+				},
+			}
+
+			patchBytes, err := json.Marshal(patch)
+			if err != nil {
+				return fmt.Errorf("failed to marshal caBundle patch for %s: %w", name, err)
+			}
+
+			_, err = client.Resource(crdGVR).Patch(ctx, name, types.MergePatchType, patchBytes, metav1.PatchOptions{})
+			if err != nil {
+				return fmt.Errorf("failed to patch conversion caBundle for CRD %s: %w", name, err)
+			}
+
+			logger.Info("Patched conversion webhook caBundle", zap.String("crd", name))
 		}
 	}
 
@@ -273,12 +350,63 @@ func (pc *Cache) loadCRDCache(ctx context.Context, cfg *config.KommodityConfig) 
 				return fmt.Errorf("failed to decode CRD: %w", err)
 			}
 
+			err = stripDeprecatedVersions(ctx, obj)
+			if err != nil {
+				return fmt.Errorf("failed to strip deprecated versions: %w", err)
+			}
+
 			pc.loadCRDInScheme(group, obj)
 
 			pc.providerCRDs[group] = append(pc.providerCRDs[group], *obj)
 			logger.Info("Cached CRD", zap.String("group", group))
 		}
 	}
+
+	return nil
+}
+
+// stripDeprecatedVersions keeps only the non-deprecated versions in spec.versions.
+func stripDeprecatedVersions(ctx context.Context, obj *unstructured.Unstructured) error {
+	logger := logging.FromContext(ctx)
+
+	// Decode into typed CRD so version fields are compiler-checked.
+	var crd apiextensionsv1.CustomResourceDefinition
+
+	err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object, &crd)
+	if err != nil {
+		return fmt.Errorf("failed to convert CRD %s: %w", obj.GetName(), err)
+	}
+
+	dropped := make([]string, 0)
+
+	// Partition versions: keep non-deprecated, record dropped names for logging.
+	kept := slices.DeleteFunc(crd.Spec.Versions, func(v apiextensionsv1.CustomResourceDefinitionVersion) bool {
+		if !v.Deprecated {
+			return false
+		}
+
+		dropped = append(dropped, v.Name)
+
+		return true
+	})
+
+	// Skip when nothing changed, or when every version is deprecated (avoid producing an invalid CRD).
+	if len(dropped) == 0 || len(kept) == 0 {
+		return nil
+	}
+
+	logger.Info("Stripped deprecated CRD versions",
+		zap.String("crd", obj.GetName()),
+		zap.Strings("versions", dropped))
+
+	crd.Spec.Versions = kept
+
+	updated, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&crd)
+	if err != nil {
+		return fmt.Errorf("failed to convert CRD %s back to unstructured: %w", obj.GetName(), err)
+	}
+
+	obj.Object = updated
 
 	return nil
 }

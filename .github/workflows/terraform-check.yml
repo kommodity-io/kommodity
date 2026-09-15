@@ -14,10 +14,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@5e8dbf3c6d9deaf4193ca7a8fb23f2ac83bb6c85 # v4
         with:
           terraform_version: 1.10.0
 
@@ -36,8 +36,26 @@ jobs:
             echo "🚀 Initializing module..."
             terraform init -backend=false > /dev/null
 
-            echo "✅ Running terraform validate..."
-            terraform validate
+            echo "✅ Running terraform test..."
+            terraform test
 
             cd - > /dev/null
           done
+
+      - name: Install terraform-docs
+        run: |
+          set -euo pipefail
+          VERSION=v0.24.0
+          curl -sSLo /tmp/terraform-docs.tar.gz "https://terraform-docs.io/dl/${VERSION}/terraform-docs-${VERSION}-linux-amd64.tar.gz"
+          tar -xzf /tmp/terraform-docs.tar.gz -C /tmp terraform-docs
+          sudo install -m 0755 /tmp/terraform-docs /usr/local/bin/terraform-docs
+          terraform-docs --version
+
+      - name: Verify terraform-docs are up to date
+        run: |
+          set -euo pipefail
+          make terraform-docs
+          if ! git diff --exit-code -- terraform/modules/*/README.md; then
+            echo "::error::terraform-docs output is out of date. Run 'make terraform-docs' and commit the changes."
+            exit 1
+          fi

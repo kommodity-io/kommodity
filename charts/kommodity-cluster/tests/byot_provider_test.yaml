@@ -1,0 +1,499 @@
+suite: test creation of resources for Byot (Bring Your Own Talos) clusters
+values:
+  - ../values.byot.yaml
+release:
+  name: test-cluster
+  namespace: default
+templates:
+  - templates/*
+tests:
+  # ByotCluster
+  - it: should create a ByotCluster with the control plane endpoint from values
+    template: templates/provider/byot/cluster.yaml
+    set:
+      kommodity.provider.config.controlPlaneEndpoint:
+        host: 203.0.113.10
+    asserts:
+      - isKind:
+          of: ByotCluster
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: spec.controlPlaneEndpoint.host
+          value: 203.0.113.10
+      - equal:
+          path: spec.controlPlaneEndpoint.port
+          value: 6443
+
+  - it: should keep the ByotCluster on helm uninstall
+    template: templates/provider/byot/cluster.yaml
+    asserts:
+      - equal:
+          path: metadata.annotations["helm.sh/resource-policy"]
+          value: keep
+
+  - it: should fail when controlPlaneEndpoint.host is unset
+    template: templates/provider/byot/cluster.yaml
+    set:
+      kommodity.provider.config.controlPlaneEndpoint: null
+    asserts:
+      - failedTemplate:
+          errorMessage: "kommodity.provider.config.controlPlaneEndpoint.host is required for Byot (a VIP/LB/DNS name fronting the control plane, or one committed CP host IP; CP host IPs are resolved at claim time so cannot be auto-derived)"
+
+  - it: should default the endpoint port to 6443 when only host is set
+    template: templates/provider/byot/cluster.yaml
+    set:
+      kommodity.provider.config.controlPlaneEndpoint:
+        host: 198.51.100.5
+    asserts:
+      - equal:
+          path: spec.controlPlaneEndpoint.host
+          value: 198.51.100.5
+      - equal:
+          path: spec.controlPlaneEndpoint.port
+          value: 6443
+
+  # Cluster
+  - it: should reference TalosControlPlane and ByotCluster on the Cluster
+    template: templates/provider/capi/cluster.yaml
+    asserts:
+      - isKind:
+          of: Cluster
+      - equal:
+          path: spec.controlPlaneRef.kind
+          value: TalosControlPlane
+      - equal:
+          path: spec.controlPlaneRef.name
+          value: test-cluster-controlplane
+      - equal:
+          path: spec.infrastructureRef.kind
+          value: ByotCluster
+
+  # TalosControlPlane
+  - it: should render a TalosControlPlane referencing the CP ByotMachineTemplate
+    template: templates/talos/controlplane.yaml
+    asserts:
+      - isKind:
+          of: TalosControlPlane
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: spec.replicas
+          value: 3
+      - equal:
+          path: spec.infrastructureTemplate.kind
+          value: ByotMachineTemplate
+      - matchRegex:
+          path: spec.infrastructureTemplate.name
+          pattern: "^test-cluster-controlplane-"
+
+  # ByotMachineTemplate (CP)
+  - it: should render one CP + two per-FD worker ByotMachineTemplates (3 total)
+    template: templates/provider/byot/machinetemplate.yaml
+    asserts:
+      - hasDocuments:
+          count: 3
+
+  - it: should render the CP ByotMachineTemplate with a hostSelector and no failureDomain
+    template: templates/provider/byot/machinetemplate.yaml
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: ByotMachineTemplate
+      - matchRegex:
+          path: metadata.name
+          pattern: "^test-cluster-controlplane-"
+      - equal:
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/available"]
+          value: "true"
+      - equal:
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/cpu-cores"]
+          value: "4"
+      - equal:
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/memory"]
+          value: 16G
+      - equal:
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/disk-type"]
+          value: ssd
+      - equal:
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/disk-size"]
+          value: 100G
+      - notExists:
+          path: spec.template.spec.failureDomain
+      - notExists:
+          path: spec.template.spec.providerID
+      - notExists:
+          path: spec.template.spec.hostRef
+      - notExists:
+          path: spec.template.spec.talosConfigSecretRef
+      - notExists:
+          path: spec.template.spec.publicIP
+
+  # ByotMachineTemplate (worker per-FD)
+  - it: should render a per-FD worker ByotMachineTemplate for par01
+    template: templates/provider/byot/machinetemplate.yaml
+    documentIndex: 1
+    asserts:
+      - isKind:
+          of: ByotMachineTemplate
+      - matchRegex:
+          path: metadata.name
+          pattern: "^test-cluster-worker-default-par01-"
+      - equal:
+          path: spec.template.metadata.labels["kommodity.io/nodepool"]
+          value: default
+      - equal:
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/available"]
+          value: "true"
+      - notExists:
+          path: spec.template.spec.failureDomain
+
+  - it: should render a per-FD worker ByotMachineTemplate for par02
+    template: templates/provider/byot/machinetemplate.yaml
+    documentIndex: 2
+    asserts:
+      - isKind:
+          of: ByotMachineTemplate
+      - matchRegex:
+          path: metadata.name
+          pattern: "^test-cluster-worker-default-par02-"
+      - equal:
+          path: spec.template.metadata.labels["kommodity.io/nodepool"]
+          value: default
+
+  - it: should render a single worker ByotMachineTemplate when zones are unset
+    template: templates/provider/byot/machinetemplate.yaml
+    set:
+      kommodity.nodepools.default.zones: null
+    asserts:
+      - hasDocuments:
+          count: 2   # CP + one domain-less worker
+
+  # MachineDeployment
+  - it: should render one MachineDeployment per failure domain
+    template: templates/provider/capi/machinedeployment.yaml
+    asserts:
+      - hasDocuments:
+          count: 2
+
+  - it: should set failureDomain on the MachineDeployment template and reference the per-FD ByotMachineTemplate
+    template: templates/provider/capi/machinedeployment.yaml
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: MachineDeployment
+      - equal:
+          path: metadata.name
+          value: test-cluster-worker-default-par01
+      - equal:
+          path: spec.replicas
+          value: 1
+      - equal:
+          path: spec.template.spec.failureDomain
+          value: par01
+      - equal:
+          path: spec.template.spec.infrastructureRef.kind
+          value: ByotMachineTemplate
+      - matchRegex:
+          path: spec.template.spec.infrastructureRef.name
+          pattern: "^test-cluster-worker-default-par01-"
+      - equal:
+          path: spec.template.metadata.labels["kommodity.io/nodepool"]
+          value: default
+
+  - it: should reference the TalosConfigTemplate on the worker MachineDeployment
+    template: templates/provider/capi/machinedeployment.yaml
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: spec.template.spec.bootstrap.configRef.kind
+          value: TalosConfigTemplate
+
+  # TalosConfigTemplate
+  - it: should render a TalosConfigTemplate for the worker pool
+    template: templates/talos/configtemplate.yaml
+    asserts:
+      - isKind:
+          of: TalosConfigTemplate
+      - hasDocuments:
+          count: 1
+
+  # Validation: os.disk (optional; when either field is set, both must be set + valid)
+  - it: should fail when os.disk.type is invalid
+    template: templates/provider/byot/machinetemplate.yaml
+    set:
+      kommodity.controlplane.os.disk.type: NVME
+    asserts:
+      - failedTemplate:
+          errorMessage: 'kommodity.controlplane.os.disk.type must be one of nvme ssd hdd sd (lowercase, matching the controller-promoted byot.io/disk-type label), got "NVME"'
+
+  - it: should fail when os.disk.type is set but os.disk.size is unset
+    template: templates/provider/byot/machinetemplate.yaml
+    set:
+      kommodity.controlplane.os.disk.size: null
+    asserts:
+      - failedTemplate:
+          errorMessage: 'kommodity.controlplane.os.disk.size is required when os.disk.type is set (a rounded value like 250G or 1T, matching the controller-promoted byot.io/disk-size label); omit both for a disk-agnostic selector'
+
+  - it: should fail when os.disk.size is set but os.disk.type is unset
+    template: templates/provider/byot/machinetemplate.yaml
+    set:
+      kommodity.controlplane.os.disk.type: null
+    asserts:
+      - failedTemplate:
+          errorMessage: 'kommodity.controlplane.os.disk.type is required when os.disk.size is set (one of: nvme ssd hdd sd); omit both for a disk-agnostic selector'
+
+  - it: should fail when os.disk.size is not a valid rounded value
+    template: templates/provider/byot/machinetemplate.yaml
+    set:
+      kommodity.controlplane.os.disk.size: "50"
+    asserts:
+      - failedTemplate:
+          errorMessage: 'kommodity.controlplane.os.disk.size must be a rounded value like 250G or 1T (integer + G/T suffix, matching the controller-promoted byot.io/disk-size label), got "50"'
+
+  # Optional os.disk: omitting both yields a disk-agnostic selector (no byot.io/disk-* labels)
+  - it: should omit byot.io/disk-* labels when both os.disk fields are unset
+    template: templates/provider/byot/machinetemplate.yaml
+    documentIndex: 0
+    set:
+      kommodity.controlplane.os.disk: null
+    asserts:
+      - notExists:
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/disk-type"]
+      - notExists:
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/disk-size"]
+      - equal:
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/cpu-cores"]
+          value: "4"
+      - equal:
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/memory"]
+          value: 16G
+      - equal:
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/available"]
+          value: "true"
+
+  # resources.gpu -> byot.io/gpu-*
+  - it: should map resources.gpu.count and gpu.model to byot.io/gpu-* labels
+    template: templates/provider/byot/machinetemplate.yaml
+    documentIndex: 0
+    set:
+      kommodity.controlplane.resources.gpu.count: 1
+      kommodity.controlplane.resources.gpu.model: h100-pcie
+    asserts:
+      - equal:
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/gpu-count"]
+          value: "1"
+      - equal:
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/gpu-model"]
+          value: h100-pcie
+      - equal:
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/available"]
+          value: "true"
+
+  - it: should default gpu-count to 1 when only gpu.model is set
+    template: templates/provider/byot/machinetemplate.yaml
+    documentIndex: 0
+    set:
+      kommodity.controlplane.resources.gpu.model: h100-pcie
+    asserts:
+      - equal:
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/gpu-count"]
+          value: "1"
+      - equal:
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/gpu-model"]
+          value: h100-pcie
+
+  - it: should omit byot.io/gpu-* labels when resources.gpu is unset
+    template: templates/provider/byot/machinetemplate.yaml
+    documentIndex: 0
+    asserts:
+      - notExists:
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/gpu-count"]
+      - notExists:
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/gpu-model"]
+
+  # cpu/memory are OPTIONAL and passed through verbatim (no validation)
+  - it: should pass resources.cpu and memory through to byot.io labels verbatim
+    template: templates/provider/byot/machinetemplate.yaml
+    documentIndex: 0
+    set:
+      kommodity.controlplane.resources.cpu: "4000m"
+      kommodity.controlplane.resources.memory: "256G"
+    asserts:
+      - equal:
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/cpu-cores"]
+          value: "4000m"
+      - equal:
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/memory"]
+          value: 256G
+
+  - it: should omit byot.io/cpu-cores and byot.io/memory when unset
+    template: templates/provider/byot/machinetemplate.yaml
+    documentIndex: 0
+    set:
+      kommodity.controlplane.resources.cpu: null
+      kommodity.controlplane.resources.memory: null
+    asserts:
+      - notExists:
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/cpu-cores"]
+      - notExists:
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/memory"]
+
+  - it: should fail when gpu is set without model
+    template: templates/provider/byot/machinetemplate.yaml
+    documentIndex: 0
+    set:
+      kommodity.controlplane.resources.gpu.count: "1"
+    asserts:
+      - failedTemplate:
+          errorMessage: 'kommodity.controlplane.resources.gpu.model is required when resources.gpu is set (model string matching the controller-promoted byot.io/gpu-model label, e.g. "h100-pcie")'
+
+  - it: should fail when gpu.count is not a plain integer
+    template: templates/provider/byot/machinetemplate.yaml
+    documentIndex: 0
+    set:
+      kommodity.controlplane.resources.gpu.count: "1.5"
+      kommodity.controlplane.resources.gpu.model: h100-pcie
+    asserts:
+      - failedTemplate:
+          errorMessage: 'kommodity.controlplane.resources.gpu.count must be a plain integer string of GPUs (e.g. "1"), got "1.5"; byot.io/gpu-count is not a k8s quantity'
+
+  - it: should let an operator hostSelector matchLabel override a derived byot.io/gpu label
+    template: templates/provider/byot/machinetemplate.yaml
+    documentIndex: 0
+    set:
+      kommodity.controlplane.resources.gpu.count: 1
+      kommodity.controlplane.resources.gpu.model: h100-pcie
+      kommodity.controlplane.hostSelector.matchLabels:
+        byot.io/gpu-count: "2"
+    asserts:
+      - equal:
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/gpu-count"]
+          value: "2"
+      - equal:
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/gpu-model"]
+          value: h100-pcie
+
+  # hostSelector escape hatch
+  - it: should merge operator freeform hostSelector labels and keep byot.io/available forced
+    template: templates/provider/byot/machinetemplate.yaml
+    documentIndex: 0
+    set:
+      kommodity.controlplane.hostSelector.matchLabels:
+        site: copenhagen
+    asserts:
+      - equal:
+          path: spec.template.spec.hostSelector.matchLabels["site"]
+          value: copenhagen
+      - equal:
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/available"]
+          value: "true"
+
+  - it: should let an operator hostSelector matchLabel override a derived byot.io label
+    template: templates/provider/byot/machinetemplate.yaml
+    documentIndex: 0
+    set:
+      kommodity.controlplane.hostSelector.matchLabels:
+        byot.io/cpu-cores: "8"
+    asserts:
+      - equal:
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/cpu-cores"]
+          value: "8"
+      - equal:
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/memory"]
+          value: 16G
+      - equal:
+          path: spec.template.spec.hostSelector.matchLabels["byot.io/available"]
+          value: "true"
+
+  - it: should pass operator matchExpressions through verbatim
+    template: templates/provider/byot/machinetemplate.yaml
+    documentIndex: 0
+    set:
+      kommodity.controlplane.hostSelector.matchExpressions:
+        - key: byot.io/platform
+          operator: In
+          values: [scaleway]
+    asserts:
+      - equal:
+          path: spec.template.spec.hostSelector.matchExpressions[0].key
+          value: byot.io/platform
+      - equal:
+          path: spec.template.spec.hostSelector.matchExpressions[0].operator
+          value: In
+
+  # Autoscaling allowed for byot
+  - it: should render autoscaler min/max annotations on the MachineDeployment
+    template: templates/provider/capi/machinedeployment.yaml
+    set:
+      kommodity.clusterAutoscaler.enabled: true
+      kommodity.nodepools.default.replicas: null
+      kommodity.nodepools.default.autoscaling:
+        minReplicas: 2
+        maxReplicas: 4
+    asserts:
+      - hasDocuments:
+          count: 2
+      - equal:
+          path: metadata.annotations["cluster.x-k8s.io/cluster-api-autoscaler-node-group-min-size"]
+          value: "1"
+
+  # ByotMachineTemplate desiredTalosVersion wiring. talos.imageName is
+  # required (the helper fail()s when unset, no silent Sidero default); the
+  # failure path is exercised by `helm template` against values without
+  # imageName and is not asserted here (helm-unittest cannot unset a scalar
+  # set by the suite values file via `set`).
+  - it: should stamp desiredTalosVersion from global talos.imageName verbatim
+    template: templates/provider/byot/machinetemplate.yaml
+    documentIndex: 0
+    set:
+      talos.imageName: ghcr.io/siderolabs/installer:v1.13.8
+    asserts:
+      - equal:
+          path: spec.template.spec.desiredTalosVersion
+          value: ghcr.io/siderolabs/installer:v1.13.8
+
+  - it: should let a nodepool talos.imageName override the global value for desiredTalosVersion
+    template: templates/provider/byot/machinetemplate.yaml
+    # Worker template (documentIndex 1) — nodepool default overrides global.
+    documentIndex: 1
+    set:
+      talos.imageName: ghcr.io/siderolabs/installer:v1.13.8
+      kommodity.nodepools.default.talos.imageName: ghcr.io/corti/installer:v1.13.9-gpu
+    asserts:
+      - equal:
+          path: spec.template.spec.desiredTalosVersion
+          value: ghcr.io/corti/installer:v1.13.9-gpu
+
+  # TalosConfigTemplate talosVersion follows the resolved talos.version.
+  # machine.install.image is no longer populated (extensions ship through
+  # the installer image ref on desiredTalosVersion, not the machine config).
+  - it: should stamp the resolved talos.version (worker)
+    template: templates/talos/configtemplate.yaml
+    documentIndex: 0
+    set:
+      talos.imageName: ghcr.io/siderolabs/installer:v1.13.8
+      talos.version: v1.13.8
+      kommodity.nodepools.default.talos.version: v1.13.9
+    asserts:
+      - equal:
+          path: spec.template.spec.talosVersion
+          value: v1.13.9
+      - notMatchRegex:
+          path: spec.template.spec.strategicPatches[0]
+          pattern: "install:"
+
+  - it: should stamp the control-plane talos.version
+    template: templates/talos/controlplane.yaml
+    documentIndex: 0
+    set:
+      talos.imageName: ghcr.io/siderolabs/installer:v1.13.8
+      talos.version: v1.13.8
+      kommodity.controlplane.talos.version: v1.14.0
+    asserts:
+      - equal:
+          path: spec.controlPlaneConfig.controlplane.talosVersion
+          value: v1.14.0
+      - notMatchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[0]
+          pattern: "install:"

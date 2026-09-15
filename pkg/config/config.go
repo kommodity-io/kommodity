@@ -18,31 +18,62 @@ import (
 )
 
 const (
-	defaultServerPort          = 5000
-	defaultAPIServerPort       = 8443
-	defaultDisableAuth         = false
-	defaultOIDCUsernameClaim   = "email"
-	defaultOIDCGroupsClaim     = "groups"
-	defaultDevelopmentMode     = false
-	defaultKineURI             = "unix://bin/kine.sock"
-	defaultAttestationNonceTTL = 5 * time.Minute
+	envBaseURL                            = "KOMMODITY_BASE_URL"
+	envServerPort                         = "KOMMODITY_PORT"
+	envAPIServerPort                      = "KOMMODITY_API_SERVER_PORT"
+	envAdminGroup                         = "KOMMODITY_ADMIN_GROUP"
+	envDisableAuth                        = "KOMMODITY_INSECURE_DISABLE_AUTHENTICATION"
+	envOIDCIssuerURL                      = "KOMMODITY_OIDC_ISSUER_URL"
+	envOIDCClientID                       = "KOMMODITY_OIDC_CLIENT_ID"
+	envOIDCUsernameClaim                  = "KOMMODITY_OIDC_USERNAME_CLAIM"
+	envOIDCGroupsClaim                    = "KOMMODITY_OIDC_GROUPS_CLAIM"
+	envDatabaseURI                        = "KOMMODITY_DB_URI"
+	envAttestationNonceTTL                = "KOMMODITY_ATTESTATION_NONCE_TTL"
+	envDevelopmentMode                    = "KOMMODITY_DEVELOPMENT_MODE"
+	envKineURI                            = "KOMMODITY_KINE_URI"
+	envInfrastructureProviders            = "KOMMODITY_INFRASTRUCTURE_PROVIDERS"
+	envAuditPolicyFilePath                = "KOMMODITY_AUDIT_POLICY_FILE_PATH"
+	envAuditEnabled                       = "KOMMODITY_AUDIT_ENABLED"
+	envGarbageCollectorEnabled            = "KOMMODITY_GARBAGE_COLLECTOR_ENABLED"
+	envGarbageCollectorWorkers            = "KOMMODITY_GARBAGE_COLLECTOR_WORKERS"
+	envGarbageCollectorSyncPeriod         = "KOMMODITY_GARBAGE_COLLECTOR_SYNC_PERIOD"
+	envGarbageCollectorInitialSyncTimeout = "KOMMODITY_GARBAGE_COLLECTOR_INITIAL_SYNC_TIMEOUT"
+	envTalosProxyEnabled                  = "KOMMODITY_TALOS_PROXY_ENABLED"
+	envTalosProxyPort                     = "KOMMODITY_TALOS_PROXY_PORT"
+	envTalosProxyNamespace                = "KOMMODITY_TALOS_PROXY_NAMESPACE"
+	envTalosProxyServiceName              = "KOMMODITY_TALOS_PROXY_SERVICE_NAME"
+	envTalosProxyIdleTimeout              = "KOMMODITY_TALOS_PROXY_IDLE_TIMEOUT"
+	envTalosProxyMaxRetries               = "KOMMODITY_TALOS_PROXY_MAX_RETRIES"
+	//nolint:gosec // G101: env var name, not a credential
+	envAzureDefaultCredentialSecret = "KOMMODITY_AZURE_DEFAULT_CREDENTIAL_SECRET"
+	envAzureARMDeletionGracePeriod  = "KOMMODITY_AZURE_ARM_DELETION_GRACE_PERIOD"
 
-	// EnvBaseURL environment variable for Kommodity base URL.
-	EnvBaseURL = "KOMMODITY_BASE_URL"
-
-	envServerPort              = "KOMMODITY_PORT"
-	envAdminGroup              = "KOMMODITY_ADMIN_GROUP"
-	envDisableAuth             = "KOMMODITY_INSECURE_DISABLE_AUTHENTICATION"
-	envOIDCIssuerURL           = "KOMMODITY_OIDC_ISSUER_URL"
-	envOIDCClientID            = "KOMMODITY_OIDC_CLIENT_ID"
-	envOIDCUsernameClaim       = "KOMMODITY_OIDC_USERNAME_CLAIM"
-	envOIDCGroupsClaim         = "KOMMODITY_OIDC_GROUPS_CLAIM"
-	envDatabaseURI             = "KOMMODITY_DB_URI"
-	envAttestationNonceTTL     = "KOMMODITY_ATTESTATION_NONCE_TTL"
-	envDevelopmentMode         = "KOMMODITY_DEVELOPMENT_MODE"
-	envKineURI                 = "KOMMODITY_KINE_URI"
-	envInfrastructureProviders = "KOMMODITY_INFRASTRUCTURE_PROVIDERS"
-	envAuditPolicyFilePath     = "KOMMODITY_AUDIT_POLICY_FILE_PATH"
+	defaultServerPort                         = 5000
+	defaultAPIServerPort                      = 8443
+	defaultDisableAuth                        = false
+	defaultOIDCUsernameClaim                  = "email"
+	defaultOIDCGroupsClaim                    = "groups"
+	defaultDevelopmentMode                    = false
+	defaultKineURI                            = "unix://bin/kine.sock"
+	defaultAttestationNonceTTL                = 5 * time.Minute
+	defaultTalosProxyEnabled                  = true
+	defaultTalosProxyPort                     = 15050
+	defaultTalosProxyNamespace                = "talos-cluster-proxy"
+	defaultTalosProxyServiceName              = "talos-cluster-proxy"
+	defaultTalosProxyIdleTimeout              = 1 * time.Minute
+	defaultTalosProxyMaxRetries               = 5
+	defaultGarbageCollectorEnabled            = true
+	defaultGarbageCollectorWorkers            = 5
+	defaultGarbageCollectorSyncPeriod         = 30 * time.Second
+	defaultGarbageCollectorInitialSyncTimeout = 60 * time.Second
+	defaultAzureDefaultCredentialSecret       = ""
+	defaultAuditEnabled                       = false
+	// defaultAzureARMDeletionGracePeriod bounds how long the embedded ARM
+	// reconciler waits for Azure to actually delete a managed resource before it
+	// releases its finalizer. This prevents a single un-deletable resource from
+	// wedging cluster teardown indefinitely (the resource may be orphaned, which
+	// is recoverable; a stuck finalizer blocks the whole namespace, which is not).
+	defaultAzureARMDeletionGracePeriod = 15 * time.Minute
 )
 
 const (
@@ -60,9 +91,44 @@ type KommodityConfig struct {
 	AttestationConfig       *AttestationConfig
 	AuthConfig              *AuthConfig
 	ClientConfig            *ClientConfig
+	TalosProxyConfig        *TalosProxyConfig
+	GarbageCollectorConfig  *GarbageCollectorConfig
 	AuditPolicyFilePath     string
+	AuditEnabled            bool
 	DevelopmentMode         bool
 	InfrastructureProviders []Provider
+	AzureConfig             *AzureConfig
+}
+
+// AzureConfig holds configuration for the embedded Azure integration.
+type AzureConfig struct {
+	// DefaultCredentialSecret is the fallback Secret name used to resolve Azure
+	// credentials when a custom resource carries no
+	// "serviceoperator.azure.com/credential-from" annotation.
+	DefaultCredentialSecret string
+	// ARMDeletionGracePeriod bounds how long the embedded ARM reconciler waits for
+	// Azure to delete a managed resource before releasing its finalizer to avoid
+	// wedging teardown. A non-positive value disables the safety net.
+	ARMDeletionGracePeriod time.Duration
+}
+
+// GarbageCollectorConfig holds the configuration for the embedded
+// ownerReferences-based garbage collector.
+type GarbageCollectorConfig struct {
+	Enabled            bool
+	Workers            int
+	SyncPeriod         time.Duration
+	InitialSyncTimeout time.Duration
+}
+
+// TalosProxyConfig holds the configuration for the transparent Talos gRPC proxy.
+type TalosProxyConfig struct {
+	Enabled          bool
+	ListenPort       int
+	ProxyNamespace   string
+	ProxyServiceName string
+	IdleTimeout      time.Duration
+	MaxRetries       int
 }
 
 // AuthConfig holds the authentication configuration settings for the Kommodity API server.
@@ -83,12 +149,16 @@ type ClientConfig struct {
 }
 
 // OIDCConfig holds the OIDC configuration settings from the environment variables.
+// For the management cluster's own UI kubeconfig these come from env vars; for a
+// downstream cluster they are assembled by the UI from the cluster's machine
+// config (apiserver validation flags) plus the cluster's OIDC client Secret
+// (kubelogin exec-block flags).
 type OIDCConfig struct {
-	IssuerURL     string
-	ClientID      string
-	UsernameClaim string
-	GroupsClaim   string
-	ExtraScopes   []string
+	IssuerURL         string
+	ClientID          string
+	UsernameClaim     string
+	GroupsClaim       string
+	ClientExtraFlags  []string
 }
 
 // LoadConfig loads the configuration settings from environment variables and returns a KommodityConfig instance.
@@ -111,33 +181,88 @@ func LoadConfig(ctx context.Context) (*KommodityConfig, error) {
 		return nil, fmt.Errorf("failed to get database URI: %w", err)
 	}
 
+	talosProxyConfig := getTalosProxyConfig(ctx)
+	garbageCollectorConfig := getGarbageCollectorConfig(ctx)
+	azureConfig := getAzureConfig(ctx)
+
 	return &KommodityConfig{
 		BaseURL:             baseURL,
 		ServerPort:          serverPort,
-		APIServerPort:       defaultAPIServerPort,
+		APIServerPort:       getAPIServerPort(ctx),
 		WebhookPort:         ctrlwebhook.DefaultPort,
 		DBURI:               dbURI,
 		KineURI:             kineURI,
 		AttestationConfig:   getAttestationConfig(ctx),
 		AuditPolicyFilePath: getAuditPolicyFilePath(ctx),
+		AuditEnabled:        getAuditEnabled(ctx),
 		AuthConfig: &AuthConfig{
 			Apply:      apply,
 			OIDCConfig: oidcConfig,
 			AdminGroup: adminGroup,
 		},
 		ClientConfig:            &ClientConfig{},
+		TalosProxyConfig:        talosProxyConfig,
+		GarbageCollectorConfig:  garbageCollectorConfig,
 		DevelopmentMode:         developmentMode,
 		InfrastructureProviders: infrastructureProviders,
+		AzureConfig:             azureConfig,
 	}, nil
+}
+
+func getAzureConfig(ctx context.Context) *AzureConfig {
+	return &AzureConfig{
+		DefaultCredentialSecret: getAzureDefaultCredentialSecret(ctx),
+		ARMDeletionGracePeriod:  getAzureARMDeletionGracePeriod(ctx),
+	}
+}
+
+func getAzureARMDeletionGracePeriod(ctx context.Context) time.Duration {
+	logger := logging.FromContext(ctx)
+
+	value := os.Getenv(envAzureARMDeletionGracePeriod)
+	if value == "" {
+		logger.Info(configurationNotSpecified,
+			zap.String("envVar", envAzureARMDeletionGracePeriod),
+			zap.String("default", defaultAzureARMDeletionGracePeriod.String()))
+
+		return defaultAzureARMDeletionGracePeriod
+	}
+
+	duration, err := time.ParseDuration(value)
+	if err != nil {
+		logger.Info("failed to parse azure ARM deletion grace period",
+			zap.String("envVar", envAzureARMDeletionGracePeriod),
+			zap.String("value", value),
+			zap.String("default", defaultAzureARMDeletionGracePeriod.String()))
+
+		return defaultAzureARMDeletionGracePeriod
+	}
+
+	return duration
+}
+
+func getAzureDefaultCredentialSecret(ctx context.Context) string {
+	logger := logging.FromContext(ctx)
+
+	secret := os.Getenv(envAzureDefaultCredentialSecret)
+	if secret == "" {
+		logger.Info(configurationNotSpecified,
+			zap.String("envVar", envAzureDefaultCredentialSecret),
+			zap.String("default", defaultAzureDefaultCredentialSecret))
+
+		return defaultAzureDefaultCredentialSecret
+	}
+
+	return secret
 }
 
 func getBaseURL(ctx context.Context) string {
 	logger := logging.FromContext(ctx)
 
-	baseURL := os.Getenv(EnvBaseURL)
+	baseURL := os.Getenv(envBaseURL)
 	if baseURL == "" {
 		logger.Info(configurationNotSpecified,
-			zap.String("envVar", EnvBaseURL),
+			zap.String("envVar", envBaseURL),
 			zap.String("default", fmt.Sprintf("http://localhost:%d", defaultServerPort)))
 
 		return fmt.Sprintf("http://localhost:%d", defaultServerPort)
@@ -169,6 +294,27 @@ func getServerPort(ctx context.Context) int {
 	}
 
 	return serverPortInt
+}
+
+func getAPIServerPort(ctx context.Context) int {
+	logger := logging.FromContext(ctx)
+
+	apiServerPort := os.Getenv(envAPIServerPort)
+	if apiServerPort == "" {
+		return defaultAPIServerPort
+	}
+
+	apiServerPortInt, err := strconv.Atoi(apiServerPort)
+	if err != nil {
+		logger.Info("failed to convert API server port to integer",
+			zap.String("envVar", envAPIServerPort),
+			zap.String("value", apiServerPort),
+			zap.Int("default", defaultAPIServerPort))
+
+		return defaultAPIServerPort
+	}
+
+	return apiServerPortInt
 }
 
 func getApplyAuth(ctx context.Context) bool {
@@ -375,4 +521,279 @@ func getAuditPolicyFilePath(ctx context.Context) string {
 	}
 
 	return policyFilePath
+}
+
+func getAuditEnabled(ctx context.Context) bool {
+	logger := logging.FromContext(ctx)
+
+	enabled := os.Getenv(envAuditEnabled)
+	if enabled == "" {
+		logger.Info(configurationNotSpecified,
+			zap.String("envVar", envAuditEnabled),
+			zap.Bool("default", defaultAuditEnabled))
+
+		return defaultAuditEnabled
+	}
+
+	enabledBool, err := strconv.ParseBool(enabled)
+	if err != nil {
+		logger.Info("failed to convert audit enabled to boolean",
+			zap.String("envVar", envAuditEnabled),
+			zap.String("value", enabled),
+			zap.Bool("default", defaultAuditEnabled))
+
+		return defaultAuditEnabled
+	}
+
+	return enabledBool
+}
+
+func getTalosProxyConfig(ctx context.Context) *TalosProxyConfig {
+	return &TalosProxyConfig{
+		Enabled:          getTalosProxyEnabled(ctx),
+		ListenPort:       getTalosProxyPort(ctx),
+		ProxyNamespace:   getTalosProxyNamespace(ctx),
+		ProxyServiceName: getTalosProxyServiceName(ctx),
+		IdleTimeout:      getTalosProxyIdleTimeout(ctx),
+		MaxRetries:       getTalosProxyMaxRetries(ctx),
+	}
+}
+
+func getTalosProxyEnabled(ctx context.Context) bool {
+	logger := logging.FromContext(ctx)
+
+	enabled := os.Getenv(envTalosProxyEnabled)
+	if enabled == "" {
+		logger.Info(configurationNotSpecified,
+			zap.String("envVar", envTalosProxyEnabled),
+			zap.Bool("default", defaultTalosProxyEnabled))
+
+		return defaultTalosProxyEnabled
+	}
+
+	enabledBool, err := strconv.ParseBool(enabled)
+	if err != nil {
+		logger.Info("failed to convert talos proxy enabled to boolean",
+			zap.String("envVar", envTalosProxyEnabled),
+			zap.String("value", enabled),
+			zap.Bool("default", defaultTalosProxyEnabled))
+
+		return defaultTalosProxyEnabled
+	}
+
+	return enabledBool
+}
+
+func getTalosProxyPort(ctx context.Context) int {
+	logger := logging.FromContext(ctx)
+
+	port := os.Getenv(envTalosProxyPort)
+	if port == "" {
+		logger.Info(configurationNotSpecified,
+			zap.String("envVar", envTalosProxyPort),
+			zap.Int("default", defaultTalosProxyPort))
+
+		return defaultTalosProxyPort
+	}
+
+	portInt, err := strconv.Atoi(port)
+	if err != nil {
+		logger.Info("failed to convert talos proxy port to integer",
+			zap.String("envVar", envTalosProxyPort),
+			zap.String("value", port),
+			zap.Int("default", defaultTalosProxyPort))
+
+		return defaultTalosProxyPort
+	}
+
+	return portInt
+}
+
+func getTalosProxyNamespace(ctx context.Context) string {
+	logger := logging.FromContext(ctx)
+
+	namespace := os.Getenv(envTalosProxyNamespace)
+	if namespace == "" {
+		logger.Info(configurationNotSpecified,
+			zap.String("envVar", envTalosProxyNamespace),
+			zap.String("default", defaultTalosProxyNamespace))
+
+		return defaultTalosProxyNamespace
+	}
+
+	return namespace
+}
+
+func getTalosProxyServiceName(ctx context.Context) string {
+	logger := logging.FromContext(ctx)
+
+	name := os.Getenv(envTalosProxyServiceName)
+	if name == "" {
+		logger.Info(configurationNotSpecified,
+			zap.String("envVar", envTalosProxyServiceName),
+			zap.String("default", defaultTalosProxyServiceName))
+
+		return defaultTalosProxyServiceName
+	}
+
+	return name
+}
+
+func getTalosProxyIdleTimeout(ctx context.Context) time.Duration {
+	logger := logging.FromContext(ctx)
+
+	idleTimeout := os.Getenv(envTalosProxyIdleTimeout)
+	if idleTimeout == "" {
+		logger.Info(configurationNotSpecified,
+			zap.String("envVar", envTalosProxyIdleTimeout),
+			zap.String("default", defaultTalosProxyIdleTimeout.String()))
+
+		return defaultTalosProxyIdleTimeout
+	}
+
+	duration, err := time.ParseDuration(idleTimeout)
+	if err != nil {
+		logger.Info("failed to parse talos proxy idle timeout",
+			zap.String("envVar", envTalosProxyIdleTimeout),
+			zap.String("value", idleTimeout),
+			zap.String("default", defaultTalosProxyIdleTimeout.String()))
+
+		return defaultTalosProxyIdleTimeout
+	}
+
+	return duration
+}
+
+func getTalosProxyMaxRetries(ctx context.Context) int {
+	logger := logging.FromContext(ctx)
+
+	retries := os.Getenv(envTalosProxyMaxRetries)
+	if retries == "" {
+		logger.Info(configurationNotSpecified,
+			zap.String("envVar", envTalosProxyMaxRetries),
+			zap.Int("default", defaultTalosProxyMaxRetries))
+
+		return defaultTalosProxyMaxRetries
+	}
+
+	retriesInt, err := strconv.Atoi(retries)
+	if err != nil || retriesInt < 1 {
+		logger.Info("failed to convert talos proxy max retries to positive integer",
+			zap.String("envVar", envTalosProxyMaxRetries),
+			zap.String("value", retries),
+			zap.Int("default", defaultTalosProxyMaxRetries))
+
+		return defaultTalosProxyMaxRetries
+	}
+
+	return retriesInt
+}
+
+func getGarbageCollectorConfig(ctx context.Context) *GarbageCollectorConfig {
+	return &GarbageCollectorConfig{
+		Enabled:            getGarbageCollectorEnabled(ctx),
+		Workers:            getGarbageCollectorWorkers(ctx),
+		SyncPeriod:         getGarbageCollectorSyncPeriod(ctx),
+		InitialSyncTimeout: getGarbageCollectorInitialSyncTimeout(ctx),
+	}
+}
+
+func getGarbageCollectorEnabled(ctx context.Context) bool {
+	logger := logging.FromContext(ctx)
+
+	enabled := os.Getenv(envGarbageCollectorEnabled)
+	if enabled == "" {
+		logger.Info(configurationNotSpecified,
+			zap.String("envVar", envGarbageCollectorEnabled),
+			zap.Bool("default", defaultGarbageCollectorEnabled))
+
+		return defaultGarbageCollectorEnabled
+	}
+
+	enabledBool, err := strconv.ParseBool(enabled)
+	if err != nil {
+		logger.Info("failed to convert garbage collector enabled to boolean",
+			zap.String("envVar", envGarbageCollectorEnabled),
+			zap.String("value", enabled),
+			zap.Bool("default", defaultGarbageCollectorEnabled))
+
+		return defaultGarbageCollectorEnabled
+	}
+
+	return enabledBool
+}
+
+func getGarbageCollectorWorkers(ctx context.Context) int {
+	logger := logging.FromContext(ctx)
+
+	workers := os.Getenv(envGarbageCollectorWorkers)
+	if workers == "" {
+		logger.Info(configurationNotSpecified,
+			zap.String("envVar", envGarbageCollectorWorkers),
+			zap.Int("default", defaultGarbageCollectorWorkers))
+
+		return defaultGarbageCollectorWorkers
+	}
+
+	workersInt, err := strconv.Atoi(workers)
+	if err != nil || workersInt < 1 {
+		logger.Info("failed to convert garbage collector workers to positive integer",
+			zap.String("envVar", envGarbageCollectorWorkers),
+			zap.String("value", workers),
+			zap.Int("default", defaultGarbageCollectorWorkers))
+
+		return defaultGarbageCollectorWorkers
+	}
+
+	return workersInt
+}
+
+func getGarbageCollectorSyncPeriod(ctx context.Context) time.Duration {
+	logger := logging.FromContext(ctx)
+
+	syncPeriod := os.Getenv(envGarbageCollectorSyncPeriod)
+	if syncPeriod == "" {
+		logger.Info(configurationNotSpecified,
+			zap.String("envVar", envGarbageCollectorSyncPeriod),
+			zap.String("default", defaultGarbageCollectorSyncPeriod.String()))
+
+		return defaultGarbageCollectorSyncPeriod
+	}
+
+	duration, err := time.ParseDuration(syncPeriod)
+	if err != nil {
+		logger.Info("failed to parse garbage collector sync period",
+			zap.String("envVar", envGarbageCollectorSyncPeriod),
+			zap.String("value", syncPeriod),
+			zap.String("default", defaultGarbageCollectorSyncPeriod.String()))
+
+		return defaultGarbageCollectorSyncPeriod
+	}
+
+	return duration
+}
+
+func getGarbageCollectorInitialSyncTimeout(ctx context.Context) time.Duration {
+	logger := logging.FromContext(ctx)
+
+	timeout := os.Getenv(envGarbageCollectorInitialSyncTimeout)
+	if timeout == "" {
+		logger.Info(configurationNotSpecified,
+			zap.String("envVar", envGarbageCollectorInitialSyncTimeout),
+			zap.String("default", defaultGarbageCollectorInitialSyncTimeout.String()))
+
+		return defaultGarbageCollectorInitialSyncTimeout
+	}
+
+	duration, err := time.ParseDuration(timeout)
+	if err != nil {
+		logger.Info("failed to parse garbage collector initial sync timeout",
+			zap.String("envVar", envGarbageCollectorInitialSyncTimeout),
+			zap.String("value", timeout),
+			zap.String("default", defaultGarbageCollectorInitialSyncTimeout.String()))
+
+		return defaultGarbageCollectorInitialSyncTimeout
+	}
+
+	return duration
 }

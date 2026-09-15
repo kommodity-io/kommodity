@@ -1,10 +1,10 @@
 {{/*
-VolumeConfig documents for KMS disk encryption.
+VolumeConfig  documents for KMS disk encryption.
 These are used as strategic patches in TalosConfigTemplate and TalosControlPlane.
 See: https://docs.siderolabs.com/talos/v1.12/reference/configuration/block/volumeconfig
 */}}
 {{- define "kommodity.talos.volumeEncryption" -}}
-{{- $endpoint := .endpoint -}}
+{{- $endpoint := required "kommodity.kms.endpoint is required when kms is enabled" .endpoint -}}
 - |
   apiVersion: v1alpha1
   kind: VolumeConfig

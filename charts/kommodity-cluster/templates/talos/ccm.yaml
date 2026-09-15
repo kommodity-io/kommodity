@@ -1,8 +1,0 @@
-{{- define "kommodity.talos.ccm" -}}
-- op: add
-  path: /cluster/externalCloudProvider
-  value:
-    enabled: true
-    manifests:
-      - {{ .manifest }}
-{{- end}}

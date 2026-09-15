@@ -1,0 +1,94 @@
+# Example values to deploy a cluster whose nodes are claimed from a ByotHost
+# registry (Bring Your Own Talos). Operators add ByotHost objects (IP-only
+# records of maintenance-mode Talos boxes) out of band; this chart claims them
+# by label selector and adopts them as control-plane / worker nodes.
+kommodity:
+  provider:
+    name: Byot
+    # Control-plane endpoint (REQUIRED). Must exist before any host
+    # is claimed. CP host IPs are resolved at claim time and cannot be used
+    # here (VIP / load balancer / DNS name fronting the control plane (HA)).
+    config:
+      controlPlaneEndpoint:
+        host: <REPLACE-ME>
+        port: 6443
+
+  network:
+    ipv4:
+      enabled: true
+      public: true # Byot hosts are reached by public IP (maintenance API, port 50000).
+
+  controlplane:
+    replicas: 3
+    # SKU-driven host selector. The chart maps these to the curated byot.io/
+    # labels the ByotHost controller promotes, and claims Available hosts
+    # matching them (exact-match).
+    resources:
+      cpu: "4" # Required
+      memory: "16G" # Required (rounded value like 16G, 64G, 1T)
+    os:
+      disk:
+        type: ssd # Optional (one of nvme ssd hdd sd)
+        size: "100G" # Optional (rounded value like 100G, 250G, 1T)
+    # zones:
+    #   - par01
+    #   - par02
+    # Optional freeform hostSelector
+    # hostSelector:
+    #   matchLabels:
+    #     site: copenhagen
+    #   matchExpressions:
+    #     - key: byot.io/platform
+    #       operator: In
+    #       values: [scaleway]
+    healthCheck:
+      enabled: true
+      unhealthyConditions:
+        - type: Ready
+          status: Unknown
+          timeout: 300s
+        - type: Ready
+          status: "False"
+          timeout: 300s
+    # kubernetes:
+    #   version: v1.33.4
+    # talos:
+    #   version: v1.13.0
+
+  nodepools:
+    default:
+      replicas: 2
+      resources:
+        cpu: "4"
+        memory: "16G"
+        # gpu:
+        #   model: "h100-pcie"
+        #   count: "1" (defaults to 1)
+      os:
+        disk:
+          type: ssd
+          size: "100G"
+      zones:
+        - par01
+        - par02
+      # autoscaling:
+      #   minReplicas: 2
+      #   maxReplicas: 4
+      # hostSelector:
+      #   matchLabels:
+      #     site: copenhagen
+      healthCheck:
+        enabled: true
+        unhealthyConditions:
+          - type: Ready
+            status: Unknown
+            timeout: 300s
+          - type: Ready
+            status: "False"
+            timeout: 300s
+
+talos:
+  # Talos version must match the maintenance-mode ByotHosts being claimed.
+  version: v1.13.8
+  # for BYOT, imageName is the installer image ref used to upgrade adopted BYOT hosts
+  imageName: ghcr.io/siderolabs/installer:v1.13.8

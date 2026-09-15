@@ -15,4 +15,6 @@ var (
 	ErrNoMatchingSecret = errors.New("no volume key set could decrypt the provided ciphertext")
 	// ErrNoVolumeKeySets is an error that indicates no volume key sets were found in the secret.
 	ErrNoVolumeKeySets = errors.New("no volume key sets found in secret")
+	// ErrNoValidClientIP is an error that indicates no valid client IP could be resolved.
+	ErrNoValidClientIP = errors.New("no valid client IP could be resolved")
 )

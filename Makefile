@@ -29,15 +29,17 @@ grpcurl: $(GRPCURL) ## Download grpcurl locally if necessary.
 $(GRPCURL):
 	go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest
 
-# Set up the linter.
-LINTER := bin/golangci-lint
-
-.PHONY: golangci-lint
-golangci-lint: $(LINTER) ## Download golangci-lint locally if necessary.
-$(LINTER):
-	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b bin/ v2.9.0
+# Set up the linter. Version pinned via `tool` directive in go.mod.
+LINTER := go tool golangci-lint
 
 ##@ Development
+
+# Load .env file if it exists, making its variables available to Make targets.
+-include .env
+export
+
+KOMMODITY_BASE_URL ?= https://localhost:5443
+KOMMODITY_PORT     ?= 5000
 
 .PHONY: .env
 .env: ## Create a .env file from the template. Use sed to only add if it does not already exist.
@@ -46,10 +48,8 @@ $(LINTER):
 	grep -q '^KOMMODITY_PORT=' .env || echo 'KOMMODITY_PORT=5000' >> .env
 	grep -q '^KOMMODITY_INSECURE_DISABLE_AUTHENTICATION=' .env || echo 'KOMMODITY_INSECURE_DISABLE_AUTHENTICATION=true' >> .env
 	grep -q '^KOMMODITY_DEVELOPMENT_MODE=' .env || echo 'KOMMODITY_DEVELOPMENT_MODE=true' >> .env
-	touch pkg/ui/web/kommodity-ui/.env
-	grep -q '^VITE_KOMMODITY_BASE_URL=' pkg/ui/web/kommodity-ui/.env || echo 'VITE_KOMMODITY_BASE_URL=https://localhost:5443' >> pkg/ui/web/kommodity-ui/.env
 
-generate-caddyfile: # Generate a Caddyfile for local development. Make sure to source the .env file first.
+generate-caddyfile: # Generate a Caddyfile for local development.
 	touch Caddyfile
 	echo "$(KOMMODITY_BASE_URL) {\n  reverse_proxy host.docker.internal:$(KOMMODITY_PORT) {\n    transport http {\n      versions h2c\n    }\n  }\n  tls internal\n}" > Caddyfile
 
@@ -81,7 +81,7 @@ fetch-providers:
 	./scripts/add-to-scheme-providers.sh
 	./scripts/generate-provider-consts.sh
 
-build: build-ui bin/kommodity ## Build all components (api and UI).
+build: bin/kommodity ## Build the application.
 
 build-api: bin/kommodity ## Build the api
 
@@ -91,12 +91,6 @@ ifneq ($(UPX_FLAGS),)
 	upx $(UPX_FLAGS) bin/kommodity
 endif
 
-install-npm-deps:
-	npm install --prefix pkg/ui/web/kommodity-ui
-
-build-ui: install-npm-deps ## Build the UI
-	VITE_KOMMODITY_BASE_URL=$(KOMMODITY_BASE_URL) npm run build --prefix pkg/ui/web/kommodity-ui
-
 .PHONY: clean
 clean: ## Clean the build artifacts.
 	rm -f bin/kommodity
@@ -105,20 +99,19 @@ clean: ## Clean the build artifacts.
 test: ## Run the tests.
 	go test -cover -v ./...
 
-lint: $(LINTER) ## Run the linter.
+lint: ## Run the linter.
 	$(LINTER) run
-	cd pkg/test && ../../$(LINTER) run
+	cd pkg/test && go tool -modfile=../../go.mod golangci-lint run
 
-lint-fix: $(LINTER) ## Run the linter and fix issues.
+lint-fix: ## Run the linter and fix issues.
 	$(LINTER) run --fix
-	cd pkg/test && ../../$(LINTER) run --fix
+	cd pkg/test && go tool -modfile=../../go.mod golangci-lint run --fix
 
 generate: .env fetch-providers ## Run code generation.
 	go generate ./...
 
 .PHONY: teardown
 teardown: compose-down ## Tear down the local development environment.
-	rm -f .env
 
 .PHONY: build-image
 build-image: ## Build the Docker image.
@@ -147,10 +140,29 @@ setup-kind-management-cluster:
 delete-kind-management-cluster:
 	kind delete cluster --name kind-management
 
-.PHONY: run-integration-test
-run-integration-test:
-	cd pkg/test && go test ./... -v
+.PHONY: run-scaleway-integration-test
+run-scaleway-integration-test: ## Runs Scaleway integration tests (requires Docker)
+	cd pkg/test && go test -run TestCreateScalewayCluster -v -timeout 15m
+
+.PHONY: run-hetzner-integration-test
+run-hetzner-integration-test: ## Runs Hetzner integration tests (requires make build-image, HCLOUD_TOKEN and a Talos snapshot)
+	cd pkg/test && go test -run TestCreateHetznerCluster -v -timeout 30m
+
+.PHONY: run-kubevirt-integration-test
+run-kubevirt-integration-test: ## Runs KubeVirt integration tests (requires Docker and kubectl)
+	cd pkg/test && go test -run TestCreateKubevirtCluster -v -timeout 15m
+
+.PHONY: run-byot-integration-test
+run-byot-integration-test: ## Runs BYOT integration tests (requires Docker)
+	cd pkg/test && go test -run 'TestByotCluster' -v -timeout 60m -parallel 2
 
 .PHONY: run-helm-unit-tests
 run-helm-unit-tests:
 	helm unittest charts/*
+
+.PHONY: terraform-docs
+terraform-docs: ## Regenerate README.md for all Terraform modules.
+	@for module in terraform/modules/*/; do \
+		echo "Generating docs for $$module"; \
+		terraform-docs markdown table --output-file README.md $$module; \
+	done

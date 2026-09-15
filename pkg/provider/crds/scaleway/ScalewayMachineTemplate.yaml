@@ -55,6 +55,47 @@ spec:
                     spec:
                       description: ScalewayMachineSpec defines the desired state of ScalewayMachine.
                       properties:
+                        additionalVolumes:
+                          description: |-
+                            AdditionalVolumes to be created and attached to the instance before it's first started.
+                            These volumes are deleted during instance deletion.
+                          items:
+                            description: AdditionalVolume defines the characteristics of an additional volume.
+                            minProperties: 1
+                            properties:
+                              iops:
+                                description: IOPS is the number of IOPS requested for the disk. This is only applicable for block volumes.
+                                format: int64
+                                minimum: 5000
+                                type: integer
+                              size:
+                                description: Size of the volume in GB.
+                                format: int64
+                                maximum: 10000
+                                minimum: 1
+                                type: integer
+                              type:
+                                default: block
+                                description: |-
+                                  Type of the volume. Note that not all types of instances support local or
+                                  scratch volumes. Please refer to the Scaleway documentation for more details
+                                  on supported volume types per instance type.
+                                enum:
+                                  - local
+                                  - block
+                                  - scratch
+                                type: string
+                            type: object
+                            x-kubernetes-validations:
+                              - message: iops can only be set for block volumes
+                                rule: '!has(self.iops) || has(self.type) && self.type == ''block'''
+                          maxItems: 15
+                          minItems: 1
+                          type: array
+                          x-kubernetes-list-type: atomic
+                          x-kubernetes-validations:
+                            - message: Value is immutable
+                              rule: self == oldSelf
                         commercialType:
                           default: PRO2-S
                           description: CommercialType of instance (e.g. PRO2-S).
@@ -168,6 +209,8 @@ spec:
                           rule: has(self.placementGroup) == has(oldSelf.placementGroup)
                         - message: securityGroup cannot be added or removed
                           rule: has(self.securityGroup) == has(oldSelf.securityGroup)
+                        - message: additionalVolumes cannot be added or removed
+                          rule: has(self.additionalVolumes) == has(oldSelf.additionalVolumes)
                   required:
                     - spec
                   type: object

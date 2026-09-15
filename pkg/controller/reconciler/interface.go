@@ -15,6 +15,7 @@ type SetupDeps struct {
 	Manager      ctrl.Manager
 	ClusterCache clustercache.ClusterCache
 	Options      controller.Options
+	Config       *config.KommodityConfig
 }
 
 // Module is a pluggable controller installer.

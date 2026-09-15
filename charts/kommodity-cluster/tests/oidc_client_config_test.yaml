@@ -1,0 +1,71 @@
+suite: test OIDC client Secret served to the UI
+release:
+  name: test-cluster
+  namespace: default
+templates:
+  - templates/talos/oidc-client-secret.yaml
+tests:
+  - it: should not render when oidc is disabled
+    template: templates/talos/oidc-client-secret.yaml
+    set:
+      kommodity.oidc.enabled: false
+      kommodity.oidc.clientExtraFlags:
+        - "--oidc-extra-scope=email"
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should not render when clientExtraFlags is empty
+    template: templates/talos/oidc-client-secret.yaml
+    set:
+      kommodity.oidc.enabled: true
+      kommodity.oidc.clientExtraFlags: []
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should not render when clientExtraFlags is unset
+    template: templates/talos/oidc-client-secret.yaml
+    set:
+      kommodity.oidc.enabled: true
+      kommodity.oidc.clientExtraFlags: null
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render a Secret labelled with the cluster name
+    template: templates/talos/oidc-client-secret.yaml
+    set:
+      kommodity.oidc.enabled: true
+      kommodity.oidc.clientExtraFlags:
+        - "--oidc-extra-scope=email"
+        - "--oidc-extra-scope=groups"
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Secret
+      - equal:
+          path: metadata.name
+          value: test-cluster-oidc-client
+      - equal:
+          path: metadata.namespace
+          value: default
+      - equal:
+          path: metadata.labels
+          value:
+            cluster.x-k8s.io/cluster-name: test-cluster
+            app.kubernetes.io/managed-by: kommodity
+
+  - it: should serialise clientExtraFlags as a JSON array
+    template: templates/talos/oidc-client-secret.yaml
+    set:
+      kommodity.oidc.enabled: true
+      kommodity.oidc.clientExtraFlags:
+        - "--oidc-extra-scope=email"
+        - "--oidc-extra-scope=groups"
+    asserts:
+      - equal:
+          path: stringData.clientExtraFlags
+          value: |-
+            ["--oidc-extra-scope=email","--oidc-extra-scope=groups"]

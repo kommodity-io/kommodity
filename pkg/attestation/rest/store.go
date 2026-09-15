@@ -83,9 +83,14 @@ func (s *NonceStore) Generate(ip string) (string, time.Time, error) {
 }
 
 // Use validates and consumes a nonce. It returns true if the nonce is valid and not expired.
-//
-//nolint:varnamelen // Variable name ip is appropriate for the context.
+// The provided IP is canonicalized (port stripped, address normalized) before
+// comparison so callers can pass either a raw address or a host:port pair.
 func (s *NonceStore) Use(ip, nonce string) (bool, error) {
+	canonical, err := canonicalIP(ip)
+	if err != nil {
+		return false, fmt.Errorf("failed to canonicalize IP: %w", err)
+	}
+
 	now := time.Now()
 
 	s.mu.Lock()
@@ -96,7 +101,7 @@ func (s *NonceStore) Use(ip, nonce string) (bool, error) {
 		return false, ErrInvalidNonce
 	}
 
-	if ip != record.ip {
+	if canonical != record.ip {
 		return false, ErrIPMismatch
 	}
 

@@ -1,0 +1,386 @@
+{{define "content"}}
+<div data-page-title="Cluster: {{.Cluster.Name}}">
+    <div id="results" class="grid gap-4">
+        <!-- Hero Header -->
+        <div class="flex items-center gap-4">
+            <div class="flex flex-col items-center">
+                <a href="/ui" class="mb-2 cursor-pointer hover:opacity-80 transition-opacity">
+                    <img src="/ui/public/kommodity-logo.svg" alt="Kommodity Logo" class="h-16 w-16 object-contain" />
+                </a>
+                {{if ne .Version "development"}}
+                    <a href="https://github.com/kommodity-io/kommodity/releases/tag/{{.Version}}" target="_blank" rel="noopener noreferrer" class="text-sm text-gray-500 hover:text-accent transition-colors">{{.Version}}</a>
+                {{else}}
+                    <span class="text-sm text-gray-500">{{.Version}}</span>
+                {{end}}
+            </div>
+            <div>
+                <h1 class="text-4xl font-bold mb-2">{{.Cluster.Name}}</h1>
+                <p class="text-xl text-gray-400">Cluster details</p>
+            </div>
+        </div>
+
+        <!-- Kubeconfig Section -->
+        <div>{{template "kubeconfig_section.html" .KubeconfigSection}}</div>
+
+        <!-- Cluster Metrics Cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+            <!-- Health Indicator Card -->
+            <div class="rounded-sm border border-gray-800 bg-gray-900 p-6">
+                <button type="button" class="health-indicator cursor-help border-0 bg-transparent p-0 m-0 focus:outline-none w-full text-left" data-cluster="{{.ClusterName}}" aria-label="Cluster health status">
+                    <div class="health-icon text-3xl font-bold text-gray-500 mb-2">●</div>
+                    <div class="health-status text-sm text-gray-400">Unknown</div>
+                </button>
+            </div>
+
+            <!-- Other Metrics -->
+            {{range $index, $metric := .ClusterMetrics}}
+            <div class="rounded-sm border border-gray-800 bg-gray-900 p-6">
+                <div class="text-3xl font-bold text-accent mb-2">{{$metric.Value}}</div>
+                <div class="text-sm text-gray-400">{{$metric.Label}}</div>
+            </div>
+            {{end}}
+        </div>
+
+        <!-- Control Plane Table -->
+        {{if .Cluster.ControlPlane}}
+        <div class="rounded-sm border border-gray-800 bg-gray-900 p-6">
+            <h2 class="text-xl font-semibold mb-4">Control Planes</h2>
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="text-left border-b border-gray-800">
+                        <tr>
+                            <th class="pb-3 font-semibold text-gray-400 w-8"></th>
+                            <th class="pb-3 font-semibold text-gray-400 w-96">Name</th>
+                            <th class="pb-3 font-semibold text-gray-400 w-32">Phase</th>
+                            <th class="pb-3 pl-4 font-semibold text-gray-400">Replicas</th>
+                            <th class="pb-3 pl-4 font-semibold text-gray-400 w-32">Healthy</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {{with .Cluster.ControlPlane}}
+                        <tr class="border-b border-gray-800">
+                            <td class="py-4 pl-4">
+                                <button type="button" class="deployment-toggle inline-flex items-center cursor-pointer bg-transparent border-0 p-0 focus:outline-none" data-deployment="cp-{{.Name}}" aria-expanded="false" aria-controls="machines-cp-{{.Name}}" aria-label="Toggle machines for {{.Name}}">
+                                    <div class="rotate-0 transition-transform duration-200">
+                                        {{template "icon_chevron.html"}}
+                                    </div>
+                                </button>
+                            </td>
+                            <td class="py-4">
+                                <button type="button" class="deployment-toggle cursor-pointer bg-transparent border-0 p-0 focus:outline-none text-left font-medium" data-deployment="cp-{{.Name}}" aria-expanded="false" aria-controls="machines-cp-{{.Name}}">
+                                    {{.Name}}
+                                </button>
+                            </td>
+                            <td class="py-4">
+                                <code class="px-2 py-1 bg-gray-800 rounded text-xs">{{.Phase}}</code>
+                            </td>
+                            <td class="py-4 pl-4">
+                                {{if .Replicas}}
+                                <span class="text-accent">{{.Replicas}}</span>
+                                {{else}}
+                                <span class="text-accent">0</span>
+                                {{end}}
+                            </td>
+                            <td class="py-4 pl-4">
+                                {{template "group_health.html" (dict "Healthy" .HealthyMachines "Total" (len .Machines))}}
+                            </td>
+                        </tr>
+                        {{if .Machines}}
+                        <tr id="machines-cp-{{.Name}}" class="machine-row hidden border-b border-gray-800 bg-gray-800/30" data-deployment="cp-{{.Name}}">
+                            <td colspan="5" class="p-0">
+                                <table class="w-full text-xs">
+                                    <thead class="text-left border-b border-gray-700">
+                                        <tr>
+                                            <th class="py-2 px-6 font-semibold text-gray-500">Health</th>
+                                            <th class="py-2 px-4 font-semibold text-gray-500">Phase</th>
+                                            <th class="py-2 px-4 font-semibold text-gray-500">Name</th>
+                                            <th class="py-2 px-4 font-semibold text-gray-500">Node Name</th>
+                                            <th class="py-2 px-4 font-semibold text-gray-500">Zone</th>
+                                            <th class="py-2 px-4 font-semibold text-gray-500">Kubernetes Version</th>
+                                            <th class="py-2 px-4 font-semibold text-gray-500">
+                                                <button type="button" class="sort-creation-time cursor-pointer bg-transparent border-0 p-0 focus:outline-none hover:text-gray-300 transition-colors" data-deployment="cp-{{.Name}}">
+                                                    Age <span class="sort-indicator">↕</span>
+                                                </button>
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {{range .Machines}}
+                                        <tr class="border-b border-gray-700 last:border-0">
+                                            <td class="py-2 px-6">
+                                                {{template "machine_health.html" (dict "Health" .Health "Conditions" .Conditions "Name" .Name)}}
+                                            </td>
+                                            <td class="py-2 px-4">
+                                                <code class="px-2 py-1 bg-gray-700 rounded">{{.Phase}}</code>
+                                            </td>
+                                            <td class="py-2 px-4">{{.Name}}</td>
+                                            <td class="py-2 px-4">{{.NodeName}}</td>
+                                            <td class="py-2 px-4">{{.Zone}}</td>
+                                            <td class="py-2 px-4">{{.KubernetesVersion}}</td>
+                                            <td class="py-2 px-4" data-creation-time="{{.CreationTime}}">{{.Age}}</td>
+                                        </tr>
+                                        {{end}}
+                                    </tbody>
+                                </table>
+                            </td>
+                        </tr>
+                        {{end}}
+                        {{end}}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {{end}}
+
+        <!-- Machine Deployments Table -->
+        <div class="rounded-sm border border-gray-800 bg-gray-900 p-6">
+            <h2 class="text-xl font-semibold mb-4">Machine Deployments</h2>
+
+            {{if .Cluster.MachineDeployments}}
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="text-left border-b border-gray-800">
+                        <tr>
+                            <th class="pb-3 font-semibold text-gray-400 w-8"></th>
+                            <th class="pb-3 font-semibold text-gray-400 w-96">Name</th>
+                            <th class="pb-3 font-semibold text-gray-400 w-32">Phase</th>
+                            <th class="pb-3 pl-4 font-semibold text-gray-400">Min</th>
+                            <th class="pb-3 pl-4 font-semibold text-gray-400">Current</th>
+                            <th class="pb-3 pl-4 font-semibold text-gray-400">Max</th>
+                            <th class="pb-3 pl-4 font-semibold text-gray-400 w-32">Healthy</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {{range .Cluster.MachineDeployments}}
+                        <tr class="border-b border-gray-800">
+                            <td class="py-4 pl-4">
+                                <button type="button" class="deployment-toggle inline-flex items-center cursor-pointer bg-transparent border-0 p-0 focus:outline-none" data-deployment="{{.Name}}" aria-expanded="false" aria-controls="machines-{{.Name}}" aria-label="Toggle machines for {{.Name}}">
+                                    <div class="rotate-0 transition-transform duration-200">
+                                        {{template "icon_chevron.html"}}
+                                    </div>
+                                </button>
+                            </td>
+                            <td class="py-4">
+                                <button type="button" class="deployment-toggle cursor-pointer bg-transparent border-0 p-0 focus:outline-none text-left font-medium" data-deployment="{{.Name}}" aria-expanded="false" aria-controls="machines-{{.Name}}">
+                                    {{.Name}}
+                                </button>
+                            </td>
+                            <td class="py-4">
+                                <code class="px-2 py-1 bg-gray-800 rounded text-xs">{{.Phase}}</code>
+                            </td>
+                            <td class="py-4 pl-4">
+                                {{if .MinSize}}
+                                <span>{{.MinSize}}</span>
+                                {{else}}
+                                <span class="text-gray-500">—</span>
+                                {{end}}
+                            </td>
+                            <td class="py-4 pl-4">
+                                {{if .Replicas}}
+                                <span class="text-accent">{{.Replicas}}</span>
+                                {{else}}
+                                <span class="text-accent">0</span>
+                                {{end}}
+                            </td>
+                            <td class="py-4 pl-4">
+                                {{if .MaxSize}}
+                                <span>{{.MaxSize}}</span>
+                                {{else}}
+                                <span class="text-gray-500">—</span>
+                                {{end}}
+                            </td>
+                            <td class="py-4 pl-4">
+                                {{template "group_health.html" (dict "Healthy" .HealthyMachines "Total" (len .Machines))}}
+                            </td>
+                        </tr>
+                        {{if .Machines}}
+                        <tr id="machines-{{.Name}}" class="machine-row hidden border-b border-gray-800 bg-gray-800/30" data-deployment="{{.Name}}">
+                            <td colspan="7" class="p-0">
+                                <table class="w-full text-xs">
+                                    <thead class="text-left border-b border-gray-700">
+                                        <tr>
+                                            <th class="py-2 px-6 font-semibold text-gray-500">Health</th>
+                                            <th class="py-2 px-4 font-semibold text-gray-500">Phase</th>
+                                            <th class="py-2 px-4 font-semibold text-gray-500">Name</th>
+                                            <th class="py-2 px-4 font-semibold text-gray-500">Node Name</th>
+                                            <th class="py-2 px-4 font-semibold text-gray-500">Zone</th>
+                                            <th class="py-2 px-4 font-semibold text-gray-500">Kubernetes Version</th>
+                                            <th class="py-2 px-4 font-semibold text-gray-500">
+                                                <button type="button" class="sort-creation-time cursor-pointer bg-transparent border-0 p-0 focus:outline-none hover:text-gray-300 transition-colors" data-deployment="{{.Name}}">
+                                                    Age <span class="sort-indicator">↕</span>
+                                                </button>
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {{range .Machines}}
+                                        <tr class="border-b border-gray-700 last:border-0">
+                                            <td class="py-2 px-6">
+                                                {{template "machine_health.html" (dict "Health" .Health "Conditions" .Conditions "Name" .Name)}}
+                                            </td>
+                                            <td class="py-2 px-4">
+                                                <code class="px-2 py-1 bg-gray-700 rounded">{{.Phase}}</code>
+                                            </td>
+                                            <td class="py-2 px-4">{{.Name}}</td>
+                                            <td class="py-2 px-4">{{.NodeName}}</td>
+                                            <td class="py-2 px-4">{{.Zone}}</td>
+                                            <td class="py-2 px-4">{{.KubernetesVersion}}</td>
+                                            <td class="py-2 px-4" data-creation-time="{{.CreationTime}}">{{.Age}}</td>
+                                        </tr>
+                                        {{end}}
+                                    </tbody>
+                                </table>
+                            </td>
+                        </tr>
+                        {{end}}
+                        {{end}}
+                    </tbody>
+                </table>
+            </div>
+            {{else}}
+            <div class="text-center py-12 text-gray-500">
+                <p class="text-lg">No machine deployments found</p>
+            </div>
+            {{end}}
+        </div>
+    </div>
+</div>
+
+{{template "health_tooltip.html" (dict "TooltipID" "health-tooltip-detail" "ReasonID" "health-reason-detail")}}
+{{template "health_indicator.js.html"}}
+
+<script>
+// Persist expand state per cluster across reloads
+const __expandStorageKey = 'kommodity:expanded:{{.ClusterName}}';
+
+function __getExpanded() {
+    try {
+        return new Set(JSON.parse(localStorage.getItem(__expandStorageKey) || '[]'));
+    } catch (e) {
+        return new Set();
+    }
+}
+
+function __saveExpanded(set) {
+    localStorage.setItem(__expandStorageKey, JSON.stringify(Array.from(set)));
+}
+
+function __expandRow(deploymentName) {
+    const machineRow = document.querySelector('.machine-row[data-deployment="' + deploymentName + '"]');
+    if (!machineRow) return;
+    machineRow.classList.remove('hidden');
+
+    const btns = document.querySelectorAll('.deployment-toggle[data-deployment="' + deploymentName + '"]');
+    btns.forEach(function(b) {
+        b.setAttribute('aria-expanded', 'true');
+        const chevron = b.querySelector('div');
+        if (chevron) chevron.classList.add('rotate-90');
+    });
+}
+
+// Toggle machine rows
+document.querySelectorAll('.deployment-toggle').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+        const deploymentName = btn.getAttribute('data-deployment');
+        const machineRow = document.querySelector('.machine-row[data-deployment="' + deploymentName + '"]');
+        const row = btn.closest('tr');
+        const chevron = row.querySelector('.deployment-toggle div');
+
+        if (machineRow) {
+            machineRow.classList.toggle('hidden');
+            if (chevron) {
+                chevron.classList.toggle('rotate-90');
+            }
+
+            const isExpanded = !machineRow.classList.contains('hidden');
+            document.querySelectorAll('.deployment-toggle[data-deployment="' + deploymentName + '"]').forEach(function(b) {
+                b.setAttribute('aria-expanded', isExpanded ? 'true' : 'false');
+            });
+
+            const expanded = __getExpanded();
+            if (isExpanded) {
+                expanded.add(deploymentName);
+            } else {
+                expanded.delete(deploymentName);
+            }
+            __saveExpanded(expanded);
+        }
+    });
+});
+
+// Restore expanded rows on load
+document.addEventListener('DOMContentLoaded', function() {
+    __getExpanded().forEach(__expandRow);
+});
+
+// Sort machine rows by creation time
+document.querySelectorAll('.sort-creation-time').forEach(function(btn) {
+    let sortState = 'asc';
+
+    btn.addEventListener('click', function() {
+        const machineRow = btn.closest('tr').parentElement.parentElement.parentElement.parentElement;
+        const tbody = machineRow.querySelector('tbody');
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+        const indicator = btn.querySelector('.sort-indicator');
+
+        if (sortState === 'asc') {
+            sortState = 'desc';
+            indicator.textContent = '↓';
+            rows.sort(function(a, b) {
+                const timeA = a.cells[5].getAttribute('data-creation-time') || '';
+                const timeB = b.cells[5].getAttribute('data-creation-time') || '';
+                return timeB.localeCompare(timeA);
+            });
+        } else {
+            sortState = 'asc';
+            indicator.textContent = '↑';
+            rows.sort(function(a, b) {
+                const timeA = a.cells[5].getAttribute('data-creation-time') || '';
+                const timeB = b.cells[5].getAttribute('data-creation-time') || '';
+                return timeA.localeCompare(timeB);
+            });
+        }
+
+        rows.forEach(function(row) {
+            tbody.appendChild(row);
+        });
+    });
+});
+
+// Initialize health indicator
+document.addEventListener('DOMContentLoaded', function() {
+    window.HealthIndicator.setup('health-tooltip-detail', 'health-reason-detail');
+
+    // Check health and update status text
+    const clusterName = '{{.ClusterName}}';
+    window.HealthIndicator.checkClusterHealth(clusterName).then(function() {
+        // After health check, fix icon size and update status text
+        const indicator = document.querySelector('.health-indicator[data-cluster="' + clusterName + '"]');
+        if (indicator) {
+            const icon = indicator.querySelector('.health-icon');
+            const statusText = indicator.querySelector('.health-status');
+
+            // Fix icon size and bold that gets removed by checkClusterHealth
+            const currentClasses = icon.className;
+            if (!currentClasses.includes('text-3xl')) {
+                icon.className = currentClasses.replace('health-icon', 'health-icon text-3xl font-bold');
+            }
+
+            // Update status text based on icon color (keep text gray)
+            if (currentClasses.includes('text-green-500')) {
+                statusText.textContent = 'Healthy';
+            } else if (currentClasses.includes('text-red-500')) {
+                statusText.textContent = 'Unhealthy';
+            } else if (currentClasses.includes('text-yellow-500')) {
+                statusText.textContent = 'Check Failed';
+            } else {
+                statusText.textContent = 'Unknown';
+            }
+            // Keep text color gray like other metrics
+            statusText.className = 'health-status text-sm text-gray-400';
+        }
+    });
+});
+</script>
+{{end}}

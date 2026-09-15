@@ -1,0 +1,35 @@
+{{define "content"}}
+<div data-page-title="Cluster: {{.ClusterName}}">
+    <div class="grid gap-4">
+        <!-- Hero Header -->
+        <div class="flex items-center gap-4">
+            <div class="flex flex-col items-center">
+                <a href="/ui" class="mb-2 cursor-pointer hover:opacity-80 transition-opacity">
+                    <img src="/ui/public/kommodity-logo.svg" alt="Kommodity Logo" class="h-16 w-16 object-contain" />
+                </a>
+                {{if ne .Version "development"}}
+                    <a href="https://github.com/kommodity-io/kommodity/releases/tag/{{.Version}}" target="_blank" rel="noopener noreferrer" class="text-sm text-gray-500 hover:text-accent transition-colors">{{.Version}}</a>
+                {{else}}
+                    <span class="text-sm text-gray-500">{{.Version}}</span>
+                {{end}}
+            </div>
+            <div>
+                <h1 class="text-4xl font-bold mb-2">{{.ClusterName}}</h1>
+                <p class="text-xl text-gray-400">Cluster details</p>
+            </div>
+        </div>
+
+        <!-- Empty State -->
+        <div class="rounded-sm border border-gray-800 bg-gray-900 p-12 text-center">
+            <div class="text-5xl mb-4 text-gray-600">⊘</div>
+            <h2 class="text-2xl font-semibold mb-2">Cluster not found</h2>
+            <p class="text-gray-400 mb-6">
+                Cluster <code class="px-2 py-1 bg-gray-800 rounded text-sm">{{.ClusterName}}</code> no longer exists or was removed.
+            </p>
+            <a href="/ui" class="inline-flex items-center justify-center gap-2 rounded-sm text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent bg-accent text-gray-950 hover:bg-accent-glow hover:shadow-lg h-10 px-6">
+                ← Back to Dashboard
+            </a>
+        </div>
+    </div>
+</div>
+{{end}}

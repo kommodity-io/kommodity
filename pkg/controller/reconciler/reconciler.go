@@ -4,6 +4,7 @@ package reconciler
 import (
 	"context"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/kommodity-io/kommodity/pkg/config"
@@ -52,6 +53,7 @@ func SetupReconcilers(ctx context.Context,
 			Manager:      *manager,
 			ClusterCache: clusterCache,
 			Options:      controllerOpts,
+			Config:       cfg,
 		})
 		if err != nil {
 			return fmt.Errorf("failed to setup reconciler for provider %s: %w", string(provider), err)
@@ -66,16 +68,22 @@ func SetupReconcilers(ctx context.Context,
 	return nil
 }
 
+// azureProviderEnabled reports whether the Azure infrastructure provider is
+// enabled, gating Azure-specific reconcilers like the credential materializer.
+func azureProviderEnabled(cfg *config.KommodityConfig) bool {
+	return slices.Contains(cfg.InfrastructureProviders, config.ProviderAzure)
+}
+
 func setUpExtraReconcilers(ctx context.Context,
 	cfg *config.KommodityConfig,
 	manager *ctrl.Manager,
 	controllerOpts controller.Options,
 	signingKeyDeps SigningKeyDeps) error {
-	err := (&CloudControllerManagerReconciler{
+	err := (&CCMCRSReconciler{
 		Client: (*manager).GetClient(),
 	}).SetupWithManager(ctx, *manager, controllerOpts)
 	if err != nil {
-		return fmt.Errorf("failed to setup CloudControllerManager reconciler: %w", err)
+		return fmt.Errorf("failed to setup CCM CRS reconciler: %w", err)
 	}
 
 	err = (&AutoscalerReconciler{
@@ -86,11 +94,13 @@ func setUpExtraReconcilers(ctx context.Context,
 		return fmt.Errorf("failed to setup Autoscaler reconciler: %w", err)
 	}
 
-	err = (&ExtraSecretsManagerReconciler{
-		Client: (*manager).GetClient(),
-	}).SetupWithManager(ctx, *manager, controllerOpts)
-	if err != nil {
-		return fmt.Errorf("failed to setup ExtraSecretsManager reconciler: %w", err)
+	if azureProviderEnabled(cfg) {
+		err = (&AzureCredentialMaterializer{
+			Client: (*manager).GetClient(),
+		}).SetupWithManager(ctx, *manager, controllerOpts)
+		if err != nil {
+			return fmt.Errorf("failed to setup Azure credential materializer reconciler: %w", err)
+		}
 	}
 
 	err = (&SigningKeyReconciler{

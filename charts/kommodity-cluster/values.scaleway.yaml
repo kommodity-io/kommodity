@@ -22,29 +22,49 @@ kommodity:
 
     cloudControllerManager:
       enabled: true
-      manifest: https://raw.githubusercontent.com/scaleway/scaleway-cloud-controller-manager/master/examples/k8s-scaleway-ccm-latest.yml
+      image:
+        repository: scaleway/scaleway-cloud-controller-manager
+        tag: v0.35.3
 
   global:
-    configPatches:
+    strategicPatches:
       # Required when using a Cloud Controller Manager (https://kubernetes.io/docs/tasks/administer-cluster/running-cloud-controller/#running-cloud-controller-manager)
-      - op: add
-        path: /machine/kubelet/extraArgs
-        value:
-          cloud-provider: external
+      machine:
+        kubelet:
+          extraArgs:
+            cloud-provider: external
 
   network:
     ipv4:
       enabled: true
-      public: true
+      public: false
+      # Setting nodeCIDR is required when public is false
+      # Scaleway Private Networks require a prefix between /20 and /29
+      nodeCIDR: 10.200.0.0/20
+    # publicGateway:
+    #   # Optional: Commercial offer type (default: VPC-GW-S)
+    #   type: VPC-GW-S
+    #   # Optional: Zone for the gateway (defaults to first zone in region)
+    #   zone: fr-par-1
+    #   # Optional: Pre-existing IP to use for the gateway
+    #   ip: ""
 
   region: fr-par
 
   controlplane:
     replicas: 1
     sku: PLAY2-NANO
+    # Optional failure domains.
+    # zones:
+    #   - fr-par-1
+    #   - fr-par-2
     os:
       disk:
         size: 20
+    # instanceVolumes:
+    #   # Instance-local disks (see values.yaml for full documentation)
+    #   - nameSuffix: scratch
+    #     diskSelector: "disk.model == 'scratch'"
     healthCheck:
       enabled: true
       unhealthyConditions:
@@ -59,10 +79,38 @@ kommodity:
     default:
       replicas: 1
       sku: PLAY2-NANO
-      zone: fr-par-2 # Note: Make sure the Talos image specified below is available in this zone
+      # Optional failure domains.
+      # zones:
+      #   - fr-par-1
+      #   - fr-par-2
       os:
         disk:
           size: 20
+      # additionalVolumes:
+      #   # nameSuffix is optional on Scaleway — when set, a Talos
+      #   # UserVolumeConfig is emitted so Talos formats (xfs) and mounts
+      #   # the disk at /var/mnt/<nameSuffix>. Without nameSuffix, the disk
+      #   # is attached but Talos does not manage it.
+      #   # Optional diskSelector overrides the auto-generated size-based
+      #   # CEL selector.
+      #   - nameSuffix: data
+      #     size: 50 # size in GB
+      #     type: block # optional, defaults to block (local, block, scratch)
+      #     iops: 5000 # optional, only valid for block volumes (5000 or 15000)
+      #     # diskSelector: "disk.transport == 'nvme'"
+      # instanceVolumes:
+      #   # Instance-local disks that exist on the VM at boot (not provisioned via
+      #   # the Scaleway API). E.g. the built-in scratch NVMe on H100 instances.
+      #   # Emits UserVolumeConfig only — no ScalewayMachineTemplate changes.
+      #   # diskSelector is a CEL expression — run `talosctl get disks -o yaml`
+      #   # on a node to see available fields (model, transport, size, wwid, etc.).
+      #   - nameSuffix: scratch
+      #     diskSelector: "disk.model == 'scratch'"
+      #     grow: true
+      #     encryption:
+      #       provider: luks2
+      #       keySource: nodeID  # or kms (default: kms if kommodity.kms.enabled, else nodeID)
+      #       lockToState: true
       labels:
         my-label: my-value
       annotations:
@@ -78,5 +126,5 @@ kommodity:
             timeout: 300s
 
 talos:
-  # Follow this documentation to generate a Talos image for Scaleway: https://docs.siderolabs.com/talos/v1.10/platform-specific-installations/cloud-platforms/scaleway
-  imageName: talos-base-v1.11.3
+  # Follow this documentation to generate a Talos image for Scaleway: https://docs.siderolabs.com/talos/v1.13/platform-specific-installations/cloud-platforms/scaleway
+  imageName: kommodity-talos-scaleway-v1.13.0

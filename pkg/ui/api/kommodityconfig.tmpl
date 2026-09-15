@@ -4,7 +4,6 @@ clusters:
   - name: kommodity
     cluster:
       server: {{ $.BaseURL }}
-      insecure-skip-tls-verify: true
 contexts:
   - name: kommodity
     context:
@@ -14,6 +13,7 @@ contexts:
       {{- else }}
       user: admin
       {{- end }}
+      namespace: default
 current-context: kommodity
 preferences: {}
 users:
@@ -28,11 +28,8 @@ users:
           - get-token
           - --oidc-issuer-url={{ $.OIDCConfig.IssuerURL }}
           - --oidc-client-id={{ $.OIDCConfig.ClientID }}
-          - --oidc-extra-scope={{ $.OIDCConfig.UsernameClaim }}
-          {{- if $.OIDCConfig.ExtraScopes }}
-          {{- range $.OIDCConfig.ExtraScopes }}
-          - --oidc-extra-scope={{ . }}
-          {{- end }}
+          {{- range $.OIDCConfig.ClientExtraFlags }}
+          - {{ . | quote }}
           {{- end }}
         interactiveMode: Always
   {{- else }}

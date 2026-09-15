@@ -59,10 +59,411 @@ tests:
           pattern: ^test-cluster-worker-default-[a-f0-9]{6}
         documentIndex: 1
       - equal:
-          path: spec.template.spec.virtualMachineTemplate.spec.dataVolumeTemplates[0].spec.source.http.url
+          path: spec.template.spec.virtualMachineTemplate.spec.dataVolumeTemplates[0].spec.source.registry.url
           value: "controlplane-talos-image"
         documentIndex: 0
       - equal:
-          path: spec.template.spec.virtualMachineTemplate.spec.dataVolumeTemplates[0].spec.source.http.url
+          path: spec.template.spec.virtualMachineTemplate.spec.dataVolumeTemplates[0].spec.source.registry.url
           value: "global-talos-image"
+        documentIndex: 1
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.domain.devices.interfaces[0].bridge
+          value: {}
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.domain.devices.interfaces[0].bridge
+          value: {}
+        documentIndex: 1
+  - it: should default evictionStrategy to LiveMigrateIfPossible on controlplane and worker when unset
+    template: templates/provider/kubevirt/machinetemplate.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.evictionStrategy
+          value: LiveMigrateIfPossible
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.evictionStrategy
+          value: LiveMigrateIfPossible
+        documentIndex: 1
+  - it: should produce the same template-name hash whether evictionStrategy is unset or explicitly LiveMigrateIfPossible
+    set:
+      kommodity.provider.config.evictionStrategy: LiveMigrateIfPossible
+    template: templates/provider/kubevirt/machinetemplate.yaml
+    asserts:
+      - equal:
+          path: metadata.name
+          value: test-cluster-controlplane-50c9f1
+        documentIndex: 0
+      - equal:
+          path: metadata.name
+          value: test-cluster-worker-default-a31be7
+        documentIndex: 1
+  - it: should honor a custom evictionStrategy override on both controlplane and worker
+    set:
+      kommodity.provider.config.evictionStrategy: None
+    template: templates/provider/kubevirt/machinetemplate.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.evictionStrategy
+          value: None
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.evictionStrategy
+          value: None
+        documentIndex: 1
+  - it: should render instancetype for both controlplane and nodepool with default values
+    template: templates/provider/kubevirt/machinetemplate.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.instancetype.name
+          value: d1.xlarge
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.instancetype.kind
+          value: VirtualMachineClusterInstancetype
+        documentIndex: 0
+      - isNull:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.domain.resources
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.instancetype.name
+          value: d1.xlarge
+        documentIndex: 1
+      - isNull:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.domain.resources
+        documentIndex: 1
+  - it: should allow nodepool to use resources instead of sku
+    template: templates/provider/kubevirt/machinetemplate.yaml
+    set:
+      kommodity.nodepools.default.sku: null
+      kommodity.nodepools.default.resources:
+        requests:
+          cpu: "4000m"
+          memory: "16Gi"
+        limits:
+          cpu: "4000m"
+          memory: "16Gi"
+    asserts:
+      - isNull:
+          path: spec.template.spec.virtualMachineTemplate.spec.instancetype
+        documentIndex: 1
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.domain.resources.requests.cpu
+          value: "4000m"
+        documentIndex: 1
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.domain.resources.limits.memory
+          value: "16Gi"
+        documentIndex: 1
+  - it: should allow controlplane to use resources instead of sku
+    template: templates/provider/kubevirt/machinetemplate.yaml
+    set:
+      kommodity.controlplane.sku: null
+      kommodity.controlplane.resources:
+        requests:
+          cpu: "2"
+          memory: "8Gi"
+        limits:
+          cpu: "2"
+          memory: "8Gi"
+    asserts:
+      - isNull:
+          path: spec.template.spec.virtualMachineTemplate.spec.instancetype
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.domain.resources.requests.cpu
+          value: "2"
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.domain.resources.limits.memory
+          value: "8Gi"
+        documentIndex: 0
+  - it: should fail when both sku and resources set on controlplane
+    template: templates/provider/kubevirt/machinetemplate.yaml
+    set:
+      kommodity.controlplane.resources:
+        requests:
+          cpu: "2"
+          memory: "8Gi"
+    asserts:
+      - failedTemplate:
+          errorMessage: "kommodity.controlplane: 'sku' and 'resources' are mutually exclusive; set exactly one"
+  - it: should fail when neither sku nor resources set on controlplane
+    template: templates/provider/kubevirt/machinetemplate.yaml
+    set:
+      kommodity.controlplane.sku: null
+    asserts:
+      - failedTemplate:
+          errorMessage: "kommodity.controlplane: one of 'sku' or 'resources' must be set"
+  - it: should fail when both sku and resources set on nodepool
+    template: templates/provider/kubevirt/machinetemplate.yaml
+    set:
+      kommodity.nodepools.default.resources:
+        requests:
+          cpu: "4000m"
+          memory: "16Gi"
+    asserts:
+      - failedTemplate:
+          errorMessage: "kommodity.nodepools.default: 'sku' and 'resources' are mutually exclusive; set exactly one"
+  - it: should fail when neither sku nor resources set on nodepool
+    template: templates/provider/kubevirt/machinetemplate.yaml
+    set:
+      kommodity.nodepools.default.sku: null
+    asserts:
+      - failedTemplate:
+          errorMessage: "kommodity.nodepools.default: one of 'sku' or 'resources' must be set"
+  - it: should render additionalVolumes on worker nodepool
+    template: templates/provider/kubevirt/machinetemplate.yaml
+    set:
+      kommodity.provider.config.storageClassName: ceph-block
+      kommodity.nodepools.default.additionalVolumes:
+        - size: 50
+        - size: 100
+          storageClassName: fast-ssd
+    asserts:
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.dataVolumeTemplates[1].metadata.name
+          value: additional-volume-0
+        documentIndex: 1
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.dataVolumeTemplates[1].spec.pvc.resources.requests.storage
+          value: 50Gi
+        documentIndex: 1
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.dataVolumeTemplates[1].spec.pvc.storageClassName
+          value: ceph-block
+        documentIndex: 1
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.dataVolumeTemplates[1].spec.source.blank
+          value: {}
+        documentIndex: 1
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.dataVolumeTemplates[2].metadata.name
+          value: additional-volume-1
+        documentIndex: 1
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.dataVolumeTemplates[2].spec.pvc.resources.requests.storage
+          value: 100Gi
+        documentIndex: 1
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.dataVolumeTemplates[2].spec.pvc.storageClassName
+          value: fast-ssd
+        documentIndex: 1
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.domain.devices.disks[1].name
+          value: additional-volume-0
+        documentIndex: 1
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.domain.devices.disks[2].name
+          value: additional-volume-1
+        documentIndex: 1
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.volumes[1].dataVolume.name
+          value: additional-volume-0
+        documentIndex: 1
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.volumes[2].dataVolume.name
+          value: additional-volume-1
+        documentIndex: 1
+  - it: should set the interface type from network.cluster.interfaceType
+    template: templates/provider/kubevirt/machinetemplate.yaml
+    set:
+      kommodity.network.cluster.interfaceType: bridge
+    asserts:
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.domain.devices.interfaces[0].bridge
+          value: {}
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.domain.devices.interfaces[0].bridge
+          value: {}
+        documentIndex: 1
+      - isNull:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.domain.devices.interfaces[0].masquerade
+        documentIndex: 0
+  - it: should not render dnsPolicy or dnsConfig when network.cluster.dns is unset
+    template: templates/provider/kubevirt/machinetemplate.yaml
+    set:
+      kommodity.network.cluster.dns.dnsPolicy: ""
+      kommodity.network.cluster.dns.dnsConfig: null
+    asserts:
+      - isNull:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.dnsPolicy
+        documentIndex: 0
+      - isNull:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.dnsConfig
+        documentIndex: 0
+      - isNull:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.dnsPolicy
+        documentIndex: 1
+      - isNull:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.dnsConfig
+        documentIndex: 1
+  - it: should render dnsPolicy and dnsConfig when network.cluster.dns is set
+    template: templates/provider/kubevirt/machinetemplate.yaml
+    set:
+      kommodity.network.cluster.dns.dnsPolicy: None
+      kommodity.network.cluster.dns.dnsConfig:
+        nameservers:
+          - 1.1.1.1
+          - 8.8.8.8
+    asserts:
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.dnsPolicy
+          value: None
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.dnsConfig.nameservers[0]
+          value: 1.1.1.1
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.dnsConfig.nameservers[1]
+          value: 8.8.8.8
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.dnsPolicy
+          value: None
+        documentIndex: 1
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.dnsConfig.nameservers[0]
+          value: 1.1.1.1
+        documentIndex: 1
+  - it: should not render affinity when no zones are set and spreadAcrossHosts is unset
+    template: templates/provider/kubevirt/machinetemplate.yaml
+    asserts:
+      - isNull:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.affinity
+        documentIndex: 0
+      - isNull:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.affinity
+        documentIndex: 1
+      - isNull:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.metadata
+        documentIndex: 0
+      - isNull:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.metadata
+        documentIndex: 1
+  - it: should render podAntiAffinity (host spread) but no nodeAffinity when spreadAcrossHosts is set without zones
+    template: templates/provider/kubevirt/machinetemplate.yaml
+    set:
+      kommodity.controlplane.spreadAcrossHosts: true
+      kommodity.nodepools.default.spreadAcrossHosts: true
+    asserts:
+      - isNull:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.affinity.nodeAffinity
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.affinity.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].topologyKey
+          value: kubernetes.io/hostname
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.affinity.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].labelSelector.matchLabels["kommodity.io/nodepool"]
+          value: test-cluster-controlplane
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.metadata.labels["kommodity.io/nodepool"]
+          value: test-cluster-controlplane
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.metadata.labels["kommodity.io/nodepool"]
+          value: test-cluster-default
+        documentIndex: 1
+  - it: should inject loose multi-zone nodeAffinity and host-spread podAntiAffinity on controlplane when zones are set
+    template: templates/provider/kubevirt/machinetemplate.yaml
+    set:
+      kommodity.controlplane.zones:
+        - zone-a
+        - zone-b
+      kommodity.controlplane.spreadAcrossHosts: true
+    asserts:
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].key
+          value: topology.kubernetes.io/zone
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].operator
+          value: In
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].values[0]
+          value: zone-a
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].values[1]
+          value: zone-b
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.affinity.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].topologyKey
+          value: kubernetes.io/hostname
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.affinity.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].labelSelector.matchLabels["kommodity.io/nodepool"]
+          value: test-cluster-controlplane
+        documentIndex: 0
+  - it: should fan out one KubevirtMachineTemplate per nodepool zone with single-zone affinity
+    template: templates/provider/kubevirt/machinetemplate.yaml
+    set:
+      kommodity.nodepools.default.zones:
+        - zone-a
+        - zone-b
+      kommodity.nodepools.default.spreadAcrossHosts: true
+    asserts:
+      - hasDocuments:
+          count: 3
+      - matchRegex:
+          path: metadata.name
+          pattern: ^test-cluster-controlplane-[a-f0-9]{6}$
+        documentIndex: 0
+      - matchRegex:
+          path: metadata.name
+          pattern: ^test-cluster-worker-default-zone-a-[a-f0-9]{6}$
+        documentIndex: 1
+      - matchRegex:
+          path: metadata.name
+          pattern: ^test-cluster-worker-default-zone-b-[a-f0-9]{6}$
+        documentIndex: 2
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].values[0]
+          value: zone-a
+        documentIndex: 1
+      - lengthEqual:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].values
+          count: 1
+        documentIndex: 1
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].values[0]
+          value: zone-b
+        documentIndex: 2
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.metadata.labels["kommodity.io/nodepool"]
+          value: test-cluster-default
+        documentIndex: 1
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.metadata.labels["kommodity.io/nodepool"]
+          value: test-cluster-default
+        documentIndex: 2
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.affinity.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].topologyKey
+          value: kubernetes.io/hostname
+        documentIndex: 1
+      - equal:
+          path: spec.template.spec.virtualMachineTemplate.spec.template.spec.affinity.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].topologyKey
+          value: kubernetes.io/hostname
+        documentIndex: 2
+  - it: should reference the zone-suffixed KubevirtMachineTemplate from each zone MachineDeployment
+    template: templates/provider/capi/machinedeployment.yaml
+    set:
+      kommodity.nodepools.default.zones:
+        - zone-a
+        - zone-b
+    asserts:
+      - hasDocuments:
+          count: 2
+      - matchRegex:
+          path: spec.template.spec.infrastructureRef.name
+          pattern: ^test-cluster-worker-default-zone-a-[a-f0-9]{6}$
+        documentIndex: 0
+      - matchRegex:
+          path: spec.template.spec.infrastructureRef.name
+          pattern: ^test-cluster-worker-default-zone-b-[a-f0-9]{6}$
         documentIndex: 1

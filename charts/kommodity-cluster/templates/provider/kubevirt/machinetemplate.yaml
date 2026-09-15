@@ -1,4 +1,21 @@
 {{- if eq .Values.kommodity.provider.name "Kubevirt" }}
+{{- $ifType := dig "network" "cluster" "interfaceType" "bridge" .Values.kommodity }}
+{{- $defaultStorageClass := dig "provider" "config" "storageClassName" "" .Values.kommodity -}}
+{{- $cpSku := dig "sku" "" .Values.kommodity.controlplane -}}
+{{- $cpResources := dig "resources" "" .Values.kommodity.controlplane -}}
+{{- if and $cpSku $cpResources -}}
+{{- fail "kommodity.controlplane: 'sku' and 'resources' are mutually exclusive; set exactly one" -}}
+{{- end -}}
+{{- if not (or $cpSku $cpResources) -}}
+{{- fail "kommodity.controlplane: one of 'sku' or 'resources' must be set" -}}
+{{- end -}}
+{{- /* TalosControlPlane references a single KubevirtMachineTemplate for all replicas, so we
+       cannot fan out per zone here. Instead, when controlplane.zones is set we inject a loose
+       nodeAffinity that lets every CP VM land on any of the listed zones. */ -}}
+{{- $cpZones := include "kommodity-cluster.poolZones" .Values.kommodity.controlplane | fromJsonArray }}
+{{- $cpSpread := dig "spreadAcrossHosts" false .Values.kommodity.controlplane }}
+{{- $cpPoolLabel := printf "%s-controlplane" .Release.Name }}
+{{- $cpAffinity := include "kommodity.kubevirt.affinity" (dict "zones" $cpZones "nodepool" $cpPoolLabel "spreadAcrossHosts" $cpSpread) | trim }}
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
 kind: KubevirtMachineTemplate
@@ -30,40 +47,90 @@ spec:
                   {{- if hasKey .Values.kommodity.provider.config "storageClassName" }}
                   storageClassName: {{ .Values.kommodity.provider.config.storageClassName }}
                   {{- end }}
+                  volumeMode: Filesystem
                 source:
-                  http:
+                  registry:
                     url: {{ default $.Values.talos.imageName (dig "talos" "imageName" "" .Values.kommodity.controlplane) }}
+          {{- if $cpSku }}
           instancetype:
-            name: {{ .Values.kommodity.controlplane.sku }}
+            name: {{ $cpSku }}
             kind: VirtualMachineClusterInstancetype
+          {{- end }}
           runStrategy: Always
           template:
+            {{- if $cpSpread }}
+            metadata:
+              labels:
+                kommodity.io/nodepool: {{ $cpPoolLabel | quote }}
+            {{- end }}
             spec:
+              {{- if $cpAffinity }}
+              affinity:
+                {{- $cpAffinity | nindent 16 }}
+              {{- end }}
+              {{- with (dig "network" "cluster" "dns" "dnsPolicy" "" $.Values.kommodity) }}
+              dnsPolicy: {{ . }}
+              {{- end }}
+              {{- with (dig "network" "cluster" "dns" "dnsConfig" "" $.Values.kommodity) }}
+              dnsConfig:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
               networks:
                 - name: default
                   pod: {}
               domain:
+                {{- if $cpResources }}
+                resources:
+                  {{- toYaml $cpResources | nindent 18 }}
+                {{- end }}
                 devices:
                   interfaces:
                     - name: default
-                      bridge: {}
+                      {{ $ifType }}: {}
                   networkInterfaceMultiqueue: true
                   disks:
                     - disk:
                         bus: virtio
                       name: dv-volume
-              evictionStrategy: External
+              evictionStrategy: {{ default "LiveMigrateIfPossible" $.Values.kommodity.provider.config.evictionStrategy | quote }}
               volumes:
                 - dataVolume:
                     name: boot-volume
                   name: dv-volume
 
 {{- range $name, $np := .Values.kommodity.nodepools }}
+{{- $npSku := dig "sku" "" $np -}}
+{{- $npResources := dig "resources" "" $np -}}
+{{- if and $npSku $npResources -}}
+{{- fail (printf "kommodity.nodepools.%s: 'sku' and 'resources' are mutually exclusive; set exactly one" $name) -}}
+{{- end -}}
+{{- if not (or $npSku $npResources) -}}
+{{- fail (printf "kommodity.nodepools.%s: one of 'sku' or 'resources' must be set" $name) -}}
+{{- end }}
+{{- /* Per-zone KubevirtMachineTemplate fan-out: each MachineDeployment for a zone references
+       its own template with nodeAffinity pinning the VM to that single zone, matching the
+       MachineDeployment-per-zone model. With no zones set, emit one template (unsuffixed). */ -}}
+{{- $npZones := include "kommodity-cluster.poolZones" $np | fromJsonArray }}
+{{- $npSpread := dig "spreadAcrossHosts" false $np }}
+{{- $npPoolLabel := printf "%s-%s" $.Release.Name $name }}
+{{- if eq (len $npZones) 0 }}
+{{- $npZones = list "" }}
+{{- end }}
+{{- $hash := include "kommodity-cluster.machineSpecsHash" (dict "poolValues" $np "allValues" $.Values) }}
+{{- range $zone := $npZones }}
+{{- $tmplName := printf "%s-worker-%s-%s" $.Release.Name $name $hash }}
+{{- $zoneAffinity := "" }}
+{{- $zoneZones := list }}
+{{- if $zone }}
+{{- $tmplName = printf "%s-worker-%s-%s-%s" $.Release.Name $name $zone $hash }}
+{{- $zoneZones = list $zone }}
+{{- end }}
+{{- $zoneAffinity = include "kommodity.kubevirt.affinity" (dict "zones" $zoneZones "nodepool" $npPoolLabel "spreadAcrossHosts" $npSpread) | trim }}
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
 kind: KubevirtMachineTemplate
 metadata:
-  name: {{ $.Release.Name }}-worker-{{ $name }}-{{ include "kommodity-cluster.machineSpecsHash" (dict "poolValues" $np "allValues" $.Values) }}
+  name: {{ $tmplName }}
   namespace: {{ $.Release.Namespace }}
   labels:
     app.kubernetes.io/managed-by: kommodity
@@ -90,23 +157,65 @@ spec:
                   {{- if hasKey $.Values.kommodity.provider.config "storageClassName" }}
                   storageClassName: {{ $.Values.kommodity.provider.config.storageClassName }}
                   {{- end }}
+                  volumeMode: Filesystem
                 source:
-                  http:
+                  registry:
                     url: {{ default $.Values.talos.imageName (dig "talos" "imageName" "" $np) }}
-          instancetype: 
-            name: {{ $np.sku }}
+            {{- range $idx, $vol := $np.additionalVolumes }}
+            {{- $volStorageClass := default $defaultStorageClass (dig "storageClassName" "" $vol) }}
+            - metadata:
+                name: additional-volume-{{ $idx }}
+                namespace: {{ $.Values.kommodity.provider.config.infraClusterNamespace }}
+              spec:
+                pvc:
+                  resources:
+                    requests:
+                      storage: {{ $vol.size }}Gi
+                  accessModes:
+                    - ReadWriteOnce
+                  {{- if $volStorageClass }}
+                  storageClassName: {{ $volStorageClass }}
+                  {{- end }}
+                  volumeMode: Filesystem
+                source:
+                  blank: {}
+            {{- end }}
+          {{- if $npSku }}
+          instancetype:
+            name: {{ $npSku }}
             kind: VirtualMachineClusterInstancetype
+          {{- end }}
           runStrategy: Always
           template:
+            {{- if $npSpread }}
+            metadata:
+              labels:
+                kommodity.io/nodepool: {{ $npPoolLabel | quote }}
+            {{- end }}
             spec:
+              {{- if $zoneAffinity }}
+              affinity:
+                {{- $zoneAffinity | nindent 16 }}
+              {{- end }}
+              {{- with (dig "network" "cluster" "dns" "dnsPolicy" "" $.Values.kommodity) }}
+              dnsPolicy: {{ . }}
+              {{- end }}
+              {{- with (dig "network" "cluster" "dns" "dnsConfig" "" $.Values.kommodity) }}
+              dnsConfig:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
               networks:
                 - name: default
                   pod: {}
               domain:
+                {{- if $npResources }}
+                resources:
+                  {{- toYaml $npResources | nindent 18 }}
+                {{- end }}
                 devices:
                   interfaces:
                     - name: default
-                      bridge: {}
+                      {{ $ifType }}: {}
                   {{- if $np.gpus }}
                   gpus:
                   {{- range $name, $gpu := $np.gpus }}
@@ -119,10 +228,21 @@ spec:
                     - disk:
                         bus: virtio
                       name: dv-volume
-              evictionStrategy: External
+                    {{- range $idx, $vol := $np.additionalVolumes }}
+                    - disk:
+                        bus: virtio
+                      name: additional-volume-{{ $idx }}
+                    {{- end }}
+              evictionStrategy: {{ default "LiveMigrateIfPossible" $.Values.kommodity.provider.config.evictionStrategy | quote }}
               volumes:
                 - dataVolume:
                     name: boot-volume
                   name: dv-volume
+                {{- range $idx, $vol := $np.additionalVolumes }}
+                - dataVolume:
+                    name: additional-volume-{{ $idx }}
+                  name: additional-volume-{{ $idx }}
+                {{- end }}
+{{- end }}
 {{- end }}
 {{- end }}

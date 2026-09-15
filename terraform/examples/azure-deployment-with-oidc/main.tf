@@ -9,10 +9,49 @@ module "kommodity_oidc_auth" {
 module "kommodity_azure_deployment" {
   source = "github.com/kommodity-io/kommodity//terraform/modules/kommodity_azure_deployment?ref=<tag>"
 
-  resource_group = "my-kommodity"
+  providers = {
+    azurerm     = azurerm
+    azurerm.dns = azurerm.dns
+  }
+
+  resource_group = {
+    name     = "my-kommodity"
+    location = "North Europe"
+  }
+
+  app_url = "https://kommodity.dev.example.com"
+
+  dns = {
+    zone              = "example.com"
+    az_resource_group = "infrastructure-dns"
+  }
+
   oidc_configuration = {
     issuer_url  = "https://login.microsoftonline.com/<my-tenant-id>/v2.0"
     client_id   = module.kommodity_oidc_auth.application_client_id
     admin_group = "my-admin-group-ID"
   }
+
+  # Pin outbound traffic to a single static IP for allowlisting downstream.
+  nat_gateway = {
+    enabled      = true
+    idle_timeout = 30
+    zone         = "1"
+  }
+
+  # Restrict ingress to known networks. Unmatched traffic is denied.
+  # Azure evaluates rules top-down; first match wins, so order matters.
+  # Omit this block (or set to []) to leave ingress open to all traffic.
+  ingress_ip_restrictions = [
+    {
+      cidr        = "203.0.113.10/32"
+      name        = "office-nat"
+      description = "Office public egress IP"
+    },
+    {
+      cidr        = "198.51.100.0/24"
+      name        = "vpn-range"
+      description = "VPN subnet"
+    },
+  ]
 }

@@ -1,0 +1,357 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.17.3
+  name: byotmachines.infrastructure.cluster.x-k8s.io
+  labels:
+    cluster.x-k8s.io/v1beta1: v1alpha1
+spec:
+  group: infrastructure.cluster.x-k8s.io
+  names:
+    kind: ByotMachine
+    listKind: ByotMachineList
+    plural: byotmachines
+    singular: byotmachine
+  scope: Namespaced
+  versions:
+    - additionalPrinterColumns:
+        - description: Cluster
+          jsonPath: .metadata.labels['cluster\.x-k8s\.io/cluster-name']
+          name: Cluster
+          type: string
+        - description: Machine object which owns this ByotMachine
+          jsonPath: .metadata.ownerReferences[?(@.kind=="Machine")].name
+          name: Machine
+          type: string
+        - description: Public IP of the adopted machine
+          jsonPath: .status.resolvedPublicIP
+          name: PublicIP
+          type: string
+        - description: Machine adopted
+          jsonPath: .status.ready
+          name: Ready
+          type: boolean
+        - description: Provider ID of the adopted machine
+          jsonPath: .spec.providerID
+          name: ProviderID
+          type: string
+        - description: Live Talos version
+          jsonPath: .status.currentTalosVersion
+          name: Talos
+          type: string
+        - description: Upgrade state
+          jsonPath: .status.upgradeState
+          name: Upgrade
+          type: string
+      name: v1alpha1
+      schema:
+        openAPIV3Schema:
+          description: |-
+            ByotMachine is the Schema for the byotmachines API. It claims a
+            ByotHost from the host registry and adopts the Talos machine at the host's
+            public IP by applying the cluster's bootstrap machine configuration over
+            the Talos machine API.
+          properties:
+            apiVersion:
+              description: |-
+                APIVersion defines the versioned schema of this representation of an object.
+                Servers should convert recognized schemas to the latest internal value, and
+                may reject unrecognized values.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+              type: string
+            kind:
+              description: |-
+                Kind is a string value representing the REST resource this object represents.
+                Servers may infer this from the endpoint the client submits requests to.
+                Cannot be updated.
+                In CamelCase.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+              type: string
+            metadata:
+              type: object
+            spec:
+              description: |-
+                ByotMachineSpec defines the desired state of ByotMachine.
+
+                A ByotMachine claims a ByotHost from the registry and adopts the Talos
+                machine at the host's public IP. Either hostRef (explicit) or hostSelector
+                (label-based) selects the host; they are mutually exclusive.
+              properties:
+                desiredTalosVersion:
+                  description: |-
+                    DesiredTalosVersion is an installer image ref the claimed host is
+                    upgraded to after the machine is adopted, via the Talos
+                    LifecycleClient.Upgrade RPC. The ref may be a stock Sidero installer
+                    (ghcr.io/siderolabs/installer:v1.14.0), an Image Factory installer
+                    (factory.talos.dev/installer/<schematic>:v1.14.0), or a custom-built
+                    installer with extensions. Empty (the default) opts out
+                    of version management: no upgrade runs and existing adoption behavior
+                    is unchanged. Stamped from the ByotMachineTemplate. Mutable; editing
+                    after Ready=true retriggers an in-place upgrade via generation bump.
+                    A same-ref re-issue with a matching attempt generation is deduped
+                    (already applied); bump generation to force a same-ref reinstall.
+                  type: string
+                failureDomain:
+                  description: |-
+                    FailureDomain is the unique name of the failure domain the machine is
+                    placed in. When claiming via hostSelector, it is matched against the
+                    ByotHost's spec.failureDomain.
+                  type: string
+                hostRef:
+                  description: |-
+                    HostRef names the ByotHost to claim explicitly. The host must be
+                    Available (maintenance-live and discovered). Mutually exclusive with
+                    hostSelector.
+                  properties:
+                    name:
+                      description: Name of the referent.
+                      type: string
+                  required:
+                    - name
+                  type: object
+                hostSelector:
+                  description: |-
+                    HostSelector selects a ByotHost to claim by label selector. The
+                    controller lists Available hosts matching the selector (plus the
+                    failureDomain, when set) and claims the first via claimRef CAS.
+                    Mutually exclusive with hostRef.
+                  properties:
+                    matchExpressions:
+                      description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
+                      items:
+                        description: |-
+                          A label selector requirement is a selector that contains values, a key, and an operator that
+                          relates the key and values.
+                        properties:
+                          key:
+                            description: key is the label key that the selector applies to.
+                            type: string
+                          operator:
+                            description: |-
+                              operator represents a key's relationship to a set of values.
+                              Valid operators are In, NotIn, Exists and DoesNotExist.
+                            type: string
+                          values:
+                            description: |-
+                              values is an array of string values. If the operator is In or NotIn,
+                              the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                              the values array must be empty. This array is replaced during a strategic
+                              merge patch.
+                            items:
+                              type: string
+                            type: array
+                            x-kubernetes-list-type: atomic
+                        required:
+                          - key
+                          - operator
+                        type: object
+                      type: array
+                      x-kubernetes-list-type: atomic
+                    matchLabels:
+                      additionalProperties:
+                        type: string
+                      description: |-
+                        matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                        map is equivalent to an element of matchExpressions, whose key field is "key", the
+                        operator is "In", and the values array contains only "value". The requirements are ANDed.
+                      type: object
+                  type: object
+                  x-kubernetes-map-type: atomic
+                providerID:
+                  description: ProviderID is set by the controller once the machine has been adopted.
+                  type: string
+                talosConfigSecretRef:
+                  description: |-
+                    TalosConfigSecretRef references a Secret holding a talosconfig (YAML
+                    under the "talosconfig" key) for the machine's CURRENT configuration.
+                    Use it to adopt a machine that is already booted and configured (e.g.
+                    foreign cluster we are taking over). Machines without a secretRef are
+                    assumed to be in maintenance mode on first contact; after adoption the
+                    cluster's own talosconfig secret is used.
+                  properties:
+                    name:
+                      description: Name of the referent.
+                      type: string
+                  required:
+                    - name
+                  type: object
+              type: object
+              x-kubernetes-validations:
+                - message: hostRef and hostSelector are mutually exclusive
+                  rule: '!(has(self.hostRef) && has(self.hostSelector))'
+                - message: one of hostRef or hostSelector is required
+                  rule: has(self.hostRef) || has(self.hostSelector)
+            status:
+              description: ByotMachineStatus defines the observed state of ByotMachine.
+              properties:
+                addresses:
+                  description: Addresses contains the machine's addresses.
+                  items:
+                    description: MachineAddress contains information for the node's address.
+                    properties:
+                      address:
+                        description: address is the machine address.
+                        maxLength: 256
+                        minLength: 1
+                        type: string
+                      type:
+                        description: type is the machine address type, one of Hostname, ExternalIP, InternalIP, ExternalDNS or InternalDNS.
+                        enum:
+                          - Hostname
+                          - ExternalIP
+                          - InternalIP
+                          - ExternalDNS
+                          - InternalDNS
+                        type: string
+                    required:
+                      - address
+                      - type
+                    type: object
+                  type: array
+                conditions:
+                  description: Conditions defines current service state of the ByotMachine.
+                  items:
+                    description: Condition defines an observation of a Cluster API resource operational state.
+                    properties:
+                      lastTransitionTime:
+                        description: |-
+                          lastTransitionTime is the last time the condition transitioned from one status to another.
+                          This should be when the underlying condition changed. If that is not known, then using the time when
+                          the API field changed is acceptable.
+                        format: date-time
+                        type: string
+                      message:
+                        description: |-
+                          message is a human readable message indicating details about the transition.
+                          This field may be empty.
+                        maxLength: 10240
+                        minLength: 1
+                        type: string
+                      reason:
+                        description: |-
+                          reason is the reason for the condition's last transition in CamelCase.
+                          The specific API may choose whether or not this field is considered a guaranteed API.
+                          This field may be empty.
+                        maxLength: 256
+                        minLength: 1
+                        type: string
+                      severity:
+                        description: |-
+                          severity provides an explicit classification of Reason code, so the users or machines can immediately
+                          understand the current situation and act accordingly.
+                          The Severity field MUST be set only when Status=False.
+                        maxLength: 32
+                        type: string
+                      status:
+                        description: status of the condition, one of True, False, Unknown.
+                        type: string
+                      type:
+                        description: |-
+                          type of condition in CamelCase or in foo.example.com/CamelCase.
+                          Many .condition.type values are consistent across resources like Available, but because arbitrary conditions
+                          can be useful (see .node.status.conditions), the ability to deconflict is important.
+                        maxLength: 256
+                        minLength: 1
+                        type: string
+                    required:
+                      - lastTransitionTime
+                      - status
+                      - type
+                    type: object
+                  type: array
+                currentTalosVersion:
+                  description: |-
+                    CurrentTalosVersion is the live Talos version tag (from the Version
+                    RPC) of the claimed host. Populated only when DesiredTalosVersion is
+                    set; the post-adoption upgrade path uses it to decide whether an
+                    Upgrade RPC is needed.
+                  type: string
+                lastAppliedConfigSHA:
+                  description: |-
+                    LastAppliedConfigSHA records the SHA256 hash of the last machine
+                    configuration applied. When the bootstrap data changes, the controller
+                    re-applies the new configuration over the authenticated Talos API.
+                    The hash is cleared once a reset has been confirmed (the machine no
+                    longer carries the applied configuration).
+                  type: string
+                lastResetAt:
+                  description: |-
+                    LastResetAt records when a machine reset was last issued. Used to
+                    rate-limit reset attempts while the machine reboots.
+                  format: date-time
+                  type: string
+                nodeUpdated:
+                  description: |-
+                    NodeUpdated records that the controller has patched the workload
+                    cluster Node's spec.providerID to byot://<resolvedPublicIP>. byot has no
+                    cloud-controller-manager, so unlike cloud providers the controller owns
+                    the Machine<->Node providerID linkage: it patches the downstream Node
+                    once after adoption so CAPI's Machine controller can match
+                    Machine.spec.providerID against Node.spec.providerID and set
+                    status.nodeRef. Gated to run once.
+                  type: boolean
+                ready:
+                  description: |-
+                    Ready denotes that the machine has been adopted: the machine
+                    configuration was applied successfully over the Talos maintenance API.
+                  type: boolean
+                resolvedHost:
+                  description: |-
+                    ResolvedHost is the name of the ByotHost this machine has claimed. The
+                    public IP for adoption is read from that host.
+                  type: string
+                resolvedPublicIP:
+                  description: |-
+                    ResolvedPublicIP is the public IP of the claimed ByotHost, used as the
+                    adoption target.
+                  type: string
+                upgradeAppliedImageRef:
+                  description: |-
+                    UpgradeAppliedImageRef is the installer image ref the host was last
+                    successfully upgraded to (recorded at completion). Used to dedup
+                    no-op re-issues: when DesiredTalosVersion equals this ref and the
+                    attempt generation matches, the upgrade is skipped (already applied).
+                    An operator forces a same-ref reinstall by bumping generation.
+                  type: string
+                upgradeAttemptGeneration:
+                  description: |-
+                    UpgradeAttemptGeneration records the spec.generation observed when the
+                    current upgrade attempt started. After the controller stops on a probe
+                    or upgrade failure, an operator retriggers the upgrade by editing
+                    DesiredTalosVersion (bumping generation); the controller detects the
+                    mismatch and clears Failed to retry.
+                  format: int64
+                  type: integer
+                upgradePreRebootBootID:
+                  description: |-
+                    UpgradePreRebootBootID is the host boot-id captured just before the
+                    post-install Reboot RPC is issued. The InFlight poll completes when the
+                    live boot-id differs from it (the host rebooted into the new version).
+                    Empty when capture failed or read permission was denied; in that case
+                    InFlight falls back to a reachability + version-change completion
+                    check. Cleared on completion.
+                  type: string
+                upgradeProbeFailures:
+                  description: |-
+                    UpgradeProbeFailures is the count of consecutive Version RPC failures
+                    during the current upgrade phase (pre-upgrade probe or InFlight poll).
+                    Reset on success. Used to bound retries before flipping to Failed.
+                  format: int32
+                  type: integer
+                upgradeState:
+                  description: |-
+                    UpgradeState drives the post-adoption upgrade state machine. "" means no
+                    upgrade is pending; "InFlight" means the Upgrade RPC was issued (over the
+                    cluster talosconfig, preserve=true) and the controller is polling the
+                    Version RPC until it reports the desired tag; "Failed" means the
+                    probe/upgrade exhausted its retries and the controller stopped (retrigger
+                    by editing DesiredTalosVersion). Only set when DesiredTalosVersion is set.
+                  type: string
+              type: object
+          type: object
+      served: true
+      storage: true
+      subresources:
+        status: {}

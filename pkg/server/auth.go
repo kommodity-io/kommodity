@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
+	"strings"
 
 	"github.com/kommodity-io/kommodity/pkg/config"
 	"github.com/kommodity-io/kommodity/pkg/storage/selfsubjectaccessreviews"
@@ -30,6 +31,12 @@ const (
 	systemPrivilegedGroup      = "system:masters"
 	systemServiceAccountsGroup = "system:serviceaccounts"
 )
+
+// healthPaths returns endpoints that must be accessible without authentication
+// to support liveness, readiness, and health probes.
+func healthPaths() []string {
+	return []string{"/livez", "/readyz", "/healthz"}
+}
 
 // serviceAccountTokenGetter implements serviceaccount.ServiceAccountTokenGetter
 // to validate that ServiceAccounts and Secrets exist in Kommodity.
@@ -101,9 +108,18 @@ type adminAuthorizer struct {
 	cfg *config.KommodityConfig
 }
 
+//nolint:cyclop // Function complexity is acceptable for this authorizer.
 func (a adminAuthorizer) Authorize(_ context.Context, attrs auth.Attributes) (auth.Decision, string, error) {
 	if !a.cfg.AuthConfig.Apply {
 		return auth.DecisionAllow, "allowed: auth is disabled", nil
+	}
+
+	// Allow health check endpoints for all users (including anonymous)
+	path := attrs.GetPath()
+	for _, healthPath := range healthPaths() {
+		if !attrs.IsResourceRequest() && (path == healthPath || strings.HasPrefix(path, healthPath+"/")) {
+			return auth.DecisionAllow, "allowed: health check endpoint", nil
+		}
 	}
 
 	user := attrs.GetUser()

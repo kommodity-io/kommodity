@@ -1,0 +1,167 @@
+suite: test creation of MachineHealthCheck resources (provider-agnostic)
+templates:
+  - templates/provider/capi/machinehealthcheck.yaml
+release:
+  name: test-cluster
+  namespace: default
+tests:
+  # Control-plane MachineHealthCheck
+  - it: should render a CP MachineHealthCheck selecting the control-plane label
+    set:
+      kommodity.controlplane.healthCheck:
+        enabled: true
+        unhealthyConditions:
+          - type: Ready
+            status: Unknown
+            timeout: 300s
+          - type: Ready
+            status: "False"
+            timeout: 300s
+    asserts:
+      - isKind:
+          of: MachineHealthCheck
+      - equal:
+          path: metadata.name
+          value: test-cluster-controlplane
+      - equal:
+          path: spec.clusterName
+          value: test-cluster
+      - equal:
+          path: spec.selector.matchLabels["cluster.x-k8s.io/control-plane"]
+          value: ""
+      - equal:
+          path: spec.maxUnhealthy
+          value: 40%
+      - equal:
+          path: spec.nodeStartupTimeout
+          value: 10m0s
+      - equal:
+          path: spec.unhealthyConditions[0].type
+          value: Ready
+
+  - it: should honor controlplane maxUnhealthy and nodeStartupTimeout overrides
+    set:
+      kommodity.controlplane.healthCheck:
+        enabled: true
+        maxUnhealthy: 60%
+        nodeStartupTimeout: 15m0s
+        unhealthyConditions:
+          - type: Ready
+            status: "False"
+            timeout: 300s
+    asserts:
+      - equal:
+          path: spec.maxUnhealthy
+          value: 60%
+      - equal:
+          path: spec.nodeStartupTimeout
+          value: 15m0s
+
+  - it: should fail when controlplane healthCheck is enabled but unhealthyConditions is empty
+    set:
+      kommodity.controlplane.healthCheck:
+        enabled: true
+        unhealthyConditions: []
+    asserts:
+      - failedTemplate:
+          errorMessage: "MachineHealthCheck for controlplane is enabled but no unhealthyConditions are defined in values"
+
+  # Worker MachineHealthCheck (no zones: single unsuffixed deployment)
+  - it: should render a single worker MHC selecting the deployment name when no zones are set
+    set:
+      kommodity.nodepools.default.healthCheck:
+        enabled: true
+        unhealthyConditions:
+          - type: Ready
+            status: "False"
+            timeout: 300s
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: MachineHealthCheck
+      - equal:
+          path: metadata.name
+          value: test-cluster-worker-default
+      - equal:
+          path: spec.selector.matchLabels["cluster.x-k8s.io/deployment-name"]
+          value: test-cluster-worker-default
+
+  # Worker MachineHealthCheck (per-zone: one MHC per MachineDeployment)
+  - it: should render one worker MHC per zone selecting each deployment name
+    set:
+      kommodity.nodepools.default.zones:
+        - par01
+        - par02
+      kommodity.nodepools.default.healthCheck:
+        enabled: true
+        unhealthyConditions:
+          - type: Ready
+            status: "False"
+            timeout: 300s
+    asserts:
+      - hasDocuments:
+          count: 2
+
+  - it: should render a per-zone worker MHC for par01
+    set:
+      kommodity.nodepools.default.zones:
+        - par01
+        - par02
+      kommodity.nodepools.default.healthCheck:
+        enabled: true
+        unhealthyConditions:
+          - type: Ready
+            status: "False"
+            timeout: 300s
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: MachineHealthCheck
+      - equal:
+          path: metadata.name
+          value: test-cluster-worker-default-par01
+      - equal:
+          path: spec.selector.matchLabels["cluster.x-k8s.io/deployment-name"]
+          value: test-cluster-worker-default-par01
+
+  - it: should render a per-zone worker MHC for par02
+    set:
+      kommodity.nodepools.default.zones:
+        - par01
+        - par02
+      kommodity.nodepools.default.healthCheck:
+        enabled: true
+        unhealthyConditions:
+          - type: Ready
+            status: "False"
+            timeout: 300s
+    documentIndex: 1
+    asserts:
+      - isKind:
+          of: MachineHealthCheck
+      - equal:
+          path: metadata.name
+          value: test-cluster-worker-default-par02
+      - equal:
+          path: spec.selector.matchLabels["cluster.x-k8s.io/deployment-name"]
+          value: test-cluster-worker-default-par02
+
+  - it: should fail when worker healthCheck is enabled but unhealthyConditions is empty
+    set:
+      kommodity.nodepools.default.healthCheck:
+        enabled: true
+        unhealthyConditions: []
+    asserts:
+      - failedTemplate:
+          errorMessage: "MachineHealthCheck for nodepool 'default' is enabled but no unhealthyConditions are defined in values"
+
+  - it: should not render any MHC when healthCheck is disabled
+    set:
+      kommodity.controlplane.healthCheck:
+        enabled: false
+      kommodity.nodepools.default.healthCheck:
+        enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0

@@ -1,0 +1,306 @@
+---
+# Example of values to create a cluster in Azure.
+kommodity:
+  provider:
+    name: Azure
+    # CCM cloud-config Secret — you do NOT create or name this. Kommodity's Azure
+    # credential materializer generates it (and `<release>-aso-secret`) from the
+    # single AzureClusterIdentity below, then the CCM CRS reconciler delivers it to
+    # the workload cluster's kube-system. The management-side name defaults to
+    # `<release>-cloud-provider` (unique per release), so multiple Azure clusters can
+    # share one namespace without colliding. The only Azure secret you create by hand
+    # is the AzureClusterIdentity's clientSecret Secret (see identity, below).
+    #
+    # secret:
+    #   # Optional override: point at a Secret you manage yourself instead. The
+    #   # materializer leaves any Secret without its managed-by label untouched.
+    #   name: my-cloud-provider-secret
+    identity:
+      name: azure-cluster-identity
+      # AzureClusterIdentity resource name for authentication.
+      # Create this resource in the management cluster before deploying:
+      #
+      # apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+      # kind: AzureClusterIdentity
+      # metadata:
+      #   name: azure-cluster-identity
+      #   namespace: default
+      # spec:
+      #   type: ServicePrincipal
+      #   tenantID: <YOUR_TENANT_ID>
+      #   clientID: <YOUR_CLIENT_ID>
+      #   clientSecret:
+      #     name: azure-cluster-identity-secret
+      #     namespace: default
+      #   allowedNamespaces: {}
+    config:
+      subscriptionID: <YOUR_SUBSCRIPTION_ID>
+      # Optional: defaults to the Helm release name. The chart fails fast at
+      # install time if an explicitly-set resourceGroup does not match the
+      # release name — this catches a values file copied from another cluster
+      # without updating this field, which would otherwise silently share that
+      # cluster's resource group and corrupt both. Set allowSharedResourceGroup:
+      # true below to place multiple clusters in one resource group on purpose.
+      # resourceGroup: <YOUR_RESOURCE_GROUP>
+      location: westeurope
+      # Resource group that holds the Talos managed image referenced by
+      # talos.imageName. Combined with subscriptionID above, the chart builds the
+      # full image ARM ID, so you only provide the image name (Scaleway-aligned).
+      # May differ from the cluster resourceGroup (images are often shared).
+      talosImageResourceGroup: <YOUR_IMAGE_RESOURCE_GROUP>
+      # allowSharedResourceGroup: true   # opt out of the release-name == RG check
+
+    cloudControllerManager:
+      enabled: true
+      # Every image and resource block below is overridable (e.g. to pull from a
+      # private registry mirror or tune requests/limits). Each defaults to the value shown.
+      #
+      # cloud-controller-manager Deployment image + resources:
+      # v1.34.3 is the latest published azure-cloud-controller-manager — no v1.35.x
+      # release exists yet. Azure supports running the CCM one minor behind the
+      # cluster's Kubernetes version (here v1.35.3), so this is the correct
+      # best-available pin, not stale. Bump to v1.35.x once Azure ships it.
+      image:
+        repository: mcr.microsoft.com/oss/kubernetes/azure-cloud-controller-manager
+        tag: v1.34.3
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          cpu: 4
+          memory: 2Gi
+      # initContainer image that waits for the cloud-config Secret before CCM starts.
+      # Tracks the cluster's Kubernetes version (talos.version / values.yaml).
+      initImage:
+        repository: registry.k8s.io/kubectl
+        tag: v1.35.3
+      # cloud-node-manager DaemonSet (Linux + Windows) image + resources:
+      # v1.34.3 is the latest published azure-cloud-node-manager (no v1.35.x yet);
+      # same N-1 rationale as the controller-manager image above.
+      nodeManager:
+        image:
+          repository: mcr.microsoft.com/oss/kubernetes/azure-cloud-node-manager
+          tag: v1.34.3
+        resources:
+          requests:
+            cpu: 50m
+            memory: 50Mi
+          limits:
+            cpu: 2
+            memory: 512Mi
+
+  oidc:
+    enabled: true
+
+  global:
+    strategicPatches:
+      # NOTE: kubelet --cloud-provider=external is no longer set here — the chart
+      # auto-injects it whenever kommodity.provider.cloudControllerManager.enabled
+      # is true (see _helpers.tpl "mergedStrategicPatch"). Omitting it previously
+      # left nodes without a providerID, which broke CAPI NodeRef linking and
+      # wedged control-plane rollouts, so it must never be optional.
+      #
+      # Enable anonymous authentication on kube-apiserver.
+      # CAPZ hardcodes an HTTPS GET /readyz probe on the apiserver LB (not configurable via the
+      # AzureCluster spec). Talos defaults --anonymous-auth=false, so /readyz returns HTTP 401 to
+      # the anonymous probe, causing the Azure LB to mark all backends unhealthy and silently drop
+      # apiserver traffic. Kubernetes' built-in system:public-info-viewer ClusterRoleBinding grants
+      # system:unauthenticated read access to /livez, /readyz, /healthz, and /version only —
+      # no resource data is exposed.
+      cluster:
+        apiServer:
+          extraArgs:
+            anonymous-auth: "true"
+
+  network:
+    ipv4:
+      enabled: true
+      # The `public` flag controls the apiServerLB type ONLY. Node VMs never
+      # receive public IPs in either mode — matching the Scaleway model, the
+      # general network stays private and only the Kubernetes API (6443) is
+      # exposed via a cloud load balancer. The Talos API (50000) is never put on
+      # the LB; Kommodity reaches it over the private network through the
+      # talos-cluster-proxy tunnel (port-forwarded through the K8s API LB to the
+      # in-cluster proxy pod, which dials the node's private IP:50000).
+      #
+      # public: false → fully-private cluster (default)
+      #   The chart emits apiServerLB.type: Internal so CAPZ creates an internal
+      #   load balancer (no PublicIP attached). Node VMs reach the internet for
+      #   egress-only via a NAT gateway on the node subnet; no inbound path exists
+      #   except through a VPN, VNet peering, or Azure Bastion.
+      #   The management cluster must be reachable from inside the VNet (peered,
+      #   VPN-connected, or running in Azure itself) for CAPZ controllers to work.
+      #
+      # public: true → public Kubernetes API
+      #   The chart emits apiServerLB.type: Public. CAPZ creates a PublicIP for
+      #   the apiserver load balancer so the K8s API (6443) is internet-reachable.
+      #   Node VMs remain private; the management cluster reaches the Talos API
+      #   via the talos-cluster-proxy tunnel through the public K8s API LB.
+      public: false
+      # nodeCIDR is ALWAYS required on Azure: node VMs are private in both modes,
+      # so the talos-cluster-proxy needs this range to identify which node IPs to
+      # route through the tunnel. It must cover the control-plane and node subnets
+      # the chart creates (see controlplaneSubnet / nodeSubnet below), hence the
+      # VNet supernet. Azure VNets support CIDR ranges between /8 and /29.
+      nodeCIDR: 10.0.0.0/8
+      # VNet — by DEFAULT you omit the `vnet:` block entirely (as here) and CAPZ
+      # auto-creates `<release>-vnet` (10.0.0.0/8) in the cluster's resource group,
+      # with the controlplane (10.0.0.0/16) and node (10.1.0.0/16) subnets, NSGs,
+      # route table and NAT gateway provisioned inside it. You do NOT need to
+      # pre-create any networking — only the resource group must exist. Each cluster
+      # gets its own `<release>-vnet`, so multiple clusters never collide.
+      #
+      # Set the block below ONLY to adopt a pre-existing (BYO) VNet: pre-create the
+      # (empty) VNet yourself; the chart still creates the subnets / NSG / route
+      # table / NAT gateway inside it (emitted as ASO CRs, since CAPZ skips creating
+      # them in BYO-VNet mode).
+      # vnet:
+      #   name: my-existing-vnet
+      #   resourceGroup: my-vnet-resource-group
+      #   cidrBlocks:
+      #     - 10.200.48.0/20
+      # subnet:
+      #   # Optional: Override the single-subnet path (for BYO-subnet scenarios).
+      #   # When omitted, the chart creates a controlplane and a node subnet.
+      #   name: my-subnet
+      #   cidrBlock: 10.200.0.0/24
+      #
+      # Subnet CIDRs — by DEFAULT the chart uses 10.0.0.0/16 (controlplane) and
+      # 10.1.0.0/16 (node), matching the VNet default of 10.0.0.0/8. Override
+      # these when the defaults overlap other clusters' node CIDRs (the
+      # talos-cluster-proxy CIDR registry rejects overlapping ranges), or when
+      # you need a smaller VNet (e.g. /20 instead of /8). The controlplane and
+      # node subnets must both fit within the VNet CIDR.
+      # controlplaneSubnet:
+      #   cidrBlock: 10.200.48.0/24
+      # nodeSubnet:
+      #   cidrBlock: 10.200.49.0/24
+
+  controlplane:
+    replicas: 1
+    # Azure VM size - see https://docs.microsoft.com/en-us/azure/virtual-machines/sizes
+    sku: Standard_D2s_v3
+    # Optional failure domains.
+    # zones:
+    #   - "1"
+    # Explicitly enable/disable Azure Accelerated Networking (SR-IOV) on the
+    # control plane node NICs. When omitted, CAPZ derives it from the VM size, and
+    # Azure may non-deterministically attach SR-IOV virtual functions (mlx5_core)
+    # that Talos cannot manage, causing NIC flapping.
+    # acceleratedNetworking: false
+    os:
+      disk:
+        size: 30
+        # Azure disk types: Standard_LRS, Premium_LRS, StandardSSD_LRS, UltraSSD_LRS
+        type: Premium_LRS
+    # instanceVolumes:
+    #   # Instance-local disks (see values.yaml for full documentation)
+    #   - nameSuffix: scratch
+    #     diskSelector: "disk.transport == 'nvme'"
+    healthCheck:
+      enabled: true
+      unhealthyConditions:
+        - type: Ready
+          status: Unknown
+          timeout: 300s
+        - type: Ready
+          status: "False"
+          timeout: 300s
+
+  nodepools:
+    default:
+      replicas: 1
+      # Azure VM size - see https://docs.microsoft.com/en-us/azure/virtual-machines/sizes
+      # For GPU workloads, use NC-series (e.g., Standard_NC6s_v3)
+      sku: Standard_D2s_v3
+      # Optional failure domains.
+      # zones:
+      #   - "1"
+      # Explicitly enable/disable Azure Accelerated Networking (SR-IOV) on this
+      # nodepool's NICs (see controlplane above for rationale).
+      # acceleratedNetworking: false
+      os:
+        disk:
+          size: 30
+          # Azure disk types: Standard_LRS, Premium_LRS, StandardSSD_LRS, UltraSSD_LRS
+          type: Premium_LRS
+      # additionalVolumes:
+      #   # Optional: additional data disks attached to the node. The
+      #   # Azure template maps `size` (GB) to the CAPZ `diskSizeGB` field.
+      #   # Azure-specific extras: nameSuffix (required by CAPZ), lun,
+      #   # storageClassName (defaults to Premium_LRS), cachingType (optional).
+      #   # nameSuffix also doubles as the Talos volume name — when set, a
+      #   # UserVolumeConfig is emitted so Talos formats (xfs) and mounts
+      #   # the disk at /var/mnt/<nameSuffix>. Without nameSuffix, no Talos
+      #   # volume config is generated (disk is attached but unmanaged).
+      #   # Optional diskSelector overrides the auto-generated size-based
+      #   # CEL selector (useful to avoid matching Azure temp disks).
+      #   - nameSuffix: data
+      #     size: 100
+      #     lun: 0
+      #     storageClassName: Premium_LRS
+      #     cachingType: ReadWrite
+      #     # diskSelector: "disk.serial.startsWith('deadbeef')"
+      # instanceVolumes:
+      #   # Instance-local disks that exist on the VM at boot (not provisioned via
+      #   # the Azure API). E.g. the temp disk on Azure VMs (/dev/sdb on many
+      #   # VM sizes). Emits UserVolumeConfig only — no AzureMachineTemplate changes.
+      #   # diskSelector is a CEL expression — run `talosctl get disks -o yaml`
+      #   # on a node to see available fields (model, transport, size, wwid, etc.).
+      #   - nameSuffix: scratch
+      #     diskSelector: "disk.transport == 'nvme'"
+      #     grow: true
+      #     encryption:
+      #       provider: luks2
+      #       keySource: nodeID  # or kms (default: kms if kommodity.kms.enabled, else nodeID)
+      #       lockToState: true
+      labels:
+        my-label: my-value
+      annotations:
+        my-annotation: my-annotation-value
+      healthCheck:
+        enabled: true
+        unhealthyConditions:
+          - type: Ready
+            status: Unknown
+            timeout: 300s
+          - type: Ready
+            status: "False"
+            timeout: 300s
+
+talos:
+  # Follow this documentation to generate a Talos image for Azure:
+  # https://docs.siderolabs.com/talos/v1.13/platform-specific-installations/cloud-platforms/azure
+  #
+  # Recommended (Scaleway-aligned): provide just the managed image NAME. The chart
+  # builds the full ARM ID from kommodity.provider.config.subscriptionID and
+  # kommodity.provider.config.talosImageResourceGroup, so you only supply the last
+  # segment of the resource ID — the same `imageName` field Scaleway uses.
+  imageName: kommodity-talos-azure-v1.13.0
+  #
+  # Alternatives (take precedence over imageName in this order):
+  #   id: <MANAGED_IMAGE_ARM_ID>            # explicit full ARM ID (escape hatch)
+  #   computeGallery:                       # shared image gallery
+  #     gallery: myGallery
+  #     name: talos-v1.13.0
+  #     version: 1.0.0
+  #   marketplace:                          # Azure Marketplace image (requires accepting terms)
+  #     publisher: siderolabs
+  #     offer: talos
+  #     sku: talos
+  #     version: 1.13.0
+
+# Azure-specific overrides applied to the generated AzureMachineTemplates.
+# azure:
+#   # SSH public key (base64-encoded) injected into the VM osProfile. Defaults to
+#   # empty — Talos does not use Azure's provisioning agent, so no key is needed.
+#   sshPublicKey: <BASE64_ENCODED_PUBLIC_KEY>
+#   # Omit sshPublicKey entirely. REQUIRED when booting from a Shared Image Gallery
+#   # image definition with osState: Specialized (correct for Talos VHDs, which are
+#   # not generalized): any sshPublicKey makes CAPZ send an osProfile, which Azure
+#   # rejects for specialized images with
+#   # "Parameter OSProfile is not allowed with a specialized image."
+#   disableSSHPublicKey: true
+#   # Set spec.disableExtensionOperations on the AzureMachineTemplate (defaults to true).
+#   disableExtensionOperations: true

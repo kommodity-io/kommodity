@@ -14,6 +14,13 @@ kommodity:
       #   kubeconfig: <base64-encoded-kubeconfig>
       # type: Opaque
       name: kubevirt-credentials
+
+    cloudControllerManager:
+      enabled: true
+      image:
+        repository: quay.io/kubevirt/kubevirt-cloud-controller-manager
+        tag: v0.6.0
+
     config:
       # Namespace in the external Kubevirt cluster where the VMs will be deployed
       infraClusterNamespace: kubevirt-cluster-namespace
@@ -21,19 +28,72 @@ kommodity:
       # Specify a storageClassName if needed
       # storageClassName: my-storage-class
 
+      # Specify a controlPlaneServiceTemplate if needed
+      # Defaults: no annotations, spec.type=LoadBalancer
+      # controlPlaneServiceTemplate:
+      #   annotations:
+      #     my-annotation: my-value
+      #   spec:
+      #     type: LoadBalancer # Valid values are ExternalName, ClusterIP, NodePort, and LoadBalancer.
+
       # Specify a controlPlaneEndpoint if needed
       # controlPlaneEndpoint:
       #   host: my-host-ip
       #   port: 6443
 
+      # evictionStrategy: "LiveMigrateIfPossible" # Valid values: "LiveMigrateIfPossible", "LiveMigrate", "None", "External"
+
+  global:
+    strategicPatches:
+      # Required when using a Cloud Controller Manager (https://kubernetes.io/docs/tasks/administer-cluster/running-cloud-controller/#running-cloud-controller-manager)
+      machine:
+        kubelet:
+          extraArgs:
+            cloud-provider: external
+
   network:
+    ipv4:
+      nodeCIDR: <REPLACE-ME> # Range for Kubevirt VM pods (needs to be adjusted).
     cluster:
+      # interfaceType: bridge # Valid values listed in https://kubevirt.io/user-guide/network/interfaces_and_networks/#interfaces (default: bridge)
       podCIDR:
         - 10.245.0.0/16 # Needs to be different from the Kubevirt cluster pod CIDR (usually 10.244.0.0/16)
+      # DNS for the VMs. Virt-launcher pod's resolv.conf is advertised to the
+      # VM via Kubevirt's internal DHCP. dnsPolicy options:
+      #   - ClusterFirst (k8s default): uses Kubevirt cluster's kube-dns ClusterIP.
+      #       Wrong cluster's DNS, and may be unreachable from VM-sourced traffic
+      #       (e.g. Cilium kube-proxy-replacement on the Kubevirt host).
+      #   - Default: inherits Kubevirt host node's /etc/resolv.conf. Often broken
+      #       because modern hosts use link-local (169.254.x.x) or loopback
+      #       (127.0.0.53) resolvers that aren't routable from the VM netns.
+      #   - None + dnsConfig.nameservers: explicit servers. Most reliable.
+      #       Override for your environment (corporate resolver, cloud DNS, etc.).
+      dns:
+        dnsPolicy: None # Valid values are 'ClusterFirstWithHostNet', 'ClusterFirst', 'Default' or 'None'
+        dnsConfig:
+          nameservers: ["1.1.1.1", "8.8.8.8"] # Cloudflare + Google. Override as needed.
 
   controlplane:
     replicas: 2
-    sku: s1.medium
+    # Optional failure domains.
+    # zones:
+    #   - fr-par-1
+    #   - fr-par-2
+    # Enforce hard host spread.
+    # spreadAcrossHosts: true
+    # Exactly one of 'sku' or 'resources' must be set per pool (mutually exclusive).
+    # - sku: references a Kubevirt VirtualMachineClusterInstancetype.
+    #   Default set: https://github.com/kubevirt/common-instancetypes#series.
+    #   Custom instance types can also be created. Prefer dedicated CPU series (CX, N, RT, D).
+    # - resources: standard k8s ResourceRequirements injected as spec.domain.resources.
+    sku: d1.xlarge
+    # resources:
+    #   requests:
+    #     cpu: "4000m"
+    #     memory: "16Gi"
+    #   limits:
+    #     cpu: "4000m"
+    #     memory: "16Gi"
     os:
       disk:
         size: 20
@@ -41,10 +101,27 @@ kommodity:
   nodepools:
     default:
       replicas: 1
-      sku: s1.medium
+      # Optional failure domains.
+      # zones:
+      #   - zone1
+      #   - zone2
+      # Enforce hard host spread.
+      # spreadAcrossHosts: true
+      # Exactly one of 'sku' or 'resources' must be set (mutually exclusive).
+      sku: d1.xlarge
+      # resources:
+      #   requests:
+      #     cpu: "4000m"
+      #     memory: "16Gi"
+      #   limits:
+      #     cpu: "4000m"
+      #     memory: "16Gi"
       os:
         disk:
           size: 20
+      additionalVolumes:
+        - size: 10 # size in GB
+      #     storageClassName: fast-ssd # optional, defaults to provider.config.storageClassName if set
 
       # Optional: specify GPU resources
       # gpus:
@@ -52,4 +129,4 @@ kommodity:
       #     deviceName: "nvidia.com/AD102GL_L40S" # resource name representing the device
 
 talos:
-  imageName: https://factory.talos.dev/image/ce4c980550dd2ab1b17bbf2b08801c7eb59418eafe8f279833297925d67c7515/v1.11.3/openstack-amd64.raw.xz # OpenStack image with 'siderolabs/qemu-guest-agent' extension
+  imageName: docker://ghcr.io/kommodity-io/kommodity-talos-openstack:v1.13.0 # OpenStack image with 'siderolabs/qemu-guest-agent' extension + Kommodity extensions

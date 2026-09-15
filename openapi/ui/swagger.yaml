@@ -1,0 +1,149 @@
+basePath: /
+definitions:
+  api.ChartInfo:
+    properties:
+      version:
+        type: string
+    type: object
+  api.ClusterAPIItem:
+    properties:
+      chart:
+        $ref: '#/definitions/api.ChartInfo'
+      kubernetes:
+        $ref: '#/definitions/api.KubernetesInfo'
+      name:
+        type: string
+      talos:
+        $ref: '#/definitions/api.TalosInfo'
+    type: object
+  api.ClusterAPIResponse:
+    properties:
+      clusters:
+        items:
+          $ref: '#/definitions/api.ClusterAPIItem'
+        type: array
+    type: object
+  api.ClusterHealthResponse:
+    properties:
+      healthy:
+        type: boolean
+      reason:
+        type: string
+    type: object
+  api.KubernetesInfo:
+    properties:
+      version:
+        type: string
+    type: object
+  api.TalosInfo:
+    properties:
+      version:
+        type: string
+    type: object
+info:
+  contact: {}
+  description: API endpoints for Kommodity UI.
+  title: Kommodity UI API
+  version: 0.1.0
+paths:
+  /api/clusters:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.ClusterAPIResponse'
+        "500":
+          description: If there is a server error
+          schema:
+            type: string
+      summary: List all clusters with their chart versions
+      tags:
+      - Clusters
+  /api/clusters/{clusterName}/health:
+    get:
+      parameters:
+      - description: Name of the cluster to check health for
+        in: path
+        name: clusterName
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.ClusterHealthResponse'
+        "400":
+          description: If the cluster name is missing or invalid
+          schema:
+            type: string
+        "500":
+          description: If there is a server error
+          schema:
+            type: string
+      summary: Checks the health of a cluster by accessing its /livez endpoint
+      tags:
+      - UI
+      - Info
+      - Health
+  /api/clusters/{clusterName}/kubeconfig:
+    get:
+      parameters:
+      - description: Name of the cluster to get kubeconfig for
+        in: path
+        name: clusterName
+        required: true
+        type: string
+      produces:
+      - application/yaml
+      responses:
+        "200":
+          description: Kubeconfig YAML content
+          schema:
+            type: string
+        "400":
+          description: If the cluster name is missing or invalid
+          schema:
+            type: string
+        "403":
+          description: If OIDC is not configured on the cluster
+          schema:
+            type: string
+        "404":
+          description: If the cluster is not found
+          schema:
+            type: string
+        "500":
+          description: If there is a server error
+          schema:
+            type: string
+      summary: Get kubeconfig for a specific cluster
+      tags:
+      - Clusters
+      - Kubeconfig
+  /api/info:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: If there is a server error
+          schema:
+            type: string
+      summary: Obtain Kommodity system information
+      tags:
+      - UI
+      - Info
+schemes:
+- https
+swagger: "2.0"

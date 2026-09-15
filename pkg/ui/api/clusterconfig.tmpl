@@ -35,11 +35,8 @@ users:
           - get-token
           - --oidc-issuer-url={{ $.OIDCConfig.IssuerURL }}
           - --oidc-client-id={{ $.OIDCConfig.ClientID }}
-          - --oidc-extra-scope={{ $.OIDCConfig.UsernameClaim }}
-          {{- if $.OIDCConfig.ExtraScopes }}
-          {{- range $.OIDCConfig.ExtraScopes }}
-          - --oidc-extra-scope={{ . }}
-          {{- end }}
+          {{- range $.OIDCConfig.ClientExtraFlags }}
+          - {{ . | quote }}
           {{- end }}
         interactiveMode: Always
   {{- end }}

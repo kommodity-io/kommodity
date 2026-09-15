@@ -5,7 +5,7 @@ release:
   name: test-cluster
   namespace: default
 set:
-  kommodity.global.configPatches: [{ op: add, path: /my-path, value: my-value }]
+  kommodity.kms.endpoint: "https://kms.example.com"
 templates:
   - templates/*
 tests:
@@ -50,11 +50,13 @@ tests:
           path: metadata.name
           pattern: ^test-cluster-worker-default-[a-f0-9]{6}$
 
-  - it: should update the TalosConfigTemplate name when global config patches are changed
+  - it: should update the TalosConfigTemplate name when global strategic patches are changed
     template: templates/talos/configtemplate.yaml
     set:
-      kommodity.global.configPatches:
-        [{ op: add, path: /new-path, value: new-value }]
+      kommodity.global.strategicPatches:
+        machine:
+          env:
+            CHANGED_VAR: changed-value
     asserts:
       - isKind:
           of: TalosConfigTemplate
@@ -64,11 +66,13 @@ tests:
           path: metadata.name
           pattern: ^test-cluster-worker-default-[a-f0-9]{6}$
 
-  - it: should update the TalosConfigTemplate name when nodepool config patches are changed
+  - it: should update the TalosConfigTemplate name when nodepool strategic patches are changed
     template: templates/talos/configtemplate.yaml
     set:
-      kommodity.nodepools.default.configPatches:
-        [{ op: add, path: /new-path, value: new-value }]
+      kommodity.nodepools.default.strategicPatches:
+        machine:
+          env:
+            NODEPOOL_VAR: nodepool-value
     asserts:
       - isKind:
           of: TalosConfigTemplate
@@ -91,19 +95,17 @@ tests:
           path: metadata.name
           pattern: ^test-cluster-worker-default-[a-f0-9]{6}$
 
-  # Config patch merging tests
-  - it: should merge patches with same op and path
+  # Strategic patch merging tests
+  - it: should merge global and nodepool strategic patches
     template: templates/talos/configtemplate.yaml
     set:
-      kommodity.global.configPatches:
-        - op: add
-          path: /machine/env
-          value:
+      kommodity.global.strategicPatches:
+        machine:
+          env:
             GLOBAL_VAR: global-value
-      kommodity.nodepools.default.configPatches:
-        - op: add
-          path: /machine/env
-          value:
+      kommodity.nodepools.default.strategicPatches:
+        machine:
+          env:
             NODEPOOL_VAR: nodepool-value
     asserts:
       - isKind:
@@ -111,59 +113,67 @@ tests:
       - hasDocuments:
           count: 1
       - matchRegex:
-          path: metadata.name
-          pattern: ^test-cluster-worker-default-[a-f0-9]{6}$
-      - contains:
-          path: spec.template.spec.configPatches
-          content:
-            op: add
-            path: /machine/env
-            value:
-              GLOBAL_VAR: global-value
-              LOG_LEVEL: warn
-              NODEPOOL_VAR: nodepool-value
+          path: spec.template.spec.strategicPatches[0]
+          pattern: "GLOBAL_VAR: global-value"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[0]
+          pattern: "NODEPOOL_VAR: nodepool-value"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[0]
+          pattern: "LOG_LEVEL: warn"
 
-  - it: should not merge patches with different ops on same path
+  - it: should let nodepool patches override global patches for same key
     template: templates/talos/configtemplate.yaml
     set:
-      kommodity.global.configPatches:
-        - op: add
-          path: /machine/env
-          value:
-            ADD_VAR: add-value
-        - op: replace
-          path: /machine/env
-          value:
-            REPLACE_VAR: replace-value
+      kommodity.global.strategicPatches:
+        machine:
+          env:
+            SHARED_VAR: global-value
+      kommodity.nodepools.default.strategicPatches:
+        machine:
+          env:
+            SHARED_VAR: nodepool-value
     asserts:
       - isKind:
           of: TalosConfigTemplate
       - hasDocuments:
           count: 1
       - matchRegex:
-          path: metadata.name
-          pattern: ^test-cluster-worker-default-[a-f0-9]{6}$
-      - contains:
-          path: spec.template.spec.configPatches
-          content:
-            op: add
-            path: /machine/env
-            value:
-              ADD_VAR: add-value
-              LOG_LEVEL: warn
-      - contains:
-          path: spec.template.spec.configPatches
-          content:
-            op: replace
-            path: /machine/env
-            value:
-              REPLACE_VAR: replace-value
+          path: spec.template.spec.strategicPatches[0]
+          pattern: "SHARED_VAR: nodepool-value"
+      - notMatchRegex:
+          path: spec.template.spec.strategicPatches[0]
+          pattern: "SHARED_VAR: global-value"
 
-  # Taints tests
-  - it: should generate kubelet extraArgs and nodeTaints patches for taints
+  - it: should deep-merge global and nodepool patches under disjoint subtrees of machine
     template: templates/talos/configtemplate.yaml
     set:
-      kommodity.global.configPatches: []
+      kommodity.global.strategicPatches:
+        machine:
+          kubelet:
+            extraArgs:
+              cloud-provider: external
+      kommodity.nodepools.default.strategicPatches:
+        machine:
+          sysctls:
+            net.ipv4.ip_forward: "1"
+    asserts:
+      - isKind:
+          of: TalosConfigTemplate
+      - hasDocuments:
+          count: 1
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[0]
+          pattern: "cloud-provider: external"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[0]
+          pattern: "net.ipv4.ip_forward"
+
+  # Taints tests
+  - it: should generate kubelet extraArgs and nodeTaints in strategic patch for taints
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.global.strategicPatches: {}
       kommodity.nodepools.default.taints:
         workload: "gpu:NoSchedule"
     asserts:
@@ -174,48 +184,32 @@ tests:
       - matchRegex:
           path: metadata.name
           pattern: ^test-cluster-worker-default-[a-f0-9]{6}$
-      - contains:
-          path: spec.template.spec.configPatches
-          content:
-            op: add
-            path: /machine/kubelet/extraArgs
-            value:
-              register-with-taints: "workload=gpu:NoSchedule"
-      - contains:
-          path: spec.template.spec.configPatches
-          content:
-            op: add
-            path: /machine/nodeTaints
-            value:
-              workload: "gpu:NoSchedule"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[0]
+          pattern: "register-with-taints: workload=gpu:NoSchedule"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[0]
+          pattern: "workload: gpu:NoSchedule"
 
   # Labels and annotations tests
-  - it: should generate nodeLabels and nodeAnnotations patches
+  - it: should generate nodeLabels and nodeAnnotations in strategic patch
     template: templates/talos/configtemplate.yaml
     set:
-      kommodity.global.configPatches: []
+      kommodity.global.strategicPatches: {}
     asserts:
       - isKind:
           of: TalosConfigTemplate
       - hasDocuments:
           count: 1
-      - contains:
-          path: spec.template.spec.configPatches
-          content:
-            op: add
-            path: /machine/nodeLabels
-            value:
-              my-label: my-value
-      - contains:
-          path: spec.template.spec.configPatches
-          content:
-            op: add
-            path: /machine/nodeAnnotations
-            value:
-              my-annotation: my-annotation-value
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[0]
+          pattern: "my-label: my-value"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[0]
+          pattern: "my-annotation: my-annotation-value"
 
   # Test Talos version and image precedence
-  - it: should make sure Talos version defined in nodepool's config take precedence
+  - it: should make sure Talos version defined in nodepool's config takes precedence
     template: templates/talos/configtemplate.yaml
     set:
       talos.version: "global-talos-version"
@@ -227,7 +221,7 @@ tests:
           path: spec.template.spec.talosVersion
           value: "nodepool-talos-version"
 
-  - it: should make sure Talos version defined in controlplane's config take precedence
+  - it: should make sure Talos version defined in controlplane's config takes precedence
     template: templates/talos/controlplane.yaml
     set:
       talos.version: "global-talos-version"
@@ -239,7 +233,7 @@ tests:
           path: spec.controlPlaneConfig.controlplane.talosVersion
           value: "controlplane-talos-version"
 
-  - it: should make sure Talos image defined in nodepool's and controlplane's config take precedence
+  - it: should make sure Talos image defined in nodepool's and controlplane's config takes precedence
     template: templates/provider/scaleway/machinetemplate.yaml
     set:
       talos.image: "global-talos-image"
@@ -257,8 +251,168 @@ tests:
           value: "nodepool-talos-image"
         documentIndex: 1
 
-  # Test Kubernetes version precedence
-  - it: should make sure Kubernetes version defined in controlplane's config take precedence
+  # AutoBootstrap extension tests
+  - it: should include autoBootstrap extension when kommodity.network.ipv4.public is false
+    template: templates/talos/controlplane.yaml
+    set:
+      kommodity.network.ipv4.public: false
+    asserts:
+      - hasDocuments:
+          count: 1
+      - exists:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "name: kommodity-autobootstrap"
+
+  - it: should include autoBootstrap extension unconditionally
+    template: templates/talos/controlplane.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - exists:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "name: kommodity-autobootstrap"
+
+  - it: should include autoBootstrap extension when kommodity.network.ipv4.public is true
+    template: templates/talos/controlplane.yaml
+    set:
+      kommodity.network.ipv4.public: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - exists:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "name: kommodity-autobootstrap"
+
+  - it: should default quorumNodes to etcd quorum (floor(replicas/2)+1) when not set
+    template: templates/talos/controlplane.yaml
+    set:
+      kommodity.controlplane.replicas: 3
+      talos.autoBootstrap.quorumNodes: null
+    asserts:
+      - hasDocuments:
+          count: 1
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "TALOS_AUTO_BOOTSTRAP_QUORUM_NODES=2"
+
+  - it: should default quorumNodes to 3 for 5 replicas
+    template: templates/talos/controlplane.yaml
+    set:
+      kommodity.controlplane.replicas: 5
+      talos.autoBootstrap.quorumNodes: null
+    asserts:
+      - hasDocuments:
+          count: 1
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "TALOS_AUTO_BOOTSTRAP_QUORUM_NODES=3"
+
+  - it: should default quorumNodes to 1 for single-node CP
+    template: templates/talos/controlplane.yaml
+    set:
+      kommodity.controlplane.replicas: 1
+      talos.autoBootstrap.quorumNodes: null
+    asserts:
+      - hasDocuments:
+          count: 1
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "TALOS_AUTO_BOOTSTRAP_QUORUM_NODES=1"
+
+  - it: should use explicit quorumNodes when set
+    template: templates/talos/controlplane.yaml
+    set:
+      kommodity.controlplane.replicas: 3
+      talos.autoBootstrap.quorumNodes: 2
+    asserts:
+      - hasDocuments:
+          count: 1
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "TALOS_AUTO_BOOTSTRAP_QUORUM_NODES=2"
+
+  - it: should emit TALOS_AUTO_BOOTSTRAP_SCAN_CIDR when scanCIDR is set
+    template: templates/talos/controlplane.yaml
+    set:
+      talos.autoBootstrap.scanCIDR: 10.0.0.0/24
+    asserts:
+      - hasDocuments:
+          count: 1
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "TALOS_AUTO_BOOTSTRAP_SCAN_CIDR=10.0.0.0/24"
+
+  - it: should not emit TALOS_AUTO_BOOTSTRAP_SCAN_CIDR when scanCIDR is empty
+    template: templates/talos/controlplane.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - notMatchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "TALOS_AUTO_BOOTSTRAP_SCAN_CIDR"
+
+  - it: should auto-derive scanCIDR from controlplaneSubnet when scanCIDR is empty
+    template: templates/talos/controlplane.yaml
+    set:
+      kommodity.network.ipv4.controlplaneSubnet.cidrBlock: 10.0.0.0/16
+    asserts:
+      - hasDocuments:
+          count: 1
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "TALOS_AUTO_BOOTSTRAP_SCAN_CIDR=10.0.0.0/16"
+
+  - it: should prefer explicit scanCIDR over controlplaneSubnet
+    template: templates/talos/controlplane.yaml
+    set:
+      talos.autoBootstrap.scanCIDR: 10.0.0.0/24
+      kommodity.network.ipv4.controlplaneSubnet.cidrBlock: 10.0.0.0/16
+    asserts:
+      - hasDocuments:
+          count: 1
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "TALOS_AUTO_BOOTSTRAP_SCAN_CIDR=10.0.0.0/24"
+
+  - it: should not emit scanCIDR when neither scanCIDR nor controlplaneSubnet is set
+    template: templates/talos/controlplane.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - notMatchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "TALOS_AUTO_BOOTSTRAP_SCAN_CIDR"
+
+  - it: should emit TALOS_AUTO_BOOTSTRAP_SCAN_CONCURRENCY when scanConcurrency is set
+    template: templates/talos/controlplane.yaml
+    set:
+      talos.autoBootstrap.scanConcurrency: 256
+    asserts:
+      - hasDocuments:
+          count: 1
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "TALOS_AUTO_BOOTSTRAP_SCAN_CONCURRENCY=256"
+
+  - it: should not emit TALOS_AUTO_BOOTSTRAP_SCAN_CONCURRENCY when scanConcurrency is 0
+    template: templates/talos/controlplane.yaml
+    set:
+      talos.autoBootstrap.scanConcurrency: 0
+    asserts:
+      - hasDocuments:
+          count: 1
+      - notMatchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "TALOS_AUTO_BOOTSTRAP_SCAN_CONCURRENCY"
+
+  # Kubernetes version precedence test
+  - it: should make sure Kubernetes version defined in controlplane's config takes precedence
     template: templates/talos/controlplane.yaml
     set:
       kubernetes.version: "global-kubernetes-version"
@@ -269,3 +423,318 @@ tests:
       - equal:
           path: spec.version
           value: "controlplane-kubernetes-version"
+
+  # InstanceVolumes tests
+  - it: should emit UserVolumeConfig for worker instanceVolumes
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.nodepools.default.instanceVolumes:
+        - nameSuffix: scratch
+          diskSelector: "disk.model == 'scratch'"
+          volumeType: partition
+          grow: true
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "kind: UserVolumeConfig"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "name: scratch"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: 'volumeType: "partition"'
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "grow: true"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "disk.model == 'scratch'"
+
+  - it: should default volumeType to partition when omitted
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.nodepools.default.instanceVolumes:
+        - nameSuffix: scratch
+          diskSelector: "disk.model == 'scratch'"
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: 'volumeType: "partition"'
+
+  - it: should suppress grow, minSize, maxSize for volumeType disk
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.nodepools.default.instanceVolumes:
+        - nameSuffix: scratch
+          diskSelector: "disk.dev_path == '/dev/sdb'"
+          volumeType: disk
+          grow: true
+          minSize: 100GiB
+          maxSize: 200GiB
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: 'volumeType: "disk"'
+      - not: true
+        matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "grow:"
+      - not: true
+        matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "minSize:"
+      - not: true
+        matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "maxSize:"
+
+  - it: should emit UserVolumeConfig for controlplane instanceVolumes
+    template: templates/talos/controlplane.yaml
+    set:
+      kommodity.controlplane.instanceVolumes:
+        - nameSuffix: scratch
+          diskSelector: "disk.model == 'scratch'"
+    asserts:
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "kind: UserVolumeConfig"
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "name: scratch"
+
+  - it: should emit multiple UserVolumeConfig for multiple instanceVolumes
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.nodepools.default.instanceVolumes:
+        - nameSuffix: scratch
+          diskSelector: "disk.model == 'scratch'"
+        - nameSuffix: cache
+          diskSelector: "disk.transport == 'nvme'"
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "name: scratch"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[2]
+          pattern: "name: cache"
+
+  - it: should not emit UserVolumeConfig when instanceVolumes is unset
+    template: templates/talos/configtemplate.yaml
+    asserts:
+      - not: true
+        matchRegex:
+          path: spec.template.spec.strategicPatches[0]
+          pattern: "UserVolumeConfig"
+
+  - it: should emit nodeID encryption by default on instanceVolumes
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.nodepools.default.instanceVolumes:
+        - nameSuffix: scratch
+          diskSelector: "disk.model == 'scratch'"
+          encryption:
+            provider: luks2
+            lockToState: true
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "provider: luks2"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "nodeID"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "lockToState: true"
+
+  - it: should default to KMS encryption when kms is enabled and keySource is omitted
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.kms.enabled: true
+      kommodity.nodepools.default.instanceVolumes:
+        - nameSuffix: scratch
+          diskSelector: "disk.model == 'scratch'"
+          encryption:
+            provider: luks2
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "provider: luks2"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "endpoint: \"https://kms.example.com\""
+      - not: true
+        matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "nodeID"
+
+  - it: should use nodeID encryption when kms is enabled but keySource is explicitly nodeID
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.kms.enabled: true
+      kommodity.nodepools.default.instanceVolumes:
+        - nameSuffix: scratch
+          diskSelector: "disk.model == 'scratch'"
+          encryption:
+            provider: luks2
+            keySource: nodeID
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "nodeID"
+      - not: true
+        matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "kms:"
+
+  - it: should not emit encryption when encryption block is omitted
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.nodepools.default.instanceVolumes:
+        - nameSuffix: scratch
+          diskSelector: "disk.model == 'scratch'"
+    asserts:
+      - not: true
+        matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "luks2"
+
+  - it: should fail when nameSuffix is missing from instanceVolumes
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.nodepools.default.instanceVolumes:
+        - diskSelector: "disk.model == 'scratch'"
+    asserts:
+      - failedTemplate:
+          errorMessage: "instanceVolumes[].nameSuffix is required (used as Talos volume name and /var/mnt/<name> mount path)"
+
+  - it: should fail when diskSelector is missing from instanceVolumes
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.nodepools.default.instanceVolumes:
+        - nameSuffix: scratch
+    asserts:
+      - failedTemplate:
+          errorMessage: "instanceVolumes[].diskSelector is required (CEL expression to match the target disk)"
+
+  # additionalVolumes UserVolumeConfig tests
+  - it: should emit UserVolumeConfig for worker additionalVolumes with nameSuffix
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.nodepools.default.additionalVolumes:
+        - nameSuffix: data
+          size: 100
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "kind: UserVolumeConfig"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "name: data"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: 'volumeType: disk'
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: 'system_disk == false && disk.size > 99u \* GB'
+
+  - it: should emit UserVolumeConfig for controlplane additionalVolumes
+    template: templates/talos/controlplane.yaml
+    set:
+      kommodity.controlplane.additionalVolumes:
+        - nameSuffix: data
+          size: 100
+    asserts:
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "kind: UserVolumeConfig"
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "name: data"
+
+  - it: should use custom diskSelector when provided
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.nodepools.default.additionalVolumes:
+        - nameSuffix: data
+          size: 100
+          diskSelector: "disk.serial.startsWith('deadbeef')"
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "disk.serial.startsWith\\('deadbeef'\\)"
+      - not: true
+        matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "system_disk"
+
+  - it: should emit KMS encryption for additionalVolumes when KMS is enabled
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.kms.enabled: true
+      kommodity.nodepools.default.additionalVolumes:
+        - nameSuffix: data
+          size: 100
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "kind: UserVolumeConfig"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "provider: luks2"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: 'endpoint: "https://kms.example.com"'
+
+  - it: should not emit encryption for additionalVolumes when KMS is disabled
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.nodepools.default.additionalVolumes:
+        - nameSuffix: data
+          size: 100
+    asserts:
+      - not: true
+        matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "luks2"
+
+  - it: should not emit UserVolumeConfig for additionalVolumes without nameSuffix
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.nodepools.default.additionalVolumes:
+        - size: 50
+          type: block
+    asserts:
+      - not: true
+        matchRegex:
+          path: spec.template.spec.strategicPatches[0]
+          pattern: "UserVolumeConfig"
+
+  - it: should emit multiple UserVolumeConfig for multiple additionalVolumes
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.nodepools.default.additionalVolumes:
+        - nameSuffix: data
+          size: 100
+        - nameSuffix: cache
+          size: 200
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "name: data"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: 'disk.size > 99u \* GB'
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[2]
+          pattern: "name: cache"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[2]
+          pattern: 'disk.size > 199u \* GB'
+
+  - it: should not emit UserVolumeConfig when additionalVolumes is unset
+    template: templates/talos/configtemplate.yaml
+    asserts:
+      - not: true
+        matchRegex:
+          path: spec.template.spec.strategicPatches[0]
+          pattern: "UserVolumeConfig"

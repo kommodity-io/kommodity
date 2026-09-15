@@ -57,7 +57,7 @@ jobs:
             echo "should_run=true" >> "$GITHUB_OUTPUT"
           fi
 
-  # Shared job to build UI once and compute version
+  # Compute version for the release
   prepare:
     name: Prepare
     runs-on: ubuntu-latest
@@ -76,28 +76,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6
         with:
-          go-version: stable
-          check-latest: true
-
-      - name: Setup NPM
-        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6
-        with:
-          node-version: "24.2.0"
-          cache: "npm"
-          cache-dependency-path: pkg/ui/web/kommodity-ui/package-lock.json
-
-      - name: Install UI dependencies
-        run: npm install --prefix pkg/ui/web/kommodity-ui
-
-      - name: Build UI
-        run: make build-ui
-
-      - name: Upload UI artifact
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
-        with:
-          name: ui-dist
-          path: pkg/ui/web/kommodity-ui/dist
-          retention-days: 1
+          go-version-file: go.mod
 
       - name: Detect semantic release
         uses: docker://ghcr.io/codfish/semantic-release-action@sha256:5d5447090feb2f9252aac2825ef14e244ecf53528fbe87d585b459adb547b914 # v4
@@ -143,23 +122,53 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6
         with:
-          go-version: stable
-          check-latest: true
+          go-version-file: go.mod
 
       - name: Install dependencies
         run: go mod download
 
-      - name: Download UI artifact
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
-        with:
-          name: ui-dist
-          path: pkg/ui/web/kommodity-ui/dist
-
       - name: Lint
         run: make lint
 
-  test:
-    name: Test
+  build-test-image:
+    name: Build test image
+    runs-on: ubuntu-latest
+    needs: prepare
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Build release image for testing
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6
+        with:
+          context: .
+          file: Containerfile
+          push: false
+          load: true
+          tags: kommodity:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            VERSION=${{ needs.prepare.outputs.version }}
+
+      - name: Save image as artifact
+        run: docker save kommodity:latest -o kommodity-image.tar
+
+      - name: Upload image artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: kommodity-test-image
+          path: kommodity-image.tar
+          retention-days: 1
+
+  coverage:
+    name: Coverage
     runs-on: ubuntu-latest
     needs: prepare
     if: github.event_name == 'pull_request'
@@ -174,33 +183,10 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6
         with:
-          go-version: stable
-          check-latest: true
+          go-version-file: go.mod
 
       - name: Install dependencies
         run: go mod download
-
-      - name: Download UI artifact
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
-        with:
-          name: ui-dist
-          path: pkg/ui/web/kommodity-ui/dist
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
-
-      - name: Build container image for testing
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6
-        with:
-          context: .
-          file: Containerfile
-          push: false
-          load: true
-          tags: kommodity:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          build-args: |
-            VERSION=${{ needs.prepare.outputs.version }}
 
       - name: Calculate test coverage
         uses: gwatts/go-coverage-action@2845595538a59d63d1bf55f109c14e104c6f7cb3 # v2
@@ -209,67 +195,56 @@ jobs:
           coverage-threshold: 0
           cover-pkg: ./...
 
-      - name: Run integration tests
+  test:
+    name: Test (${{ matrix.suite }})
+    runs-on: ubuntu-latest
+    needs: [prepare, build-test-image]
+    if: github.event_name == 'pull_request'
+    permissions:
+      pull-requests: write
+      issues: write
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [kubevirt, byot]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+
+      - name: Setup Go
+        uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6
+        with:
+          go-version-file: go.mod
+
+      - name: Install dependencies
+        run: go mod download
+
+      - name: Download image artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: kommodity-test-image
+
+      - name: Load image
+        run: docker load -i kommodity-image.tar
+
+      - name: Run Kubevirt integration tests
+        if: matrix.suite == 'kubevirt'
         run: |
           export CLUSTER_NAME="ci-cluster-${GITHUB_SHA::5}"
-          make run-integration-test
-        env:
-          SCW_ACCESS_KEY: ${{ secrets.SCW_ACCESS_KEY }}
-          SCW_SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
-          SCW_DEFAULT_REGION: fr-par
-          SCW_DEFAULT_PROJECT_ID: ${{ secrets.SCW_DEFAULT_PROJECT_ID }}
+          make run-kubevirt-integration-test
+
+      - name: Run BYOT integration tests
+        if: matrix.suite == 'byot'
+        run: |
+          make run-byot-integration-test
 
       - name: Upload kommodity test logs on failure
         if: failure()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: kommodity-test-logs
+          name: kommodity-test-logs-${{ matrix.suite }}
           path: pkg/test/kommodity_container.log
-
-      - name: Install CLI
-        if: failure()
-        uses: scaleway/action-scw@v0
-        with:
-          version: v2.51.0
-      # Remove all instances after tests
-      - name: Clean up Scaleway instances
-        if: failure()
-        run: |
-          export CLUSTER_NAME="ci-cluster-${GITHUB_SHA::5}"
-
-          # List all server IDs with tag 'caps-scalewaycluster=$CLUSTER_NAME'
-          server_ids=$(scw instance server list tags.0=caps-scalewaycluster=$CLUSTER_NAME zone=fr-par-2 -o json | jq -r '.[].id')
-
-          if [[ -z "$server_ids" ]]; then
-            echo "No instances found with tag 'caps-scalewaycluster=$CLUSTER_NAME'"
-            exit 0
-          fi
-
-          for id in $server_ids; do
-            echo "Processing server $id..."
-
-            # Get server state
-            state=$(scw instance server get "$id" -o json | jq -r '.state')
-
-            # Stop if running
-            if [[ "$state" == "running" ]]; then
-              echo "  Stopping server $id..."
-              scw instance server stop "$id" --wait
-            fi
-
-            # Delete server
-            echo "  Deleting server $id..."
-            scw instance server delete "$id"
-
-            echo "  Done."
-          done
-
-          echo "All instances with tag 'caps-scalewaycluster=$CLUSTER_NAME' have been deleted."
-        env:
-          SCW_ACCESS_KEY: ${{ secrets.SCW_ACCESS_KEY }}
-          SCW_SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
-          SCW_DEFAULT_PROJECT_ID: ${{ secrets.SCW_DEFAULT_PROJECT_ID }}
-          SCW_DEFAULT_ORGANIZATION_ID: ${{ secrets.SCW_DEFAULT_ORGANIZATION_ID }}
 
   build:
     name: Build binary
@@ -291,17 +266,10 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6
         with:
-          go-version: stable
-          check-latest: true
+          go-version-file: go.mod
 
       - name: Install dependencies
         run: go mod download
-
-      - name: Download UI artifact
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
-        with:
-          name: ui-dist
-          path: pkg/ui/web/kommodity-ui/dist
 
       - name: Compute compression flags
         id: compression
@@ -344,14 +312,14 @@ jobs:
           mv bin/kommodity bin/${target}
 
       - name: Upload artifact
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: kommodity-${{ matrix.os }}-${{ matrix.arch }}
           path: bin/kommodity-*
           retention-days: 1
 
-  build-image:
-    name: Build container image
+  build-release-image:
+    name: Build release image
     runs-on: ubuntu-latest
     needs: prepare
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -372,7 +340,7 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
-      - name: Build container image
+      - name: Build release image
         uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6
         with:
           context: .
@@ -386,7 +354,7 @@ jobs:
           outputs: type=oci,dest=/tmp/image.tar
 
       - name: Upload container image artifact
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: container-image
           path: /tmp/image.tar
@@ -399,7 +367,7 @@ jobs:
     needs:
       - prepare
       - build
-      - build-image
+      - build-release-image
     permissions:
       contents: write
       pull-requests: write

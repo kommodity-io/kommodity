@@ -1,0 +1,61 @@
+{{- if eq .Values.kommodity.provider.name "Hetzner" }}
+{{- $privateNetwork := and .Values.kommodity.network.ipv4.enabled (not .Values.kommodity.network.ipv4.public) }}
+{{- /* `config:` with no value is valid YAML for null, which dig cannot walk. */}}
+{{- $config := .Values.kommodity.provider.config | default dict }}
+{{- /*
+  The hcloud-csi addon mounts the `hcloud` Secret that only the CCM
+  ClusterResourceSet delivers, so the combination is rejected at render time
+  rather than leaving the CSI controller without its Secret.
+*/}}
+{{- if and (dig "hcloud-csi" "enabled" false .Values.kommodity.addons) (not .Values.kommodity.provider.cloudControllerManager.enabled) }}
+{{- fail "the hcloud-csi addon requires kommodity.provider.cloudControllerManager.enabled=true (it delivers the hcloud Secret the CSI controller mounts); disable the addon or enable the CCM" }}
+{{- end }}
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: HetznerCluster
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: kommodity
+  annotations:
+    helm.sh/resource-policy: keep # Prevent Helm from deleting the resource on uninstall, deletion will be handled by CAPI
+spec:
+  controlPlaneRegions:
+    - {{ dig "region" "fsn1" $config }}
+  controlPlaneLoadBalancer:
+    enabled: {{ dig "loadBalancer" "enabled" true $config }}
+    region: {{ dig "region" "fsn1" $config }}
+    type: {{ dig "loadBalancer" "type" "lb11" $config }}
+  {{- $cpe := dig "controlPlaneEndpoint" (dict) $config }}
+  {{- /*
+    CAPH requires controlPlaneEndpoint to exist before it creates the load
+    balancer (the port becomes the LB listen port). With an empty host CAPH
+    fills in the load balancer IPv4 once it is ready; a DNS name can be set
+    explicitly for load-balancer-less setups.
+  */}}
+  controlPlaneEndpoint:
+    host: {{ dig "host" "" $cpe | quote }}
+    port: {{ dig "port" 6443 $cpe }}
+  hetznerSecretRef:
+    name: {{ .Values.kommodity.provider.secret.name }}
+    key:
+      hcloudToken: hcloud
+  {{- with (dig "sshKeyName" "" $config) }}
+  sshKeys:
+    hcloud:
+      - name: {{ . }}
+  {{- else }}
+  # Talos has no SSH; CAPH accepts an empty key set.
+  sshKeys: {}
+  {{- end }}
+  {{- if $privateNetwork }}
+  hcloudNetwork:
+    enabled: true
+    cidrBlock: {{ required "missing required nodeCIDR in kommodity.network.ipv4" .Values.kommodity.network.ipv4.nodeCIDR }}
+    subnetCidrBlock: {{ .Values.kommodity.network.ipv4.nodeCIDR }}
+    networkZone: {{ dig "networkZone" "eu-central" $config }}
+  {{- end }}
+  # The kommodity CCM ClusterResourceSet delivers the token Secret to the
+  # workload cluster, so CAPH must not create a competing copy.
+  skipCreatingHetznerSecretInWorkloadCluster: true
+{{- end }}

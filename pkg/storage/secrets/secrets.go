@@ -61,6 +61,7 @@ func NewSecretsREST(storageConfig storagebackend.Config, scheme runtime.Scheme) 
 	secretStrategy := secretStrategy{
 		ObjectTyper:   &scheme,
 		NameGenerator: names.SimpleNameGenerator,
+		scheme:        &scheme,
 	}
 
 	restStore := &genericregistry.Store{
@@ -116,6 +117,9 @@ func ObjectNameFunc(obj runtime.Object) (string, error) {
 type secretStrategy struct {
 	runtime.ObjectTyper
 	names.NameGenerator
+
+	// scheme is used to dispatch registered conversion hooks (see conversion.go).
+	scheme *runtime.Scheme
 }
 
 var _ rest.RESTCreateStrategy = secretStrategy{}
@@ -129,7 +133,19 @@ func (secretStrategy) NamespaceScoped() bool {
 }
 
 // PrepareForCreate sets defaults for new objects.
-func (secretStrategy) PrepareForCreate(_ context.Context, _ runtime.Object) {}
+func (s secretStrategy) PrepareForCreate(_ context.Context, obj runtime.Object) {
+	secret, ok := obj.(*corev1.Secret)
+	if !ok {
+		log.Printf("expected *corev1.Secret, got %T", obj)
+
+		return
+	}
+
+	err := applySecretConversions(s.scheme, secret)
+	if err != nil {
+		log.Printf("failed to apply Secret conversions on create: %v", err)
+	}
+}
 
 // WarningsOnCreate returns warnings for create operations.
 func (secretStrategy) WarningsOnCreate(_ context.Context, obj runtime.Object) []string {
@@ -156,7 +172,7 @@ func warningsForSecret(secret *corev1.Secret) []string {
 }
 
 // PrepareForUpdate sets defaults for updated objects.
-func (secretStrategy) PrepareForUpdate(_ context.Context, obj, old runtime.Object) {
+func (s secretStrategy) PrepareForUpdate(_ context.Context, obj, old runtime.Object) {
 	newSecret, success := obj.(*corev1.Secret)
 	if !success {
 		log.Printf("expected *corev1.Secret, got %T", obj)
@@ -174,6 +190,11 @@ func (secretStrategy) PrepareForUpdate(_ context.Context, obj, old runtime.Objec
 	// this is weird, but consistent with what the validatedUpdate function used to do.
 	if len(newSecret.Type) == 0 {
 		newSecret.Type = oldSecret.Type
+	}
+
+	err := applySecretConversions(s.scheme, newSecret)
+	if err != nil {
+		log.Printf("failed to apply Secret conversions on update: %v", err)
 	}
 }
 

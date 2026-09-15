@@ -1,0 +1,88 @@
+{{- if eq .Values.kommodity.provider.name "Azure" }}
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: AzureMachineTemplate
+metadata:
+  name: {{ .Release.Name }}-controlplane-{{ include "kommodity-cluster.machineSpecsHash" (dict "poolValues" .Values.kommodity.controlplane "allValues" .Values) }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: kommodity
+spec:
+  template:
+    spec:
+      additionalTags:
+        managed-by: kommodity
+        cluster-name: {{ $.Release.Name }}
+      vmSize: {{ .Values.kommodity.controlplane.sku }}
+      image:
+        {{- include "kommodity.azure.image" . | nindent 8 }}
+      {{- if not (and .Values.azure .Values.azure.disableSSHPublicKey) }}
+      sshPublicKey: {{ dig "sshPublicKey" "" (.Values.azure | default dict) | quote }}
+      {{- end }}
+      disableExtensionOperations: {{ if and .Values.azure (hasKey .Values.azure "disableExtensionOperations") }}{{ .Values.azure.disableExtensionOperations }}{{ else }}true{{ end }}
+      osDisk:
+        diskSizeGB: {{ .Values.kommodity.controlplane.os.disk.size }}
+        osType: Linux
+        managedDisk:
+          storageAccountType: {{ default "Premium_LRS" .Values.kommodity.controlplane.os.disk.type }}
+      {{- if hasKey .Values.kommodity.controlplane "acceleratedNetworking" }}
+      networkInterfaces:
+        - acceleratedNetworking: {{ .Values.kommodity.controlplane.acceleratedNetworking }}
+      {{- end }}
+      {{- if .Values.kommodity.controlplane.additionalVolumes }}
+      dataDisks:
+        {{- range .Values.kommodity.controlplane.additionalVolumes }}
+        - nameSuffix: {{ .nameSuffix }}
+          diskSizeGB: {{ .size }}
+          lun: {{ .lun }}
+          managedDisk:
+            storageAccountType: {{ default "Premium_LRS" .storageClassName }}
+          {{- if .cachingType }}
+          cachingType: {{ .cachingType }}
+          {{- end }}
+        {{- end }}
+      {{- end }}
+
+{{- range $name, $np := .Values.kommodity.nodepools }}
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: AzureMachineTemplate
+metadata:
+  name: {{ $.Release.Name }}-worker-{{ $name }}-{{ include "kommodity-cluster.machineSpecsHash" (dict "poolValues" $np "allValues" $.Values) }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: kommodity
+spec:
+  template:
+    spec:
+      vmSize: {{ $np.sku }}
+      image:
+        {{- include "kommodity.azure.image" $ | nindent 8 }}
+      {{- if not (and $.Values.azure $.Values.azure.disableSSHPublicKey) }}
+      sshPublicKey: {{ dig "sshPublicKey" "" ($.Values.azure | default dict) | quote }}
+      {{- end }}
+      disableExtensionOperations: {{ if and $.Values.azure (hasKey $.Values.azure "disableExtensionOperations") }}{{ $.Values.azure.disableExtensionOperations }}{{ else }}true{{ end }}
+      osDisk:
+        diskSizeGB: {{ $np.os.disk.size }}
+        osType: Linux
+        managedDisk:
+          storageAccountType: {{ default "Premium_LRS" $np.os.disk.type }}
+      {{- if hasKey $np "acceleratedNetworking" }}
+      networkInterfaces:
+        - acceleratedNetworking: {{ $np.acceleratedNetworking }}
+      {{- end }}
+      {{- if $np.additionalVolumes }}
+      dataDisks:
+        {{- range $np.additionalVolumes }}
+        - nameSuffix: {{ .nameSuffix }}
+          diskSizeGB: {{ .size }}
+          lun: {{ .lun }}
+          managedDisk:
+            storageAccountType: {{ default "Premium_LRS" .storageClassName }}
+          {{- if .cachingType }}
+          cachingType: {{ .cachingType }}
+          {{- end }}
+        {{- end }}
+      {{- end }}
+{{- end }}
+{{- end }}
