@@ -160,7 +160,7 @@ tests:
           pattern: "manualSelector: true"
       - matchRegex:
           path: stringData["installer.yaml"]
-          pattern: 'app.kubernetes.io/app: cilium-1-18-4-install'
+          pattern: "app.kubernetes.io/app: cilium-1-18-4-install"
 
   - it: should embed the installer image in the Job manifest
     template: templates/addons/crs.yaml
@@ -215,7 +215,7 @@ tests:
           path: stringData["installer.yaml"]
           pattern: "hostNetwork: true"
 
-  - it: should not produce inlineManifests when no addon uses inlineManifest delivery
+  - it: should not produce inlineManifests when no addon uses InlineManifest delivery
     template: templates/talos/controlplane.yaml
     values:
       - ../values.kubevirt.yaml
@@ -231,7 +231,7 @@ tests:
       - notExists:
           path: spec.controlPlaneConfig.controlplane.strategicPatches[2]
 
-  - it: should produce inlineManifests when addon delivery is inlineManifest
+  - it: should produce inlineManifests when addon delivery is InlineManifest
     template: templates/talos/controlplane.yaml
     values:
       - ../values.kubevirt.yaml
@@ -247,7 +247,7 @@ tests:
           path: spec.controlPlaneConfig.controlplane.strategicPatches[2]
           pattern: "external-dns-namespace"
 
-  - it: should not render CRS for inlineManifest addons
+  - it: should not render CRS for InlineManifest addons
     template: templates/addons/crs.yaml
     values:
       - ../values.kubevirt.yaml

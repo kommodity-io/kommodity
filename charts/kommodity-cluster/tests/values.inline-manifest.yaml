@@ -3,7 +3,7 @@ kommodity:
     external-dns:
       enabled: true
       namespace: external-dns
-      delivery: inlineManifest
+      delivery: InlineManifest
       lifecycle:
         install:
           mode: HelmInstall

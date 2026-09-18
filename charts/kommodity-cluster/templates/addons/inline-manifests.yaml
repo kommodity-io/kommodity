@@ -1,6 +1,6 @@
 {{/*
 Generate a strategic patch containing cluster.inlineManifests for addons
-with delivery: inlineManifest. Each addon contributes the same manifests
+with delivery: InlineManifest. Each addon contributes the same manifests
 that CRS would deliver: namespace, custom manifest, extra-values Secret,
 and installer Job.
 
@@ -15,7 +15,7 @@ Usage: {{ include "kommodity.addon.inlineManifests" (dict "addons" $.Values.komm
 {{- $hasInline := false -}}
 {{- range $name := $addonNames -}}
 {{- $addon := index $.addons $name -}}
-{{- if and $addon.enabled (eq (default "CRS" $addon.delivery) "inlineManifest") -}}
+{{- if and $addon.enabled (eq (default "CRS" $addon.delivery) "InlineManifest") -}}
 {{- $hasInline = true -}}
 {{- end -}}
 {{- end -}}
@@ -25,7 +25,7 @@ Usage: {{ include "kommodity.addon.inlineManifests" (dict "addons" $.Values.komm
     inlineManifests:
 {{- range $name := $addonNames -}}
 {{- $addon := index $.addons $name -}}
-{{- if and $addon.enabled (eq (default "CRS" $addon.delivery) "inlineManifest") }}
+{{- if and $addon.enabled (eq (default "CRS" $addon.delivery) "InlineManifest") }}
 {{- $addonNamespace := default $name $addon.namespace -}}
 {{- if $addon.namespace }}
 {{- $nsManifest := include "kommodity.addon.namespace" (dict "namespace" $addon.namespace) | trim }}
