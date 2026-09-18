@@ -127,3 +127,8 @@ spec:
       {{- /* ExtensionServiceConfig for kommodity-attestation extension */ -}}
 {{- include "kommodity.talos.attestationExtensionServiceConfig" (dict "logLevel" $.Values.kommodity.logLevel) | nindent 6 }}
       {{- end }}
+      {{- /* inlineManifests for bootstrap-critical addons (delivery: InlineManifest) */ -}}
+      {{- $inlineManifests := include "kommodity.addon.inlineManifests" (dict "addons" $.Values.kommodity.addons "root" $) | trim }}
+      {{- if not (empty $inlineManifests) }}
+{{ $inlineManifests | nindent 6 }}
+      {{- end }}

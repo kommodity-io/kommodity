@@ -1,0 +1,17 @@
+kommodity:
+  addons:
+    external-dns:
+      enabled: true
+      namespace: external-dns
+      delivery: InlineManifest
+      lifecycle:
+        install:
+          mode: HelmInstall
+        upgrade:
+          disable: false
+      chart:
+        repository: https://kubernetes-sigs.github.io/external-dns/
+        name: external-dns
+        version: 1.22.0
+      initialExtraValues:
+        policy: upsert-only

@@ -80,6 +80,10 @@ kommodity:
   addons:
     cilium:
       enabled: true
+      # Delivery method: CRS (default) or InlineManifest.
+      # InlineManifest bakes installer manifests into the Talos machine config,
+      # applied at bootstrap before the API endpoint is reachable.
+      # delivery: InlineManifest
       # Namespace for where the addon will be installed, default is the name of the addon
       namespace: kube-system
       lifecycle:
@@ -362,7 +366,7 @@ kommodity:
     #   kubernetes:
     #     version: v1.33.4
 
-    #   # Drain/delete timeouts: bounds how long CAPI waits for pod eviction 
+    #   # Drain/delete timeouts: bounds how long CAPI waits for pod eviction
     #   # before force-deleting the node.
     #   nodeDrainTimeout: 10m0s # default waits indefinitely
     #   nodeDeletionTimeout: 10s # node deletion timeout after the drain succeeds (default 10s)

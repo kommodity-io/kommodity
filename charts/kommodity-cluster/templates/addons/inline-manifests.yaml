@@ -1,0 +1,55 @@
+{{/*
+Generate a strategic patch containing cluster.inlineManifests for addons
+with delivery: InlineManifest. Each addon contributes the same manifests
+that CRS would deliver: namespace, custom manifest, extra-values Secret,
+and installer Job.
+
+The patch is emitted as a single strategic patch list item (- |\n  <yaml>),
+matching the format used by other strategic patches in controlplane.yaml.
+
+Usage: {{ include "kommodity.addon.inlineManifests" (dict "addons" $.Values.kommodity.addons "root" $) }}
+*/}}
+{{- define "kommodity.addon.inlineManifests" -}}
+{{- $root := .root -}}
+{{- $addonNames := keys .addons | sortAlpha -}}
+{{- $hasInline := false -}}
+{{- range $name := $addonNames -}}
+{{- $addon := index $.addons $name -}}
+{{- if and $addon.enabled (eq (default "CRS" $addon.delivery) "InlineManifest") -}}
+{{- $hasInline = true -}}
+{{- end -}}
+{{- end -}}
+{{- if $hasInline }}
+- |
+  cluster:
+    inlineManifests:
+{{- range $name := $addonNames -}}
+{{- $addon := index $.addons $name -}}
+{{- if and $addon.enabled (eq (default "CRS" $addon.delivery) "InlineManifest") }}
+{{- $addonNamespace := default $name $addon.namespace -}}
+{{- if $addon.namespace }}
+{{- $nsManifest := include "kommodity.addon.namespace" (dict "namespace" $addon.namespace) | trim }}
+    - name: {{ $name }}-namespace
+      contents: |-
+{{ $nsManifest | indent 8 }}
+{{- end }}
+{{- if $addon.manifest }}
+{{- $manifestContents := tpl $addon.manifest $root | trim }}
+    - name: {{ $name }}-manifest
+      contents: |-
+{{ $manifestContents | indent 8 }}
+{{- end }}
+{{- if $addon.initialExtraValues }}
+{{- $valsManifest := include "kommodity.addon.extra-values" (dict "name" $name "namespace" $addonNamespace "initialExtraValues" $addon.initialExtraValues) | trim }}
+    - name: {{ $name }}-extra-values
+      contents: |-
+{{ $valsManifest | indent 8 }}
+{{- end }}
+{{- $installerManifest := include "kommodity.addon.installer" (dict "name" $name "addon" $addon) | trim }}
+    - name: {{ $name }}-installer
+      contents: |-
+{{ $installerManifest | indent 8 }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
