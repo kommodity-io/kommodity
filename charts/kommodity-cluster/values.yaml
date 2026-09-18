@@ -80,6 +80,10 @@ kommodity:
   addons:
     cilium:
       enabled: true
+      # Delivery method: CRS (default) or inlineManifest.
+      # inlineManifest bakes installer manifests into the Talos machine config,
+      # applied at bootstrap before the API endpoint is reachable.
+      # delivery: inlineManifest
       # Namespace for where the addon will be installed, default is the name of the addon
       namespace: kube-system
       lifecycle:
