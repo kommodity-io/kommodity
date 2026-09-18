@@ -1,7 +1,7 @@
 {{- $addonNames := keys .Values.kommodity.addons | sortAlpha -}}
 {{- range $name := $addonNames -}}
 {{- $addon := index $.Values.kommodity.addons $name -}}
-{{- if $addon.enabled }}
+{{- if and $addon.enabled (ne (default "CRS" $addon.delivery) "inlineManifest") }}
 {{- $addonNamespace := default $name $addon.namespace }}
 {{- $contents := "" }}
 {{- if $addon.manifest }}
@@ -36,7 +36,7 @@ stringData:
 {{- end }}
 {{- range $name := $addonNames -}}
 {{- $addon := index $.Values.kommodity.addons $name -}}
-{{- if $addon.enabled }}
+{{- if and $addon.enabled (ne (default "CRS" $addon.delivery) "inlineManifest") }}
 ---
 apiVersion: addons.cluster.x-k8s.io/v1beta1
 kind: ClusterResourceSet

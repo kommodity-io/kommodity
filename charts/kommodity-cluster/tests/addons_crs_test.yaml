@@ -215,7 +215,7 @@ tests:
           path: stringData["installer.yaml"]
           pattern: "hostNetwork: true"
 
-  - it: should not produce inlineManifests in TalosControlPlane
+  - it: should not produce inlineManifests when no addon uses inlineManifest delivery
     template: templates/talos/controlplane.yaml
     values:
       - ../values.kubevirt.yaml
@@ -230,6 +230,35 @@ tests:
           pattern: "inlineManifests"
       - notExists:
           path: spec.controlPlaneConfig.controlplane.strategicPatches[2]
+
+  - it: should produce inlineManifests when addon delivery is inlineManifest
+    template: templates/talos/controlplane.yaml
+    values:
+      - ../values.kubevirt.yaml
+      - values.inline-manifest.yaml
+    set:
+      kommodity.addons.cilium.enabled: false
+      kommodity.addons.talos-cluster-proxy.enabled: false
+    asserts:
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[2]
+          pattern: "inlineManifests"
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[2]
+          pattern: "external-dns-namespace"
+
+  - it: should not render CRS for inlineManifest addons
+    template: templates/addons/crs.yaml
+    values:
+      - ../values.kubevirt.yaml
+      - values.inline-manifest.yaml
+    set:
+      kommodity.addons.cilium.enabled: false
+      kommodity.addons.talos-cluster-proxy.enabled: false
+    asserts:
+      - notMatchRegex:
+          path: metadata.name
+          pattern: "external-dns"
 
   - it: should render talos-cluster-proxy CRS by default
     template: templates/addons/crs.yaml
