@@ -109,6 +109,9 @@ lint-fix: ## Run the linter and fix issues.
 
 generate: .env fetch-providers ## Run code generation.
 	go generate ./...
+	# openapi-gen has a bug where it strips the spec import from
+	# intstr/zz_generated.openapi.go for method-driven types like IntOrString.
+	git checkout -- pkg/openapi/intstr/zz_generated.openapi.go
 
 .PHONY: teardown
 teardown: compose-down ## Tear down the local development environment.
