@@ -71,6 +71,39 @@ A single `kommodity` binary that combines:
 
 ---
 
+## Quick Start
+
+### Prerequisites
+
+A recent version of Go (we recommend [gvm][gvm]):
+
+```bash
+gvm install go1.26.7 -B
+gvm use go1.26.7 --default
+```
+
+### Run It Locally
+
+```bash
+git clone https://github.com/kommodity-io/kommodity
+cd kommodity
+
+# Boot PostgreSQL + Caddy, run code generation
+make setup
+
+# Run Kommodity
+make run
+```
+
+Then point `kubectl` at it:
+
+```bash
+kubectl --kubeconfig kommodity.yaml api-resources
+kubectl --kubeconfig kommodity.yaml create -f examples/namespace.yaml
+```
+
+---
+
 ## Architecture
 
 ![Kommodity Architecture](images/kommodity-architecture.excalidraw.png)
@@ -241,37 +274,6 @@ per-addon examples.
 
 ---
 
-## Quick Start
-
-### Prerequisites
-
-A recent version of Go (we recommend [gvm][gvm]):
-
-```bash
-gvm install go1.26.7 -B
-gvm use go1.26.7 --default
-```
-
-### Run It Locally
-
-```bash
-git clone https://github.com/kommodity-io/kommodity
-cd kommodity
-
-# Boot PostgreSQL + Caddy, run code generation
-make setup
-
-# Run Kommodity
-make run
-```
-
-Then point `kubectl` at it:
-
-```bash
-kubectl --kubeconfig kommodity.yaml api-resources
-kubectl --kubeconfig kommodity.yaml create -f examples/namespace.yaml
-```
-
 ### OIDC authentication
 
 Kommodity supports OIDC login. Use the `kubectl` `oidc-login` plugin :
@@ -311,6 +313,8 @@ contexts:
       namespace: default
 current-context: kommodity-context
 ```
+
+## Development
 
 ### Useful Make Targets
 
@@ -447,7 +451,7 @@ compatible with Cluster API `v1.10.x`.
 | cluster-api-control-plane-provider-talos | v0.5.13        | Control Plane  |
 | cluster-api-bootstrap-provider-talos     | v0.6.12        | Bootstrap      |
 | cluster-api-provider-azure               | v1.21.0        | Infrastructure |
-| cluster-api-provider-bringyourowntalos   | v0.3.2         | Infrastructure |
+| cluster-api-provider-bringyourowntalos   | v0.8.0         | Infrastructure |
 | cluster-api-provider-hetzner             | v1.1.0-alpha.4 | Infrastructure |
 | cluster-api-provider-kubevirt            | v0.1.10        | Infrastructure |
 | cluster-api-provider-scaleway            | v0.1.6         | Infrastructure |
@@ -466,6 +470,7 @@ compatible with Cluster API `v1.10.x`.
 - [Kine — etcd shim for SQL databases](https://github.com/k3s-io/kine)
 - [Attestation Extension](https://github.com/kommodity-io/kommodity-attestation-extension)
 - [Auto-Bootstrap Extension](https://github.com/kommodity-io/kommodity-autobootstrap-extension)
+- [Talos Cluster Proxy](https://github.com/kommodity-io/talos-cluster-proxy)
 
 ---
 
