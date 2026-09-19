@@ -71,6 +71,39 @@ A single `kommodity` binary that combines:
 
 ---
 
+## Quick Start
+
+### Prerequisites
+
+A recent version of Go (we recommend [gvm][gvm]):
+
+```bash
+gvm install go1.26.7 -B
+gvm use go1.26.7 --default
+```
+
+### Run It Locally
+
+```bash
+git clone https://github.com/kommodity-io/kommodity
+cd kommodity
+
+# Boot PostgreSQL + Caddy, run code generation
+make setup
+
+# Run Kommodity
+make run
+```
+
+Then point `kubectl` at it:
+
+```bash
+kubectl --kubeconfig kommodity.yaml api-resources
+kubectl --kubeconfig kommodity.yaml create -f examples/namespace.yaml
+```
+
+---
+
 ## Architecture
 
 ![Kommodity Architecture](images/kommodity-architecture.excalidraw.png)
@@ -241,48 +274,15 @@ per-addon examples.
 
 ---
 
-## Quick Start
+### OIDC authentication
 
-### Prerequisites
-
-- A recent Go (we recommend [gvm][gvm]):
-
-  ```bash
-  gvm install go1.26.1 -B
-  gvm use go1.26.1 --default
-  ```
-
-- [Caddy](https://caddyserver.com/docs/install) for local TLS termination (bootstrapped by `make setup`).
-- The `kubectl` `oidc-login` plugin if you want OIDC locally:
-
-  ```bash
-  kubectl krew install oidc-login
-  ```
-
-### Run It Locally
+Kommodity supports OIDC login. Use the `kubectl` `oidc-login` plugin :
 
 ```bash
-git clone https://github.com/kommodity-io/kommodity
-cd kommodity
-
-# Boot PostgreSQL + Caddy, run code generation
-make setup
-
-# Build the UI (must run before `make run`)
-make build-ui
-
-# Run Kommodity
-make run
+kubectl krew install oidc-login
 ```
 
-Then point `kubectl` at it:
-
-```bash
-kubectl --kubeconfig kommodity.yaml api-resources
-kubectl --kubeconfig kommodity.yaml create -f examples/namespace.yaml
-```
-
-A minimal kubeconfig for OIDC-authenticated local use:
+For local development and testing, this minimal kubeconfig can be used:
 
 ```yaml
 apiVersion: v1
@@ -314,11 +314,12 @@ contexts:
 current-context: kommodity-context
 ```
 
+## Development
+
 ### Useful Make Targets
 
 ```bash
 make build                            # binary in bin/
-make build-ui                         # UI assets (htmx/templates)
 make run                              # run locally against the docker-compose stack
 make teardown                         # tear down the docker-compose stack
 make run-kubevirt-integration-test    # deploy a workload cluster on local KubeVirt
@@ -450,7 +451,7 @@ compatible with Cluster API `v1.10.x`.
 | cluster-api-control-plane-provider-talos | v0.5.13        | Control Plane  |
 | cluster-api-bootstrap-provider-talos     | v0.6.12        | Bootstrap      |
 | cluster-api-provider-azure               | v1.21.0        | Infrastructure |
-| cluster-api-provider-bringyourowntalos   | v0.3.2         | Infrastructure |
+| cluster-api-provider-bringyourowntalos   | v0.8.0         | Infrastructure |
 | cluster-api-provider-hetzner             | v1.1.0-alpha.4 | Infrastructure |
 | cluster-api-provider-kubevirt            | v0.1.10        | Infrastructure |
 | cluster-api-provider-scaleway            | v0.1.6         | Infrastructure |
@@ -469,6 +470,7 @@ compatible with Cluster API `v1.10.x`.
 - [Kine — etcd shim for SQL databases](https://github.com/k3s-io/kine)
 - [Attestation Extension](https://github.com/kommodity-io/kommodity-attestation-extension)
 - [Auto-Bootstrap Extension](https://github.com/kommodity-io/kommodity-autobootstrap-extension)
+- [Talos Cluster Proxy](https://github.com/kommodity-io/talos-cluster-proxy)
 
 ---
 
@@ -477,4 +479,3 @@ compatible with Cluster API `v1.10.x`.
 Kommodity is licensed under the [Apache License 2.0](LICENSE).
 
 [gvm]: https://github.com/moovweb/gvm
-[semver]: https://semver.org
