@@ -245,19 +245,12 @@ per-addon examples.
 
 ### Prerequisites
 
-- A recent Go (we recommend [gvm][gvm]):
+A recent version of Go (we recommend [gvm][gvm]):
 
-  ```bash
-  gvm install go1.26.1 -B
-  gvm use go1.26.1 --default
-  ```
-
-- [Caddy](https://caddyserver.com/docs/install) for local TLS termination (bootstrapped by `make setup`).
-- The `kubectl` `oidc-login` plugin if you want OIDC locally:
-
-  ```bash
-  kubectl krew install oidc-login
-  ```
+```bash
+gvm install go1.26.7 -B
+gvm use go1.26.7 --default
+```
 
 ### Run It Locally
 
@@ -267,9 +260,6 @@ cd kommodity
 
 # Boot PostgreSQL + Caddy, run code generation
 make setup
-
-# Build the UI (must run before `make run`)
-make build-ui
 
 # Run Kommodity
 make run
@@ -282,7 +272,15 @@ kubectl --kubeconfig kommodity.yaml api-resources
 kubectl --kubeconfig kommodity.yaml create -f examples/namespace.yaml
 ```
 
-A minimal kubeconfig for OIDC-authenticated local use:
+### OIDC authentication
+
+Kommodity supports OIDC login. Use the `kubectl` `oidc-login` plugin :
+
+```bash
+kubectl krew install oidc-login
+```
+
+For local development and testing, this minimal kubeconfig can be used:
 
 ```yaml
 apiVersion: v1
@@ -318,7 +316,6 @@ current-context: kommodity-context
 
 ```bash
 make build                            # binary in bin/
-make build-ui                         # UI assets (htmx/templates)
 make run                              # run locally against the docker-compose stack
 make teardown                         # tear down the docker-compose stack
 make run-kubevirt-integration-test    # deploy a workload cluster on local KubeVirt
@@ -477,4 +474,3 @@ compatible with Cluster API `v1.10.x`.
 Kommodity is licensed under the [Apache License 2.0](LICENSE).
 
 [gvm]: https://github.com/moovweb/gvm
-[semver]: https://semver.org

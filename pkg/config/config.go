@@ -54,7 +54,7 @@ const (
 	defaultOIDCUsernameClaim                  = "email"
 	defaultOIDCGroupsClaim                    = "groups"
 	defaultDevelopmentMode                    = false
-	defaultKineURI                            = "unix://bin/kine.sock"
+	defaultKineURI                            = "unix:///tmp/kine.sock"
 	defaultAttestationNonceTTL                = 5 * time.Minute
 	defaultTalosProxyEnabled                  = true
 	defaultTalosProxyPort                     = 15050
