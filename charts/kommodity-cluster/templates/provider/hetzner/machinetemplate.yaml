@@ -3,7 +3,7 @@
 apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
 kind: HCloudMachineTemplate
 metadata:
-  name: {{ .Release.Name }}-controlplane-{{ include "kommodity-cluster.machineSpecsHash" (dict "poolValues" .Values.kommodity.controlplane "allValues" .Values) }}
+  name: {{ .Release.Name }}-controlplane-{{ include "kommodity-cluster.machineSpecsHash" (dict "poolValues" .Values.kommodity.controlplane "allValues" .Values "root" $ "isControlPlane" true) }}
   namespace: {{ .Release.Namespace }}
   labels:
     app.kubernetes.io/managed-by: kommodity
