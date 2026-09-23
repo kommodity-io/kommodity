@@ -51,10 +51,6 @@ kommodity:
   extraSecrets: {}
   # Extra secrets to be applied to the downstream cluster (type default to Opaque).
   # Delivery method per secret: CRS (default) or InlineManifest.
-  # CRS delivers via ClusterResourceSet after the API server is up.
-  # InlineManifest bakes the secret into the Talos control plane machine config,
-  # applied at bootstrap before the API server is reachable.
-  # The choice is per-secret — both methods can be mixed within one deployment.
   # Example:
   #   extraSecrets:
   #     my-namespace:
@@ -67,6 +63,7 @@ kommodity:
   #           my-label: my-label-value
   #     my-other-namespace:
   #       my-data-secret:
+  #         delivery: CRS
   #         data:
   #           username: admin
   #           password: secret
