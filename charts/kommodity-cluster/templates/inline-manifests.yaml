@@ -40,12 +40,12 @@ Usage: {{ include "kommodity.extraSecrets.inlineManifestItems" (dict "extraSecre
 {{- range $namespace := $namespaces -}}
 {{- $secrets := index $extraSecrets $namespace -}}
 {{- range $secretName, $secret := $secrets -}}
-{{- if eq (default "CRS" $secret.delivery) "InlineManifest" -}}
+{{- if eq (default "CRS" $secret.delivery) "InlineManifest" }}
 {{- $manifest := include "kommodity.extraSecrets.manifest" (dict "secret" $secret "secretName" $secretName "namespace" $namespace "release" $root.Release.Name) | trim -}}
 - name: {{ $namespace }}-{{ $secretName }}
   contents: |-
-{{ $manifest | indent 4 }}
-{{- end -}}
+{{ $manifest | indent 4 }}{{ "\n" }}
+{{- end }}
 {{- end -}}
 {{- end -}}
 {{- end -}}
