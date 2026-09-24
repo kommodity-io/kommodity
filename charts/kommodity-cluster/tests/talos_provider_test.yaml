@@ -265,7 +265,7 @@ tests:
           path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
           pattern: "name: kommodity-autobootstrap"
 
-  - it: should include autoBootstrap extension unconditionally
+  - it: should include autoBootstrap extension when enabled by default
     template: templates/talos/controlplane.yaml
     asserts:
       - hasDocuments:
@@ -273,6 +273,17 @@ tests:
       - exists:
           path: spec.controlPlaneConfig.controlplane.strategicPatches
       - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "name: kommodity-autobootstrap"
+
+  - it: should not include autoBootstrap extension when disabled
+    template: templates/talos/controlplane.yaml
+    set:
+      talos.autoBootstrap.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 1
+      - notMatchRegex:
           path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
           pattern: "name: kommodity-autobootstrap"
 

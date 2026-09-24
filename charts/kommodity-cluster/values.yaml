@@ -431,6 +431,10 @@ talos:
   version: v1.13.0
   imageName: my-talos-image
   autoBootstrap:
+    # When true, the kommodity-autobootstrap ExtensionServiceConfig is rendered
+    # into the control-plane machine config. Disable for providers or setups
+    # that handle bootstrap themselves.
+    enabled: true
     # Network Discovery frequency
     scanInterval: 30s
     # Quorum nodes required before bootstrapping. When null (default),
