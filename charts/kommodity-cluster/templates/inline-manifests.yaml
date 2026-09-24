@@ -35,7 +35,7 @@ Usage: {{ include "kommodity.extraSecrets.inlineManifestItems" (dict "extraSecre
 */}}
 {{- define "kommodity.extraSecrets.inlineManifestItems" -}}
 {{- $root := .root -}}
-{{- $extraSecrets := .extraSecrets -}}
+{{- $extraSecrets := .extraSecrets | default dict -}}
 {{- $namespaces := keys $extraSecrets | sortAlpha -}}
 {{- range $namespace := $namespaces -}}
 {{- $secrets := index $extraSecrets $namespace -}}
