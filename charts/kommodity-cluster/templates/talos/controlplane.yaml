@@ -121,8 +121,10 @@ spec:
       {{- /* UserVolumeConfig for cloud-provisioned data disks (Azure dataDisks, etc.) */ -}}
 {{ $additionalVolumesPatch | nindent 6 }}
       {{- end }}
+      {{- if $.Values.talos.autoBootstrap.enabled }}
       {{- /* ExtensionServiceConfig for kommodity-autobootstrap extension */ -}}
 {{- include "kommodity.talos.autoBootstrapExtensionServiceConfig" (dict "autoBootstrap" $.Values.talos.autoBootstrap "logLevel" $.Values.kommodity.logLevel "replicas" (default 1 $.Values.kommodity.controlplane.replicas) "network" $.Values.kommodity.network) | nindent 6 }}
+      {{- end }}
       {{- if $.Values.kommodity.security.enabled }}
       {{- /* ExtensionServiceConfig for kommodity-attestation extension */ -}}
 {{- include "kommodity.talos.attestationExtensionServiceConfig" (dict "logLevel" $.Values.kommodity.logLevel) | nindent 6 }}
