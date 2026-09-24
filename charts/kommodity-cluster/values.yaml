@@ -50,10 +50,12 @@ kommodity:
 
   extraSecrets: {}
   # Extra secrets to be applied to the downstream cluster (type default to Opaque).
+  # Delivery method per secret: CRS (default) or InlineManifest.
   # Example:
   #   extraSecrets:
   #     my-namespace:
   #       my-string-data-secret:
+  #         delivery: InlineManifest
   #         type: Opaque
   #         stringData:
   #           my-other-key: my-other-value
@@ -61,6 +63,7 @@ kommodity:
   #           my-label: my-label-value
   #     my-other-namespace:
   #       my-data-secret:
+  #         delivery: CRS
   #         data:
   #           username: admin
   #           password: secret

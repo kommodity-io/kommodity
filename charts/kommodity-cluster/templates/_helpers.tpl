@@ -253,6 +253,12 @@ Any values that should trigger a new Machine template when changed should be add
 {{- $_ := set $data "byotHostSelector" (dig "hostSelector" "" .poolValues) -}}
 {{- $_ := set $data "desiredTalosVersion" (include "kommodity-cluster.byotDesiredTalosVersion" (dict "poolValues" .poolValues "allValues" .allValues)) -}}
 {{- end -}}
+{{- if and (hasKey . "isControlPlane") .isControlPlane -}}
+{{- $inlineManifests := include "kommodity.inlineManifests" (dict "addons" .root.Values.kommodity.addons "extraSecrets" .root.Values.kommodity.extraSecrets "root" .root) | trim -}}
+{{- if not (empty $inlineManifests) -}}
+{{- $_ := set $data "inlineManifests" $inlineManifests -}}
+{{- end -}}
+{{- end -}}
 {{- $_ := set $data "publicNetworkEnabled" .allValues.kommodity.network.ipv4.public -}}
 {{- $zones := include "kommodity-cluster.poolZones" .poolValues | fromJsonArray -}}
 {{- if gt (len $zones) 0 -}}

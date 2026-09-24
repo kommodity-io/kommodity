@@ -1,0 +1,51 @@
+{{/*
+Generate a single strategic patch containing cluster.inlineManifests
+from both addons and extra secrets with delivery: InlineManifest.
+
+Wraps the combined output of kommodity.addon.inlineManifestItems and
+kommodity.extraSecrets.inlineManifestItems in a single strategic patch
+list item (- |\n  cluster:\n    inlineManifests:). This replaces the
+direct kommodity.addon.inlineManifests call in the control plane template.
+
+Single cluster.inlineManifests list eliminates list-merge ambiguity.
+
+Usage: {{ include "kommodity.inlineManifests" (dict "addons" $.Values.kommodity.addons "extraSecrets" $.Values.kommodity.extraSecrets "root" $) }}
+*/}}
+{{- define "kommodity.inlineManifests" -}}
+{{- $addonItems := include "kommodity.addon.inlineManifestItems" (dict "addons" .addons "root" .root) | trim -}}
+{{- $secretItems := include "kommodity.extraSecrets.inlineManifestItems" (dict "extraSecrets" .extraSecrets "root" .root) | trim -}}
+{{- if or $addonItems $secretItems -}}
+- |
+  cluster:
+    inlineManifests:
+{{- if $addonItems }}
+{{ $addonItems | indent 4 }}
+{{- end }}
+{{- if $secretItems }}
+{{ $secretItems | indent 4 }}
+{{- end }}
+{{- end -}}
+{{- end -}}
+{{/*
+Generate inline manifest items for extra secrets with delivery: InlineManifest.
+Emits list items (name + contents) only — no outer cluster.inlineManifests
+wrapper. Called by the wrapper helper kommodity.inlineManifests.
+
+Usage: {{ include "kommodity.extraSecrets.inlineManifestItems" (dict "extraSecrets" $.Values.kommodity.extraSecrets "root" $) }}
+*/}}
+{{- define "kommodity.extraSecrets.inlineManifestItems" -}}
+{{- $root := .root -}}
+{{- $extraSecrets := .extraSecrets | default dict -}}
+{{- $namespaces := keys $extraSecrets | sortAlpha -}}
+{{- range $namespace := $namespaces -}}
+{{- $secrets := index $extraSecrets $namespace -}}
+{{- range $secretName, $secret := $secrets -}}
+{{- if eq (default "CRS" $secret.delivery) "InlineManifest" }}
+{{- $manifest := include "kommodity.extraSecrets.manifest" (dict "secret" $secret "secretName" $secretName "namespace" $namespace "release" $root.Release.Name) | trim -}}
+- name: {{ $namespace }}-{{ $secretName }}
+  contents: |-
+{{ $manifest | indent 4 }}{{ "\n" }}
+{{- end }}
+{{- end -}}
+{{- end -}}
+{{- end -}}
