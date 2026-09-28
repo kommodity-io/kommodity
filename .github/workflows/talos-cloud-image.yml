@@ -32,12 +32,12 @@ on:
       attestation_extension_version:
         description: "Version of kommodity-attestation-extension"
         required: true
-        default: "v1.1.1"
+        default: "v1.1.2"
         type: string
       autobootstrap_extension_version:
         description: "Version of kommodity-autobootstrap-extension"
         required: true
-        default: "v1.6.0"
+        default: "v1.6.3"
         type: string
       qemu_ga_version:
         description: "Version of qemu-guest-agent extension (required for openstack image only)"
