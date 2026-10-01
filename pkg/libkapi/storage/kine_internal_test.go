@@ -43,3 +43,33 @@ func TestStartKineRecoversFromListenPanic(t *testing.T) {
 	assert.Nil(t, endpoints)
 	assert.Nil(t, cleanup)
 }
+
+// TestStartKinePassesTunedGRPCServer asserts that startKine hands
+// endpoint.Listen a pre-built Config.GRPCServer rather than leaving it unset
+// - see the kineGRPCKeepalive* constants for why a tuned server is required
+// to avoid GOAWAY(ENHANCE_YOUR_CALM, "too_many_pings") on Kine's default
+// keepalive enforcement policy.
+//
+//nolint:paralleltest // mutates the package-level endpointListen seam, see
+// TestStartKineRecoversFromListenPanic above.
+func TestStartKinePassesTunedGRPCServer(t *testing.T) {
+	original := endpointListen
+
+	t.Cleanup(func() { endpointListen = original })
+
+	var gotConfig endpoint.Config
+
+	endpointListen = func(_ context.Context, config endpoint.Config) (endpoint.ETCDConfig, error) {
+		gotConfig = config
+
+		return endpoint.ETCDConfig{Endpoints: []string{"unix://test.sock"}}, nil
+	}
+
+	var kineWaitGroup sync.WaitGroup
+
+	_, cleanup, err := startKine(context.Background(), "postgres://example", &kineWaitGroup)
+	t.Cleanup(cleanup)
+
+	require.NoError(t, err)
+	require.NotNil(t, gotConfig.GRPCServer)
+}
