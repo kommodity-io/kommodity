@@ -37,7 +37,7 @@ on:
       autobootstrap_extension_version:
         description: "Version of kommodity-autobootstrap-extension"
         required: true
-        default: "v1.6.3"
+        default: "v1.6.4"
         type: string
       qemu_ga_version:
         description: "Version of qemu-guest-agent extension (required for openstack image only)"

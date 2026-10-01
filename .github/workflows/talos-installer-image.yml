@@ -35,7 +35,7 @@ on:
       autobootstrap_extension_version:
         description: "Version of kommodity-autobootstrap-extension"
         required: true
-        default: "v1.6.0"
+        default: "v1.6.4"
         type: string
       extra_kernel_args:
         description: "Extra kernel args passed to imager (space-separated, e.g. 'console=ttyS0 net.ifnames=0')"
