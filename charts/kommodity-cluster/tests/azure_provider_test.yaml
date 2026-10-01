@@ -491,6 +491,47 @@ tests:
           value: my-rg
         documentIndex: 0
 
+  # Regression: a computeGallery version bump must mint a DIFFERENT template
+  # hash per document (infra templates are immutable per CAPZ), for both the
+  # control-plane and worker documents.
+  - it: should mint different AzureMachineTemplate names per computeGallery version
+    template: templates/provider/azure/machinetemplate.yaml
+    set:
+      talos.id: null
+      talos.computeGallery:
+        gallery: myGallery
+        name: talos-image
+        version: 1.13.0
+        subscriptionID: my-subscription
+        resourceGroup: my-rg
+    asserts:
+      - matchRegex:
+          path: metadata.name
+          pattern: ^test-cluster-controlplane-[a-f0-9]{6}$
+        documentIndex: 0
+      - matchRegex:
+          path: metadata.name
+          pattern: ^test-cluster-worker-default-[a-f0-9]{6}$
+        documentIndex: 1
+  - it: should change the AzureMachineTemplate name when the gallery version changes
+    template: templates/provider/azure/machinetemplate.yaml
+    set:
+      talos.id: null
+      talos.computeGallery:
+        gallery: myGallery
+        name: talos-image
+        version: 1.13.2
+        subscriptionID: my-subscription
+        resourceGroup: my-rg
+    asserts:
+      - matchRegex:
+          path: metadata.name
+          pattern: ^test-cluster-controlplane-[a-f0-9]{6}$
+        documentIndex: 0
+      - matchRegex:
+          path: metadata.name
+          pattern: ^test-cluster-worker-default-[a-f0-9]{6}$
+        documentIndex: 1
   - it: should set disableExtensionOperations to true by default
     template: templates/provider/azure/machinetemplate.yaml
     asserts:
