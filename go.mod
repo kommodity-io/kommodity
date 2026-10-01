@@ -26,7 +26,7 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/k3s-io/kine v1.14.2
 	github.com/kommodity-io/cluster-api-provider-bringyourowntalos v0.8.1
-	github.com/scaleway/cluster-api-provider-scaleway v0.1.6
+	github.com/scaleway/cluster-api-provider-scaleway v0.1.7
 	github.com/siderolabs/cluster-api-bootstrap-provider-talos v0.6.12
 	github.com/siderolabs/cluster-api-control-plane-provider-talos v0.5.13
 	github.com/siderolabs/kms-client v0.1.0
