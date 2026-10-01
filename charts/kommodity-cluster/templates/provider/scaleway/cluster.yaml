@@ -36,5 +36,6 @@ spec:
         {{- if dig "publicGateway" "ip" "" .Values.kommodity.network }}
         ip: {{ .Values.kommodity.network.publicGateway.ip }}
         {{- end }}
+        enableSMTP: {{ dig "publicGateway" "enableSMTP" false .Values.kommodity.network }}
   {{- end }}
 {{- end }}

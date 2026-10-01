@@ -48,6 +48,8 @@ kommodity:
     #   zone: fr-par-1
     #   # Optional: Pre-existing IP to use for the gateway
     #   ip: ""
+    #   # Optional: Allow SMTP traffic through the gateway (ports 25/465/587)
+    #   enableSMTP: false
 
   region: fr-par
 

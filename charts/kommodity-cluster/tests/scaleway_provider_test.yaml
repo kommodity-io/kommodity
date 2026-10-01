@@ -102,6 +102,9 @@ tests:
           path: spec.network.publicGateways[0].zone
       - notExists:
           path: spec.network.publicGateways[0].ip
+      - equal:
+          path: spec.network.publicGateways[0].enableSMTP
+          value: false
 
   - it: should use custom public gateway settings when configured
     template: templates/provider/scaleway/cluster.yaml
@@ -121,6 +124,20 @@ tests:
       - equal:
           path: spec.network.publicGateways[0].ip
           value: "1.2.3.4"
+      - equal:
+          path: spec.network.publicGateways[0].enableSMTP
+          value: false
+
+  - it: should set enableSMTP to true when configured
+    template: templates/provider/scaleway/cluster.yaml
+    set:
+      kommodity.network.ipv4.public: false
+      kommodity.network.ipv4.nodeCIDR: "10.200.0.0/20"
+      kommodity.network.publicGateway.enableSMTP: true
+    asserts:
+      - equal:
+          path: spec.network.publicGateways[0].enableSMTP
+          value: true
 
   - it: should fail when ipv4.public is false and nodeCIDR is not set
     template: templates/provider/scaleway/cluster.yaml

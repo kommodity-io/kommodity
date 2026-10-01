@@ -454,7 +454,7 @@ compatible with Cluster API `v1.10.x`.
 | cluster-api-provider-bringyourowntalos   | v0.8.1         | Infrastructure |
 | cluster-api-provider-hetzner             | v1.1.0-alpha.4 | Infrastructure |
 | cluster-api-provider-kubevirt            | v0.1.10        | Infrastructure |
-| cluster-api-provider-scaleway            | v0.1.6         | Infrastructure |
+| cluster-api-provider-scaleway            | v0.1.7         | Infrastructure |
 
 ### Limitations
 

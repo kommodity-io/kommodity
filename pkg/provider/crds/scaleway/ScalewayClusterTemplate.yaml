@@ -258,6 +258,13 @@ spec:
                               items:
                                 description: PublicGatewaySpec defines Public Gateway settings for the cluster.
                                 properties:
+                                  enableSMTP:
+                                    description: |-
+                                      EnableSMTP defines whether SMTP traffic is allowed to pass through the
+                                      Public Gateway. Required to send email via the gateway (ports 25/465/587).
+                                      On create, defaults to false when unset. On update, unset leaves the
+                                      gateway's existing SMTP setting unchanged.
+                                    type: boolean
                                   ip:
                                     description: IP to use when creating a Public Gateway.
                                     format: ipv4
