@@ -505,13 +505,13 @@ tests:
         subscriptionID: my-subscription
         resourceGroup: my-rg
     asserts:
-      - matchRegex:
+      - equal:
           path: metadata.name
-          pattern: ^test-cluster-controlplane-[a-f0-9]{6}$
+          value: test-cluster-controlplane-71e99d
         documentIndex: 0
-      - matchRegex:
+      - equal:
           path: metadata.name
-          pattern: ^test-cluster-worker-default-[a-f0-9]{6}$
+          value: test-cluster-worker-default-71e99d
         documentIndex: 1
   - it: should change the AzureMachineTemplate name when the gallery version changes
     template: templates/provider/azure/machinetemplate.yaml
@@ -524,13 +524,13 @@ tests:
         subscriptionID: my-subscription
         resourceGroup: my-rg
     asserts:
-      - matchRegex:
+      - equal:
           path: metadata.name
-          pattern: ^test-cluster-controlplane-[a-f0-9]{6}$
+          value: test-cluster-controlplane-81769c
         documentIndex: 0
-      - matchRegex:
+      - equal:
           path: metadata.name
-          pattern: ^test-cluster-worker-default-[a-f0-9]{6}$
+          value: test-cluster-worker-default-81769c
         documentIndex: 1
   - it: should set disableExtensionOperations to true by default
     template: templates/provider/azure/machinetemplate.yaml
