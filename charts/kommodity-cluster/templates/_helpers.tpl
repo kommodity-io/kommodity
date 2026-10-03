@@ -253,6 +253,11 @@ Any values that should trigger a new Machine template when changed should be add
 {{- $_ := set $data "byotHostSelector" (dig "hostSelector" "" .poolValues) -}}
 {{- $_ := set $data "desiredTalosVersion" (include "kommodity-cluster.byotDesiredTalosVersion" (dict "poolValues" .poolValues "allValues" .allValues)) -}}
 {{- end -}}
+{{- /* Azure: the effective image identity must mint a new template name (infrastructure templates are immutable per CAPZ). Hash the identity sources, mirroring kommodity.azure.image's precedence (marketplace > computeGallery > id > imageName; imageName is hashed as talosImageName above, and the derived resource-ID reshaping via provider.config.talosImageResourceGroup is included so the rendered id rolls). Hashing the identity instead of the rendered block avoids duplicating the required-error paths in the hash evaluation. */ -}}
+{{- if eq .allValues.kommodity.provider.name "Azure" -}}
+{{- $talos := .allValues.talos -}}
+{{- $_ := set $data "azureImageIdentity" (list (dig "marketplace" "version" "" $talos) (dig "computeGallery" "version" "" $talos) (dig "id" "" $talos) (dig "config" "talosImageResourceGroup" "" .allValues.kommodity.provider)) -}}
+{{- end -}}
 {{- if and (hasKey . "isControlPlane") .isControlPlane -}}
 {{- $inlineManifests := include "kommodity.inlineManifests" (dict "addons" .root.Values.kommodity.addons "extraSecrets" .root.Values.kommodity.extraSecrets "root" .root) | trim -}}
 {{- if not (empty $inlineManifests) -}}
