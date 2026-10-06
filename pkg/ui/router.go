@@ -155,7 +155,7 @@ func (r *Router) handleApp(writer http.ResponseWriter, req *http.Request) {
 		"Clusters": clusters,
 		"Version":  getKommodityVersion(),
 		"KubeconfigSection": KubeconfigSection{
-			ID:            "kommodity",
+			ID:            r.cfg.InstanceName,
 			ContentBase64: base64.StdEncoding.EncodeToString([]byte(kubeconfigContent)),
 		},
 	}
