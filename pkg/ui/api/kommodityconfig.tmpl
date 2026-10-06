@@ -4,6 +4,9 @@ clusters:
   - name: {{ $.InstanceName }}
     cluster:
       server: {{ $.BaseURL }}
+      {{- if $.InsecureSkipTLSVerify }}
+      insecure-skip-tls-verify: true
+      {{- end }}
 contexts:
   - name: {{ $.InstanceName }}
     context:
