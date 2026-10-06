@@ -25,6 +25,7 @@ current-context: {{ .CurrentContext | replace "admin" "oidc" }}
 preferences: {}
 users:
   {{- if $.OIDCConfig }}
+  {{- range $name, $ctx := .Contexts }}
   - name: {{ $ctx.Cluster }}-oidc
     user:
       exec:
@@ -38,5 +39,6 @@ users:
           {{- range $.OIDCConfig.ClientExtraFlags }}
           - {{ . | quote }}
           {{- end }}
-        interactiveMode: IfAvailable
+        interactiveMode: Always
+  {{- end }}
   {{- end }}

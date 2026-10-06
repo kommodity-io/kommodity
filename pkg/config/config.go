@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -166,7 +167,11 @@ type OIDCConfig struct {
 
 // LoadConfig loads the configuration settings from environment variables and returns a KommodityConfig instance.
 func LoadConfig(ctx context.Context) (*KommodityConfig, error) {
-	instanceName := getInstanceName(ctx)
+	instanceName, err := getInstanceName(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get instance name: %w", err)
+	}
+
 	baseURL := getBaseURL(ctx)
 	serverPort := getServerPort(ctx)
 	apply := getApplyAuth(ctx)
@@ -276,7 +281,7 @@ func getBaseURL(ctx context.Context) string {
 	return baseURL
 }
 
-func getInstanceName(ctx context.Context) string {
+func getInstanceName(ctx context.Context) (string, error) {
 	logger := logging.FromContext(ctx)
 
 	instanceName := os.Getenv(envInstanceName)
@@ -285,10 +290,26 @@ func getInstanceName(ctx context.Context) string {
 			zap.String("envVar", envInstanceName),
 			zap.String("default", defaultInstanceName))
 
-		return defaultInstanceName
+		return defaultInstanceName, nil
 	}
 
-	return instanceName
+	if !validInstanceName(instanceName) {
+		logger.Error("invalid instance name",
+			zap.String("envVar", envInstanceName),
+			zap.String("value", instanceName))
+
+		return "", ErrInvalidInstanceName
+	}
+
+	return instanceName, nil
+}
+
+// instanceNameRe matches valid DNS-1123 labels: lowercase alphanumeric or hyphens,
+// must start and end with alphanumeric, max 63 characters.
+var instanceNameRe = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`)
+
+func validInstanceName(name string) bool {
+	return len(name) <= 63 && instanceNameRe.MatchString(name)
 }
 
 func getServerPort(ctx context.Context) int {

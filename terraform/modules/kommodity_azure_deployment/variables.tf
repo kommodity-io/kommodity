@@ -133,6 +133,11 @@ variable "kommodity_container" {
   })
   description = "Kommodity container configuration"
   default     = {}
+
+  validation {
+    condition     = var.kommodity_container.instance_name == "" || (length(var.kommodity_container.instance_name) <= 63 && can(regex("^[a-z0-9]([-a-z0-9]*[a-z0-9])?$", var.kommodity_container.instance_name)))
+    error_message = "instance_name must be a valid DNS-1123 label: lowercase alphanumeric characters or hyphens, max 63 characters."
+  }
 }
 
 variable "oidc_configuration" {

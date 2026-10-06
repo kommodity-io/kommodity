@@ -138,10 +138,9 @@ func GetClusterKubeconfigContent(
 
 	// Render OIDC-enabled kubeconfig
 	oidcKubeconfig := &oidcKubeConfig{
-		BaseURL:      cfg.BaseURL,
-		InstanceName: cfg.InstanceName,
-		Config:       kubeConfig,
-		OIDCConfig:   *oidcConfig,
+		BaseURL:    cfg.BaseURL,
+		Config:     kubeConfig,
+		OIDCConfig: *oidcConfig,
 	}
 
 	return oidcKubeconfig.renderToString(clusterConfigFS, "clusterconfig.tmpl")
