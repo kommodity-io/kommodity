@@ -48,6 +48,7 @@ const (
 	envAzureDefaultCredentialSecret       = "KOMMODITY_AZURE_DEFAULT_CREDENTIAL_SECRET"
 	envAzureARMDeletionGracePeriod        = "KOMMODITY_AZURE_ARM_DELETION_GRACE_PERIOD"
 	envInstanceName                       = "KOMMODITY_INSTANCE_NAME"
+
 	defaultInstanceName                   = "kommodity"
 	defaultServerPort                         = 5000
 	defaultAPIServerPort                      = 8443
