@@ -45,11 +45,11 @@ const (
 	envTalosProxyIdleTimeout              = "KOMMODITY_TALOS_PROXY_IDLE_TIMEOUT"
 	envTalosProxyMaxRetries               = "KOMMODITY_TALOS_PROXY_MAX_RETRIES"
 	//nolint:gosec // G101: env var name, not a credential
-	envAzureDefaultCredentialSecret       = "KOMMODITY_AZURE_DEFAULT_CREDENTIAL_SECRET"
-	envAzureARMDeletionGracePeriod        = "KOMMODITY_AZURE_ARM_DELETION_GRACE_PERIOD"
-	envInstanceName                       = "KOMMODITY_INSTANCE_NAME"
+	envAzureDefaultCredentialSecret = "KOMMODITY_AZURE_DEFAULT_CREDENTIAL_SECRET"
+	envAzureARMDeletionGracePeriod  = "KOMMODITY_AZURE_ARM_DELETION_GRACE_PERIOD"
+	envInstanceName                 = "KOMMODITY_INSTANCE_NAME"
 
-	defaultInstanceName                   = "kommodity"
+	defaultInstanceName                       = "kommodity"
 	defaultServerPort                         = 5000
 	defaultAPIServerPort                      = 8443
 	defaultDisableAuth                        = false
@@ -157,11 +157,11 @@ type ClientConfig struct {
 // config (apiserver validation flags) plus the cluster's OIDC client Secret
 // (kubelogin exec-block flags).
 type OIDCConfig struct {
-	IssuerURL         string
-	ClientID          string
-	UsernameClaim     string
-	GroupsClaim       string
-	ClientExtraFlags  []string
+	IssuerURL        string
+	ClientID         string
+	UsernameClaim    string
+	GroupsClaim      string
+	ClientExtraFlags []string
 }
 
 // LoadConfig loads the configuration settings from environment variables and returns a KommodityConfig instance.

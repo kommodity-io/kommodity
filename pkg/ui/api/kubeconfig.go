@@ -8,9 +8,9 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"text/template"
 	"sort"
 	"strings"
+	"text/template"
 
 	"github.com/Masterminds/sprig/v3"
 	"github.com/kommodity-io/kommodity/pkg/config"
@@ -33,8 +33,8 @@ type oidcKubeConfig struct {
 	*api.Config
 	config.OIDCConfig
 
-	BaseURL              string
-	InstanceName         string
+	BaseURL               string
+	InstanceName          string
 	InsecureSkipTLSVerify bool
 }
 
@@ -63,12 +63,11 @@ func (o *oidcKubeConfig) renderToString(templateFS embed.FS, templateName string
 
 // GetKommodityKubeConfig returns the Kommodity kubeconfig as a string.
 func GetKommodityKubeConfig(cfg *config.KommodityConfig) (string, error) {
-
 	oidcCfg := &oidcKubeConfig{
 		BaseURL:               cfg.BaseURL,
 		InstanceName:          cfg.InstanceName,
 		InsecureSkipTLSVerify: cfg.DevelopmentMode,
-		Config:               nil,
+		Config:                nil,
 	}
 
 	if cfg.AuthConfig.OIDCConfig != nil {
@@ -139,10 +138,10 @@ func GetClusterKubeconfigContent(
 
 	// Render OIDC-enabled kubeconfig
 	oidcKubeconfig := &oidcKubeConfig{
-		BaseURL:     cfg.BaseURL,
+		BaseURL:      cfg.BaseURL,
 		InstanceName: cfg.InstanceName,
-		Config:     kubeConfig,
-		OIDCConfig: *oidcConfig,
+		Config:       kubeConfig,
+		OIDCConfig:   *oidcConfig,
 	}
 
 	return oidcKubeconfig.renderToString(clusterConfigFS, "clusterconfig.tmpl")
