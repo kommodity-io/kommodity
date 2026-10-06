@@ -19,13 +19,13 @@ contexts:
     context:
       cluster: {{ $ctx.Cluster }}
       namespace: {{ $ctx.Namespace }}
-      user: oidc
+      user: {{ $ctx.Cluster }}-oidc
 {{- end }}
 current-context: {{ .CurrentContext | replace "admin" "oidc" }}
 preferences: {}
 users:
   {{- if $.OIDCConfig }}
-  - name: oidc
+  - name: {{ $ctx.Cluster }}-oidc
     user:
       exec:
         apiVersion: client.authentication.k8s.io/v1

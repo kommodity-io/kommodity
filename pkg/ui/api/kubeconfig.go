@@ -35,7 +35,8 @@ type oidcKubeConfig struct {
 	*api.Config
 	config.OIDCConfig
 
-	BaseURL string
+	BaseURL     string
+	InstanceName string
 }
 
 func (o *oidcKubeConfig) renderToString(templateFS embed.FS, templateName string) (string, error) {
@@ -91,7 +92,8 @@ func GetKommodityKubeConfig(cfg *config.KommodityConfig) (string, error) {
 	var buf bytes.Buffer
 
 	oidcCfg := &oidcKubeConfig{
-		BaseURL:    cfg.BaseURL,
+		BaseURL:     cfg.BaseURL,
+		InstanceName: cfg.InstanceName,
 		Config:     nil,
 		OIDCConfig: *cfg.AuthConfig.OIDCConfig,
 	}
@@ -158,7 +160,8 @@ func GetClusterKubeconfigContent(
 
 	// Render OIDC-enabled kubeconfig
 	oidcKubeconfig := &oidcKubeConfig{
-		BaseURL:    cfg.BaseURL,
+		BaseURL:     cfg.BaseURL,
+		InstanceName: cfg.InstanceName,
 		Config:     kubeConfig,
 		OIDCConfig: *oidcConfig,
 	}

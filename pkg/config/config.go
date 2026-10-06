@@ -45,9 +45,10 @@ const (
 	envTalosProxyIdleTimeout              = "KOMMODITY_TALOS_PROXY_IDLE_TIMEOUT"
 	envTalosProxyMaxRetries               = "KOMMODITY_TALOS_PROXY_MAX_RETRIES"
 	//nolint:gosec // G101: env var name, not a credential
-	envAzureDefaultCredentialSecret = "KOMMODITY_AZURE_DEFAULT_CREDENTIAL_SECRET"
-	envAzureARMDeletionGracePeriod  = "KOMMODITY_AZURE_ARM_DELETION_GRACE_PERIOD"
-
+	envAzureDefaultCredentialSecret       = "KOMMODITY_AZURE_DEFAULT_CREDENTIAL_SECRET"
+	envAzureARMDeletionGracePeriod        = "KOMMODITY_AZURE_ARM_DELETION_GRACE_PERIOD"
+	envInstanceName                       = "KOMMODITY_INSTANCE_NAME"
+	defaultInstanceName                   = "kommodity"
 	defaultServerPort                         = 5000
 	defaultAPIServerPort                      = 8443
 	defaultDisableAuth                        = false
@@ -82,6 +83,7 @@ const (
 
 // KommodityConfig holds the configuration settings for the Kommodity API server.
 type KommodityConfig struct {
+	InstanceName            string
 	BaseURL                 string
 	ServerPort              int
 	APIServerPort           int
@@ -163,6 +165,7 @@ type OIDCConfig struct {
 
 // LoadConfig loads the configuration settings from environment variables and returns a KommodityConfig instance.
 func LoadConfig(ctx context.Context) (*KommodityConfig, error) {
+	instanceName := getInstanceName(ctx)
 	baseURL := getBaseURL(ctx)
 	serverPort := getServerPort(ctx)
 	apply := getApplyAuth(ctx)
@@ -186,6 +189,7 @@ func LoadConfig(ctx context.Context) (*KommodityConfig, error) {
 	azureConfig := getAzureConfig(ctx)
 
 	return &KommodityConfig{
+		InstanceName:        instanceName,
 		BaseURL:             baseURL,
 		ServerPort:          serverPort,
 		APIServerPort:       getAPIServerPort(ctx),
@@ -269,6 +273,21 @@ func getBaseURL(ctx context.Context) string {
 	}
 
 	return baseURL
+}
+
+func getInstanceName(ctx context.Context) string {
+	logger := logging.FromContext(ctx)
+
+	instanceName := os.Getenv(envInstanceName)
+	if instanceName == "" {
+		logger.Info(configurationNotSpecified,
+			zap.String("envVar", envInstanceName),
+			zap.String("default", defaultInstanceName))
+
+		return defaultInstanceName
+	}
+
+	return instanceName
 }
 
 func getServerPort(ctx context.Context) int {

@@ -1,24 +1,24 @@
 apiVersion: v1
 kind: Config
 clusters:
-  - name: kommodity
+  - name: {{ $.InstanceName }}
     cluster:
       server: {{ $.BaseURL }}
 contexts:
-  - name: kommodity
+  - name: {{ $.InstanceName }}
     context:
-      cluster: kommodity
+      cluster: {{ $.InstanceName }}
       {{- if $.OIDCConfig }}
-      user: oidc
+      user: oidc-{{ $.InstanceName }}
       {{- else }}
-      user: admin
+      user: admin-{{ $.InstanceName }}
       {{- end }}
       namespace: default
-current-context: kommodity
+current-context: {{ $.InstanceName }}
 preferences: {}
 users:
   {{- if $.OIDCConfig }}
-  - name: oidc
+  - name: oidc-{{ $.InstanceName }}
     user:
       exec:
         apiVersion: client.authentication.k8s.io/v1
@@ -33,7 +33,7 @@ users:
           {{- end }}
         interactiveMode: Always
   {{- else }}
-  - name: admin
+  - name: admin-{{ $.InstanceName }}
     user:
       username: admin
       password: admin

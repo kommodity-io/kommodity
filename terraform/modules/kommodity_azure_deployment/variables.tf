@@ -129,6 +129,7 @@ variable "kommodity_container" {
     garbage_collector_enabled       = optional(string, "true")
     azure_default_credential_secret = optional(string, "")
     audit_enabled                   = optional(string, "false")
+    instance_name                   = optional(string, "kommodity")
   })
   description = "Kommodity container configuration"
   default     = {}
