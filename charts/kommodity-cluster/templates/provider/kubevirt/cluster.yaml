@@ -1,4 +1,7 @@
 {{- if eq .Values.kommodity.provider.name "Kubevirt" }}
+{{- $provider := dig "Kubevirt" (dict) .Values.kommodity.provider }}
+{{- $config := dig "config" (dict) $provider }}
+{{- $secret := dig "secret" (dict) $provider }}
 apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
 kind: KubevirtCluster
 metadata:
@@ -8,20 +11,20 @@ metadata:
     app.kubernetes.io/managed-by: kommodity
 spec:
   infraClusterSecretRef:
-    name: {{ .Values.kommodity.provider.secret.name }}
+    name: {{ dig "name" "" $secret }}
     namespace: {{ .Release.Namespace }}
   controlPlaneServiceTemplate:
     metadata:
-      namespace: {{ .Values.kommodity.provider.config.infraClusterNamespace }}
-      {{- with (dig "provider" "config" "controlPlaneServiceTemplate" "annotations" dict .Values.kommodity) }}
+      namespace: {{ dig "infraClusterNamespace" "" $config }}
+      {{- with (dig "annotations" (dict) (dig "controlPlaneServiceTemplate" (dict) $config)) }}
       annotations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
     spec:
-      type: {{ dig "provider" "config" "controlPlaneServiceTemplate" "spec" "type" "LoadBalancer" .Values.kommodity }}
-  {{- if dig "provider" "config" "controlPlaneEndpoint" "" .Values.kommodity }}
+      type: {{ dig "controlPlaneServiceTemplate" "spec" "type" "LoadBalancer" $config }}
+  {{- if dig "controlPlaneEndpoint" "" $config }}
   controlPlaneEndpoint:
-    host: {{ .Values.kommodity.provider.config.controlPlaneEndpoint.host }}
-    port: {{ .Values.kommodity.provider.config.controlPlaneEndpoint.port }}
+    host: {{ dig "controlPlaneEndpoint" "host" "" $config }}
+    port: {{ dig "controlPlaneEndpoint" "port" 6443 $config }}
   {{- end }}
 {{- end }}

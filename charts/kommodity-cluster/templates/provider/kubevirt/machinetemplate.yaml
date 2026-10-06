@@ -1,6 +1,7 @@
 {{- if eq .Values.kommodity.provider.name "Kubevirt" }}
 {{- $ifType := dig "network" "cluster" "interfaceType" "bridge" .Values.kommodity }}
-{{- $defaultStorageClass := dig "provider" "config" "storageClassName" "" .Values.kommodity -}}
+{{- $config := dig "Kubevirt" "config" (dict) .Values.kommodity.provider }}
+{{- $defaultStorageClass := dig "storageClassName" "" $config -}}
 {{- $cpSku := dig "sku" "" .Values.kommodity.controlplane -}}
 {{- $cpResources := dig "resources" "" .Values.kommodity.controlplane -}}
 {{- if and $cpSku $cpResources -}}
@@ -31,12 +32,12 @@ spec:
         checkStrategy: none
       virtualMachineTemplate:
         metadata:
-          namespace: {{ .Values.kommodity.provider.config.infraClusterNamespace }}
+          namespace: {{ dig "infraClusterNamespace" "" $config }}
         spec:
           dataVolumeTemplates:
             - metadata:
                 name: boot-volume
-                namespace: {{ $.Values.kommodity.provider.config.infraClusterNamespace }}
+                namespace: {{ dig "infraClusterNamespace" "" $config }}
               spec:
                 pvc:
                   resources:
@@ -44,8 +45,8 @@ spec:
                       storage: {{ .Values.kommodity.controlplane.os.disk.size }}Gi
                   accessModes:
                     - ReadWriteOnce
-                  {{- if hasKey .Values.kommodity.provider.config "storageClassName" }}
-                  storageClassName: {{ .Values.kommodity.provider.config.storageClassName }}
+                  {{- if hasKey $config "storageClassName" }}
+                  storageClassName: {{ $config.storageClassName }}
                   {{- end }}
                   volumeMode: Filesystem
                 source:
@@ -92,7 +93,7 @@ spec:
                     - disk:
                         bus: virtio
                       name: dv-volume
-              evictionStrategy: {{ default "LiveMigrateIfPossible" $.Values.kommodity.provider.config.evictionStrategy | quote }}
+              evictionStrategy: {{ default "LiveMigrateIfPossible" (dig "evictionStrategy" "" $config) | quote }}
               volumes:
                 - dataVolume:
                     name: boot-volume
@@ -141,12 +142,12 @@ spec:
         checkStrategy: none
       virtualMachineTemplate:
         metadata:
-          namespace: {{ $.Values.kommodity.provider.config.infraClusterNamespace }}
+          namespace: {{ dig "infraClusterNamespace" "" $config }}
         spec:
           dataVolumeTemplates:
             - metadata:
                 name: boot-volume
-                namespace: {{ $.Values.kommodity.provider.config.infraClusterNamespace }}
+                namespace: {{ dig "infraClusterNamespace" "" $config }}
               spec:
                 pvc:
                   resources:
@@ -154,8 +155,8 @@ spec:
                       storage: {{ $np.os.disk.size }}Gi
                   accessModes:
                     - ReadWriteOnce
-                  {{- if hasKey $.Values.kommodity.provider.config "storageClassName" }}
-                  storageClassName: {{ $.Values.kommodity.provider.config.storageClassName }}
+                  {{- if hasKey $config "storageClassName" }}
+                  storageClassName: {{ $config.storageClassName }}
                   {{- end }}
                   volumeMode: Filesystem
                 source:
@@ -165,7 +166,7 @@ spec:
             {{- $volStorageClass := default $defaultStorageClass (dig "storageClassName" "" $vol) }}
             - metadata:
                 name: additional-volume-{{ $idx }}
-                namespace: {{ $.Values.kommodity.provider.config.infraClusterNamespace }}
+                namespace: {{ dig "infraClusterNamespace" "" $config }}
               spec:
                 pvc:
                   resources:
@@ -233,7 +234,7 @@ spec:
                         bus: virtio
                       name: additional-volume-{{ $idx }}
                     {{- end }}
-              evictionStrategy: {{ default "LiveMigrateIfPossible" $.Values.kommodity.provider.config.evictionStrategy | quote }}
+              evictionStrategy: {{ default "LiveMigrateIfPossible" (dig "evictionStrategy" "" $config) | quote }}
               volumes:
                 - dataVolume:
                     name: boot-volume

@@ -87,7 +87,7 @@ tests:
         documentIndex: 1
   - it: should produce the same template-name hash whether evictionStrategy is unset or explicitly LiveMigrateIfPossible
     set:
-      kommodity.provider.config.evictionStrategy: LiveMigrateIfPossible
+      kommodity.provider.Kubevirt.config.evictionStrategy: LiveMigrateIfPossible
     template: templates/provider/kubevirt/machinetemplate.yaml
     asserts:
       - equal:
@@ -100,7 +100,7 @@ tests:
         documentIndex: 1
   - it: should honor a custom evictionStrategy override on both controlplane and worker
     set:
-      kommodity.provider.config.evictionStrategy: None
+      kommodity.provider.Kubevirt.config.evictionStrategy: None
     template: templates/provider/kubevirt/machinetemplate.yaml
     asserts:
       - equal:
@@ -215,7 +215,7 @@ tests:
   - it: should render additionalVolumes on worker nodepool
     template: templates/provider/kubevirt/machinetemplate.yaml
     set:
-      kommodity.provider.config.storageClassName: ceph-block
+      kommodity.provider.Kubevirt.config.storageClassName: ceph-block
       kommodity.nodepools.default.additionalVolumes:
         - size: 50
         - size: 100
