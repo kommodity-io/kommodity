@@ -11,7 +11,7 @@ tests:
   - it: should create a ByotCluster with the control plane endpoint from values
     template: templates/provider/byot/cluster.yaml
     set:
-      kommodity.provider.config.controlPlaneEndpoint:
+      kommodity.provider.Byot.config.controlPlaneEndpoint:
         host: 203.0.113.10
     asserts:
       - isKind:

@@ -274,8 +274,8 @@ talos:
   # https://docs.siderolabs.com/talos/v1.13/platform-specific-installations/cloud-platforms/azure
   #
   # Recommended (Scaleway-aligned): provide just the managed image NAME. The chart
-  # builds the full ARM ID from kommodity.provider.config.subscriptionID and
-  # kommodity.provider.config.talosImageResourceGroup, so you only supply the last
+  # builds the full ARM ID from kommodity.provider.Azure.config.subscriptionID and
+  # kommodity.provider.Azure.config.talosImageResourceGroup, so you only supply the last
   # segment of the resource ID — the same `imageName` field Scaleway uses.
   imageName: kommodity-talos-azure-v1.13.0
   #

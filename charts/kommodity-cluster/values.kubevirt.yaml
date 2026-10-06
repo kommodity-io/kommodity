@@ -121,7 +121,7 @@ kommodity:
           size: 20
       additionalVolumes:
         - size: 10 # size in GB
-      #     storageClassName: fast-ssd # optional, defaults to provider.config.storageClassName if set
+      #     storageClassName: fast-ssd # optional, defaults to provider.Kubevirt.config.storageClassName if set
 
       # Optional: specify GPU resources
       # gpus:

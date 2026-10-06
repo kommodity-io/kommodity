@@ -253,10 +253,10 @@ Any values that should trigger a new Machine template when changed should be add
 {{- $_ := set $data "byotHostSelector" (dig "hostSelector" "" .poolValues) -}}
 {{- $_ := set $data "desiredTalosVersion" (include "kommodity-cluster.byotDesiredTalosVersion" (dict "poolValues" .poolValues "allValues" .allValues)) -}}
 {{- end -}}
-{{- /* Azure: the effective image identity must mint a new template name (infrastructure templates are immutable per CAPZ). Hash the identity sources, mirroring kommodity.azure.image's precedence (marketplace > computeGallery > id > imageName; imageName is hashed as talosImageName above, and the derived resource-ID reshaping via provider.config.talosImageResourceGroup is included so the rendered id rolls). Hashing the identity instead of the rendered block avoids duplicating the required-error paths in the hash evaluation. */ -}}
+{{- /* Azure: the effective image identity must mint a new template name (infrastructure templates are immutable per CAPZ). Hash the identity sources, mirroring kommodity.azure.image's precedence (marketplace > computeGallery > id > imageName; imageName is hashed as talosImageName above, and the derived resource-ID reshaping via provider.Azure.config.talosImageResourceGroup is included so the rendered id rolls). Hashing the identity instead of the rendered block avoids duplicating the required-error paths in the hash evaluation. */ -}}
 {{- if eq .allValues.kommodity.provider.name "Azure" -}}
 {{- $talos := .allValues.talos -}}
-{{- $_ := set $data "azureImageIdentity" (list (dig "marketplace" "version" "" $talos) (dig "computeGallery" "version" "" $talos) (dig "id" "" $talos) (dig "config" "talosImageResourceGroup" "" .allValues.kommodity.provider)) -}}
+{{- $_ := set $data "azureImageIdentity" (list (dig "marketplace" "version" "" $talos) (dig "computeGallery" "version" "" $talos) (dig "id" "" $talos) (dig "Azure" "config" "talosImageResourceGroup" "" .allValues.kommodity.provider)) -}}
 {{- end -}}
 {{- if and (hasKey . "isControlPlane") .isControlPlane -}}
 {{- $inlineManifests := include "kommodity.inlineManifests" (dict "addons" .root.Values.kommodity.addons "extraSecrets" .root.Values.kommodity.extraSecrets "root" .root) | trim -}}
@@ -352,7 +352,7 @@ rejects it at `helm install`/`template` time, before anything is provisioned.
 (The CCM Secret collision is guarded independently on the management plane: the
 credential materializer refuses to take over a Secret owned by another cluster —
 see ErrSecretOwnedByAnotherCluster — so this template intentionally does not
-constrain provider.secret.name, which has a legitimate custom-override use case.)
+constrain provider.Azure.secret.name, which has a legitimate custom-override use case.)
 
 Set kommodity.provider.Azure.config.allowSharedResourceGroup: true to intentionally
 place multiple clusters in one resource group (you are then responsible for
@@ -382,8 +382,8 @@ Precedence (first match wins):
   2. talos.computeGallery   — Shared Image Gallery
   3. talos.id               — explicit full ARM resource ID (escape hatch)
   4. talos.imageName        — managed image; ARM ID built from
-                              kommodity.provider.config.subscriptionID +
-                              kommodity.provider.config.talosImageResourceGroup
+                              kommodity.provider.Azure.config.subscriptionID +
+                              kommodity.provider.Azure.config.talosImageResourceGroup
 
 Usage (after an `image:` key): {{- include "kommodity.azure.image" . | nindent 8 }}
 */}}
