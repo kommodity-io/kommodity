@@ -34,7 +34,7 @@ users:
           {{- range $.OIDCConfig.ClientExtraFlags }}
           - {{ . | quote }}
           {{- end }}
-        interactiveMode: Always
+        interactiveMode: IfAvailable
   {{- else }}
   - name: admin-{{ $.InstanceName }}
     user:

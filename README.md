@@ -304,7 +304,7 @@ users:
           - --oidc-issuer-url=ISSUER_URL
           - --oidc-client-id=YOUR_CLIENT_ID
           - --oidc-extra-scope=email
-        interactiveMode: Always
+        interactiveMode: IfAvailable
 contexts:
   - name: kommodity
     context:
