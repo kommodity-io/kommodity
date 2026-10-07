@@ -11,23 +11,23 @@ metadata:
   annotations:
     helm.sh/resource-policy: keep # Prevent Helm from deleting the resource on uninstall, deletion will be handled by CAPI
 spec:
-  {{- if dig "config" "subscriptionID" "" .Values.kommodity.provider }}
-  subscriptionID: {{ .Values.kommodity.provider.config.subscriptionID }}
+  {{- if dig "azure" "config" "subscriptionID" "" .Values.kommodity.provider }}
+  subscriptionID: {{ (dig "azure" "config" "subscriptionID" "" .Values.kommodity.provider) }}
   {{- else }}
-  {{- fail "missing required subscriptionID in kommodity.provider.config for Azure" -}}
+  {{- fail "missing required subscriptionID in kommodity.provider.azure.config for Azure" -}}
   {{- end }}
-  {{- $rg := dig "config" "resourceGroup" "" .Values.kommodity.provider | default .Release.Name }}
+  {{- $rg := dig "azure" "config" "resourceGroup" "" .Values.kommodity.provider | default .Release.Name }}
   resourceGroup: {{ $rg }}
-  {{- if dig "config" "location" "" .Values.kommodity.provider }}
-  location: {{ .Values.kommodity.provider.config.location }}
+  {{- if dig "azure" "config" "location" "" .Values.kommodity.provider }}
+  location: {{ (dig "azure" "config" "location" "" .Values.kommodity.provider) }}
   {{- else }}
-  {{- fail "missing required location in kommodity.provider.config for Azure" -}}
+  {{- fail "missing required location in kommodity.provider.azure.config for Azure" -}}
   {{- end }}
-  {{- if .Values.kommodity.provider.identity }}
+  {{- if dig "azure" "identity" (dict) .Values.kommodity.provider }}
   identityRef:
     apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
     kind: AzureClusterIdentity
-    name: {{ .Values.kommodity.provider.identity.name }}
+    name: {{ (dig "azure" "identity" "name" "" .Values.kommodity.provider) }}
     namespace: {{ .Release.Namespace }}
   {{- end }}
   {{- if gt (len $zones) 0 }}
