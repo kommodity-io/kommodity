@@ -180,7 +180,7 @@ spec:
                       description: CPU is the discovered CPU topology.
                       properties:
                         cores:
-                          description: Cores is the total number of logical CPUs (nr_cpu_ids).
+                          description: Cores is the total number of physical CPU cores across all sockets.
                           format: int32
                           type: integer
                         numaNodes:
