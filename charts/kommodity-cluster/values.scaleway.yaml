@@ -2,8 +2,8 @@
 kommodity:
   provider:
     name: Scaleway
-    Scaleway:
-      # The chart defaults provider.Scaleway.secret.name to "scaleway-secret".
+    scaleway:
+      # The chart defaults provider.scaleway.secret.name to "scaleway-secret".
       # Override only if you use a custom secret name.
       # secret:
       #   # Scaleway secret example:

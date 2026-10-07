@@ -31,17 +31,17 @@ metadata:
     Azure's CCM cloud-config Secret is materialized per cluster (not hand-created),
     so its management-side name defaults to <release>-cloud-provider — unique per
     release, letting multiple Azure clusters share one namespace without colliding.
-    An explicit provider.Azure.secret.name overrides it (e.g. to point at a Secret you
+    An explicit provider.azure.secret.name overrides it (e.g. to point at a Secret you
     manage yourself). The downstream name inside each workload cluster is always
     azure-cloud-provider (separate clusters, no collision).
   */}}
-  {{- $azureProvider := dig "Azure" (dict) .Values.kommodity.provider }}
+  {{- $azureProvider := dig "azure" (dict) .Values.kommodity.provider }}
   {{- $azureCCMSecret := dig "secret" "name" "" $azureProvider | default (printf "%s-cloud-provider" .Release.Name) }}
   {{- $_ := set $annotations "kommodity.io/ccm-secret-name" $azureCCMSecret }}
   {{- $_ := set $annotations "kommodity.io/ccm-downstream-secret-name" "azure-cloud-provider" }}
   {{- else }}
   {{- $providerName := .Values.kommodity.provider.name }}
-  {{- $providerConfig := dig $providerName (dict) .Values.kommodity.provider }}
+  {{- $providerConfig := dig (lower $providerName) (dict) .Values.kommodity.provider }}
   {{- $ccmSecretName := dig "secret" "name" "" $providerConfig }}
   {{- if and (eq $providerName "Scaleway") (not $ccmSecretName) }}
   {{- $ccmSecretName = "scaleway-secret" }}

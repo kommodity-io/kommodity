@@ -19,7 +19,7 @@
 kommodity:
   provider:
     name: Hetzner
-    Hetzner:
+    hetzner:
       secret:
         # Hetzner secret example (one read/write API token per Hetzner project,
         # Console -> Security -> API tokens):

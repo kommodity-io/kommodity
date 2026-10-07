@@ -11,23 +11,23 @@ metadata:
   annotations:
     helm.sh/resource-policy: keep # Prevent Helm from deleting the resource on uninstall, deletion will be handled by CAPI
 spec:
-  {{- if dig "Azure" "config" "subscriptionID" "" .Values.kommodity.provider }}
-  subscriptionID: {{ (dig "Azure" "config" "subscriptionID" "" .Values.kommodity.provider) }}
+  {{- if dig "azure" "config" "subscriptionID" "" .Values.kommodity.provider }}
+  subscriptionID: {{ (dig "azure" "config" "subscriptionID" "" .Values.kommodity.provider) }}
   {{- else }}
-  {{- fail "missing required subscriptionID in kommodity.provider.Azure.config for Azure" -}}
+  {{- fail "missing required subscriptionID in kommodity.provider.azure.config for Azure" -}}
   {{- end }}
-  {{- $rg := dig "Azure" "config" "resourceGroup" "" .Values.kommodity.provider | default .Release.Name }}
+  {{- $rg := dig "azure" "config" "resourceGroup" "" .Values.kommodity.provider | default .Release.Name }}
   resourceGroup: {{ $rg }}
-  {{- if dig "Azure" "config" "location" "" .Values.kommodity.provider }}
-  location: {{ (dig "Azure" "config" "location" "" .Values.kommodity.provider) }}
+  {{- if dig "azure" "config" "location" "" .Values.kommodity.provider }}
+  location: {{ (dig "azure" "config" "location" "" .Values.kommodity.provider) }}
   {{- else }}
-  {{- fail "missing required location in kommodity.provider.Azure.config for Azure" -}}
+  {{- fail "missing required location in kommodity.provider.azure.config for Azure" -}}
   {{- end }}
-  {{- if dig "Azure" "identity" (dict) .Values.kommodity.provider }}
+  {{- if dig "azure" "identity" (dict) .Values.kommodity.provider }}
   identityRef:
     apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
     kind: AzureClusterIdentity
-    name: {{ (dig "Azure" "identity" "name" "" .Values.kommodity.provider) }}
+    name: {{ (dig "azure" "identity" "name" "" .Values.kommodity.provider) }}
     namespace: {{ .Release.Namespace }}
   {{- end }}
   {{- if gt (len $zones) 0 }}

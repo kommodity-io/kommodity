@@ -1,6 +1,6 @@
 {{- if eq .Values.kommodity.provider.name "Kubevirt" }}
 {{- $ifType := dig "network" "cluster" "interfaceType" "bridge" .Values.kommodity }}
-{{- $config := dig "Kubevirt" "config" (dict) .Values.kommodity.provider }}
+{{- $config := dig "kubevirt" "config" (dict) .Values.kommodity.provider }}
 {{- $defaultStorageClass := dig "storageClassName" "" $config -}}
 {{- $cpSku := dig "sku" "" .Values.kommodity.controlplane -}}
 {{- $cpResources := dig "resources" "" .Values.kommodity.controlplane -}}

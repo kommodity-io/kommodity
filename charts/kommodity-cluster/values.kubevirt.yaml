@@ -8,7 +8,7 @@ kommodity:
         repository: quay.io/kubevirt/kubevirt-cloud-controller-manager
         tag: v0.6.0
 
-    Kubevirt:
+    kubevirt:
       secret:
         # Kubevirt secret example (contains a kubeconfig used to connect to the Kubevirt cluster):
         #
@@ -121,7 +121,7 @@ kommodity:
           size: 20
       additionalVolumes:
         - size: 10 # size in GB
-      #     storageClassName: fast-ssd # optional, defaults to provider.Kubevirt.config.storageClassName if set
+      #     storageClassName: fast-ssd # optional, defaults to provider.kubevirt.config.storageClassName if set
 
       # Optional: specify GPU resources
       # gpus:

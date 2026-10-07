@@ -16,11 +16,11 @@ spec:
     - {{ . }}
   {{- end }}
   {{- end }}
-  {{- $scaleway := dig "Scaleway" (dict) .Values.kommodity.provider }}
+  {{- $scaleway := dig "scaleway" (dict) .Values.kommodity.provider }}
   {{- if hasKey (dig "config" (dict) $scaleway) "projectID" }}
   projectID: {{ $scaleway.config.projectID }}
   {{- else }}
-  {{- fail "missing required projectID in kommodity.provider.Scaleway.config for Scaleway" -}}
+  {{- fail "missing required projectID in kommodity.provider.scaleway.config for Scaleway" -}}
   {{- end }}
   region: {{ .Values.kommodity.region }}
   scalewaySecretName: {{ dig "secret" "name" "scaleway-secret" $scaleway | default "scaleway-secret" }}
