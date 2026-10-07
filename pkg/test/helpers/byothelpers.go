@@ -505,12 +505,32 @@ func ByotMachineExistsForCluster(
 // ByotMachineConditionState returns the current status+reason of a single
 // condition on a ByotMachine.
 func ByotMachineConditionState(
+	ctx context.Context,
 	t *testing.T,
 	env TestEnvironment,
 	namespace string,
 	machineName string,
 	conditionType string,
 ) (corev1.ConditionStatus, string) {
+	t.Helper()
+
+	condStatus, reason, _ := ByotMachineCondition(ctx, t, env, namespace, machineName, conditionType)
+
+	return condStatus, reason
+}
+
+// ByotMachineCondition returns the status, reason, and message of a single
+// condition on a ByotMachine. Status is ConditionUnknown when the condition
+// is absent (e.g. the opt-in TalosVersionReady condition before
+// DesiredTalosVersion is observed).
+func ByotMachineCondition(
+	ctx context.Context,
+	t *testing.T,
+	env TestEnvironment,
+	namespace string,
+	machineName string,
+	conditionType string,
+) (corev1.ConditionStatus, string, string) {
 	t.Helper()
 
 	client, err := dynamic.NewForConfig(env.KommodityCfg)
@@ -520,7 +540,7 @@ func ByotMachineConditionState(
 		Group:    byotMachineGroup,
 		Version:  byotMachineVersion,
 		Resource: byotMachineResource,
-	}).Namespace(namespace).Get(context.Background(), machineName, metav1.GetOptions{})
+	}).Namespace(namespace).Get(ctx, machineName, metav1.GetOptions{})
 	require.NoError(t, err)
 
 	conditions, found, err := unstructured.NestedSlice(obj.Object, "status", "conditions")
@@ -540,11 +560,250 @@ func ByotMachineConditionState(
 
 		status, _, _ := unstructured.NestedString(condMap, "status")
 		reason, _, _ := unstructured.NestedString(condMap, "reason")
+		message, _, _ := unstructured.NestedString(condMap, "message")
 
-		return corev1.ConditionStatus(status), reason
+		return corev1.ConditionStatus(status), reason, message
 	}
 
-	return corev1.ConditionUnknown, ""
+	return corev1.ConditionUnknown, "", ""
+}
+
+// ByotMachine upgrade condition + reason values mirror the provider's
+// TalosVersionReadyCondition. The condition is only set when
+// DesiredTalosVersion is non-empty (opt-in); absent otherwise.
+const (
+	// ByotMachineConditionTalosVersionReady is the post-adoption Talos upgrade
+	// condition. Reasons: Upgrading, Upgraded, UpgradeFailed, VersionProbeFailed,
+	// InvalidImageRef.
+	ByotMachineConditionTalosVersionReady = "TalosVersionReady"
+
+	ByotUpgradeReasonUpgrading          = "Upgrading"
+	ByotUpgradeReasonUpgraded           = "Upgraded"
+	ByotUpgradeReasonUpgradeFailed      = "UpgradeFailed"
+	ByotUpgradeReasonVersionProbeFailed = "VersionProbeFailed"
+	ByotUpgradeReasonInvalidImageRef    = "InvalidImageRef"
+
+	// ByotUpgradeStateInFlight mirrors the provider's UpgradeStateInFlight:
+	// the Upgrade RPC was issued and the controller is polling for the reboot.
+	ByotUpgradeStateInFlight = "InFlight"
+)
+
+// ByotMachineUpgradeStatus holds the upgrade-related spec+status fields of a
+// ByotMachine. DesiredTalosVersion and UpgradeAppliedImageRef are installer
+// image refs (e.g. ghcr.io/siderolabs/installer:v1.13.8); CurrentTalosVersion
+// is the live Talos version tag (e.g. v1.13.8) from the Version RPC.
+type ByotMachineUpgradeStatus struct {
+	// DesiredTalosVersion is spec.desiredTalosVersion (the installer ref the
+	// claimed host is upgraded to after adoption). Empty opts out of version
+	// management.
+	DesiredTalosVersion string
+	// CurrentTalosVersion is status.currentTalosVersion, the live Talos tag.
+	CurrentTalosVersion string
+	// UpgradeState is status.upgradeState ("", InFlight, Failed). Cleared on
+	// completion; InFlight while an Upgrade RPC + reboot poll is pending.
+	UpgradeState string
+	// UpgradeAppliedImageRef is status.upgradeAppliedImageRef, the installer
+	// ref the host was last successfully upgraded to. Used with
+	// UpgradeAttemptGeneration to dedup no-op re-issues.
+	UpgradeAppliedImageRef string
+	// UpgradeAttemptGeneration is status.upgradeAttemptGeneration, the spec
+	// generation observed when the current upgrade attempt started.
+	UpgradeAttemptGeneration int64
+}
+
+// GetByotMachineUpgradeStatus reads the upgrade-related spec+status fields of
+// a ByotMachine. Fields are empty when the machine has not opted into version
+// management (DesiredTalosVersion unset) or the upgrade has not run yet.
+func GetByotMachineUpgradeStatus(
+	ctx context.Context,
+	t *testing.T,
+	env TestEnvironment,
+	namespace string,
+	machineName string,
+) ByotMachineUpgradeStatus {
+	t.Helper()
+
+	client, err := dynamic.NewForConfig(env.KommodityCfg)
+	require.NoError(t, err)
+
+	obj, err := client.Resource(byotMachineGVR()).Namespace(namespace).Get(ctx, machineName, metav1.GetOptions{})
+	require.NoError(t, err)
+
+	var status ByotMachineUpgradeStatus
+
+	status.DesiredTalosVersion, _, _ = unstructured.NestedString(obj.Object, "spec", "desiredTalosVersion")
+	status.CurrentTalosVersion, _, _ = unstructured.NestedString(obj.Object, "status", "currentTalosVersion")
+	status.UpgradeState, _, _ = unstructured.NestedString(obj.Object, "status", "upgradeState")
+	status.UpgradeAppliedImageRef, _, _ = unstructured.NestedString(obj.Object, "status", "upgradeAppliedImageRef")
+	status.UpgradeAttemptGeneration, _, _ = unstructured.NestedInt64(obj.Object, "status", "upgradeAttemptGeneration")
+
+	return status
+}
+
+// InstallerTagFromRef extracts the version tag from an installer image ref,
+// i.e. the substring after the last ':' (e.g.
+// "ghcr.io/siderolabs/installer:v1.13.8" -> "v1.13.8"). Returns the ref
+// verbatim when no ':' is present. The tag is opaque to Talos, so it is only
+// compared against status.currentTalosVersion (the live Version RPC tag), not
+// used to resolve the image.
+func InstallerTagFromRef(ref string) string {
+	if idx := strings.LastIndex(ref, ":"); idx >= 0 {
+		return ref[idx+1:]
+	}
+
+	return ref
+}
+
+// ByotUpgradeFailedError is returned by WaitForByotMachineUpgradeSettled when the
+// post-adoption upgrade reached a terminal failure (TalosVersionReady=False).
+// Reason is the condition reason (UpgradeFailed, VersionProbeFailed,
+// InvalidImageRef); Message is the condition message (e.g. the RPC error). The
+// expected Talos-in-Docker path returns Reason=UpgradeFailed with a message
+// containing "method is not supported in container mode"; any other reason is a
+// genuine failure the caller should treat as a test failure.
+type ByotUpgradeFailedError struct {
+	Reason  string
+	Message string
+}
+
+// Error implements error.
+func (e *ByotUpgradeFailedError) Error() string {
+	return fmt.Sprintf("upgrade settled Failed: %s: %s", e.Reason, e.Message)
+}
+
+// WaitForByotMachineUpgradeSettled polls a ByotMachine until the post-adoption
+// Talos upgrade reaches a terminal state, then returns the final status and an
+// error. It polls only while the upgrade is in flight (InFlight/Upgrading or
+// the opt-in condition not yet set); on a terminal state it stops.
+//
+// Terminal success: TalosVersionReady=True/Upgraded with UpgradeAppliedImageRef
+// == desiredImageRef and CurrentTalosVersion == the desired tag — returns
+// (status, nil). On real hardware the LifecycleClient.Upgrade RPC reboots the
+// host onto the desired version.
+//
+// Terminal failure: TalosVersionReady=False with a non-empty reason — returns
+// (status, *ByotUpgradeFailedError{Reason, Message}). The Talos-in-Docker test
+// path lands here: the container platform does not implement the Upgrade RPC
+// ("method is not supported in container mode"), so the upgrade always fails
+// with Reason=UpgradeFailed. The caller tolerates that specific failure and
+// treats any other reason (VersionProbeFailed, InvalidImageRef) as a test
+// failure — those signal a wiring or auth bug, not the container limitation.
+//
+// desiredImageRef is the installer ref stamped from the chart's talos.imageName.
+// Times out after timeout, returning the context error.
+func WaitForByotMachineUpgradeSettled(
+	t *testing.T,
+	env TestEnvironment,
+	namespace string,
+	machineName string,
+	desiredImageRef string,
+	timeout time.Duration,
+) (ByotMachineUpgradeStatus, error) {
+	t.Helper()
+
+	desiredTag := InstallerTagFromRef(desiredImageRef)
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	var status ByotMachineUpgradeStatus
+
+	var (
+		condStatus corev1.ConditionStatus
+		reason     string
+		message    string
+	)
+
+	check := func(ctx context.Context) (bool, error) {
+		status = GetByotMachineUpgradeStatus(ctx, t, env, namespace, machineName)
+
+		condStatus, reason, message = ByotMachineCondition(
+			ctx, t, env, namespace, machineName, ByotMachineConditionTalosVersionReady)
+
+		return upgradeSettleClass(status, condStatus, reason, message, desiredImageRef, desiredTag)
+	}
+
+	err := waitPoll(ctx, check)
+	if err != nil {
+		return status, err
+	}
+
+	return status, nil
+}
+
+// upgradeSettleClass classifies the upgrade state. Returns (true, nil) on
+// Upgraded, (true, *ByotUpgradeFailedError) on a terminal failure, and
+// (false, nil) while in flight (keep polling). A terminal failure is any
+// non-empty False reason once InFlight is cleared; an empty reason means the
+// opt-in condition has not been set yet (DesiredTalosVersion not observed), so
+// it is treated as transient until the timeout.
+func upgradeSettleClass(
+	status ByotMachineUpgradeStatus,
+	condStatus corev1.ConditionStatus,
+	reason string,
+	message string,
+	desiredImageRef string,
+	desiredTag string,
+) (bool, error) {
+	// In flight: Upgrade RPC issued, polling for reboot. Also covers the early
+	// window before the opt-in condition is first set (condStatus Unknown, reason "").
+	if status.UpgradeState == ByotUpgradeStateInFlight || reason == ByotUpgradeReasonUpgrading {
+		return false, nil
+	}
+
+	if condStatus == corev1.ConditionTrue && reason == ByotUpgradeReasonUpgraded {
+		return upgradeUpgradedSettled(status, desiredImageRef, desiredTag)
+	}
+
+	// Terminal failure: a settled False reason (UpgradeFailed, VersionProbeFailed,
+	// InvalidImageRef). An empty reason means the condition is unset — keep
+	// polling (DesiredTalosVersion may not have been observed yet).
+	if condStatus == corev1.ConditionFalse && reason != "" && reason != ByotUpgradeReasonUpgrading {
+		return true, &ByotUpgradeFailedError{Reason: reason, Message: message}
+	}
+
+	return false, nil
+}
+
+// upgradeUpgradedSettled validates an Upgraded terminal state. The completion
+// patch records UpgradeAppliedImageRef == desiredImageRef and the post-reboot
+// Version probe updates CurrentTalosVersion to the desired tag; either may
+// lag by one reconcile, so keep polling (return false) until both match.
+func upgradeUpgradedSettled(
+	status ByotMachineUpgradeStatus,
+	desiredImageRef string,
+	desiredTag string,
+) (bool, error) {
+	if status.UpgradeAppliedImageRef != desiredImageRef {
+		return false, nil // completion patch lag: applied ref not recorded yet
+	}
+
+	if desiredTag != "" && status.CurrentTalosVersion != desiredTag {
+		return false, nil // post-reboot version probe lag: live tag not yet updated
+	}
+
+	return true, nil
+}
+
+// GetByotTalosImageName reads talos.imageName from the BYOT example values
+// file. For BYOT this is the installer image ref stamped onto
+// ByotMachineTemplate.spec.template.spec.desiredTalosVersion and the target of
+// the post-adoption Talos upgrade.
+func GetByotTalosImageName(t *testing.T) string {
+	t.Helper()
+
+	repoRoot, err := FindRepoRoot()
+	require.NoError(t, err)
+
+	valuesPath := filepath.Join(repoRoot, "charts", "kommodity-cluster", byotValuesFile)
+
+	values, err := chartutil.ReadValuesFile(valuesPath)
+	require.NoError(t, err)
+
+	imageName, err := getNestedString(values, "talos.imageName")
+	require.NoError(t, err)
+
+	return imageName
 }
 
 // ByotMachineTerminating reports whether a BYOT machine has a non-nil
@@ -749,7 +1008,7 @@ func WaitForClusterByotMachinesDeletion(
 		return len(list.Items) == 0, nil
 	}
 
-	err := waitPoll(ctx, byotPollInterval, check)
+	err := waitPoll(ctx, check)
 	require.NoError(t, err,
 		"ByotMachines for cluster %s were not deleted within %s", clusterName, timeout)
 }
@@ -784,7 +1043,7 @@ func WaitForByotMachineCondition(
 
 	check := byotMachineConditionCheck(client, gvr, namespace, machineName, conditionType, wantedStatus, &reason, &message)
 
-	errPoll := waitPoll(ctx, byotPollInterval, check)
+	errPoll := waitPoll(ctx, check)
 	require.NoError(t, errPoll,
 		"ByotMachine %s condition %s never became %s (last reason %q message %q)",
 		machineName, conditionType, wantedStatus, reason, message)
@@ -842,8 +1101,10 @@ func byotMachineConditionCheck(
 }
 
 // waitPoll is a small poll loop since pkg/test has no k8s.io/apimachinery/util/wait wrapper yet.
-func waitPoll(ctx context.Context, interval time.Duration, condition func(context.Context) (bool, error)) error {
-	ticker := time.NewTicker(interval)
+// The interval is fixed at byotPollInterval (every current caller polls at that cadence); if a
+// caller needs a different cadence, promote the interval back to a parameter.
+func waitPoll(ctx context.Context, condition func(context.Context) (bool, error)) error {
+	ticker := time.NewTicker(byotPollInterval)
 	defer ticker.Stop()
 
 	for {
@@ -1026,7 +1287,7 @@ func WaitForByotHostPhase(
 		return phase == wantedPhase, nil
 	}
 
-	err := waitPoll(ctx, byotPollInterval, check)
+	err := waitPoll(ctx, check)
 	require.NoError(t, err,
 		"ByotHost %s never reached phase %s (last %q)", name, wantedPhase, phase)
 
