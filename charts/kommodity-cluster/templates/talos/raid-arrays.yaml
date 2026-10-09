@@ -1,7 +1,7 @@
 {{/*
 Talos RAIDArrayConfig documents for Linux MD (software RAID) arrays.
 Emits RAIDArrayConfig only — no infrastructure template changes.
-Array exposed at /dev/disk/by-id/md-name-<name>, can back a UserVolumeConfig.
+Array exposed at /dev/disk/by-id/md-name-talos:<name>, can back a UserVolumeConfig.
 
 Usage: {{ include "kommodity.talos.raidArrays" (dict "raidArrays" .raidArrays) }}
 */}}
