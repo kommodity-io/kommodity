@@ -300,8 +300,8 @@ kommodity:
     # Talos version and imageName can be overridden here, otherwise the top-level talos.version and talos.imageName are used
     # This is especially useful for Talos upgrades, where it is recommended to not upgrade all nodes at once (https://docs.siderolabs.com/talos/v1.12/configure-your-talos-cluster/lifecycle-management/upgrading-talos)
     # talos:
-    #   version: v1.13.0
-    #   imageName: talos-base-v1.13.0
+    #   version: v1.14.2
+    #   imageName: talos-base-v1.14.2
 
     # labels:
     #   my-label: my-value
@@ -390,8 +390,8 @@ kommodity:
 
     #   # Talos version and imageName can be overridden here, otherwise the top-level talos.version and talos.imageName are used
     #   talos:
-    #     version: v1.13.0
-    #     imageName: talos-base-v1.13.0
+    #     version: v1.14.2
+    #     imageName: talos-base-v1.14.2
 
     #   labels:
     #     my-label: my-value
@@ -441,7 +441,7 @@ kommodity:
 
 # Configurations related to Talos
 talos:
-  version: v1.13.0
+  version: v1.14.2
   imageName: my-talos-image
   autoBootstrap:
     enabled: true

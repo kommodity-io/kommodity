@@ -277,13 +277,13 @@ talos:
   # builds the full ARM ID from kommodity.provider.config.subscriptionID and
   # kommodity.provider.config.talosImageResourceGroup, so you only supply the last
   # segment of the resource ID — the same `imageName` field Scaleway uses.
-  imageName: kommodity-talos-azure-v1.13.0
+  imageName: kommodity-talos-azure-v1.14.2
   #
   # Alternatives (take precedence over imageName in this order):
   #   id: <MANAGED_IMAGE_ARM_ID>            # explicit full ARM ID (escape hatch)
   #   computeGallery:                       # shared image gallery
   #     gallery: myGallery
-  #     name: talos-v1.13.0
+  #     name: talos-v1.14.2
   #     version: 1.0.0
   #   marketplace:                          # Azure Marketplace image (requires accepting terms)
   #     publisher: siderolabs

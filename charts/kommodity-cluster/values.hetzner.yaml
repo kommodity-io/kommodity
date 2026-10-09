@@ -173,7 +173,7 @@ kommodity:
 
 talos:
   # Keep in sync with the Talos version baked into the snapshot below.
-  version: v1.13.0
+  version: v1.14.2
   # Talos hcloud snapshot in the Hetzner project. Hetzner has no custom-image
   # upload, so Talos ships as a snapshot; snapshots have no name, so CAPH
   # resolves imageName through the (mandatory) caph-image-name label. Build the
@@ -181,13 +181,13 @@ talos:
   # with https://github.com/apricote/hcloud-upload-image:
   #
   #   hcloud-upload-image upload \
-  #     --image-path kommodity-talos-hcloud-v1.13.0.raw \
+  #     --image-path kommodity-talos-hcloud-v1.14.2.raw \
   #     --architecture x86 \
-  #     --description kommodity-talos-hcloud-v1.13.0 \
-  #     --labels caph-image-name=kommodity-talos-hcloud-v1.13.0
+  #     --description kommodity-talos-hcloud-v1.14.2 \
+  #     --labels caph-image-name=kommodity-talos-hcloud-v1.14.2
   #
   # Plain factory images work too:
-  #   --image-url https://factory.talos.dev/image/<schematic>/v1.13.0/hcloud-amd64.raw.xz --compression xz
+  #   --image-url https://factory.talos.dev/image/<schematic>/v1.14.2/hcloud-amd64.raw.xz --compression xz
   # but private clusters (network.ipv4.public: false) require the
   # workflow-built snapshot: the chart always delivers an
   # ExtensionServiceConfig for kommodity-autobootstrap, which is baked into
@@ -196,4 +196,4 @@ talos:
   #
   # ARM (CAX) server types need a separate --architecture arm snapshot with its
   # own image name.
-  imageName: kommodity-talos-hcloud-v1.13.0
+  imageName: kommodity-talos-hcloud-v1.14.2

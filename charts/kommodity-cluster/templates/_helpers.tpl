@@ -530,7 +530,7 @@ spec.template.spec.desiredTalosVersion (an installer image ref) for a byot pool.
 For BYOT the image is always an installer: the host is adopted in maintenance
 mode and upgraded via LifecycleClient.Upgrade, which runs /bin/installer from
 the ref. talos.imageName carries the full installer ref (e.g.
-ghcr.io/siderolabs/installer:v1.13.0, a factory.talos.dev schematic installer,
+ghcr.io/siderolabs/installer:v1.14.2, a factory.talos.dev schematic installer,
 or a custom-built installer with extensions). The tag is opaque to Talos, so
 any tag works (extensions ship through the installer image, not the machine
 config). Resolved with nodepool precedence — poolValues.talos.imageName
@@ -545,7 +545,7 @@ Returns the installer image ref string.
 {{- define "kommodity-cluster.byotDesiredTalosVersion" -}}
 {{- $imageName := default .allValues.talos.imageName (dig "talos" "imageName" "" .poolValues) -}}
 {{- if not $imageName -}}
-{{- fail "talos.imageName is required for BYOT (set it in values.byot.yaml to the installer image ref, e.g. ghcr.io/siderolabs/installer:v1.13.0)" -}}
+{{- fail "talos.imageName is required for BYOT (set it in values.byot.yaml to the installer image ref, e.g. ghcr.io/siderolabs/installer:v1.14.2)" -}}
 {{- end -}}
 {{- $imageName -}}
 {{- end -}}
