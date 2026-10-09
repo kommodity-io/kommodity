@@ -210,6 +210,9 @@ Any values that should trigger a new Talos config template when changed should b
 {{- with (dig "instanceVolumes" "" .poolValues) -}}
 	{{- $_ := set $data "instanceVolumes" . -}}
 {{- end -}}
+{{- with (dig "raidArrays" "" .poolValues) -}}
+	{{- $_ := set $data "raidArrays" . -}}
+{{- end -}}
 {{- toJson $data | sha256sum | trunc 6 -}}
 {{- end -}}
 
@@ -225,7 +228,8 @@ Any values that should trigger a new Machine template when changed should be add
 {{- with (dig "resources" "" .poolValues) -}}
 {{- $_ := set $data "resources" . -}}
 {{- end -}}
-{{- $disk := default (dict) (dig "os" "disk" (dict) .poolValues) -}}
+{{- $os := default (dict) (dig "os" (dict) .poolValues) -}}
+{{- $disk := default (dict) (dig "disk" (dict) $os) -}}
 {{- $_ := set $data "diskSize" (dig "size" "" $disk) -}}
 {{- $_ := set $data "gpus" (dig "gpus" "" .poolValues) -}}
 {{- if and (eq .allValues.kommodity.provider.name "Azure") (hasKey .poolValues "acceleratedNetworking") -}}
@@ -247,7 +251,8 @@ Any values that should trigger a new Machine template when changed should be add
      so hash the merged selector inputs. byot.io/available is constant and
      omitted from the hash. */ -}}
 {{- if eq .allValues.kommodity.provider.name "Byot" -}}
-{{- $disk := default (dict) (dig "os" "disk" (dict) .poolValues) -}}
+{{- $os := default (dict) (dig "os" (dict) .poolValues) -}}
+{{- $disk := default (dict) (dig "disk" (dict) $os) -}}
 {{- $_ := set $data "diskType" (dig "type" "" $disk) -}}
 {{- $_ := set $data "diskSize" (dig "size" "" $disk) -}}
 {{- $_ := set $data "byotHostSelector" (dig "hostSelector" "" .poolValues) -}}
@@ -484,7 +489,8 @@ by the caller.
      when neither is set, the selector omits byot.io/disk-* and matches any
      host regardless of disk. Operator freeform hostSelector labels can still
      pin a disk if needed. */ -}}
-{{- $disk := default (dict) (dig "os" "disk" (dict) $p) -}}
+{{- $os := default (dict) (dig "os" (dict) $p) -}}
+{{- $disk := default (dict) (dig "disk" (dict) $os) -}}
 {{- $diskType := dig "type" "" $disk -}}
 {{- $diskSize := dig "size" "" $disk -}}
 {{- $diskTypes := list "nvme" "ssd" "hdd" "sd" -}}
@@ -524,7 +530,7 @@ spec.template.spec.desiredTalosVersion (an installer image ref) for a byot pool.
 For BYOT the image is always an installer: the host is adopted in maintenance
 mode and upgraded via LifecycleClient.Upgrade, which runs /bin/installer from
 the ref. talos.imageName carries the full installer ref (e.g.
-ghcr.io/siderolabs/installer:v1.13.0, a factory.talos.dev schematic installer,
+ghcr.io/siderolabs/installer:v1.14.2, a factory.talos.dev schematic installer,
 or a custom-built installer with extensions). The tag is opaque to Talos, so
 any tag works (extensions ship through the installer image, not the machine
 config). Resolved with nodepool precedence — poolValues.talos.imageName
@@ -539,7 +545,7 @@ Returns the installer image ref string.
 {{- define "kommodity-cluster.byotDesiredTalosVersion" -}}
 {{- $imageName := default .allValues.talos.imageName (dig "talos" "imageName" "" .poolValues) -}}
 {{- if not $imageName -}}
-{{- fail "talos.imageName is required for BYOT (set it in values.byot.yaml to the installer image ref, e.g. ghcr.io/siderolabs/installer:v1.13.0)" -}}
+{{- fail "talos.imageName is required for BYOT (set it in values.byot.yaml to the installer image ref, e.g. ghcr.io/siderolabs/installer:v1.14.2)" -}}
 {{- end -}}
 {{- $imageName -}}
 {{- end -}}

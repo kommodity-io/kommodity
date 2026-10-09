@@ -399,23 +399,23 @@ tests:
     set:
       kommodity.provider.config.subscriptionID: sub-1234
       kommodity.provider.config.talosImageResourceGroup: shared-images-rg
-      talos.imageName: kommodity-talos-azure-v1.13.0
+      talos.imageName: kommodity-talos-azure-v1.14.2
     asserts:
       - equal:
           path: spec.template.spec.image.id
-          value: /subscriptions/sub-1234/resourceGroups/shared-images-rg/providers/Microsoft.Compute/images/kommodity-talos-azure-v1.13.0
+          value: /subscriptions/sub-1234/resourceGroups/shared-images-rg/providers/Microsoft.Compute/images/kommodity-talos-azure-v1.14.2
         documentIndex: 0
       # The same built id is used for worker nodepools.
       - equal:
           path: spec.template.spec.image.id
-          value: /subscriptions/sub-1234/resourceGroups/shared-images-rg/providers/Microsoft.Compute/images/kommodity-talos-azure-v1.13.0
+          value: /subscriptions/sub-1234/resourceGroups/shared-images-rg/providers/Microsoft.Compute/images/kommodity-talos-azure-v1.14.2
         documentIndex: 1
 
   - it: should require talosImageResourceGroup when only imageName is set
     template: templates/provider/azure/machinetemplate.yaml
     set:
       kommodity.provider.config.talosImageResourceGroup: null
-      talos.imageName: kommodity-talos-azure-v1.13.0
+      talos.imageName: kommodity-talos-azure-v1.14.2
     asserts:
       - failedTemplate:
           errorMessage: talos.imageName requires kommodity.provider.config.talosImageResourceGroup (the resource group holding the Talos managed image) to build the Talos image resource ID
@@ -507,11 +507,11 @@ tests:
     asserts:
       - equal:
           path: metadata.name
-          value: test-cluster-controlplane-71e99d
+          value: test-cluster-controlplane-3416ca
         documentIndex: 0
       - equal:
           path: metadata.name
-          value: test-cluster-worker-default-71e99d
+          value: test-cluster-worker-default-3416ca
         documentIndex: 1
   - it: should change the AzureMachineTemplate name when the gallery version changes
     template: templates/provider/azure/machinetemplate.yaml
@@ -526,11 +526,11 @@ tests:
     asserts:
       - equal:
           path: metadata.name
-          value: test-cluster-controlplane-81769c
+          value: test-cluster-controlplane-3d3c12
         documentIndex: 0
       - equal:
           path: metadata.name
-          value: test-cluster-worker-default-81769c
+          value: test-cluster-worker-default-3d3c12
         documentIndex: 1
   - it: should set disableExtensionOperations to true by default
     template: templates/provider/azure/machinetemplate.yaml
