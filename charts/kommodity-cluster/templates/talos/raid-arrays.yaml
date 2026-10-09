@@ -10,7 +10,14 @@ Usage: {{ include "kommodity.talos.raidArrays" (dict "raidArrays" .raidArrays) }
 {{- if $arrays -}}
 {{- range $arr := $arrays }}
 {{- $name := required "raidArrays[].name is required (1-32 chars, ASCII letters/digits/hyphens/underscores)" $arr.name -}}
+{{- if not (regexMatch "^[A-Za-z0-9_-]{1,32}$" $name) -}}
+{{- fail (printf "raidArrays[].name must be 1-32 ASCII letters, digits, hyphens, or underscores, got %q" $name) -}}
+{{- end -}}
 {{- $level := default "raid1" $arr.level -}}
+{{- $validLevels := list "raid1" -}}
+{{- if not (has $level $validLevels) -}}
+{{- fail (printf "raidArrays[].level must be one of %s, got %q" (join ", " $validLevels) $level) -}}
+{{- end -}}
 {{- $selector := required "raidArrays[].volumeSelector is required (CEL expression to match member volumes)" $arr.volumeSelector -}}
 {{- $metadata := default "1.0" $arr.metadata -}}
 {{- $validMetadata := list "1.0" "1.2" -}}
