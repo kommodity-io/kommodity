@@ -507,11 +507,11 @@ tests:
     asserts:
       - equal:
           path: metadata.name
-          value: test-cluster-controlplane-71e99d
+          value: test-cluster-controlplane-3416ca
         documentIndex: 0
       - equal:
           path: metadata.name
-          value: test-cluster-worker-default-71e99d
+          value: test-cluster-worker-default-3416ca
         documentIndex: 1
   - it: should change the AzureMachineTemplate name when the gallery version changes
     template: templates/provider/azure/machinetemplate.yaml
@@ -526,11 +526,11 @@ tests:
     asserts:
       - equal:
           path: metadata.name
-          value: test-cluster-controlplane-81769c
+          value: test-cluster-controlplane-3d3c12
         documentIndex: 0
       - equal:
           path: metadata.name
-          value: test-cluster-worker-default-81769c
+          value: test-cluster-worker-default-3d3c12
         documentIndex: 1
   - it: should set disableExtensionOperations to true by default
     template: templates/provider/azure/machinetemplate.yaml
