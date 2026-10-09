@@ -159,6 +159,13 @@ spec:
                       type: object
                   type: object
                   x-kubernetes-map-type: atomic
+                installDisk:
+                  description: |-
+                    InstallDisk overrides auto-detection of the system install disk. When
+                    set (e.g. /dev/md127), it is injected as machine.install.disk directly,
+                    skipping the Talos storage API query. When empty, the controller
+                    auto-detects the system disk, preferring md (RAID) devices.
+                  type: string
                 providerID:
                   description: ProviderID is set by the controller once the machine has been adopted.
                   type: string
