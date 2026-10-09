@@ -109,6 +109,10 @@ spec:
       {{- /* UserVolumeConfig for instance-local disks (not cloud-provisioned) */ -}}
 {{- include "kommodity.talos.instanceVolumes" (dict "instanceVolumes" $.Values.kommodity.controlplane.instanceVolumes "kmsEndpoint" $kmsEndpoint "kmsEnabled" $.Values.kommodity.kms.enabled) | nindent 6 }}
       {{- end }}
+      {{- if $.Values.kommodity.controlplane.raidArrays }}
+      {{- /* RAIDArrayConfig for software RAID arrays */ -}}
+{{- include "kommodity.talos.raidArrays" (dict "raidArrays" $.Values.kommodity.controlplane.raidArrays) | nindent 6 }}
+      {{- end }}
       {{- if $hetznerPrivate }}
       {{- /* Hetzner's DHCP does not announce the network's 0.0.0.0/0 route */ -}}
 {{- include "kommodity.talos.defaultRoute" (dict "nodeCIDR" $.Values.kommodity.network.ipv4.nodeCIDR) | nindent 6 }}

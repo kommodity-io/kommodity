@@ -749,3 +749,130 @@ tests:
         matchRegex:
           path: spec.template.spec.strategicPatches[0]
           pattern: "UserVolumeConfig"
+  # RAIDArrayConfig tests
+  - it: should emit RAIDArrayConfig for worker raidArrays
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.nodepools.default.raidArrays:
+        - name: data
+          level: raid1
+          volumeSelector: "disk.transport == 'nvme' && disk.size > 100u * GiB"
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "kind: RAIDArrayConfig"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "name: data"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "level: raid1"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "disk.transport == 'nvme' && disk.size > 100u \\* GiB"
+
+  - it: should emit RAIDArrayConfig for controlplane raidArrays
+    template: templates/talos/controlplane.yaml
+    set:
+      kommodity.controlplane.raidArrays:
+        - name: data
+          level: raid1
+          volumeSelector: "disk.transport == 'nvme'"
+    asserts:
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "kind: RAIDArrayConfig"
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "name: data"
+
+  - it: should emit default metadata 1.0 when not specified
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.nodepools.default.raidArrays:
+        - name: data
+          level: raid1
+          volumeSelector: "disk.transport == 'nvme'"
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: 'metadata: "1.0"'
+
+  - it: should emit metadata 1.2 when specified
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.nodepools.default.raidArrays:
+        - name: data
+          level: raid1
+          metadata: "1.2"
+          volumeSelector: "disk.transport == 'nvme'"
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: 'metadata: "1.2"'
+
+  - it: should emit multiple RAIDArrayConfig for multiple raidArrays
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.nodepools.default.raidArrays:
+        - name: data
+          level: raid1
+          volumeSelector: "disk.transport == 'nvme'"
+        - name: cache
+          level: raid1
+          volumeSelector: "disk.transport == 'scsi'"
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "name: data"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[2]
+          pattern: "name: cache"
+
+  - it: should not emit RAIDArrayConfig when raidArrays is unset
+    template: templates/talos/configtemplate.yaml
+    asserts:
+      - not: true
+        matchRegex:
+          path: spec.template.spec.strategicPatches[0]
+          pattern: "RAIDArrayConfig"
+
+  - it: should fail when raidArrays name is missing
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.nodepools.default.raidArrays:
+        - level: raid1
+          volumeSelector: "disk.transport == 'nvme'"
+    asserts:
+      - failedTemplate: {}
+
+  - it: should default level to raid1 when not specified
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.nodepools.default.raidArrays:
+        - name: data
+          volumeSelector: "disk.transport == 'nvme'"
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "level: raid1"
+
+  - it: should fail when raidArrays volumeSelector is missing
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.nodepools.default.raidArrays:
+        - name: data
+          level: raid1
+    asserts:
+      - failedTemplate: {}
+
+  - it: should fail when raidArrays metadata is invalid
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.nodepools.default.raidArrays:
+        - name: data
+          level: raid1
+          metadata: "0.9"
+          volumeSelector: "disk.transport == 'nvme'"
+    asserts:
+      - failedTemplate: {}

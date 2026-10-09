@@ -210,6 +210,9 @@ Any values that should trigger a new Talos config template when changed should b
 {{- with (dig "instanceVolumes" "" .poolValues) -}}
 	{{- $_ := set $data "instanceVolumes" . -}}
 {{- end -}}
+{{- with (dig "raidArrays" "" .poolValues) -}}
+	{{- $_ := set $data "raidArrays" . -}}
+{{- end -}}
 {{- toJson $data | sha256sum | trunc 6 -}}
 {{- end -}}
 
@@ -225,7 +228,8 @@ Any values that should trigger a new Machine template when changed should be add
 {{- with (dig "resources" "" .poolValues) -}}
 {{- $_ := set $data "resources" . -}}
 {{- end -}}
-{{- $disk := default (dict) (dig "os" "disk" (dict) .poolValues) -}}
+{{- $os := default (dict) (dig "os" (dict) .poolValues) -}}
+{{- $disk := default (dict) (dig "disk" (dict) $os) -}}
 {{- $_ := set $data "diskSize" (dig "size" "" $disk) -}}
 {{- $_ := set $data "gpus" (dig "gpus" "" .poolValues) -}}
 {{- if and (eq .allValues.kommodity.provider.name "Azure") (hasKey .poolValues "acceleratedNetworking") -}}
@@ -247,7 +251,8 @@ Any values that should trigger a new Machine template when changed should be add
      so hash the merged selector inputs. byot.io/available is constant and
      omitted from the hash. */ -}}
 {{- if eq .allValues.kommodity.provider.name "Byot" -}}
-{{- $disk := default (dict) (dig "os" "disk" (dict) .poolValues) -}}
+{{- $os := default (dict) (dig "os" (dict) .poolValues) -}}
+{{- $disk := default (dict) (dig "disk" (dict) $os) -}}
 {{- $_ := set $data "diskType" (dig "type" "" $disk) -}}
 {{- $_ := set $data "diskSize" (dig "size" "" $disk) -}}
 {{- $_ := set $data "byotHostSelector" (dig "hostSelector" "" .poolValues) -}}
@@ -484,7 +489,8 @@ by the caller.
      when neither is set, the selector omits byot.io/disk-* and matches any
      host regardless of disk. Operator freeform hostSelector labels can still
      pin a disk if needed. */ -}}
-{{- $disk := default (dict) (dig "os" "disk" (dict) $p) -}}
+{{- $os := default (dict) (dig "os" (dict) $p) -}}
+{{- $disk := default (dict) (dig "disk" (dict) $os) -}}
 {{- $diskType := dig "type" "" $disk -}}
 {{- $diskSize := dig "size" "" $disk -}}
 {{- $diskTypes := list "nvme" "ssd" "hdd" "sd" -}}
