@@ -450,7 +450,7 @@ compatible with Cluster API `v1.10.x`.
 | ---------------------------------------- | -------------- | -------------- |
 | cluster-api                              | v1.10.10       | Core           |
 | cluster-api-control-plane-provider-talos | v0.5.13        | Control Plane  |
-| cluster-api-bootstrap-provider-talos     | v0.6.12        | Bootstrap      |
+| cluster-api-bootstrap-provider-talos     | v0.6.13        | Bootstrap      |
 | cluster-api-provider-azure               | v1.21.0        | Infrastructure |
 | cluster-api-provider-bringyourowntalos   | v0.8.4         | Infrastructure |
 | cluster-api-provider-hetzner             | v1.1.0-alpha.4 | Infrastructure |
