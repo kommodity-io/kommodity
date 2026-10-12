@@ -17,6 +17,13 @@ replace k8s.io/kube-controller-manager => k8s.io/kube-controller-manager v0.32.6
 // v1.32.6 dependency instead.
 replace k8s.io/cri-client => k8s.io/cri-client v0.32.6
 
+// k8s.io/apiserver v0.32.7 uses otelgrpc.UnaryClientInterceptor/StreamClientInterceptor
+// and otelhttp.WithPublicEndpoint, removed in otelgrpc v0.62+ and otelhttp v0.62+.
+// CABPT v0.6.13 pulls v0.70.0 transitively; pin back to last compatible versions.
+replace go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc => go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.60.0
+
+replace go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp => go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.61.0
+
 require (
 	github.com/Masterminds/sprig/v3 v3.3.0
 	github.com/go-logr/logr v1.4.4

@@ -147,7 +147,7 @@ func toStringAnyMap(in map[string]string) map[string]any {
 }
 
 // talosInDockerPatch returns the machine config patch Talos-in-Docker needs
-// per https://docs.siderolabs.com/talos/v1.13/platform-specific-installations/local-platforms/docker:
+// per https://docs.siderolabs.com/talos/v1.14/platform-specific-installations/local-platforms/docker:
 // host DNS forwarding, since a container cannot provide its own resolvers.
 // The chart deep-merges strategicPatches (a partial MachineConfig dict) into
 // the base config.
