@@ -271,7 +271,7 @@ kommodity:
 
 talos:
   # Follow this documentation to generate a Talos image for Azure:
-  # https://docs.siderolabs.com/talos/v1.13/platform-specific-installations/cloud-platforms/azure
+  # https://docs.siderolabs.com/talos/v1.14/platform-specific-installations/cloud-platforms/azure
   #
   # Recommended (Scaleway-aligned): provide just the managed image NAME. The chart
   # builds the full ARM ID from kommodity.provider.config.subscriptionID and
