@@ -178,8 +178,6 @@ func getOIDCConfigFromCluster(
 	}
 
 	// Extract OIDC settings from the API server extraArgs.
-	// Talos v1.14 moved APIServer from ClusterConfig to the top-level
-	// K8sAPIServerConfig provider method.
 	apiServer := provider.K8sAPIServerConfig()
 	if apiServer == nil {
 		return nil, ErrOIDCNotConfigured
