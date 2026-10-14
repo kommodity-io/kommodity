@@ -177,12 +177,13 @@ func getOIDCConfigFromCluster(
 		return nil, fmt.Errorf("failed to get machine config: %w", err)
 	}
 
-	// Extract OIDC settings from cluster.apiServer.extraArgs
-	if provider.Cluster() == nil || provider.Cluster().APIServer() == nil {
+	// Extract OIDC settings from the API server extraArgs.
+	apiServer := provider.K8sAPIServerConfig()
+	if apiServer == nil {
 		return nil, ErrOIDCNotConfigured
 	}
 
-	extraArgs := provider.Cluster().APIServer().ExtraArgs()
+	extraArgs := apiServer.ExtraArgs()
 	if extraArgs == nil {
 		return nil, ErrOIDCNotConfigured
 	}
