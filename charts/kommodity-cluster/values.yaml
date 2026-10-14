@@ -273,19 +273,19 @@ kommodity:
     # Configurations applied to all nodepools and controlplanes in the cluster
     # Using Talos strategic merge patches: https://docs.siderolabs.com/talos/v1.12/configure-your-talos-cluster/system-configuration/patching
     # A single partial MachineConfig YAML object that gets deep-merged into the base config.
-    # Controlplane / nodepool strategicPatches are deep-merged on top of global (later wins on conflicts).
+    # Controlplane / nodepool machineConfig are deep-merged on top of global (later wins on conflicts).
     # Example:
-    #   strategicPatches:
+    #   machineConfig:
     #     machine:
     #       kubelet:
     #         extraArgs:
     #           cloud-provider: external
-    strategicPatches: {}
+    machineConfig: {}
 
   controlplane:
     # Configurations related to the control plane nodes
     # Using Talos strategic merge patches: https://docs.siderolabs.com/talos/v1.12/configure-your-talos-cluster/system-configuration/patching
-    strategicPatches: {}
+    machineConfig: {}
 
     # Optional failure domains.
     # zones:
@@ -371,7 +371,7 @@ kommodity:
     #   #   - zone2
 
     #   # Using Talos strategic merge patches: https://docs.siderolabs.com/talos/v1.12/configure-your-talos-cluster/system-configuration/patching
-    #   strategicPatches: {}
+    #   machineConfig: {}
     #   # Kubernetes version can be overridden here, otherwise the top-level kubernetes.version is used
 
     #   kubernetes:

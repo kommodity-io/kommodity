@@ -23,9 +23,9 @@ spec:
         source: InfrastructureName
       {{- end }}
       {{- /* Build merged MachineConfig strategic patch for workers */ -}}
-      {{- $mergedPatch := include "kommodity-cluster.mergedStrategicPatch" (dict
-        "globalPatches" $.Values.kommodity.global.strategicPatches
-        "nodepoolPatches" $np.strategicPatches
+      {{- $mergedPatch := include "kommodity-cluster.mergedMachineConfig" (dict
+        "globalPatches" $.Values.kommodity.global.machineConfig
+        "nodepoolPatches" $np.machineConfig
         "taints" $np.taints
         "labels" $np.labels
         "annotations" $np.annotations

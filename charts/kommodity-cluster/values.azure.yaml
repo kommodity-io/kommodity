@@ -94,10 +94,10 @@ kommodity:
     enabled: true
 
   global:
-    strategicPatches:
+    machineConfig:
       # NOTE: kubelet --cloud-provider=external is no longer set here — the chart
       # auto-injects it whenever kommodity.provider.cloudControllerManager.enabled
-      # is true (see _helpers.tpl "mergedStrategicPatch"). Omitting it previously
+      # is true (see _helpers.tpl "mergedMachineConfig"). Omitting it previously
       # left nodes without a providerID, which broke CAPI NodeRef linking and
       # wedged control-plane rollouts, so it must never be optional.
       #
