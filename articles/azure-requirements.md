@@ -331,7 +331,7 @@ carries an `initContainer` that waits for the Secret before starting, so there i
 the Secret arrives slightly later than the pod.
 
 The kubelet `--cloud-provider=external` flag is **auto-injected** by the chart whenever
-`cloudControllerManager.enabled` is true (see the `mergedStrategicPatch` helper in
+`cloudControllerManager.enabled` is true (see the `mergedMachineConfig` helper in
 [`_helpers.tpl`](../charts/kommodity-cluster/templates/_helpers.tpl)). You do not add it by hand —
 omitting it previously left nodes without a providerID, which wedged CAPI NodeRef linking.
 

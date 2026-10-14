@@ -640,7 +640,7 @@ tests:
           path: spec.replicas
           value: 3
 
-  - it: should include anonymous-auth in strategicPatches via global.strategicPatches
+  - it: should include anonymous-auth in strategicPatches via global.machineConfig
     template: templates/talos/controlplane.yaml
     asserts:
       - matchRegex:
