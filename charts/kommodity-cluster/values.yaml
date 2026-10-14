@@ -271,8 +271,8 @@ kommodity:
 
   global:
     # Configurations applied to all nodepools and controlplanes in the cluster
-    # Using Talos strategic merge patches: https://docs.siderolabs.com/talos/v1.12/configure-your-talos-cluster/system-configuration/patching
-    # A single partial MachineConfig YAML object that gets deep-merged into the base config.
+    # A partial MachineConfig YAML object that gets deep-merged and converted to
+    # Talos v1.14 multi-document kinds (KubeletConfig, KubeAPIServerConfig, KubeNodeConfig).
     # Controlplane / nodepool machineConfig are deep-merged on top of global (later wins on conflicts).
     # Example:
     #   machineConfig:
