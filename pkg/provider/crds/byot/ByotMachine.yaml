@@ -309,6 +309,13 @@ spec:
                     ResolvedHost is the name of the ByotHost this machine has claimed. The
                     public IP for adoption is read from that host.
                   type: string
+                resolvedInternalIP:
+                  description: |-
+                    ResolvedInternalIP is the discovered internal (RFC1918) IPv4 address
+                    of the claimed ByotHost, copied from host status at claim time. Empty
+                    when discovery found no private IPv4 address. Used to populate the
+                    MachineInternalIP entry in status.addresses.
+                  type: string
                 resolvedPublicIP:
                   description: |-
                     ResolvedPublicIP is the public IP of the claimed ByotHost, used as the

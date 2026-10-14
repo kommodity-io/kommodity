@@ -229,6 +229,12 @@ spec:
                           - type
                         type: object
                       type: array
+                    externalIP:
+                      description: |-
+                        ExternalIP is the discovered IPv4 address matching spec.publicIP (the
+                        operator-provided adoption target). Empty when the public IP is not
+                        bound to any interface (e.g. NAT without the public IP on the host).
+                      type: string
                     gpus:
                       description: |-
                         GPUs is the discovered GPU summary (count, vendor, model, memory).
@@ -283,6 +289,11 @@ spec:
                         - memoryPerGPU
                         - totalMemory
                       type: object
+                    internalIP:
+                      description: |-
+                        InternalIP is the first discovered RFC1918 IPv4 address that is not
+                        the external IP. Empty when no private IPv4 address is found.
+                      type: string
                     memory:
                       anyOf:
                         - type: integer
