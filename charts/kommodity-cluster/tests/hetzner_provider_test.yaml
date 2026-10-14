@@ -199,16 +199,16 @@ tests:
     asserts:
       # Gateway is the first usable address of nodeCIDR.
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[2]
           pattern: "gateway: 10\\.0\\.0\\.1"
       # Hetzner's private NIC is enp7s0; with public: false it is the only physical device.
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[2]
           pattern: "physical: true"
       # A machine-level patch is a bare machine: document. CABPT does not
       # register MachineConfig as a standalone patch kind.
       - notMatchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[2]
           pattern: "kind: MachineConfig"
 
   - it: should derive the default-route gateway from a non-default nodeCIDR
@@ -218,7 +218,7 @@ tests:
       kommodity.network.ipv4.nodeCIDR: 10.42.0.0/16
     asserts:
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[2]
           pattern: "gateway: 10\\.42\\.0\\.1"
 
   - it: should not inject a default route on public clusters
@@ -233,10 +233,10 @@ tests:
     asserts:
       # Talos propagates these to CoreDNS, so they cover pod DNS as well.
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[2]
           pattern: "kind: ResolverConfig"
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[2]
           pattern: "address: 1\\.1\\.1\\.1"
 
   - it: should allow opting out of the resolver override
