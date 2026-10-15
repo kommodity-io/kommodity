@@ -190,7 +190,7 @@ Any values that should trigger a new Talos config template when changed should b
 	{{- $patches = mustMergeOverwrite $patches (deepCopy .poolValues.machineConfig) -}}
 {{- end }}
 {{- if gt (len $patches) 0 }}
-	{{- $_ := set $data "strategicPatches" $patches -}}
+	{{- $_ := set $data "machineConfig" $patches -}}
 {{- end }}
 {{- $talosVersion := default .allValues.talos.version (dig "talos" "version" "" .poolValues) -}}
 {{- $_ := set $data "talosVersion" $talosVersion -}}
