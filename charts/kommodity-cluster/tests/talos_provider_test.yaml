@@ -181,7 +181,7 @@ tests:
       - hasDocuments:
           count: 1
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[0]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
           pattern: "CP_VAR: cp-value"
 
   - it: should merge global and controlplane machineConfig patches
@@ -199,10 +199,10 @@ tests:
       - hasDocuments:
           count: 1
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[0]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
           pattern: "GLOBAL_VAR: global-value"
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[0]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
           pattern: "CP_VAR: cp-value"
 
   # Taints tests
