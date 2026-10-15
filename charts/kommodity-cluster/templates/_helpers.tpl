@@ -179,18 +179,18 @@ Compute sha256sum of parameters givens to the TalosConfigTemplate.
 Any values that should trigger a new Talos config template when changed should be added to the hash computation.
 */}}
 {{- define "kommodity-cluster.talosConfigHash" -}}
-{{- $hasPoolPatches := and .poolValues.strategicPatches (gt (len .poolValues.strategicPatches) 0) }}
-{{- $hasGlobalPatches := and .allValues.kommodity.global.strategicPatches (gt (len .allValues.kommodity.global.strategicPatches) 0) }}
+{{- $hasPoolPatches := and .poolValues.machineConfig (gt (len .poolValues.machineConfig) 0) }}
+{{- $hasGlobalPatches := and .allValues.kommodity.global.machineConfig (gt (len .allValues.kommodity.global.machineConfig) 0) }}
 {{- $data := dict -}}
 {{- $patches := dict -}}
 {{- if $hasGlobalPatches }}
-	{{- $patches = mustMergeOverwrite $patches (deepCopy .allValues.kommodity.global.strategicPatches) -}}
+	{{- $patches = mustMergeOverwrite $patches (deepCopy .allValues.kommodity.global.machineConfig) -}}
 {{- end }}
 {{- if $hasPoolPatches }}
-	{{- $patches = mustMergeOverwrite $patches (deepCopy .poolValues.strategicPatches) -}}
+	{{- $patches = mustMergeOverwrite $patches (deepCopy .poolValues.machineConfig) -}}
 {{- end }}
 {{- if gt (len $patches) 0 }}
-	{{- $_ := set $data "strategicPatches" $patches -}}
+	{{- $_ := set $data "machineConfig" $patches -}}
 {{- end }}
 {{- $talosVersion := default .allValues.talos.version (dig "talos" "version" "" .poolValues) -}}
 {{- $_ := set $data "talosVersion" $talosVersion -}}
@@ -278,14 +278,14 @@ Any values that should trigger a new Machine template when changed should be add
 {{- end -}}
 
 {{/*
-Build a merged strategic patch from all configuration sources.
+Build a merged machine config from all configuration sources.
 Returns a YAML block scalar list item (- |\n  <yaml>) representing a single MachineConfig strategic patch.
 Returns empty string if there are no patches to apply.
 User patches from nodepools override global patches for same keys via deep merge.
 Note: /cluster/inlineManifests are handled separately in controlplane.yaml
 to preserve YAML block scalar formatting for multi-line contents.
 */}}
-{{- define "kommodity-cluster.mergedStrategicPatch" -}}
+{{- define "kommodity-cluster.mergedMachineConfig" -}}
 {{- $result := dict -}}
 {{- /* Add labels */ -}}
 {{- if and .labels (gt (len .labels) 0) -}}
