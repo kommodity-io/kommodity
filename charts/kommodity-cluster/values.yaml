@@ -272,7 +272,13 @@ kommodity:
   global:
     # Configurations applied to all nodepools and controlplanes in the cluster
     # A partial MachineConfig YAML object that gets deep-merged and converted to
-    # Talos v1.14 multi-document kinds (KubeletConfig, KubeAPIServerConfig, KubeNodeConfig).
+    # Talos v1.14 multi-document kinds (KubeletConfig, KubeAPIServerConfig,
+    # KubeNodeConfig, EnvironmentConfig, KernelModuleConfig, CRICustomizationConfig).
+    # machine.env goes to EnvironmentConfig; kommodity.logLevel is emitted as
+    # LOG_LEVEL in EnvironmentConfig (not v1alpha1 machine.env).
+    # machine.kernel.modules emits one KernelModuleConfig per module.
+    # criCustomization emits one CRICustomizationConfig per entry.
+    # extraDocuments (raw multi-doc YAML) is split on --- and appended verbatim.
     # Controlplane / nodepool machineConfig are deep-merged on top of global (later wins on conflicts).
     # Example:
     #   machineConfig:

@@ -166,7 +166,7 @@ tests:
           path: spec.template.spec.strategicPatches[0]
           pattern: "cloud-provider: external"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[2]
+          path: spec.template.spec.strategicPatches[3]
           pattern: "net.ipv4.ip_forward"
 
   # Control-plane machineConfig tests
@@ -298,7 +298,7 @@ tests:
       - exists:
           path: spec.controlPlaneConfig.controlplane.strategicPatches
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[2]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
           pattern: "name: kommodity-autobootstrap"
 
   - it: should include autoBootstrap extension when enabled by default
@@ -309,7 +309,7 @@ tests:
       - exists:
           path: spec.controlPlaneConfig.controlplane.strategicPatches
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[2]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
           pattern: "name: kommodity-autobootstrap"
 
   - it: should not include autoBootstrap extension when disabled
@@ -333,7 +333,7 @@ tests:
       - exists:
           path: spec.controlPlaneConfig.controlplane.strategicPatches
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[2]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
           pattern: "name: kommodity-autobootstrap"
 
   - it: should default quorumNodes to etcd quorum (floor(replicas/2)+1) when not set
@@ -345,7 +345,7 @@ tests:
       - hasDocuments:
           count: 1
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[2]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
           pattern: "TALOS_AUTO_BOOTSTRAP_QUORUM_NODES=2"
 
   - it: should default quorumNodes to 3 for 5 replicas
@@ -357,7 +357,7 @@ tests:
       - hasDocuments:
           count: 1
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[2]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
           pattern: "TALOS_AUTO_BOOTSTRAP_QUORUM_NODES=3"
 
   - it: should default quorumNodes to 1 for single-node CP
@@ -369,7 +369,7 @@ tests:
       - hasDocuments:
           count: 1
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[2]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
           pattern: "TALOS_AUTO_BOOTSTRAP_QUORUM_NODES=1"
 
   - it: should use explicit quorumNodes when set
@@ -381,7 +381,7 @@ tests:
       - hasDocuments:
           count: 1
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[2]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
           pattern: "TALOS_AUTO_BOOTSTRAP_QUORUM_NODES=2"
 
   - it: should emit TALOS_AUTO_BOOTSTRAP_SCAN_CIDR when scanCIDR is set
@@ -392,7 +392,7 @@ tests:
       - hasDocuments:
           count: 1
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[2]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
           pattern: "TALOS_AUTO_BOOTSTRAP_SCAN_CIDR=10.0.0.0/24"
 
   - it: should not emit TALOS_AUTO_BOOTSTRAP_SCAN_CIDR when scanCIDR is empty
@@ -412,7 +412,7 @@ tests:
       - hasDocuments:
           count: 1
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[2]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
           pattern: "TALOS_AUTO_BOOTSTRAP_SCAN_CIDR=10.0.0.0/16"
 
   - it: should prefer explicit scanCIDR over controlplaneSubnet
@@ -424,7 +424,7 @@ tests:
       - hasDocuments:
           count: 1
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[2]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
           pattern: "TALOS_AUTO_BOOTSTRAP_SCAN_CIDR=10.0.0.0/24"
 
   - it: should not emit scanCIDR when neither scanCIDR nor controlplaneSubnet is set
@@ -444,7 +444,7 @@ tests:
       - hasDocuments:
           count: 1
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[2]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
           pattern: "TALOS_AUTO_BOOTSTRAP_SCAN_CONCURRENCY=256"
 
   - it: should not emit TALOS_AUTO_BOOTSTRAP_SCAN_CONCURRENCY when scanConcurrency is 0
@@ -543,10 +543,10 @@ tests:
           diskSelector: "disk.model == 'scratch'"
     asserts:
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[2]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
           pattern: "kind: UserVolumeConfig"
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[2]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
           pattern: "name: scratch"
 
   - it: should emit multiple UserVolumeConfig for multiple instanceVolumes
@@ -692,10 +692,10 @@ tests:
           size: 100
     asserts:
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[2]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
           pattern: "kind: UserVolumeConfig"
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[2]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
           pattern: "name: data"
 
   - it: should use custom diskSelector when provided
@@ -816,10 +816,10 @@ tests:
           volumeSelector: "disk.transport == 'nvme'"
     asserts:
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[2]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
           pattern: "kind: RAIDArrayConfig"
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[2]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
           pattern: "name: data"
 
   - it: should emit default metadata 1.0 when not specified
@@ -1126,3 +1126,247 @@ tests:
       - matchRegex:
           path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
           pattern: "\\$patch: delete"
+
+  # EnvironmentConfig tests
+  - it: should emit EnvironmentConfig with variables from machine.env
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.global.machineConfig:
+        machine:
+          env:
+            MY_VAR: my-value
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[2]
+          pattern: "kind: EnvironmentConfig"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[2]
+          pattern: "MY_VAR: my-value"
+
+  - it: should emit LOG_LEVEL as EnvironmentConfig from kommodity.logLevel
+    template: templates/talos/configtemplate.yaml
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[2]
+          pattern: "kind: EnvironmentConfig"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[2]
+          pattern: "LOG_LEVEL: warn"
+
+  - it: should emit LOG_LEVEL from kommodity.logLevel not v1alpha1 machine.env
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.logLevel: debug
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[2]
+          pattern: "kind: EnvironmentConfig"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[2]
+          pattern: "LOG_LEVEL: debug"
+
+  - it: should merge user env vars and LOG_LEVEL into EnvironmentConfig
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.global.machineConfig:
+        machine:
+          env:
+            GLOBAL_VAR: global-value
+      kommodity.nodepools.default.machineConfig:
+        machine:
+          env:
+            NODEPOOL_VAR: nodepool-value
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[2]
+          pattern: "kind: EnvironmentConfig"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[2]
+          pattern: "GLOBAL_VAR: global-value"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[2]
+          pattern: "NODEPOOL_VAR: nodepool-value"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[2]
+          pattern: "LOG_LEVEL: warn"
+
+  - it: should not emit EnvironmentConfig when no env vars and no logLevel
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.global.machineConfig: {}
+      kommodity.logLevel: ""
+    asserts:
+      - notMatchRegex:
+          path: spec.template.spec.strategicPatches[0]
+          pattern: "kind: EnvironmentConfig"
+      - notMatchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "kind: EnvironmentConfig"
+      - notMatchRegex:
+          path: spec.template.spec.strategicPatches[2]
+          pattern: "kind: EnvironmentConfig"
+
+  # KernelModuleConfig tests
+  - it: should emit KernelModuleConfig one per module from machine.kernel.modules
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.global.machineConfig:
+        machine:
+          kernel:
+            modules:
+              - name: nvidia
+              - name: vfio_pci
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "kind: KernelModuleConfig"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "name: nvidia"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[4]
+          pattern: "kind: KernelModuleConfig"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[4]
+          pattern: "name: vfio_pci"
+
+  - it: should emit KernelModuleConfig with parameters
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.global.machineConfig:
+        machine:
+          kernel:
+            modules:
+              - name: nvidia
+                parameters: nvidia.noa=1
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "kind: KernelModuleConfig"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "name: nvidia"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "parameters: nvidia.noa=1"
+
+  - it: should not emit KernelModuleConfig when no modules
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.global.machineConfig: {}
+    asserts:
+      - notMatchRegex:
+          path: spec.template.spec.strategicPatches[0]
+          pattern: "KernelModuleConfig"
+      - notMatchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "KernelModuleConfig"
+      - notMatchRegex:
+          path: spec.template.spec.strategicPatches[2]
+          pattern: "KernelModuleConfig"
+
+  # CRICustomizationConfig tests
+  - it: should emit CRICustomizationConfig one per entry from criCustomization
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.global.machineConfig:
+        criCustomization:
+          - name: custom-cri-1
+            content: cri-content-1
+          - name: custom-cri-2
+            content: cri-content-2
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "kind: CRICustomizationConfig"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "name: custom-cri-1"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "content: cri-content-1"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[4]
+          pattern: "kind: CRICustomizationConfig"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[4]
+          pattern: "name: custom-cri-2"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[4]
+          pattern: "content: cri-content-2"
+
+  - it: should not emit CRICustomizationConfig when criCustomization is empty
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.global.machineConfig: {}
+    asserts:
+      - notMatchRegex:
+          path: spec.template.spec.strategicPatches[0]
+          pattern: "CRICustomizationConfig"
+      - notMatchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "CRICustomizationConfig"
+      - notMatchRegex:
+          path: spec.template.spec.strategicPatches[2]
+          pattern: "CRICustomizationConfig"
+
+  # extraDocuments tests
+  - it: should split extraDocuments on --- and append each as separate item
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.global.machineConfig:
+        extraDocuments: |
+          apiVersion: v1alpha1
+          kind: TestDoc1
+          spec:
+            foo: bar
+          ---
+          apiVersion: v1alpha1
+          kind: TestDoc2
+          spec:
+            baz: qux
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "kind: TestDoc1"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "foo: bar"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[4]
+          pattern: "kind: TestDoc2"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[4]
+          pattern: "baz: qux"
+
+  - it: should append single extraDocument as one item
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.global.machineConfig:
+        extraDocuments: |
+          apiVersion: v1alpha1
+          kind: SingleDoc
+          spec:
+            key: value
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "kind: SingleDoc"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "key: value"
+
+  - it: should not emit extraDocuments when unset
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.global.machineConfig: {}
+    asserts:
+      - notMatchRegex:
+          path: spec.template.spec.strategicPatches[0]
+          pattern: "extraDocuments"
+      - notMatchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "extraDocuments"
+      - notMatchRegex:
+          path: spec.template.spec.strategicPatches[2]
+          pattern: "extraDocuments"

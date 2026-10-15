@@ -232,7 +232,7 @@ tests:
           path: spec.controlPlaneConfig.controlplane.strategicPatches[2]
           pattern: "inlineManifests"
       - notExists:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[4]
 
   - it: should produce inlineManifests when addon delivery is InlineManifest
     template: templates/talos/controlplane.yaml
@@ -244,10 +244,10 @@ tests:
       kommodity.addons.talos-cluster-proxy.enabled: false
     asserts:
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[4]
           pattern: "inlineManifests"
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[4]
           pattern: "external-dns-namespace"
 
   - it: should not render CRS for InlineManifest addons
