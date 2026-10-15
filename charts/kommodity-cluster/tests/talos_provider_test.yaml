@@ -169,6 +169,42 @@ tests:
           path: spec.template.spec.strategicPatches[0]
           pattern: "net.ipv4.ip_forward"
 
+  # Control-plane machineConfig tests
+  - it: should render controlplane machineConfig in strategic patches
+    template: templates/talos/controlplane.yaml
+    set:
+      kommodity.controlplane.machineConfig:
+        machine:
+          env:
+            CP_VAR: cp-value
+    asserts:
+      - hasDocuments:
+          count: 1
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[0]
+          pattern: "CP_VAR: cp-value"
+
+  - it: should merge global and controlplane machineConfig patches
+    template: templates/talos/controlplane.yaml
+    set:
+      kommodity.global.machineConfig:
+        machine:
+          env:
+            GLOBAL_VAR: global-value
+      kommodity.controlplane.machineConfig:
+        machine:
+          env:
+            CP_VAR: cp-value
+    asserts:
+      - hasDocuments:
+          count: 1
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[0]
+          pattern: "GLOBAL_VAR: global-value"
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[0]
+          pattern: "CP_VAR: cp-value"
+
   # Taints tests
   - it: should generate kubelet extraArgs and nodeTaints in strategic patch for taints
     template: templates/talos/configtemplate.yaml
