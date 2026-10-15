@@ -94,14 +94,14 @@ func (b ByotInfra) Overrides() map[string]any {
 		"kommodity.controlplane.resources.memory": b.Memory,
 		"kommodity.controlplane.os.disk.type":     b.DiskType,
 		"kommodity.controlplane.os.disk.size":     b.DiskSize,
-		"kommodity.controlplane.machineConfig": talosInDockerPatch(),
+		"kommodity.controlplane.machineConfig":    talosInDockerPatch(),
 
 		"kommodity.nodepools.default.replicas":         int64(1),
 		"kommodity.nodepools.default.resources.cpu":    b.CPU,
 		"kommodity.nodepools.default.resources.memory": b.Memory,
 		"kommodity.nodepools.default.os.disk.type":     b.DiskType,
 		"kommodity.nodepools.default.os.disk.size":     b.DiskSize,
-		"kommodity.nodepools.default.machineConfig": talosInDockerPatch(),
+		"kommodity.nodepools.default.machineConfig":    talosInDockerPatch(),
 		// Unset the per-FD zones from values.byot.yaml so the test runs a single
 		// domain-less worker MachineDeployment (one worker, not split across FDs).
 		"kommodity.nodepools.default.zones": nil,
