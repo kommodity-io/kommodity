@@ -280,8 +280,10 @@ Any values that should trigger a new Machine template when changed should be add
 {{/*
 Build merged machine config, emitting Talos v1.14 multi-document kinds.
 Returns multiple YAML block scalar list items (- |\n  <yaml>), one per document:
-  KubeletConfig, KubeAPIServerConfig, KubeNodeConfig, then a v1alpha1 fragment
-  for fields with no multi-doc equivalent. Returns empty string if nothing to emit.
+  KubeletConfig, KubeAPIServerConfig, KubeNodeConfig, EnvironmentConfig,
+  KernelModuleConfig, CRICustomizationConfig, then a v1alpha1 fragment
+  for fields with no multi-doc equivalent, then extraDocuments appended verbatim.
+  Returns empty string if nothing to emit.
 User patches from nodepools override global patches via deep merge.
 */}}
 {{- define "kommodity-cluster.mergedMachineConfig" -}}
@@ -374,11 +376,51 @@ User patches from nodepools override global patches via deep merge.
 {{- if eq (len (keys $c)) 0 -}}{{- $_ := unset $merged "cluster" -}}{{- end -}}
 {{- end -}}
 
-{{- /* Inject built-in v1alpha1 fields (no multi-doc equivalent yet) */ -}}
-{{- if .logLevel -}}
-{{- $globalEnv := include "kommodity.talos.globalEnv" (dict "logLevel" .logLevel) | fromJson -}}
-{{- $_ := mustMergeOverwrite $merged (dict "machine" (dict "env" $globalEnv)) -}}
+{{- /* EnvironmentConfig: machine.env dict + LOG_LEVEL from kommodity.logLevel.
+     Replaces the old v1alpha1 machine.env path. */ -}}
+{{- $envVars := dict -}}
+{{- with (dig "machine" "env" nil $merged) -}}{{- $envVars = mustMergeOverwrite $envVars (deepCopy .) -}}{{- end -}}
+{{- if .logLevel -}}{{- $_ := set $envVars "LOG_LEVEL" .logLevel -}}{{- end -}}
+{{- if gt (len $envVars) 0 -}}
+{{- $doc := dict "apiVersion" "v1alpha1" "kind" "EnvironmentConfig" "variables" $envVars -}}
+- |
+{{ printf "%s\n" ($doc | toYaml | indent 2) }}
 {{- end -}}
+
+{{- /* KernelModuleConfig: one document per module from machine.kernel.modules */ -}}
+{{- range $module := (dig "machine" "kernel" "modules" (list) $merged) -}}
+{{- $name := dig "name" "" $module -}}
+{{- $doc := dict "apiVersion" "v1alpha1" "kind" "KernelModuleConfig" "name" $name -}}
+{{- with (omit $module "name") -}}{{- $_ := mustMergeOverwrite $doc . -}}{{- end -}}
+- |
+{{ printf "%s\n" ($doc | toYaml | indent 2) }}
+{{- end -}}
+
+{{- /* CRICustomizationConfig: one document per entry from criCustomization list */ -}}
+{{- range $entry := (dig "criCustomization" (list) $merged) -}}
+{{- $doc := dict "apiVersion" "v1alpha1" "kind" "CRICustomizationConfig" -}}
+{{- $_ := mustMergeOverwrite $doc (deepCopy $entry) -}}
+- |
+{{ printf "%s\n" ($doc | toYaml | indent 2) }}
+{{- end -}}
+
+{{- /* Capture extraDocuments before stripping from $merged */ -}}
+{{- $extraDocs := dig "extraDocuments" "" $merged -}}
+
+{{- /* Strip env, kernel.modules, criCustomization, extraDocuments from $merged for v1alpha1 fragment */ -}}
+{{- if hasKey $merged "machine" -}}
+{{- $m := get $merged "machine" -}}
+{{- $_ := unset $m "env" -}}
+{{- if hasKey $m "kernel" -}}
+{{- $_ := set $m "kernel" (omit (get $m "kernel") "modules") -}}
+{{- if eq (len (keys (get $m "kernel"))) 0 -}}{{- $_ := unset $m "kernel" -}}{{- end -}}
+{{- end -}}
+{{- if eq (len (keys $m)) 0 -}}{{- $_ := unset $merged "machine" -}}{{- end -}}
+{{- end -}}
+{{- $_ := unset $merged "criCustomization" -}}
+{{- $_ := unset $merged "extraDocuments" -}}
+
+{{- /* Inject built-in v1alpha1 fields (no multi-doc equivalent) */ -}}
 {{- if .disableCNI -}}
 {{- $_ := mustMergeOverwrite $merged (include "kommodity.talos.cni.disable" . | fromJson) -}}
 {{- end -}}
@@ -391,8 +433,18 @@ User patches from nodepools override global patches via deep merge.
 - |
 {{ printf "%s\n" ($merged | toYaml | indent 2) }}
 {{- end -}}
-{{- end -}}
 
+{{- /* extraDocuments: raw multi-doc YAML string split on ---, each appended verbatim */ -}}
+{{- with $extraDocs -}}
+{{- range $doc := (splitList "\n---\n" .) -}}
+{{- $doc = trim $doc -}}
+{{- if $doc -}}
+- |
+{{ printf "%s\n" ($doc | indent 2) }}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
 {{/*
 kommodity.azure.validateNaming — fail fast on the copy-paste footgun.
 
