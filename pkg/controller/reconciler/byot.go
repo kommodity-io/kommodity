@@ -12,9 +12,8 @@ import (
 	ctrlcontroller "sigs.k8s.io/controller-runtime/pkg/controller"
 )
 
-// byotUpgradeThreshold overrides the provider's default upgrade failure
-// threshold (post-upgrade Version RPC failures before UpgradeFailed).
-const byotUpgradeThreshold int32 = 3
+// 20 minutes before giving up
+const byotUpgradeThreshold int32 = 40
 
 type byotModule struct{}
 
