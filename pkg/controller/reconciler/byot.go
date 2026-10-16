@@ -12,7 +12,7 @@ import (
 	ctrlcontroller "sigs.k8s.io/controller-runtime/pkg/controller"
 )
 
-// 20 minutes before giving up
+// 20 minutes before giving up.
 const byotUpgradeThreshold int32 = 40
 
 type byotModule struct{}
