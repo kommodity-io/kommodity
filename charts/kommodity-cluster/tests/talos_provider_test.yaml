@@ -53,7 +53,7 @@ tests:
   - it: should update the TalosConfigTemplate name when global strategic patches are changed
     template: templates/talos/configtemplate.yaml
     set:
-      kommodity.global.strategicPatches:
+      kommodity.global.machineConfig:
         machine:
           env:
             CHANGED_VAR: changed-value
@@ -69,7 +69,7 @@ tests:
   - it: should update the TalosConfigTemplate name when nodepool strategic patches are changed
     template: templates/talos/configtemplate.yaml
     set:
-      kommodity.nodepools.default.strategicPatches:
+      kommodity.nodepools.default.machineConfig:
         machine:
           env:
             NODEPOOL_VAR: nodepool-value
@@ -99,11 +99,11 @@ tests:
   - it: should merge global and nodepool strategic patches
     template: templates/talos/configtemplate.yaml
     set:
-      kommodity.global.strategicPatches:
+      kommodity.global.machineConfig:
         machine:
           env:
             GLOBAL_VAR: global-value
-      kommodity.nodepools.default.strategicPatches:
+      kommodity.nodepools.default.machineConfig:
         machine:
           env:
             NODEPOOL_VAR: nodepool-value
@@ -125,11 +125,11 @@ tests:
   - it: should let nodepool patches override global patches for same key
     template: templates/talos/configtemplate.yaml
     set:
-      kommodity.global.strategicPatches:
+      kommodity.global.machineConfig:
         machine:
           env:
             SHARED_VAR: global-value
-      kommodity.nodepools.default.strategicPatches:
+      kommodity.nodepools.default.machineConfig:
         machine:
           env:
             SHARED_VAR: nodepool-value
@@ -148,12 +148,12 @@ tests:
   - it: should deep-merge global and nodepool patches under disjoint subtrees of machine
     template: templates/talos/configtemplate.yaml
     set:
-      kommodity.global.strategicPatches:
+      kommodity.global.machineConfig:
         machine:
           kubelet:
             extraArgs:
               cloud-provider: external
-      kommodity.nodepools.default.strategicPatches:
+      kommodity.nodepools.default.machineConfig:
         machine:
           sysctls:
             net.ipv4.ip_forward: "1"
@@ -169,11 +169,47 @@ tests:
           path: spec.template.spec.strategicPatches[0]
           pattern: "net.ipv4.ip_forward"
 
+  # Control-plane machineConfig tests
+  - it: should render controlplane machineConfig in strategic patches
+    template: templates/talos/controlplane.yaml
+    set:
+      kommodity.controlplane.machineConfig:
+        machine:
+          env:
+            CP_VAR: cp-value
+    asserts:
+      - hasDocuments:
+          count: 1
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[0]
+          pattern: "CP_VAR: cp-value"
+
+  - it: should merge global and controlplane machineConfig patches
+    template: templates/talos/controlplane.yaml
+    set:
+      kommodity.global.machineConfig:
+        machine:
+          env:
+            GLOBAL_VAR: global-value
+      kommodity.controlplane.machineConfig:
+        machine:
+          env:
+            CP_VAR: cp-value
+    asserts:
+      - hasDocuments:
+          count: 1
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[0]
+          pattern: "GLOBAL_VAR: global-value"
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[0]
+          pattern: "CP_VAR: cp-value"
+
   # Taints tests
   - it: should generate kubelet extraArgs and nodeTaints in strategic patch for taints
     template: templates/talos/configtemplate.yaml
     set:
-      kommodity.global.strategicPatches: {}
+      kommodity.global.machineConfig: {}
       kommodity.nodepools.default.taints:
         workload: "gpu:NoSchedule"
     asserts:
@@ -195,7 +231,7 @@ tests:
   - it: should generate nodeLabels and nodeAnnotations in strategic patch
     template: templates/talos/configtemplate.yaml
     set:
-      kommodity.global.strategicPatches: {}
+      kommodity.global.machineConfig: {}
     asserts:
       - isKind:
           of: TalosConfigTemplate

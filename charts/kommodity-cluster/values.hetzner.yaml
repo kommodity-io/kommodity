@@ -67,7 +67,7 @@ kommodity:
         tag: v1.34.0
 
   global:
-    strategicPatches:
+    machineConfig:
       # Required when using a Cloud Controller Manager (https://kubernetes.io/docs/tasks/administer-cluster/running-cloud-controller/#running-cloud-controller-manager)
       machine:
         kubelet:
