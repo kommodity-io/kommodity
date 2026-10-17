@@ -9,6 +9,8 @@ var (
 	ErrOIDCClientIDRequired = errors.New("OIDC client ID is required")
 	// ErrAdminGroupRequired is returned when the admin authorizer is used without an admin group.
 	ErrAdminGroupRequired = errors.New("admin group is required when using WithAdminAuthorizer")
+	// ErrAuthenticatorNil is returned when WithAuthenticator is called with a nil authenticator.
+	ErrAuthenticatorNil = errors.New("authenticator must not be nil")
 	// ErrAuthorizerNil is returned when WithAuthorizer is called with a nil authorizer.
 	ErrAuthorizerNil = errors.New("authorizer must not be nil")
 	// ErrPEMDecodeFailed is returned when a PEM block cannot be decoded.
