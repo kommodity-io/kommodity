@@ -3,6 +3,7 @@ package libkapi
 import (
 	"context"
 
+	"k8s.io/apiserver/pkg/authentication/authenticator"
 	"k8s.io/apiserver/pkg/authorization/authorizer"
 
 	"github.com/kommodity-io/kommodity/pkg/libkapi/auth"
@@ -21,6 +22,11 @@ import (
 // Authorizer is re-aliased from k8s.io/apiserver so callers can pass custom
 // authorizers to WithAuthorizer without importing the k8s.io package directly.
 type Authorizer = authorizer.Authorizer
+
+// Authenticator is re-aliased from k8s.io/apiserver so callers can pass
+// custom authenticators to WithAuthenticator without importing the k8s.io
+// package directly.
+type Authenticator = authenticator.Request
 
 // OIDCConfig configures an OIDC bearer-token authenticator.
 type OIDCConfig = auth.OIDCConfig
@@ -58,6 +64,16 @@ func WithOIDC(cfg OIDCConfig) Option {
 func WithServiceAccount(cfg ServiceAccountConfig) Option {
 	return func(_ context.Context, c *config) error {
 		c.authOpts = append(c.authOpts, auth.WithServiceAccount(cfg))
+
+		return nil
+	}
+}
+
+// WithAuthenticator adds a custom request authenticator to the chain. See
+// auth.WithAuthenticator.
+func WithAuthenticator(authn Authenticator) Option {
+	return func(_ context.Context, c *config) error {
+		c.authOpts = append(c.authOpts, auth.WithAuthenticator(authn))
 
 		return nil
 	}

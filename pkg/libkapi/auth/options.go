@@ -17,6 +17,7 @@ type Option func(ctx context.Context, o *config) error
 // config holds resolved state from all applied Options. Unexported.
 type config struct {
 	oidcAuthenticator authenticator.Request
+	authenticators    []authenticator.Request
 	saConfig          *ServiceAccountConfig
 	authorizer        authorizer.Authorizer
 	apiAudiences      authenticator.Audiences
@@ -31,6 +32,12 @@ type ResolvedConfig struct {
 	// OIDCAuthenticator is the OIDC bearer-token authenticator, or nil
 	// if WithOIDC was not used.
 	OIDCAuthenticator authenticator.Request
+
+	// Authenticators are the custom authenticators added via
+	// WithAuthenticator, in registration order. They are tried after the
+	// OIDC and ServiceAccount authenticators and before the anonymous
+	// fallback.
+	Authenticators []authenticator.Request
 
 	// SAConfig is the ServiceAccount configuration, or nil if
 	// WithServiceAccount was not used. buildServer calls
@@ -66,6 +73,7 @@ func Resolve(ctx context.Context, opts []Option, logger *slog.Logger) (*Resolved
 
 	return &ResolvedConfig{
 		OIDCAuthenticator: cfg.oidcAuthenticator,
+		Authenticators:    cfg.authenticators,
 		SAConfig:          cfg.saConfig,
 		Authorizer:        resolveAuthorizer(cfg, logger),
 		APIAudiences:      cfg.apiAudiences,
@@ -81,7 +89,7 @@ func resolveAuthorizer(cfg *config, logger *slog.Logger) authorizer.Authorizer {
 		return cfg.authorizer
 	}
 
-	if cfg.oidcAuthenticator != nil || cfg.saConfig != nil {
+	if cfg.oidcAuthenticator != nil || cfg.saConfig != nil || len(cfg.authenticators) > 0 {
 		logger.Warn("Authentication strategies configured but no authorizer set; " +
 			"using always-allow authorizer")
 	}
@@ -90,10 +98,16 @@ func resolveAuthorizer(cfg *config, logger *slog.Logger) authorizer.Authorizer {
 }
 
 // BuildUnionAuthenticator assembles the final union authenticator from the
-// individual strategy authenticators. If both are nil, returns anonymous
+// individual strategy authenticators. If all are nil, returns anonymous
 // (the libkapi default). Otherwise chains them with anonymous as the
-// fallback, matching pkg/server/auth.go's authenticator ordering.
-func BuildUnionAuthenticator(oidcAuth authenticator.Request, saAuth authenticator.Request) authenticator.Request {
+// fallback, matching pkg/server/auth.go's authenticator ordering. Custom
+// authenticators (see WithAuthenticator) are tried after OIDC and
+// ServiceAccount, in the order given; nil entries are skipped.
+func BuildUnionAuthenticator(
+	oidcAuth authenticator.Request,
+	saAuth authenticator.Request,
+	custom ...authenticator.Request,
+) authenticator.Request {
 	var authenticators []authenticator.Request
 
 	if oidcAuth != nil {
@@ -102,6 +116,12 @@ func BuildUnionAuthenticator(oidcAuth authenticator.Request, saAuth authenticato
 
 	if saAuth != nil {
 		authenticators = append(authenticators, saAuth)
+	}
+
+	for _, authn := range custom {
+		if authn != nil {
+			authenticators = append(authenticators, authn)
+		}
 	}
 
 	if len(authenticators) == 0 {
@@ -113,6 +133,25 @@ func BuildUnionAuthenticator(oidcAuth authenticator.Request, saAuth authenticato
 	authenticators = append(authenticators, DefaultAuthenticator())
 
 	return authunion.New(authenticators...)
+}
+
+// WithAuthenticator adds a custom request authenticator to the chain. It is
+// tried after the OIDC and ServiceAccount authenticators and before the
+// anonymous fallback; multiple calls add multiple authenticators, tried in
+// registration order. The authenticator is used as-is, so a caller that
+// needs to change its behavior at runtime (e.g. to reload issuers from
+// custom resources) can pass its own thread-safe, swappable implementation,
+// such as a DynamicAuthenticator.
+func WithAuthenticator(authn authenticator.Request) Option {
+	return func(_ context.Context, cfg *config) error {
+		if authn == nil {
+			return ErrAuthenticatorNil
+		}
+
+		cfg.authenticators = append(cfg.authenticators, authn)
+
+		return nil
+	}
 }
 
 // WithAuthorizer sets a custom authorizer. If not called, the server uses

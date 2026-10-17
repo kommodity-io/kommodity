@@ -26,6 +26,10 @@ type ServiceAccountSetupHookConfig struct {
 	// OIDCAuth is the OIDC authenticator, or nil if OIDC was not configured.
 	OIDCAuth authenticator.Request
 
+	// Authenticators are the custom authenticators added via
+	// WithAuthenticator, kept in the final union after OIDC and SA.
+	Authenticators []authenticator.Request
+
 	// SetAuthenticator is called to swap in the final union authenticator
 	// after the SA authenticator is built. Typically DynamicAuthenticator.Set.
 	SetAuthenticator func(authenticator.Request)
@@ -49,7 +53,7 @@ type ServiceAccountSetupHookConfig struct {
 //  1. Resolves the signing key by loading it from the persisted Secret, or
 //     generating a new key and creating the Secret if it doesn't exist.
 //  2. Builds the SA authenticator with the resolved key.
-//  3. Swaps in the final union authenticator (OIDC + SA + anonymous) via
+//  3. Swaps in the final union authenticator (OIDC + SA + custom + anonymous) via
 //     SetAuthenticator.
 //  4. Starts the SA token controller.
 //  5. Sets up signing key rotation watch (if KeyPersistence is set).
@@ -57,7 +61,7 @@ type ServiceAccountSetupHookConfig struct {
 // This hook is used when SigningKey is nil and KeyPersistence is set,
 // so the key can be loaded from the persisted Secret after the server
 // starts listening. The server briefly runs with a placeholder authenticator
-// (OIDC + anonymous) until this hook completes.
+// (OIDC + custom + anonymous) until this hook completes.
 func NewServiceAccountSetupHook(
 	hookCfg ServiceAccountSetupHookConfig,
 ) (genericapiserver.PostStartHookFunc, error) {
@@ -84,7 +88,7 @@ func NewServiceAccountSetupHook(
 			return fmt.Errorf("failed to build service account authenticator: %w", err)
 		}
 
-		hookCfg.SetAuthenticator(auth.BuildUnionAuthenticator(hookCfg.OIDCAuth, saAuth))
+		hookCfg.SetAuthenticator(auth.BuildUnionAuthenticator(hookCfg.OIDCAuth, saAuth, hookCfg.Authenticators...))
 
 		hookCfg.InformerFactory.Start(ctx.Done())
 
