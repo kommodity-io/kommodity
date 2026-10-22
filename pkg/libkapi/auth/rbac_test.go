@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	rbacv1 "k8s.io/api/rbac/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apiserver/pkg/authentication/user"
 	"k8s.io/apiserver/pkg/authorization/authorizer"
@@ -17,6 +16,11 @@ import (
 	rbaclisters "k8s.io/client-go/listers/rbac/v1"
 
 	"github.com/kommodity-io/kommodity/pkg/libkapi/auth"
+)
+
+const (
+	testNamespace    = "default"
+	testWidgetReaders = "widget-readers"
 )
 
 // TestWithRBACAuthorizer_MissingAdminGroup_ReturnsError verifies that
@@ -45,7 +49,7 @@ func TestWithRBACAuthorizer_SetsAuthorizerAndListerSource(t *testing.T) {
 	ctx := context.Background()
 
 	resolved, err := auth.Resolve(ctx, []auth.Option{
-		auth.WithRBACAuthorizer(auth.RBACAuthorizerConfig{AdminGroups: "my-admins"}),
+		auth.WithRBACAuthorizer(auth.RBACAuthorizerConfig{AdminGroups: testAdminGroups}),
 	}, slog.Default())
 	require.NoError(t, err)
 
@@ -60,10 +64,10 @@ func TestRBACListerSource_BeforeSetListers_ReturnsError(t *testing.T) {
 
 	source := &auth.RBACListerSource{}
 
-	_, err := source.GetRole(context.Background(), "default", "reader")
+	_, err := source.GetRole(context.Background(), testNamespace, "reader")
 	require.Error(t, err)
 
-	_, err = source.ListRoleBindings(context.Background(), "default")
+	_, err = source.ListRoleBindings(context.Background(), testNamespace)
 	require.Error(t, err)
 
 	_, err = source.GetClusterRole(context.Background(), "reader")
@@ -111,10 +115,10 @@ func newSyncedRBACListers(t *testing.T, objects ...runtime.Object) (
 func TestRBACListerSource_AfterSetListers_ServesObjects(t *testing.T) {
 	t.Parallel()
 
-	role := &rbacv1.Role{ObjectMeta: metav1.ObjectMeta{Name: "reader", Namespace: "default"}}
-	roleBinding := &rbacv1.RoleBinding{ObjectMeta: metav1.ObjectMeta{Name: "readers", Namespace: "default"}}
-	clusterRole := &rbacv1.ClusterRole{ObjectMeta: metav1.ObjectMeta{Name: "cluster-reader"}}
-	clusterRoleBinding := &rbacv1.ClusterRoleBinding{ObjectMeta: metav1.ObjectMeta{Name: "cluster-readers"}}
+	role := &rbacv1.Role{Name: "reader", Namespace: testNamespace}
+	roleBinding := &rbacv1.RoleBinding{Name: "readers", Namespace: testNamespace}
+	clusterRole := &rbacv1.ClusterRole{Name: "cluster-reader"}
+	clusterRoleBinding := &rbacv1.ClusterRoleBinding{Name: "cluster-readers"}
 
 	roleLister, roleBindingLister, clusterRoleLister, clusterRoleBindingLister :=
 		newSyncedRBACListers(t, role, roleBinding, clusterRole, clusterRoleBinding)
@@ -122,11 +126,11 @@ func TestRBACListerSource_AfterSetListers_ServesObjects(t *testing.T) {
 	source := &auth.RBACListerSource{}
 	source.SetListers(roleLister, roleBindingLister, clusterRoleLister, clusterRoleBindingLister)
 
-	gotRole, err := source.GetRole(context.Background(), "default", "reader")
+	gotRole, err := source.GetRole(context.Background(), testNamespace, "reader")
 	require.NoError(t, err)
 	assert.Equal(t, "reader", gotRole.Name)
 
-	roleBindings, err := source.ListRoleBindings(context.Background(), "default")
+	roleBindings, err := source.ListRoleBindings(context.Background(), testNamespace)
 	require.NoError(t, err)
 	require.Len(t, roleBindings, 1)
 	assert.Equal(t, "readers", roleBindings[0].Name)
@@ -156,7 +160,7 @@ func TestRBACAuthorizer_FallsBackToAdminGroupBeforeListersReady(t *testing.T) {
 	require.NoError(t, err)
 
 	loopbackUser := &user.DefaultInfo{Name: "loopback", Groups: []string{"system:masters"}}
-	attrs := &fakeAttributes{user: loopbackUser, isResource: true, verb: "list", resource: "kontinuums"}
+	attrs := &fakeAttributes{user: loopbackUser, isResource: true, verb: verbList, resource: "kontinuums"}
 
 	decision, _, err := resolved.Authorizer.Authorize(ctx, attrs)
 	require.NoError(t, err)
@@ -173,15 +177,16 @@ func TestRBACAuthorizer_GrantsAccessViaRealClusterRoleBinding(t *testing.T) {
 	t.Parallel()
 
 	clusterRole := &rbacv1.ClusterRole{
-		ObjectMeta: metav1.ObjectMeta{Name: "widget-reader"},
+		Name: "widget-reader",
 		Rules: []rbacv1.PolicyRule{
-			{APIGroups: []string{"widgets.example.com"}, Resources: []string{"widgets"}, Verbs: []string{"get", "list"}},
+			{APIGroups: []string{testWidgetsAPIGroup}, Resources: []string{testWidgetsResource},
+				Verbs: []string{verbGet, verbList}},
 		},
 	}
 	clusterRoleBinding := &rbacv1.ClusterRoleBinding{
-		ObjectMeta: metav1.ObjectMeta{Name: "widget-readers"},
-		RoleRef:    rbacv1.RoleRef{APIGroup: rbacv1.GroupName, Kind: "ClusterRole", Name: "widget-reader"},
-		Subjects:   []rbacv1.Subject{{Kind: rbacv1.GroupKind, APIGroup: rbacv1.GroupName, Name: "widget-readers"}},
+		Name:     testWidgetReaders,
+		RoleRef:  rbacv1.RoleRef{APIGroup: rbacv1.GroupName, Kind: "ClusterRole", Name: "widget-reader"},
+		Subjects: []rbacv1.Subject{{Kind: rbacv1.GroupKind, APIGroup: rbacv1.GroupName, Name: testWidgetReaders}},
 	}
 
 	roleLister, roleBindingLister, clusterRoleLister, clusterRoleBindingLister :=
@@ -196,10 +201,10 @@ func TestRBACAuthorizer_GrantsAccessViaRealClusterRoleBinding(t *testing.T) {
 
 	resolved.RBACListerSource.SetListers(roleLister, roleBindingLister, clusterRoleLister, clusterRoleBindingLister)
 
-	reader := &user.DefaultInfo{Name: "bob", Groups: []string{"widget-readers"}}
+	reader := &user.DefaultInfo{Name: "bob", Groups: []string{testWidgetReaders}}
 
 	allowed := &fakeAttributes{
-		user: reader, isResource: true, verb: "get", apiGroup: "widgets.example.com", resource: "widgets",
+		user: reader, isResource: true, verb: verbGet, apiGroup: "widgets.example.com", resource: "widgets",
 	}
 
 	decision, _, err := resolved.Authorizer.Authorize(ctx, allowed)
@@ -216,4 +221,3 @@ func TestRBACAuthorizer_GrantsAccessViaRealClusterRoleBinding(t *testing.T) {
 		"delete isn't in the bound ClusterRole's rules and the user isn't in any admin group, "+
 			"so the admin-group fallback must deny it too")
 }
-

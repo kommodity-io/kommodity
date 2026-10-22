@@ -11,6 +11,14 @@ import (
 	"k8s.io/apiserver/pkg/authorization/authorizer"
 )
 
+const (
+	verbGet           = "get"
+	verbList          = "list"
+	verbWatch         = "watch"
+	testWidgetsAPIGroup = "widgets.example.com"
+	testWidgetsResource = "widgets"
+)
+
 // fakeAuthenticator is a test authenticator that returns a configurable
 // result and tracks call count.
 type fakeAuthenticator struct {
@@ -56,7 +64,7 @@ type fakeAttributes struct {
 func (a *fakeAttributes) GetUser() user.Info { return a.user }
 func (a *fakeAttributes) GetVerb() string    { return a.verb }
 func (a *fakeAttributes) IsReadOnly() bool {
-	return a.verb == "get" || a.verb == "list" || a.verb == "watch"
+	return a.verb == verbGet || a.verb == verbList || a.verb == verbWatch
 }
 
 func (a *fakeAttributes) GetNamespace() string                           { return a.namespace }

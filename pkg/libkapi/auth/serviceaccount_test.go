@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
 
 	"github.com/kommodity-io/kommodity/pkg/libkapi/auth"
@@ -79,16 +78,16 @@ func TestLoopbackSAGetter_GetServiceAccount(t *testing.T) {
 	t.Parallel()
 
 	sa := &corev1.ServiceAccount{
-		ObjectMeta: metav1.ObjectMeta{Name: "my-sa", Namespace: "default"},
+		Name: "my-sa", Namespace: testNamespace,
 	}
 
 	client := fake.NewSimpleClientset(sa)
 	getter := &auth.LoopbackSAGetter{Client: client}
 
-	got, err := getter.GetServiceAccount("default", "my-sa")
+	got, err := getter.GetServiceAccount(testNamespace, "my-sa")
 	require.NoError(t, err)
 	assert.Equal(t, "my-sa", got.Name)
-	assert.Equal(t, "default", got.Namespace)
+	assert.Equal(t, testNamespace, got.Namespace)
 }
 
 // TestLoopbackSAGetter_GetServiceAccount_NotFound verifies that
@@ -99,7 +98,7 @@ func TestLoopbackSAGetter_GetServiceAccount_NotFound(t *testing.T) {
 	client := fake.NewSimpleClientset()
 	getter := &auth.LoopbackSAGetter{Client: client}
 
-	_, err := getter.GetServiceAccount("default", "missing-sa")
+	_, err := getter.GetServiceAccount(testNamespace, "missing-sa")
 	require.Error(t, err)
 }
 
@@ -110,7 +109,7 @@ func TestLoopbackSAGetter_GetPod_ReturnsNotSupported(t *testing.T) {
 
 	getter := &auth.LoopbackSAGetter{Client: fake.NewSimpleClientset()}
 
-	_, err := getter.GetPod("default", "my-pod")
+	_, err := getter.GetPod(testNamespace, "my-pod")
 	require.Error(t, err)
 	assert.ErrorIs(t, err, auth.ErrResourceNotSupported)
 }
@@ -133,13 +132,13 @@ func TestLoopbackSAGetter_GetSecret(t *testing.T) {
 	t.Parallel()
 
 	secret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{Name: "my-secret", Namespace: "default"},
+		Name: "my-secret", Namespace: testNamespace,
 	}
 
 	client := fake.NewSimpleClientset(secret)
 	getter := &auth.LoopbackSAGetter{Client: client}
 
-	got, err := getter.GetSecret("default", "my-secret")
+	got, err := getter.GetSecret(testNamespace, "my-secret")
 	require.NoError(t, err)
 	assert.Equal(t, "my-secret", got.Name)
 }
@@ -152,7 +151,7 @@ func TestLoopbackSecretsGetter_Secrets(t *testing.T) {
 	client := fake.NewSimpleClientset()
 	getter := &auth.LoopbackSecretsGetter{Client: client}
 
-	si := getter.Secrets("default")
+	si := getter.Secrets(testNamespace)
 	assert.NotNil(t, si)
 }
 

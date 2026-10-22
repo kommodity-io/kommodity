@@ -20,7 +20,7 @@ func TestTunnelPool_CloseAllStopsIdleTimers(t *testing.T) {
 	proxyConfig := &config.TalosProxyConfig{
 		Enabled:        true,
 		ListenPort:     0,
-		ProxyNamespace: "talos-cluster-proxy",
+		ProxyNamespace: testProxyNamespace,
 		IdleTimeout:    50 * time.Millisecond,
 	}
 
@@ -36,7 +36,7 @@ func TestTunnelPool_RemoveTunnelWithNoTunnel(t *testing.T) {
 	proxyConfig := &config.TalosProxyConfig{
 		Enabled:        true,
 		ListenPort:     0,
-		ProxyNamespace: "talos-cluster-proxy",
+		ProxyNamespace: testProxyNamespace,
 		IdleTimeout:    50 * time.Millisecond,
 	}
 
@@ -52,13 +52,13 @@ func TestTunnel_OnIdleCallback(t *testing.T) {
 	proxyConfig := &config.TalosProxyConfig{
 		Enabled:        true,
 		ListenPort:     0,
-		ProxyNamespace: "talos-cluster-proxy",
+		ProxyNamespace: testProxyNamespace,
 	}
 
 	idleChan := make(chan struct{}, 1)
 
 	tunnel := talosproxy.NewTunnel(talosproxy.TunnelDeps{
-		ClusterName: "test-cluster",
+		ClusterName: testClusterName,
 		Config:      proxyConfig,
 		OnIdle:      func() { idleChan <- struct{}{} },
 	})
@@ -192,12 +192,12 @@ func TestTunnel_NoOnIdleCallback(t *testing.T) {
 	proxyConfig := &config.TalosProxyConfig{
 		Enabled:        true,
 		ListenPort:     0,
-		ProxyNamespace: "talos-cluster-proxy",
+		ProxyNamespace: testProxyNamespace,
 	}
 
 	// Creating a tunnel without OnIdle should not panic on ReleaseConn
 	tunnel := talosproxy.NewTunnel(talosproxy.TunnelDeps{
-		ClusterName: "test-cluster",
+		ClusterName: testClusterName,
 		Config:      proxyConfig,
 	})
 

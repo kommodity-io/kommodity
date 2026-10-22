@@ -31,6 +31,9 @@ import (
 // CRDs all declare this same service path; it must stay in sync with the webhook server.
 const conversionWebhookPath = "/convert"
 
+// conversionWebhook is the strategy name indicating a CRD uses webhook conversion.
+const conversionWebhook = "Webhook"
+
 //go:embed crds/**/*.yaml
 var crds embed.FS
 
@@ -111,7 +114,7 @@ func (pc *Cache) ApplyCRDProviders(ctx context.Context,
 			conversion, found, _ := unstructured.NestedFieldNoCopy(obj.Object, "spec", "conversion")
 			if found && conversion != nil {
 				conversionStrategy, found, _ := unstructured.NestedString(obj.Object, "spec", "conversion", "strategy")
-				if found && conversionStrategy == "Webhook" {
+			if found && conversionStrategy == conversionWebhook {
 					webhook, found, err := unstructured.NestedFieldNoCopy(obj.Object, "spec", "conversion", "webhook")
 					if err != nil || !found {
 						return fmt.Errorf("failed to extract webhook from crd configuration: %w", err)
@@ -172,7 +175,7 @@ func (pc *Cache) ReconcileConversionCABundles(
 	for _, objs := range pc.providerCRDs {
 		for _, obj := range objs {
 			strategy, found, _ := unstructured.NestedString(obj.Object, "spec", "conversion", "strategy")
-			if !found || strategy != "Webhook" {
+		if !found || strategy != conversionWebhook {
 				continue
 			}
 
@@ -187,7 +190,7 @@ func (pc *Cache) ReconcileConversionCABundles(
 			patch := map[string]any{
 				"spec": map[string]any{
 					"conversion": map[string]any{
-						"strategy": "Webhook",
+						"strategy": conversionWebhook,
 						"webhook": map[string]any{
 							"clientConfig": map[string]any{
 								"url":      webhookURL + conversionWebhookPath,

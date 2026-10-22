@@ -66,10 +66,8 @@ func TestLoadOrCreateSigningKey_SecretExists_LoadsKey(t *testing.T) {
 	keyPEM := auth.ConvertRSAKeyToPEM(originalKey)
 
 	existingSecret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      auth.DefaultSigningKeySecretName,
-			Namespace: auth.DefaultSigningKeyNamespace,
-		},
+		Name:      auth.DefaultSigningKeySecretName,
+		Namespace: auth.DefaultSigningKeyNamespace,
 		Data: map[string][]byte{
 			auth.SigningKeyDataKey: keyPEM,
 		},
@@ -79,7 +77,7 @@ func TestLoadOrCreateSigningKey_SecretExists_LoadsKey(t *testing.T) {
 
 	// Namespace must exist for the LoadOrCreate call to proceed.
 	_, err = client.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{Name: auth.DefaultSigningKeyNamespace},
+		Name: auth.DefaultSigningKeyNamespace,
 	}, metav1.CreateOptions{})
 	if err != nil {
 		require.Contains(t, err.Error(), "already exists")
@@ -165,17 +163,15 @@ func TestLoadOrCreateSigningKey_MissingKeyData_ReturnsError(t *testing.T) {
 	ctx := context.Background()
 
 	existingSecret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      auth.DefaultSigningKeySecretName,
-			Namespace: auth.DefaultSigningKeyNamespace,
-		},
-		Data: map[string][]byte{},
+		Name:      auth.DefaultSigningKeySecretName,
+		Namespace: auth.DefaultSigningKeyNamespace,
+		Data:      map[string][]byte{},
 	}
 
 	client := fake.NewSimpleClientset(existingSecret)
 
 	_, err := client.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{Name: auth.DefaultSigningKeyNamespace},
+		Name: auth.DefaultSigningKeyNamespace,
 	}, metav1.CreateOptions{})
 	if err != nil {
 		require.Contains(t, err.Error(), "already exists")
@@ -311,7 +307,7 @@ func TestEnsureNamespace_NoOpIfExists(t *testing.T) {
 	ctx := context.Background()
 
 	existingNs := &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{Name: "existing-ns"},
+		Name: "existing-ns",
 	}
 
 	client := fake.NewSimpleClientset(existingNs)

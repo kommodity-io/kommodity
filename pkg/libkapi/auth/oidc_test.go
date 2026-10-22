@@ -11,6 +11,11 @@ import (
 	"github.com/kommodity-io/kommodity/pkg/libkapi/auth"
 )
 
+const (
+	testClientID  = "test-client"
+	testIssuerURL = "https://example.com"
+)
+
 // TestWithOIDC_MissingIssuerURL_ReturnsError verifies that WithOIDC
 // returns ErrOIDCIssuerRequired when IssuerURL is empty.
 func TestWithOIDC_MissingIssuerURL_ReturnsError(t *testing.T) {
@@ -21,7 +26,7 @@ func TestWithOIDC_MissingIssuerURL_ReturnsError(t *testing.T) {
 	_, err := auth.Resolve(ctx, []auth.Option{
 		auth.WithOIDC(auth.OIDCConfig{
 			IssuerURL: "",
-			ClientID:  "test-client",
+		ClientID:  testClientID,
 		}),
 	}, slog.Default())
 
@@ -37,7 +42,7 @@ func TestWithOIDC_MissingClientID_ReturnsError(t *testing.T) {
 
 	_, err := auth.Resolve(ctx, []auth.Option{
 		auth.WithOIDC(auth.OIDCConfig{
-			IssuerURL: "https://example.com",
+		IssuerURL: testIssuerURL,
 			ClientID:  "",
 		}),
 	}, slog.Default())
@@ -51,19 +56,19 @@ func TestBuildJWTAuthenticator_DefaultsClaims(t *testing.T) {
 	t.Parallel()
 
 	jwt := auth.BuildJWTAuthenticator(auth.OIDCConfig{
-		IssuerURL: "https://example.com",
-		ClientID:  "test-client",
+		IssuerURL: testIssuerURL,
+		ClientID:  testClientID,
 	})
 
-	assert.Equal(t, "https://example.com", jwt.Issuer.URL)
-	assert.Equal(t, []string{"test-client"}, jwt.Issuer.Audiences)
+	assert.Equal(t, testIssuerURL, jwt.Issuer.URL)
+	assert.Equal(t, []string{testClientID}, jwt.Issuer.Audiences)
 	assert.Equal(t, "email", jwt.ClaimMappings.Username.Claim)
 	assert.Equal(t, "groups", jwt.ClaimMappings.Groups.Claim)
 
 	// Should have a claim validation rule for "aud" == ClientID.
 	require.Len(t, jwt.ClaimValidationRules, 1)
 	assert.Equal(t, "aud", jwt.ClaimValidationRules[0].Claim)
-	assert.Equal(t, "test-client", jwt.ClaimValidationRules[0].RequiredValue)
+	assert.Equal(t, testClientID, jwt.ClaimValidationRules[0].RequiredValue)
 }
 
 // TestBuildJWTAuthenticator_CustomClaims verifies that BuildJWTAuthenticator
@@ -72,8 +77,8 @@ func TestBuildJWTAuthenticator_CustomClaims(t *testing.T) {
 	t.Parallel()
 
 	jwt := auth.BuildJWTAuthenticator(auth.OIDCConfig{
-		IssuerURL:     "https://example.com",
-		ClientID:      "test-client",
+		IssuerURL:     testIssuerURL,
+		ClientID:      testClientID,
 		UsernameClaim: "sub",
 		GroupsClaim:   "memberOf",
 	})

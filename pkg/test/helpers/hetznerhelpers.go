@@ -36,11 +36,11 @@ func (h HetznerInfra) ValuesFile() string { return hetznerValuesFile }
 // independent of the example values file.
 func (h HetznerInfra) Overrides() map[string]any {
 	return map[string]any{
-		"kommodity.nodepools.default.sku": hetznerTestSKU,
-		"kommodity.controlplane.sku":      hetznerTestSKU,
+		helmKeyNodePoolSKU:          hetznerTestSKU,
+		helmKeyControlPlaneSKU:      hetznerTestSKU,
 		// int64: unstructured.SetNestedField rejects plain int values.
-		"kommodity.controlplane.replicas":      int64(hetznerTestControlPlanes),
-		"kommodity.nodepools.default.replicas": int64(hetznerTestWorkers),
+		helmKeyControlPlaneReplicas: int64(hetznerTestControlPlanes),
+		helmKeyNodePoolReplicas:     int64(hetznerTestWorkers),
 	}
 }
 
@@ -207,9 +207,7 @@ func listHetznerClusterServers(
 	clusterName string,
 ) ([]*hcloud.Server, error) {
 	servers, err := client.Server.AllWithOpts(ctx, hcloud.ServerListOpts{
-		ListOpts: hcloud.ListOpts{
-			LabelSelector: hetznerClusterLabelSelector(clusterName),
-		},
+		LabelSelector: hetznerClusterLabelSelector(clusterName),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list Hetzner servers: %w", err)

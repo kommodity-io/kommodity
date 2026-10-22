@@ -11,7 +11,6 @@ import (
 	networkv20240301 "github.com/Azure/azure-service-operator/v2/api/network/v1api20240301"
 	resourcesv1 "github.com/Azure/azure-service-operator/v2/api/resources/v1api20200601"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
@@ -21,6 +20,15 @@ const (
 	testRGARMID        = "/subscriptions/sub-123/resourceGroups/my-rg"
 	testVNetARMID      = testRGARMID + "/providers/Microsoft.Network/virtualNetworks/my-vnet"
 	testNSGARMID       = testRGARMID + "/providers/Microsoft.Network/networkSecurityGroups/my-nsg"
+
+	testRGName       = "my-rg"
+	testVNetName     = "my-vnet"
+	testNSGName      = "my-nsg"
+	testOwnerRGName  = "owner-rg"
+	testSubnetName   = "my-subnet"
+	testOwnerVNetName = "owner-vnet"
+	testRuleName     = "my-rule"
+	testOwnerNSGName = "owner-nsg"
 )
 
 func newResourceGroup(azureName string) *resourcesv1.ResourceGroup {
@@ -66,12 +74,10 @@ func newTestScheme(t *testing.T) *runtime.Scheme {
 //nolint:unparam // test helper; name is intentionally parameterised for clarity
 func provisionedRG(name string, namespace string) *resourcesv1.ResourceGroup {
 	return &resourcesv1.ResourceGroup{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-			Annotations: map[string]string{
-				genruntime.ResourceIDAnnotation: testRGARMID,
-			},
+		Name:      name,
+		Namespace: namespace,
+		Annotations: map[string]string{
+			genruntime.ResourceIDAnnotation: testRGARMID,
 		},
 		Spec: resourcesv1.ResourceGroup_Spec{AzureName: "my-rg"},
 	}
@@ -80,12 +86,10 @@ func provisionedRG(name string, namespace string) *resourcesv1.ResourceGroup {
 // provisionedVNet returns a VirtualNetwork with the resource-id annotation set.
 func provisionedVNet(name string, namespace string) *networkv1.VirtualNetwork {
 	return &networkv1.VirtualNetwork{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-			Annotations: map[string]string{
-				genruntime.ResourceIDAnnotation: testVNetARMID,
-			},
+		Name:      name,
+		Namespace: namespace,
+		Annotations: map[string]string{
+			genruntime.ResourceIDAnnotation: testVNetARMID,
 		},
 		Spec: networkv1.VirtualNetwork_Spec{AzureName: "my-vnet"},
 	}
@@ -94,14 +98,12 @@ func provisionedVNet(name string, namespace string) *networkv1.VirtualNetwork {
 // provisionedNSG returns a NetworkSecurityGroup with the resource-id annotation set.
 func provisionedNSG(name string, namespace string) *networkv20240301.NetworkSecurityGroup {
 	return &networkv20240301.NetworkSecurityGroup{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-			Annotations: map[string]string{
-				genruntime.ResourceIDAnnotation: testNSGARMID,
-			},
+		Name:      name,
+		Namespace: namespace,
+		Annotations: map[string]string{
+			genruntime.ResourceIDAnnotation: testNSGARMID,
 		},
-		Spec: networkv20240301.NetworkSecurityGroup_Spec{AzureName: "my-nsg"},
+		Spec: networkv20240301.NetworkSecurityGroup_Spec{AzureName: testNSGName},
 	}
 }
 
@@ -110,14 +112,14 @@ func provisionedNSG(name string, namespace string) *networkv20240301.NetworkSecu
 func TestResourceGroupARMID(t *testing.T) {
 	t.Parallel()
 
-	resourceGroup := newResourceGroup("my-rg")
+	resourceGroup := newResourceGroup(testRGName)
 
 	got, err := resourceGroupARMID(context.Background(), nil, resourceGroup, testSubscriptionID)
 	if err != nil {
 		t.Fatalf("resourceGroupARMID returned error: %v", err)
 	}
 
-	want := "/subscriptions/sub-123/resourceGroups/my-rg"
+	want := testRGARMID
 	if got != want {
 		t.Fatalf("armID = %q, want %q", got, want)
 	}
@@ -126,7 +128,7 @@ func TestResourceGroupARMID(t *testing.T) {
 func TestResourceGroupARMIDEmptySubscription(t *testing.T) {
 	t.Parallel()
 
-	resourceGroup := newResourceGroup("my-rg")
+	resourceGroup := newResourceGroup(testRGName)
 
 	_, err := resourceGroupARMID(context.Background(), nil, resourceGroup, "")
 	if !errors.Is(err, ErrARMIDUnresolvable) {
@@ -140,7 +142,7 @@ func TestRGScopedARMIDVirtualNetwork(t *testing.T) {
 	t.Parallel()
 
 	scheme := newTestScheme(t)
-	ownerRG := provisionedRG("owner-rg", testNamespace)
+	ownerRG := provisionedRG(testOwnerRGName, testNamespace)
 
 	kubeClient := fake.NewClientBuilder().
 		WithScheme(scheme).
@@ -148,10 +150,10 @@ func TestRGScopedARMIDVirtualNetwork(t *testing.T) {
 		Build()
 
 	vnet := &networkv1.VirtualNetwork{
-		ObjectMeta: metav1.ObjectMeta{Name: "my-vnet", Namespace: testNamespace},
+		Name: testVNetName, Namespace: testNamespace,
 		Spec: networkv1.VirtualNetwork_Spec{
-			AzureName: "my-vnet",
-			Owner:     &genruntime.KnownResourceReference{Name: "owner-rg"},
+			AzureName: testVNetName,
+			Owner:     &genruntime.KnownResourceReference{Name: testOwnerRGName},
 		},
 	}
 
@@ -160,7 +162,7 @@ func TestRGScopedARMIDVirtualNetwork(t *testing.T) {
 		t.Fatalf("rgScopedARMID returned error: %v", err)
 	}
 
-	want := testRGARMID + "/providers/Microsoft.Network/virtualNetworks/my-vnet"
+	want := testRGARMID + "/providers/Microsoft.Network/virtualNetworks/" + testVNetName
 	if got != want {
 		t.Fatalf("armID = %q, want %q", got, want)
 	}
@@ -170,7 +172,7 @@ func TestRGScopedARMIDNetworkSecurityGroup(t *testing.T) {
 	t.Parallel()
 
 	scheme := newTestScheme(t)
-	ownerRG := provisionedRG("owner-rg", testNamespace)
+	ownerRG := provisionedRG(testOwnerRGName, testNamespace)
 
 	kubeClient := fake.NewClientBuilder().
 		WithScheme(scheme).
@@ -178,10 +180,10 @@ func TestRGScopedARMIDNetworkSecurityGroup(t *testing.T) {
 		Build()
 
 	nsg := &networkv20240301.NetworkSecurityGroup{
-		ObjectMeta: metav1.ObjectMeta{Name: "my-nsg", Namespace: testNamespace},
+		Name: testNSGName, Namespace: testNamespace,
 		Spec: networkv20240301.NetworkSecurityGroup_Spec{
-			AzureName: "my-nsg",
-			Owner:     &genruntime.KnownResourceReference{Name: "owner-rg"},
+			AzureName: testNSGName,
+			Owner:     &genruntime.KnownResourceReference{Name: testOwnerRGName},
 		},
 	}
 
@@ -190,7 +192,7 @@ func TestRGScopedARMIDNetworkSecurityGroup(t *testing.T) {
 		t.Fatalf("rgScopedARMID returned error: %v", err)
 	}
 
-	want := testRGARMID + "/providers/Microsoft.Network/networkSecurityGroups/my-nsg"
+	want := testRGARMID + "/providers/Microsoft.Network/networkSecurityGroups/" + testNSGName
 	if got != want {
 		t.Fatalf("armID = %q, want %q", got, want)
 	}
@@ -200,7 +202,7 @@ func TestRGScopedARMIDRouteTable(t *testing.T) {
 	t.Parallel()
 
 	scheme := newTestScheme(t)
-	ownerRG := provisionedRG("owner-rg", testNamespace)
+	ownerRG := provisionedRG(testOwnerRGName, testNamespace)
 
 	kubeClient := fake.NewClientBuilder().
 		WithScheme(scheme).
@@ -208,10 +210,10 @@ func TestRGScopedARMIDRouteTable(t *testing.T) {
 		Build()
 
 	routeTable := &networkv20240301.RouteTable{
-		ObjectMeta: metav1.ObjectMeta{Name: "my-rt", Namespace: testNamespace},
+		Name: "my-rt", Namespace: testNamespace,
 		Spec: networkv20240301.RouteTable_Spec{
 			AzureName: "my-rt",
-			Owner:     &genruntime.KnownResourceReference{Name: "owner-rg"},
+			Owner:     &genruntime.KnownResourceReference{Name: testOwnerRGName},
 		},
 	}
 
@@ -230,7 +232,7 @@ func TestRGScopedARMIDNatGateway(t *testing.T) {
 	t.Parallel()
 
 	scheme := newTestScheme(t)
-	ownerRG := provisionedRG("owner-rg", testNamespace)
+	ownerRG := provisionedRG(testOwnerRGName, testNamespace)
 
 	kubeClient := fake.NewClientBuilder().
 		WithScheme(scheme).
@@ -238,10 +240,10 @@ func TestRGScopedARMIDNatGateway(t *testing.T) {
 		Build()
 
 	natGateway := &networkv20220701.NatGateway{
-		ObjectMeta: metav1.ObjectMeta{Name: "my-nat", Namespace: testNamespace},
+		Name: "my-nat", Namespace: testNamespace,
 		Spec: networkv20220701.NatGateway_Spec{
 			AzureName: "my-nat",
-			Owner:     &genruntime.KnownResourceReference{Name: "owner-rg"},
+			Owner:     &genruntime.KnownResourceReference{Name: testOwnerRGName},
 		},
 	}
 
@@ -263,8 +265,8 @@ func TestRGScopedARMIDOwnerNotProvisioned(t *testing.T) {
 
 	// RG exists but has no resource-id annotation.
 	unprovisionedRG := &resourcesv1.ResourceGroup{
-		ObjectMeta: metav1.ObjectMeta{Name: "owner-rg", Namespace: testNamespace},
-		Spec:       resourcesv1.ResourceGroup_Spec{AzureName: "my-rg"},
+		Name: testOwnerRGName, Namespace: testNamespace,
+		Spec: resourcesv1.ResourceGroup_Spec{AzureName: testRGName},
 	}
 
 	kubeClient := fake.NewClientBuilder().
@@ -273,10 +275,10 @@ func TestRGScopedARMIDOwnerNotProvisioned(t *testing.T) {
 		Build()
 
 	vnet := &networkv1.VirtualNetwork{
-		ObjectMeta: metav1.ObjectMeta{Name: "my-vnet", Namespace: testNamespace},
+		Name: testVNetName, Namespace: testNamespace,
 		Spec: networkv1.VirtualNetwork_Spec{
-			AzureName: "my-vnet",
-			Owner:     &genruntime.KnownResourceReference{Name: "owner-rg"},
+			AzureName: testVNetName,
+			Owner:     &genruntime.KnownResourceReference{Name: testOwnerRGName},
 		},
 	}
 
@@ -293,9 +295,9 @@ func TestRGScopedARMIDOwnerMissing(t *testing.T) {
 	kubeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
 
 	vnet := &networkv1.VirtualNetwork{
-		ObjectMeta: metav1.ObjectMeta{Name: "my-vnet", Namespace: testNamespace},
+		Name: testVNetName, Namespace: testNamespace,
 		Spec: networkv1.VirtualNetwork_Spec{
-			AzureName: "my-vnet",
+			AzureName: testVNetName,
 			Owner:     &genruntime.KnownResourceReference{Name: "missing-rg"},
 		},
 	}
@@ -312,7 +314,7 @@ func TestVirtualNetworksSubnetARMID(t *testing.T) {
 	t.Parallel()
 
 	scheme := newTestScheme(t)
-	ownerVNet := provisionedVNet("owner-vnet", testNamespace)
+	ownerVNet := provisionedVNet(testOwnerVNetName, testNamespace)
 
 	kubeClient := fake.NewClientBuilder().
 		WithScheme(scheme).
@@ -320,10 +322,10 @@ func TestVirtualNetworksSubnetARMID(t *testing.T) {
 		Build()
 
 	subnet := &networkv1.VirtualNetworksSubnet{
-		ObjectMeta: metav1.ObjectMeta{Name: "my-subnet", Namespace: testNamespace},
+		Name: testSubnetName, Namespace: testNamespace,
 		Spec: networkv1.VirtualNetworksSubnet_Spec{
-			AzureName: "my-subnet",
-			Owner:     &genruntime.KnownResourceReference{Name: "owner-vnet"},
+			AzureName: testSubnetName,
+			Owner:     &genruntime.KnownResourceReference{Name: testOwnerVNetName},
 		},
 	}
 
@@ -332,7 +334,7 @@ func TestVirtualNetworksSubnetARMID(t *testing.T) {
 		t.Fatalf("virtualNetworksSubnetARMID returned error: %v", err)
 	}
 
-	want := testVNetARMID + "/subnets/my-subnet"
+	want := testVNetARMID + "/subnets/" + testSubnetName
 	if got != want {
 		t.Fatalf("armID = %q, want %q", got, want)
 	}
@@ -344,8 +346,8 @@ func TestVirtualNetworksSubnetARMIDOwnerNotProvisioned(t *testing.T) {
 	scheme := newTestScheme(t)
 
 	unprovisionedVNet := &networkv1.VirtualNetwork{
-		ObjectMeta: metav1.ObjectMeta{Name: "owner-vnet", Namespace: testNamespace},
-		Spec:       networkv1.VirtualNetwork_Spec{AzureName: "my-vnet"},
+		Name: testOwnerVNetName, Namespace: testNamespace,
+		Spec: networkv1.VirtualNetwork_Spec{AzureName: testVNetName},
 	}
 
 	kubeClient := fake.NewClientBuilder().
@@ -354,10 +356,10 @@ func TestVirtualNetworksSubnetARMIDOwnerNotProvisioned(t *testing.T) {
 		Build()
 
 	subnet := &networkv1.VirtualNetworksSubnet{
-		ObjectMeta: metav1.ObjectMeta{Name: "my-subnet", Namespace: testNamespace},
+		Name: testSubnetName, Namespace: testNamespace,
 		Spec: networkv1.VirtualNetworksSubnet_Spec{
-			AzureName: "my-subnet",
-			Owner:     &genruntime.KnownResourceReference{Name: "owner-vnet"},
+			AzureName: testSubnetName,
+			Owner:     &genruntime.KnownResourceReference{Name: testOwnerVNetName},
 		},
 	}
 
@@ -373,7 +375,7 @@ func TestNetworkSecurityGroupsSecurityRuleARMID(t *testing.T) {
 	t.Parallel()
 
 	scheme := newTestScheme(t)
-	ownerNSG := provisionedNSG("owner-nsg", testNamespace)
+	ownerNSG := provisionedNSG(testOwnerNSGName, testNamespace)
 
 	kubeClient := fake.NewClientBuilder().
 		WithScheme(scheme).
@@ -381,10 +383,10 @@ func TestNetworkSecurityGroupsSecurityRuleARMID(t *testing.T) {
 		Build()
 
 	rule := &networkv20240301.NetworkSecurityGroupsSecurityRule{
-		ObjectMeta: metav1.ObjectMeta{Name: "my-rule", Namespace: testNamespace},
+		Name: testRuleName, Namespace: testNamespace,
 		Spec: networkv20240301.NetworkSecurityGroupsSecurityRule_Spec{
-			AzureName: "my-rule",
-			Owner:     &genruntime.KnownResourceReference{Name: "owner-nsg"},
+			AzureName: testRuleName,
+			Owner:     &genruntime.KnownResourceReference{Name: testOwnerNSGName},
 		},
 	}
 
@@ -393,7 +395,7 @@ func TestNetworkSecurityGroupsSecurityRuleARMID(t *testing.T) {
 		t.Fatalf("networkSecurityGroupsSecurityRuleARMID returned error: %v", err)
 	}
 
-	want := testNSGARMID + "/securityRules/my-rule"
+	want := testNSGARMID + "/securityRules/" + testRuleName
 	if got != want {
 		t.Fatalf("armID = %q, want %q", got, want)
 	}
@@ -405,8 +407,8 @@ func TestNetworkSecurityGroupsSecurityRuleARMIDOwnerNotProvisioned(t *testing.T)
 	scheme := newTestScheme(t)
 
 	unprovisionedNSG := &networkv20240301.NetworkSecurityGroup{
-		ObjectMeta: metav1.ObjectMeta{Name: "owner-nsg", Namespace: testNamespace},
-		Spec:       networkv20240301.NetworkSecurityGroup_Spec{AzureName: "my-nsg"},
+		Name: testOwnerNSGName, Namespace: testNamespace,
+		Spec: networkv20240301.NetworkSecurityGroup_Spec{AzureName: testNSGName},
 	}
 
 	kubeClient := fake.NewClientBuilder().
@@ -415,10 +417,10 @@ func TestNetworkSecurityGroupsSecurityRuleARMIDOwnerNotProvisioned(t *testing.T)
 		Build()
 
 	rule := &networkv20240301.NetworkSecurityGroupsSecurityRule{
-		ObjectMeta: metav1.ObjectMeta{Name: "my-rule", Namespace: testNamespace},
+		Name: testRuleName, Namespace: testNamespace,
 		Spec: networkv20240301.NetworkSecurityGroupsSecurityRule_Spec{
-			AzureName: "my-rule",
-			Owner:     &genruntime.KnownResourceReference{Name: "owner-nsg"},
+			AzureName: testRuleName,
+			Owner:     &genruntime.KnownResourceReference{Name: testOwnerNSGName},
 		},
 	}
 

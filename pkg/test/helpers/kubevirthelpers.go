@@ -52,10 +52,10 @@ func (k KubevirtInfra) Overrides() map[string]any {
 			"host": k.ControlPlaneEndpointHost,
 			"port": k.ControlPlaneEndpointPort,
 		},
-		"kommodity.controlplane.replicas":      int64(1),
-		"kommodity.controlplane.sku":           instanceTypeSKU,
-		"kommodity.nodepools.default.replicas": int64(1),
-		"kommodity.nodepools.default.sku":      instanceTypeSKU,
+		helmKeyControlPlaneReplicas: int64(1),
+		helmKeyControlPlaneSKU:      instanceTypeSKU,
+		helmKeyNodePoolReplicas:     int64(1),
+		helmKeyNodePoolSKU:          instanceTypeSKU,
 	}
 }
 
@@ -278,9 +278,7 @@ func createInfraNamespace(config *rest.Config) error {
 	ctx := context.Background()
 
 	_, err = client.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: InfraClusterNamespace,
-		},
+		Name: InfraClusterNamespace,
 	}, metav1.CreateOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to create namespace %q: %w", InfraClusterNamespace, err)

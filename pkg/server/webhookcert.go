@@ -73,11 +73,9 @@ func getOrCreateWebhookServingCert(
 	}
 
 	desired := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      webhookServingCertSecretName,
-			Namespace: config.KommodityNamespace,
-		},
-		Type: corev1.SecretTypeOpaque,
+		Name:      webhookServingCertSecretName,
+		Namespace: config.KommodityNamespace,
+		Type:      corev1.SecretTypeOpaque,
 		Data: map[string][]byte{
 			corev1.TLSCertKey:       certPEM,
 			corev1.TLSPrivateKeyKey: keyPEM,
@@ -171,8 +169,8 @@ func generateSelfSignedWebhookCert() ([]byte, []byte, error) {
 
 	template := x509.Certificate{
 		SerialNumber:          serialNumber,
-		Subject:               pkix.Name{CommonName: "localhost"},
-		DNSNames:              []string{"localhost", "apiserver-loopback-client"},
+		Subject:               pkix.Name{CommonName: dnsLocalhost},
+		DNSNames:              []string{dnsLocalhost, "apiserver-loopback-client"},
 		IPAddresses:           []net.IP{net.ParseIP(loopbackBindAddress)},
 		NotBefore:             now.Add(-webhookCertBackdate),
 		NotAfter:              now.Add(webhookCertValidity),
@@ -197,7 +195,7 @@ func generateSelfSignedWebhookCert() ([]byte, []byte, error) {
 // It tolerates a concurrent creation race with the bootstrap-required-resources hook.
 func ensureKommodityNamespace(ctx context.Context, client corev1client.CoreV1Interface) error {
 	_, err := client.Namespaces().Create(ctx, &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{Name: config.KommodityNamespace},
+		Name: config.KommodityNamespace,
 	}, metav1.CreateOptions{})
 	if err != nil && !apierrors.IsAlreadyExists(err) {
 		return fmt.Errorf("failed to ensure namespace %q exists: %w", config.KommodityNamespace, err)

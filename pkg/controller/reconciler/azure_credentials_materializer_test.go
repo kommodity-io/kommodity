@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	infrav1 "sigs.k8s.io/cluster-api-provider-azure/api/v1beta1"
@@ -62,7 +61,7 @@ func buildMaterializer(t *testing.T, fixture materializerFixture) *AzureCredenti
 
 	objs := []client.Object{
 		&infrav1.AzureCluster{
-			ObjectMeta: metav1.ObjectMeta{Name: testClusterName, Namespace: testMatNamespace},
+			Name: testClusterName, Namespace: testMatNamespace,
 			Spec: infrav1.AzureClusterSpec{
 				AzureClusterClassSpec: infrav1.AzureClusterClassSpec{
 					SubscriptionID: testSubscription,
@@ -78,7 +77,7 @@ func buildMaterializer(t *testing.T, fixture materializerFixture) *AzureCredenti
 			},
 		},
 		&infrav1.AzureClusterIdentity{
-			ObjectMeta: metav1.ObjectMeta{Name: "aci", Namespace: testMatNamespace},
+			Name: "aci", Namespace: testMatNamespace,
 			Spec: infrav1.AzureClusterIdentitySpec{
 				Type:         fixture.identityType,
 				TenantID:     testTenant,
@@ -89,7 +88,7 @@ func buildMaterializer(t *testing.T, fixture materializerFixture) *AzureCredenti
 	}
 
 	cluster := &clusterv1.Cluster{
-		ObjectMeta: metav1.ObjectMeta{Name: testClusterName, Namespace: testMatNamespace},
+		Name: testClusterName, Namespace: testMatNamespace,
 		Spec: clusterv1.ClusterSpec{
 			InfrastructureRef: &corev1.ObjectReference{Kind: azureInfraKind, Name: testClusterName},
 		},
@@ -103,8 +102,8 @@ func buildMaterializer(t *testing.T, fixture materializerFixture) *AzureCredenti
 
 	if fixture.withClientSecret {
 		objs = append(objs, &corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{Name: testIdentitySecret, Namespace: testMatNamespace},
-			Data:       map[string][]byte{identityClientSecretKey: []byte(testClientSecretPW)},
+			Name: testIdentitySecret, Namespace: testMatNamespace,
+			Data: map[string][]byte{identityClientSecretKey: []byte(testClientSecretPW)},
 		})
 	}
 
@@ -121,7 +120,7 @@ func reconcileCluster(t *testing.T, materializer *AzureCredentialMaterializer) c
 	t.Helper()
 
 	result, err := materializer.Reconcile(context.Background(), ctrl.Request{
-		NamespacedName: types.NamespacedName{Namespace: testMatNamespace, Name: testClusterName},
+		Namespace: testMatNamespace, Name: testClusterName,
 	})
 	if err != nil {
 		t.Fatalf("Reconcile returned error: %v", err)
@@ -232,8 +231,8 @@ func TestMaterializeDoesNotClobberOperatorSecret(t *testing.T) {
 	t.Parallel()
 
 	operatorSecret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{Name: testClusterName + asoSecretSuffix, Namespace: testMatNamespace},
-		Data:       map[string][]byte{"AZURE_CLIENT_SECRET": []byte("operator-managed")},
+		Name: testClusterName + asoSecretSuffix, Namespace: testMatNamespace,
+		Data: map[string][]byte{"AZURE_CLIENT_SECRET": []byte("operator-managed")},
 	}
 
 	materializer := buildMaterializer(t, materializerFixture{
@@ -257,13 +256,11 @@ func TestMaterializeRefusesSecretOwnedByAnotherCluster(t *testing.T) {
 	t.Parallel()
 
 	otherSecret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      testCCMSecretName,
-			Namespace: testMatNamespace,
-			Labels: map[string]string{
-				materializerManagedByLabel: managedByLabelValue,
-				clusterNameLabel:           "other-cluster",
-			},
+		Name:      testCCMSecretName,
+		Namespace: testMatNamespace,
+		Labels: map[string]string{
+			materializerManagedByLabel: managedByLabelValue,
+			clusterNameLabel:           "other-cluster",
 		},
 		Data: map[string][]byte{ccmCloudConfigKey: []byte(`{"owned":"by-other"}`)},
 	}
@@ -274,7 +271,7 @@ func TestMaterializeRefusesSecretOwnedByAnotherCluster(t *testing.T) {
 	})
 
 	_, err := materializer.Reconcile(context.Background(), ctrl.Request{
-		NamespacedName: types.NamespacedName{Namespace: testMatNamespace, Name: testClusterName},
+		Namespace: testMatNamespace, Name: testClusterName,
 	})
 	if !errors.Is(err, ErrSecretOwnedByAnotherCluster) {
 		t.Fatalf("Reconcile error = %v, want ErrSecretOwnedByAnotherCluster", err)
@@ -297,7 +294,7 @@ func TestMaterializePopulatesEmptyPlaceholderSecret(t *testing.T) {
 	t.Parallel()
 
 	emptySecret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{Name: testClusterName + asoSecretSuffix, Namespace: testMatNamespace},
+		Name: testClusterName + asoSecretSuffix, Namespace: testMatNamespace,
 	}
 
 	materializer := buildMaterializer(t, materializerFixture{
@@ -441,7 +438,7 @@ func TestClustersForIdentitySecretEnqueuesOnRotation(t *testing.T) {
 	})
 
 	identitySecret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{Name: testIdentitySecret, Namespace: testMatNamespace},
+		Name: testIdentitySecret, Namespace: testMatNamespace,
 	}
 
 	requests := materializer.clustersForIdentitySecret(context.Background(), identitySecret)
@@ -466,11 +463,9 @@ func TestClustersForIdentitySecretIgnoresManagedSecret(t *testing.T) {
 	})
 
 	managedSecret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      testClusterName + asoSecretSuffix,
-			Namespace: testMatNamespace,
-			Labels:    map[string]string{materializerManagedByLabel: managedByLabelValue},
-		},
+		Name:      testClusterName + asoSecretSuffix,
+		Namespace: testMatNamespace,
+		Labels:    map[string]string{materializerManagedByLabel: managedByLabelValue},
 	}
 
 	requests := materializer.clustersForIdentitySecret(context.Background(), managedSecret)
@@ -489,7 +484,7 @@ func TestClustersForIdentitySecretIgnoresUnrelatedSecret(t *testing.T) {
 	})
 
 	unrelated := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{Name: "some-other-secret", Namespace: testMatNamespace},
+		Name: "some-other-secret", Namespace: testMatNamespace,
 	}
 
 	requests := materializer.clustersForIdentitySecret(context.Background(), unrelated)

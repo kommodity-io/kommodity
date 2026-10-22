@@ -56,6 +56,10 @@ const (
 	rsaKeySize = 4096
 	// loopbackBindAddress is the IP address to use for the API server's loopback client.
 	loopbackBindAddress = "127.0.0.1"
+	// groupAdmissionRegistration is the API group for admission registration.
+	groupAdmissionRegistrationInternal = "admissionregistration.k8s.io"
+	// dnsLocalhost is the DNS name for localhost.
+	dnsLocalhost = "localhost"
 )
 
 func enhanceScheme(scheme *runtime.Scheme) error {
@@ -118,7 +122,7 @@ func mapInternalAliases(scheme *runtime.Scheme) {
 	add("ServiceAccountList", gvCoreInternal, &corev1.ServiceAccountList{})
 
 	gvAdmissionRegistrationInternal := schema.GroupVersion{
-		Group: "admissionregistration.k8s.io", Version: runtime.APIVersionInternal}
+		Group: groupAdmissionRegistrationInternal, Version: runtime.APIVersionInternal}
 
 	add("ValidatingWebhookConfiguration",
 		gvAdmissionRegistrationInternal,
@@ -150,9 +154,9 @@ func setupSecureServingWithSelfSigned(cfg *config.KommodityConfig) (*options.Sec
 	alternateIPs := []net.IP{
 		net.ParseIP(loopbackBindAddress), // IPv4
 	}
-	alternateDNS := []string{"localhost", "apiserver-loopback-client"}
+	alternateDNS := []string{dnsLocalhost, "apiserver-loopback-client"}
 
-	err := secureServing.MaybeDefaultWithSelfSignedCerts("localhost", alternateDNS, alternateIPs)
+	err := secureServing.MaybeDefaultWithSelfSignedCerts(dnsLocalhost, alternateDNS, alternateIPs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate self-signed certificates: %w", err)
 	}
@@ -264,12 +268,10 @@ func persistSigningKey(
 	keyPEM := convertRSAKeyToPEM(key)
 
 	secret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      signingKeySecretName,
-			Namespace: config.KommodityNamespace,
-			Labels: map[string]string{
-				"cluster.x-k8s.io/watch-filter": reconciler.SigningKeyControllerName,
-			},
+		Name:      signingKeySecretName,
+		Namespace: config.KommodityNamespace,
+		Labels: map[string]string{
+			"cluster.x-k8s.io/watch-filter": reconciler.SigningKeyControllerName,
 		},
 		Data: map[string][]byte{
 			reconciler.SigningKeyDataKey: keyPEM,

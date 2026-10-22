@@ -89,14 +89,14 @@ func (b ByotInfra) Overrides() map[string]any {
 		"kommodity.provider.config.controlPlaneEndpoint.host": b.ControlPlaneEndpointHost,
 		"kommodity.provider.config.controlPlaneEndpoint.port": int64(b.ControlPlaneEndpointPort),
 
-		"kommodity.controlplane.replicas":         int64(1),
+		helmKeyControlPlaneReplicas: int64(1),
 		"kommodity.controlplane.resources.cpu":    b.CPU,
 		"kommodity.controlplane.resources.memory": b.Memory,
 		"kommodity.controlplane.os.disk.type":     b.DiskType,
 		"kommodity.controlplane.os.disk.size":     b.DiskSize,
 		"kommodity.controlplane.strategicPatches": talosInDockerPatch(),
 
-		"kommodity.nodepools.default.replicas":         int64(1),
+		helmKeyNodePoolReplicas: int64(1),
 		"kommodity.nodepools.default.resources.cpu":    b.CPU,
 		"kommodity.nodepools.default.resources.memory": b.Memory,
 		"kommodity.nodepools.default.os.disk.type":     b.DiskType,
@@ -207,45 +207,43 @@ func startTalosContainer(
 	image := byotTalosImageRepo + ":" + talosVersion
 
 	container, err := tc.GenericContainer(ctx, tc.GenericContainerRequest{
-		ContainerRequest: tc.ContainerRequest{
-			Image:      image,
-			Name:       name,
-			Hostname:   name,
-			Privileged: true,
-			Networks:   []string{env.Network.Name},
-			NetworkAliases: map[string][]string{
-				env.Network.Name: {name},
-			},
-			Env: map[string]string{
-				"PLATFORM": "container",
-			},
-			ExposedPorts: []string{
-				byotTalosAPIPort,
-				byotKubeAPIPort,
-			},
-			Mounts: tc.ContainerMounts{
-				{Source: tc.DockerVolumeMountSource{}, Target: "/system/state"},
-				{Source: tc.DockerVolumeMountSource{}, Target: "/var"},
-				{Source: tc.DockerVolumeMountSource{}, Target: "/etc/cni"},
-				{Source: tc.DockerVolumeMountSource{}, Target: "/etc/kubernetes"},
-				{Source: tc.DockerVolumeMountSource{}, Target: "/usr/libexec/kubernetes"},
-				{Source: tc.DockerVolumeMountSource{}, Target: "/opt"},
-			},
-			HostConfigModifier: func(hostConfig *dockercontainer.HostConfig) {
-				hostConfig.Privileged = true
-				hostConfig.SecurityOpt = []string{"seccomp=unconfined"}
-				hostConfig.Tmpfs = map[string]string{
-					"/run":    "",
-					"/system": "",
-					"/tmp":    "",
-				}
-				hostConfig.RestartPolicy = dockercontainer.RestartPolicy{
-					Name: dockercontainer.RestartPolicyAlways,
-				}
-			},
-			WaitingFor: wait.ForListeningPort(byotTalosAPIPort).
-				WithStartupTimeout(talosStartupTimeout),
+		Image:      image,
+		Name:       name,
+		Hostname:   name,
+		Privileged: true,
+		Networks:   []string{env.Network.Name},
+		NetworkAliases: map[string][]string{
+			env.Network.Name: {name},
 		},
+		Env: map[string]string{
+			"PLATFORM": "container",
+		},
+		ExposedPorts: []string{
+			byotTalosAPIPort,
+			byotKubeAPIPort,
+		},
+		Mounts: tc.ContainerMounts{
+			{Source: tc.DockerVolumeMountSource{}, Target: "/system/state"},
+			{Source: tc.DockerVolumeMountSource{}, Target: "/var"},
+			{Source: tc.DockerVolumeMountSource{}, Target: "/etc/cni"},
+			{Source: tc.DockerVolumeMountSource{}, Target: "/etc/kubernetes"},
+			{Source: tc.DockerVolumeMountSource{}, Target: "/usr/libexec/kubernetes"},
+			{Source: tc.DockerVolumeMountSource{}, Target: "/opt"},
+		},
+		HostConfigModifier: func(hostConfig *dockercontainer.HostConfig) {
+			hostConfig.Privileged = true
+			hostConfig.SecurityOpt = []string{"seccomp=unconfined"}
+			hostConfig.Tmpfs = map[string]string{
+				"/run":    "",
+				"/system": "",
+				"/tmp":    "",
+			}
+			hostConfig.RestartPolicy = dockercontainer.RestartPolicy{
+				Name: dockercontainer.RestartPolicyAlways,
+			}
+		},
+		WaitingFor: wait.ForListeningPort(byotTalosAPIPort).
+			WithStartupTimeout(talosStartupTimeout),
 		Started: true,
 	})
 	require.NoError(t, err)
@@ -446,11 +444,9 @@ func CreateTalosconfigSecret(
 	require.NoError(t, err)
 
 	_, err = client.CoreV1().Secrets(namespace).Create(context.Background(), &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      secretName,
-			Namespace: namespace,
-		},
-		Type: corev1.SecretTypeOpaque,
+		Name:      secretName,
+		Namespace: namespace,
+		Type:      corev1.SecretTypeOpaque,
 		Data: map[string][]byte{
 			"talosconfig": talosconfig,
 		},

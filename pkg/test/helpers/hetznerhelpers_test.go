@@ -13,6 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const serverPath = "/servers/1"
+
 // fakeHcloudAPI is a minimal hcloud API stub that serves one resource per type
 // labeled for cluster "test" and records every DELETE it receives.
 type fakeHcloudAPI struct {
@@ -55,7 +57,7 @@ func (f *fakeHcloudAPI) handler() http.Handler {
 	}
 
 	list("/servers", `{"servers":[{"id":1,"name":"cp-1"}]}`)
-	del("/servers/1", `{"action":{"id":10,"status":"running","progress":0}}`)
+	del(serverPath, `{"action":{"id":10,"status":"running","progress":0}}`)
 	list("/load_balancers", `{"load_balancers":[{"id":2,"name":"lb-1"}]}`)
 	del("/load_balancers/2", `{}`)
 	list("/placement_groups", `{"placement_groups":[{"id":3,"name":"pg-1"}]}`)
@@ -87,7 +89,7 @@ func TestCleanupHetznerClusterResourcesDeletesAllLabeledResources(t *testing.T) 
 
 	// Servers first, networks last: a network cannot go while servers use it.
 	require.Equal(t,
-		[]string{"/servers/1", "/load_balancers/2", "/placement_groups/3", "/networks/4"},
+		[]string{serverPath, "/load_balancers/2", "/placement_groups/3", "/networks/4"},
 		fake.deleted)
 
 	for _, selector := range fake.labelSelectors {
@@ -98,12 +100,12 @@ func TestCleanupHetznerClusterResourcesDeletesAllLabeledResources(t *testing.T) 
 func TestCleanupHetznerClusterResourcesContinuesPastDeleteErrors(t *testing.T) {
 	t.Parallel()
 
-	fake, client := newFakeHcloud(t, map[string]bool{"/servers/1": true})
+	fake, client := newFakeHcloud(t, map[string]bool{serverPath: true})
 
 	helpers.CleanupHetznerClusterResourcesWithClient(context.Background(), client, "test")
 
 	// The failed server delete must not stop the remaining resource types.
 	require.Equal(t,
-		[]string{"/servers/1", "/load_balancers/2", "/placement_groups/3", "/networks/4"},
+		[]string{serverPath, "/load_balancers/2", "/placement_groups/3", "/networks/4"},
 		fake.deleted)
 }

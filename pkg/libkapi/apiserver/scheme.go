@@ -56,7 +56,7 @@ import (
 var (
 	schemeMu      sync.Mutex
 	schemeOnce    sync.Once
-	schemeInitErr error
+	errSchemeInit error
 )
 
 // NewScheme returns the shared runtime.Scheme and CodecFactory used across the
@@ -90,13 +90,15 @@ func NewScheme(extra *runtime.Scheme) (*runtime.Scheme, serializer.CodecFactory,
 		for _, add := range addFuncs {
 			err := add.fn(scheme)
 			if err != nil {
-				schemeInitErr = fmt.Errorf("failed to add %s to scheme: %w", add.name, err)
+				errSchemeInit = fmt.Errorf("failed to add %s to scheme: %w", add.name, err)
+
 				return
 			}
 		}
 	})
-	if schemeInitErr != nil {
-		return nil, serializer.CodecFactory{}, schemeInitErr
+
+	if errSchemeInit != nil {
+		return nil, serializer.CodecFactory{}, errSchemeInit
 	}
 
 	err := addExtraTypes(scheme, extra)
