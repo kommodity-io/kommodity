@@ -50,8 +50,8 @@
      with an actionable message at helm template/install time — an invalid
      key otherwise surfaces as a cryptic admission error far from the
      values file that set it. */}}
-{{- if or (gt (len $pipName) 253) (not (regexMatch "^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$" $pipName)) }}
-{{- fail (printf "invalid PublicIP key %q in kommodity.provider.azure.publicIPAddresses: map keys become the PublicIPAddress resource name and must be valid DNS-1123 subdomains (lowercase alphanumeric, '-' and '.', max 253 chars). An invalid key otherwise fails at CR admission with a cryptic error far from the values file." $pipName) }}
+{{- if or (gt (len $pipName) 253) (not (regexMatch "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$" $pipName)) }}
+{{- fail (printf "invalid PublicIP key %q in kommodity.provider.azure.publicIPAddresses: map keys become the PublicIPAddress resource name and must be valid DNS-1123 subdomains (lowercase alphanumeric, '-' and '.', max 253 chars total, max 63 chars per dot-separated label). An invalid key otherwise fails at CR admission with a cryptic error far from the values file." $pipName) }}
 {{- end }}
 {{- $enabled := dig "enabled" true $pip }}
 {{- if $enabled }}

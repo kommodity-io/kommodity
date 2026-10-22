@@ -233,7 +233,7 @@ tests:
         my_pip: {}
     asserts:
       - failedTemplate:
-          errorMessage: "invalid PublicIP key \"my_pip\" in kommodity.provider.azure.publicIPAddresses: map keys become the PublicIPAddress resource name and must be valid DNS-1123 subdomains (lowercase alphanumeric, '-' and '.', max 253 chars). An invalid key otherwise fails at CR admission with a cryptic error far from the values file."
+          errorMessage: "invalid PublicIP key \"my_pip\" in kommodity.provider.azure.publicIPAddresses: map keys become the PublicIPAddress resource name and must be valid DNS-1123 subdomains (lowercase alphanumeric, '-' and '.', max 253 chars total, max 63 chars per dot-separated label). An invalid key otherwise fails at CR admission with a cryptic error far from the values file."
 
   - it: "should fail on an invalid DNS-1123 key (uppercase)"
     set:
@@ -241,7 +241,19 @@ tests:
         My-Pip: {}
     asserts:
       - failedTemplate:
-          errorMessage: "invalid PublicIP key \"My-Pip\" in kommodity.provider.azure.publicIPAddresses: map keys become the PublicIPAddress resource name and must be valid DNS-1123 subdomains (lowercase alphanumeric, '-' and '.', max 253 chars). An invalid key otherwise fails at CR admission with a cryptic error far from the values file."
+          errorMessage: "invalid PublicIP key \"My-Pip\" in kommodity.provider.azure.publicIPAddresses: map keys become the PublicIPAddress resource name and must be valid DNS-1123 subdomains (lowercase alphanumeric, '-' and '.', max 253 chars total, max 63 chars per dot-separated label). An invalid key otherwise fails at CR admission with a cryptic error far from the values file."
+
+  # DNS-1123 subdomains cap each dot-separated label at 63 chars; a longer
+  # single label would pass a whole-string maxLength check only to fail at
+  # CR admission — the exact cryptic error this validation prevents. The key
+  # is 64 a's: the smallest single-label length the regex must reject.
+  - it: "should fail on a 64-char single label (label-cap, not just total length)"
+    set:
+      kommodity.provider.azure.publicIPAddresses:
+        aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa: {}
+    asserts:
+      - failedTemplate:
+          errorPattern: "invalid PublicIP key \".*\" in kommodity.provider.azure.publicIPAddresses: map keys become the PublicIPAddress resource name and must be valid DNS-1123 subdomains"
 
   - it: "should fail on a key longer than 253 characters"
     set:
