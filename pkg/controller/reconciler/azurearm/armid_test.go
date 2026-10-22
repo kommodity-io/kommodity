@@ -202,7 +202,7 @@ func TestRGScopedARMIDPublicIPAddress(t *testing.T) {
 	t.Parallel()
 
 	scheme := newTestScheme(t)
-	ownerRG := provisionedRG("owner-rg", testNamespace)
+	ownerRG := provisionedRG(testOwnerRGName, testNamespace)
 
 	kubeClient := fake.NewClientBuilder().
 		WithScheme(scheme).
@@ -210,10 +210,10 @@ func TestRGScopedARMIDPublicIPAddress(t *testing.T) {
 		Build()
 
 	pip := &networkv20240301.PublicIPAddress{
-		ObjectMeta: metav1.ObjectMeta{Name: "my-pip", Namespace: testNamespace},
+		Name: "my-pip", Namespace: testNamespace,
 		Spec: networkv20240301.PublicIPAddress_Spec{
 			AzureName: "my-pip",
-			Owner:     &genruntime.KnownResourceReference{Name: "owner-rg"},
+			Owner:     &genruntime.KnownResourceReference{Name: testOwnerRGName},
 		},
 	}
 
