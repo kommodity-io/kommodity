@@ -1,4 +1,4 @@
-FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS build-api
+FROM --platform=$BUILDPLATFORM golang:1.27-alpine AS build-api
 
 # This is set automatically by buildx
 ARG TARGETARCH

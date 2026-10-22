@@ -334,7 +334,7 @@ func (r *AzureCredentialMaterializer) upsertManagedSecret(
 	}
 
 	secret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: cluster.Namespace},
+		Name: name, Namespace: cluster.Namespace,
 	}
 
 	_, err = controllerutil.CreateOrUpdate(ctx, r.Client, secret, func() error {

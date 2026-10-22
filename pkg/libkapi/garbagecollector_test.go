@@ -215,10 +215,8 @@ func createGCConfigMap(
 	defer cancel()
 
 	configMap, err := kubeClient.CoreV1().ConfigMaps(gcTestNamespace).Create(createCtx, &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:            name,
-			OwnerReferences: ownerRefs,
-		},
+		Name:            name,
+		OwnerReferences: ownerRefs,
 	}, metav1.CreateOptions{})
 	require.NoError(t, err)
 

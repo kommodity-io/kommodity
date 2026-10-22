@@ -78,8 +78,8 @@ A single `kommodity` binary that combines:
 A recent version of Go (we recommend [gvm][gvm]):
 
 ```bash
-gvm install go1.26.7 -B
-gvm use go1.26.7 --default
+gvm install go1.27.3 -B
+gvm use go1.27.3 --default
 ```
 
 ### Run It Locally
@@ -452,7 +452,7 @@ compatible with Cluster API `v1.10.x`.
 | cluster-api-control-plane-provider-talos | v0.5.13        | Control Plane  |
 | cluster-api-bootstrap-provider-talos     | v0.6.12        | Bootstrap      |
 | cluster-api-provider-azure               | v1.21.0        | Infrastructure |
-| cluster-api-provider-bringyourowntalos   | v0.10.1        | Infrastructure |
+| cluster-api-provider-bringyourowntalos   | v0.11.0        | Infrastructure |
 | cluster-api-provider-hetzner             | v1.1.0-alpha.4 | Infrastructure |
 | cluster-api-provider-kubevirt            | v0.1.10        | Infrastructure |
 | cluster-api-provider-scaleway            | v0.1.7         | Infrastructure |

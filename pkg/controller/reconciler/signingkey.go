@@ -12,7 +12,6 @@ import (
 	"github.com/kommodity-io/kommodity/pkg/logging"
 	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
 	"sigs.k8s.io/cluster-api/util/predicates"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -227,13 +226,11 @@ func (r *SigningKeyReconciler) rotateServiceAccountTokenSecret(
 	logger.Info("Deleted old service account token secret", zap.String("secret", oldSecret.Name))
 
 	newSecret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:        oldSecret.Name,
-			Namespace:   oldSecret.Namespace,
-			Labels:      labels,
-			Annotations: annotations,
-		},
-		Type: corev1.SecretTypeServiceAccountToken,
+		Name:        oldSecret.Name,
+		Namespace:   oldSecret.Namespace,
+		Labels:      labels,
+		Annotations: annotations,
+		Type:        corev1.SecretTypeServiceAccountToken,
 	}
 
 	err = r.Create(ctx, newSecret)

@@ -18,7 +18,6 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/predicates"
@@ -83,6 +82,10 @@ const (
 	// parses the kubeconfig once at process start, so a Secret-volume update
 	// alone is not sufficient to pick up a rotated SA token.
 	autoscalerKubeconfigHashAnnotation = "kommodity.io/kubeconfig-hash"
+
+	// defaultNamespace is the namespace where management-cluster secrets
+	// (kubeconfig, autoscaler extra values) are stored.
+	defaultNamespace = "default"
 )
 
 //go:embed kubeconfig.tmpl
@@ -99,7 +102,7 @@ func (a *AutoscalerJob) PrepareForApply(ctx context.Context, cfg *config.Kommodi
 
 	err := a.Get(ctx, client.ObjectKey{
 		Name:      clusterName + autoscalerSATokenSecretSuffix,
-		Namespace: "default",
+		Namespace: defaultNamespace,
 	}, &autoscalerSecret)
 	if err != nil {
 		return fmt.Errorf("failed to get Autoscaler kubeconfig secret: %w", err)
@@ -133,10 +136,8 @@ func (a *AutoscalerJob) PrepareForApply(ctx context.Context, cfg *config.Kommodi
 	}
 
 	autoscalerKubeconfig := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "kommodity-cluster-autoscaler-kubeconfig",
-			Namespace: "kube-system",
-		},
+		Name:      "kommodity-cluster-autoscaler-kubeconfig",
+		Namespace: "kube-system",
 		Data: map[string][]byte{
 			"value": buf.Bytes(),
 		},
@@ -277,7 +278,7 @@ func (a *AutoscalerJob) applySecret(ctx context.Context, clusterName string) err
 
 	err := a.Get(ctx, client.ObjectKey{
 		Name:      clusterName + "-cluster-autoscaler-extra-values",
-		Namespace: "default",
+		Namespace: defaultNamespace,
 	}, &yamlSecret)
 	if apierrors.IsNotFound(err) {
 		a.config.HasExtraValues = false

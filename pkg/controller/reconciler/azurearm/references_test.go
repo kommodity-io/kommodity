@@ -48,14 +48,14 @@ func TestFindResourceReferences(t *testing.T) {
 func TestBuildResolvedDetailsResourceGroupHasNoReferences(t *testing.T) {
 	t.Parallel()
 
-	rg := newResourceGroup("my-rg")
+	rg := newResourceGroup(testRGName)
 
 	details, err := buildResolvedDetails(rg)
 	if err != nil {
 		t.Fatalf("buildResolvedDetails returned error: %v", err)
 	}
 
-	if details.Name != "my-rg" {
+	if details.Name != testRGName {
 		t.Fatalf("details.Name = %q, want my-rg", details.Name)
 	}
 }

@@ -20,6 +20,8 @@ import (
 
 const (
 	testReadHeaderTimeout = 5 * time.Second
+	testProxyNamespace    = "talos-cluster-proxy"
+	testClusterName       = "test-cluster"
 )
 
 func newTestHandler(t *testing.T) *talosproxy.ConnectHandler {
@@ -28,7 +30,7 @@ func newTestHandler(t *testing.T) *talosproxy.ConnectHandler {
 	proxyConfig := &config.TalosProxyConfig{
 		Enabled:        true,
 		ListenPort:     0,
-		ProxyNamespace: "talos-cluster-proxy",
+		ProxyNamespace: testProxyNamespace,
 		MaxRetries:     3,
 	}
 
@@ -171,7 +173,7 @@ func TestConnectHandler_TunnelDialFailure(t *testing.T) {
 	proxyConfig := &config.TalosProxyConfig{
 		Enabled:        true,
 		ListenPort:     0,
-		ProxyNamespace: "talos-cluster-proxy",
+		ProxyNamespace: testProxyNamespace,
 		MaxRetries:     3,
 	}
 
@@ -185,7 +187,7 @@ func TestConnectHandler_TunnelDialFailure(t *testing.T) {
 	_, cidr, err := net.ParseCIDR("10.200.0.0/20")
 	require.NoError(t, err)
 
-	require.NoError(t, registry.Register("test-cluster", "default", cidr))
+	require.NoError(t, registry.Register(testClusterName, "default", cidr))
 
 	listener := startTestProxyServer(t, handler)
 

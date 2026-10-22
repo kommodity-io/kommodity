@@ -48,7 +48,7 @@ func collectReferences(value reflect.Value, result map[genruntime.ResourceRefere
 
 func collectFromStruct(value reflect.Value, result map[genruntime.ResourceReference]struct{}) {
 	if value.Type() == reflect.TypeFor[genruntime.ResourceReference]() {
-		reference, ok := value.Interface().(genruntime.ResourceReference)
+		reference, ok := reflect.TypeAssert[genruntime.ResourceReference](value)
 		if ok {
 			result[reference] = struct{}{}
 		}

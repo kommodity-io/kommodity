@@ -74,7 +74,7 @@ func TestResolve_WithAuthorizer_AfterRBACAuthorizer_ClearsRBACListerSource(t *te
 	customAuthz := authorizerfactory.NewAlwaysAllowAuthorizer()
 
 	resolved, err := auth.Resolve(ctx, []auth.Option{
-		auth.WithRBACAuthorizer(auth.RBACAuthorizerConfig{AdminGroups: "my-admins"}),
+		auth.WithRBACAuthorizer(auth.RBACAuthorizerConfig{AdminGroups: testAdminGroups}),
 		auth.WithAuthorizer(customAuthz),
 	}, slog.Default())
 	require.NoError(t, err)
@@ -93,8 +93,8 @@ func TestResolve_WithAdminAuthorizer_AfterRBACAuthorizer_ClearsRBACListerSource(
 	ctx := context.Background()
 
 	resolved, err := auth.Resolve(ctx, []auth.Option{
-		auth.WithRBACAuthorizer(auth.RBACAuthorizerConfig{AdminGroups: "my-admins"}),
-		auth.WithAdminAuthorizer(auth.AdminAuthorizerConfig{AdminGroups: "my-admins"}),
+		auth.WithRBACAuthorizer(auth.RBACAuthorizerConfig{AdminGroups: testAdminGroups}),
+		auth.WithAdminAuthorizer(auth.AdminAuthorizerConfig{AdminGroups: testAdminGroups}),
 	}, slog.Default())
 	require.NoError(t, err)
 
@@ -263,7 +263,7 @@ func TestResolve_OptionError_StopsAndReturns(t *testing.T) {
 	ctx := context.Background()
 
 	// WithOIDC with empty IssuerURL returns ErrOIDCIssuerRequired.
-	badOIDC := auth.WithOIDC(auth.OIDCConfig{ClientID: "test-client"})
+	badOIDC := auth.WithOIDC(auth.OIDCConfig{ClientID: testClientID})
 
 	_, err := auth.Resolve(ctx, []auth.Option{badOIDC}, slog.Default())
 	require.ErrorIs(t, err, auth.ErrOIDCIssuerRequired)

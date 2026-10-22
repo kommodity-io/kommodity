@@ -17,13 +17,13 @@ func TestTrackedConn_CloseDecrementsRefCount(t *testing.T) {
 	proxyConfig := &config.TalosProxyConfig{
 		Enabled:        true,
 		ListenPort:     0,
-		ProxyNamespace: "talos-cluster-proxy",
+		ProxyNamespace: testProxyNamespace,
 	}
 
 	var idleCalled atomic.Bool
 
 	tunnel := talosproxy.NewTunnel(talosproxy.TunnelDeps{
-		ClusterName: "test-cluster",
+		ClusterName: testClusterName,
 		Config:      proxyConfig,
 		OnIdle:      func() { idleCalled.Store(true) },
 	})
@@ -53,13 +53,13 @@ func TestTrackedConn_DoubleCloseDoesNotDoubleDecrement(t *testing.T) {
 	proxyConfig := &config.TalosProxyConfig{
 		Enabled:        true,
 		ListenPort:     0,
-		ProxyNamespace: "talos-cluster-proxy",
+		ProxyNamespace: testProxyNamespace,
 	}
 
 	var idleCount atomic.Int32
 
 	tunnel := talosproxy.NewTunnel(talosproxy.TunnelDeps{
-		ClusterName: "test-cluster",
+		ClusterName: testClusterName,
 		Config:      proxyConfig,
 		OnIdle:      func() { idleCount.Add(1) },
 	})
@@ -91,11 +91,11 @@ func TestTrackedConn_ReadWritePassThrough(t *testing.T) {
 	proxyConfig := &config.TalosProxyConfig{
 		Enabled:        true,
 		ListenPort:     0,
-		ProxyNamespace: "talos-cluster-proxy",
+		ProxyNamespace: testProxyNamespace,
 	}
 
 	tunnel := talosproxy.NewTunnel(talosproxy.TunnelDeps{
-		ClusterName: "test-cluster",
+		ClusterName: testClusterName,
 		Config:      proxyConfig,
 	})
 

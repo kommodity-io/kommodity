@@ -11,9 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -39,7 +37,7 @@ func newReconcilerProxy(t *testing.T) *talosproxy.Proxy {
 	cfg := &config.TalosProxyConfig{
 		Enabled:        true,
 		ListenPort:     0,
-		ProxyNamespace: "talos-cluster-proxy",
+		ProxyNamespace: testProxyNamespace,
 		IdleTimeout:    time.Second,
 	}
 
@@ -50,7 +48,7 @@ func newReconcilerProxy(t *testing.T) *talosproxy.Proxy {
 }
 
 func reconcileRequest(name, namespace string) ctrl.Request {
-	return ctrl.Request{NamespacedName: types.NamespacedName{Name: name, Namespace: namespace}}
+	return ctrl.Request{Name: name, Namespace: namespace}
 }
 
 func TestReconciler_RegistersClusterWithValidCIDR(t *testing.T) {
@@ -60,11 +58,9 @@ func TestReconciler_RegistersClusterWithValidCIDR(t *testing.T) {
 	proxy := newReconcilerProxy(t)
 
 	cluster := &clusterv1.Cluster{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:        "ok-cluster",
-			Namespace:   "team-a",
-			Annotations: map[string]string{testCIDRAnnotation: "10.10.0.0/16"},
-		},
+		Name:        "ok-cluster",
+		Namespace:   "team-a",
+		Annotations: map[string]string{testCIDRAnnotation: "10.10.0.0/16"},
 	}
 
 	kubeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(cluster).Build()
@@ -87,11 +83,9 @@ func TestReconciler_InvalidCIDRAnnotationReturnsError(t *testing.T) {
 	proxy := newReconcilerProxy(t)
 
 	cluster := &clusterv1.Cluster{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:        "bad-cidr",
-			Namespace:   "team-b",
-			Annotations: map[string]string{testCIDRAnnotation: "not-a-cidr"},
-		},
+		Name:        "bad-cidr",
+		Namespace:   "team-b",
+		Annotations: map[string]string{testCIDRAnnotation: "not-a-cidr"},
 	}
 
 	kubeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(cluster).Build()
@@ -117,10 +111,8 @@ func TestReconciler_AnnotationRemovalDeregisters(t *testing.T) {
 	require.Equal(t, 1, proxy.CIDRRegistryForTest().Len())
 
 	cluster := &clusterv1.Cluster{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "annot-cluster",
-			Namespace: "team-c",
-		},
+		Name:      "annot-cluster",
+		Namespace: "team-c",
 	}
 
 	kubeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(cluster).Build()
@@ -169,11 +161,9 @@ func TestReconciler_OverlappingCIDRReturnsError(t *testing.T) {
 	require.NoError(t, proxy.RegisterCluster("other-cluster", "team-a", cidrExisting))
 
 	cluster := &clusterv1.Cluster{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:        "overlap-cluster",
-			Namespace:   "team-b",
-			Annotations: map[string]string{testCIDRAnnotation: "10.200.16.0/20"},
-		},
+		Name:        "overlap-cluster",
+		Namespace:   "team-b",
+		Annotations: map[string]string{testCIDRAnnotation: "10.200.16.0/20"},
 	}
 
 	kubeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(cluster).Build()

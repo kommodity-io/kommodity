@@ -33,7 +33,7 @@ func (c *DownstreamClientConfig) FetchKubeConfigFromSecret(ctx context.Context) 
 
 	err := c.Get(ctx, client.ObjectKey{
 		Name:      kubeConfigSecretName,
-		Namespace: "default",
+		Namespace: defaultNamespace,
 	}, kubeConfigSecret)
 	if err != nil {
 		logging.FromContext(ctx).Error("Failed to get kubeconfig secret",

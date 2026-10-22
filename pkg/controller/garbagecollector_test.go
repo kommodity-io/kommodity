@@ -16,6 +16,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
+const testCallerUA = "caller-ua"
+
 // stubResettableMapper is a minimal meta.ResettableRESTMapper that records
 // Reset() invocations. Only Reset is exercised by runRESTMapperReset, so the
 // embedded RESTMapper is intentionally left as a nil interface.
@@ -41,7 +43,7 @@ type stubManager struct {
 func TestConfigForGC_DoublesQPSAndBurstWhenSet(t *testing.T) {
 	t.Parallel()
 
-	src := &rest.Config{QPS: 7, Burst: 14, UserAgent: "caller-ua"}
+	src := &rest.Config{QPS: 7, Burst: 14, UserAgent: testCallerUA}
 
 	got := controller.ConfigForGC(src)
 
@@ -107,7 +109,7 @@ func TestConfigForGC_PreservesExistingRateLimiter(t *testing.T) {
 func TestConfigForGC_DoesNotMutateSource(t *testing.T) {
 	t.Parallel()
 
-	src := &rest.Config{QPS: 10, Burst: 20, UserAgent: "caller-ua"}
+	src := &rest.Config{QPS: 10, Burst: 20, UserAgent: testCallerUA}
 
 	_ = controller.ConfigForGC(src)
 
@@ -119,8 +121,8 @@ func TestConfigForGC_DoesNotMutateSource(t *testing.T) {
 		t.Errorf("source Burst was mutated: got %v, want 20", src.Burst)
 	}
 
-	if src.UserAgent != "caller-ua" {
-		t.Errorf("source UserAgent was mutated: got %q, want %q", src.UserAgent, "caller-ua")
+	if src.UserAgent != testCallerUA {
+		t.Errorf("source UserAgent was mutated: got %q, want %q", src.UserAgent, testCallerUA)
 	}
 }
 
