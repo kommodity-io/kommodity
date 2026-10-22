@@ -11,7 +11,7 @@
   address) reference the PIP from a Kubernetes Service of type LoadBalancer
   via the Azure CCM annotations:
 
-    service.beta.kubernetes.io/azure-pip-name: <azureName of the PIP>
+    service.beta.kubernetes.io/azure-pip-name: pip-<release>-<pip name>
     service.beta.kubernetes.io/azure-load-balancer-resource-group: <cluster RG>
 
   The Azure cloud-controller-manager then binds the pre-provisioned PIP to the
@@ -20,36 +20,44 @@
 
   Gating: only emitted when
     1. provider is Azure
-    2. kommodity.provider.azure.publicIPAddresses is a non-empty list
+    2. kommodity.provider.azure.publicIPAddresses is a non-empty map
 
   Available in all Azure configurations (public/private, BYO-VNet/managed-VNet).
 
+  Values shape — a MAP keyed by PIP name, not a list. Helm merges maps deeply
+  across base + overlay values files, so an overlay can disable a single base
+  PIP (enabled: false) or add new ones without re-specifying the whole list.
+  That is not possible with a list, which Helm replaces wholesale on overlay.
+  Entries default to enabled; disabling an entry removes its CR on the next
+  install/upgrade, and ASO then deletes the underlying Azure PublicIP.
+
   Lifecycle: these CRs deliberately do NOT carry helm.sh/resource-policy: keep.
   They use the default ASO reconcile-policy (manage), so `helm uninstall` deletes
-  the CR and ASO then deletes the underlying Azure PublicIP. This matches the
+  the CRs and ASO then deletes the underlying Azure PublicIPs. This matches the
   established ASO network-resources pattern (networkresources.yaml).
 */}}
 {{- $isAzure := eq .Values.kommodity.provider.name "Azure" }}
-{{- $pips := dig "provider" "azure" "publicIPAddresses" list .Values.kommodity }}
+{{- $pips := dig "provider" "azure" "publicIPAddresses" dict .Values.kommodity | default dict }}
 {{- if and $isAzure $pips }}
 {{- $rg := dig "config" "resourceGroup" "" .Values.kommodity.provider | default .Release.Name }}
 {{- $asoSecret := printf "%s-aso-secret" .Release.Name }}
 {{- $location := required "missing required location in kommodity.provider.config for Azure" (dig "config" "location" "" .Values.kommodity.provider) }}
-{{- range $pip := $pips }}
-{{- if not $pip.name }}
-{{- fail "each entry in kommodity.provider.azure.publicIPAddresses must have a 'name'" }}
-{{- end }}
-{{- $pipName := printf "pip-%s-%s" $.Release.Name $pip.name }}
+{{- /* Go templates range over maps in sorted key order, so the render order
+     (and the documentIndex order in helm unittest) is deterministic. */}}
+{{- range $pipName, $pip := $pips }}
+{{- $enabled := dig "enabled" true $pip }}
+{{- if $enabled }}
+{{- $pipResName := printf "pip-%s-%s" $.Release.Name $pipName }}
 ---
 apiVersion: network.azure.com/v1api20240301
 kind: PublicIPAddress
 metadata:
-  name: {{ $pipName }}
+  name: {{ $pipResName }}
   namespace: {{ $.Release.Namespace }}
   annotations:
     serviceoperator.azure.com/credential-from: {{ $asoSecret }}
 spec:
-  azureName: {{ $pipName }}
+  azureName: {{ $pipResName }}
   location: {{ $location }}
   owner:
     name: {{ $rg }}
@@ -64,5 +72,6 @@ spec:
   zones:
     {{- toYaml . | nindent 4 }}
   {{- end }}
+{{- end }}
 {{- end }}
 {{- end }}

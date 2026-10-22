@@ -19,7 +19,7 @@ tests:
     set:
       kommodity.provider.name: Scaleway
       kommodity.provider.azure.publicIPAddresses:
-        - name: envoy-gateway
+        envoy-gateway: {}
     asserts:
       - hasDocuments:
           count: 0
@@ -27,7 +27,7 @@ tests:
   - it: should render one PublicIPAddress when a single PIP is configured
     set:
       kommodity.provider.azure.publicIPAddresses:
-        - name: envoy-gateway
+        envoy-gateway: {}
     asserts:
       - hasDocuments:
           count: 1
@@ -35,8 +35,8 @@ tests:
   - it: should render multiple PublicIPAddresses when multiple PIPs are configured
     set:
       kommodity.provider.azure.publicIPAddresses:
-        - name: envoy-gateway
-        - name: ingress-controller
+        envoy-gateway: {}
+        ingress-controller: {}
     asserts:
       - hasDocuments:
           count: 2
@@ -44,7 +44,7 @@ tests:
   - it: should render PublicIPAddress with correct fields
     set:
       kommodity.provider.azure.publicIPAddresses:
-        - name: envoy-gateway
+        envoy-gateway: {}
     documentIndex: 0
     asserts:
       - isKind:
@@ -86,7 +86,7 @@ tests:
       kommodity.provider.config.resourceGroup: my-custom-rg
       kommodity.provider.config.allowSharedResourceGroup: true
       kommodity.provider.azure.publicIPAddresses:
-        - name: envoy-gateway
+        envoy-gateway: {}
     documentIndex: 0
     asserts:
       - equal:
@@ -96,7 +96,7 @@ tests:
   - it: should include zones when configured
     set:
       kommodity.provider.azure.publicIPAddresses:
-        - name: envoy-gateway
+        envoy-gateway:
           zones:
             - "1"
             - "2"
@@ -112,7 +112,7 @@ tests:
   - it: should include tags when configured
     set:
       kommodity.provider.azure.publicIPAddresses:
-        - name: envoy-gateway
+        envoy-gateway:
           tags:
             managed-by: kommodity
             env: production
@@ -128,7 +128,7 @@ tests:
   - it: should omit zones when not configured
     set:
       kommodity.provider.azure.publicIPAddresses:
-        - name: envoy-gateway
+        envoy-gateway: {}
     documentIndex: 0
     asserts:
       - notExists:
@@ -137,7 +137,7 @@ tests:
   - it: should omit tags when not configured
     set:
       kommodity.provider.azure.publicIPAddresses:
-        - name: envoy-gateway
+        envoy-gateway: {}
     documentIndex: 0
     asserts:
       - notExists:
@@ -147,7 +147,7 @@ tests:
     set:
       kommodity.network.ipv4.public: true
       kommodity.provider.azure.publicIPAddresses:
-        - name: envoy-gateway
+        envoy-gateway: {}
     asserts:
       - hasDocuments:
           count: 1
@@ -158,32 +158,65 @@ tests:
       kommodity.network.ipv4.vnet.name: my-vnet
       kommodity.network.ipv4.vnet.resourceGroup: my-vnet-rg
       kommodity.provider.azure.publicIPAddresses:
-        - name: envoy-gateway
+        envoy-gateway: {}
     asserts:
       - hasDocuments:
           count: 1
 
-  - it: should fail when a PIP entry is missing a name
+  # enabled defaults to true; an entry with enabled: false is skipped so the
+  # CR (and its Azure PublicIP) is removed on the next upgrade. This is the
+  # overlay-friendly disable path: Helm deep-merges maps across -f files, so
+  # an overlay can disable one base PIP without re-specifying the whole map.
+  - it: "should skip a PIP with enabled: false"
     set:
       kommodity.provider.azure.publicIPAddresses:
-        - zones:
-            - "1"
+        envoy-gateway:
+          enabled: false
+        ingress-controller: {}
     asserts:
-      - failedTemplate:
-          errorMessage: "each entry in kommodity.provider.azure.publicIPAddresses must have a 'name'"
-
-  - it: should render the second PIP with correct name
-    set:
-      kommodity.provider.azure.publicIPAddresses:
-        - name: envoy-gateway
-        - name: ingress-controller
-    documentIndex: 1
-    asserts:
-      - isKind:
-          of: PublicIPAddress
+      - hasDocuments:
+          count: 1
+      # Sorted key order: envoy-gateway is skipped, ingress-controller renders
+      # as the only (first) document.
       - equal:
           path: metadata.name
           value: pip-test-cluster-ingress-controller
+
+  - it: "should render a PIP with enabled: true"
+    set:
+      kommodity.provider.azure.publicIPAddresses:
+        envoy-gateway:
+          enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: metadata.name
+          value: pip-test-cluster-envoy-gateway
+
+  # Map iteration in Go templates ranges over sorted keys, so the render order
+  # (and the documentIndex) is deterministic regardless of values-file ordering.
+  - it: should render the alphabetically-first PIP at documentIndex 0
+    set:
+      kommodity.provider.azure.publicIPAddresses:
+        zeta-gateway: {}
+        alpha-gateway: {}
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: metadata.name
+          value: pip-test-cluster-alpha-gateway
+
+  - it: should render the alphabetically-later PIP at documentIndex 1
+    set:
+      kommodity.provider.azure.publicIPAddresses:
+        zeta-gateway: {}
+        alpha-gateway: {}
+    documentIndex: 1
+    asserts:
+      - equal:
+          path: metadata.name
+          value: pip-test-cluster-zeta-gateway
       - equal:
           path: spec.azureName
-          value: pip-test-cluster-ingress-controller
+          value: pip-test-cluster-zeta-gateway

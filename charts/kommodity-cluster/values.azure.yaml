@@ -96,24 +96,39 @@ kommodity:
     # required for the Azure Standard Load Balancer to attach it as a frontend
     # public IP.
     #
-    # Use case: Envoy gateways (or any workload needing a deterministic public
-    # address) reference the PIP from a Kubernetes Service of type LoadBalancer
-    # via the Azure CCM annotations:
+    # publicIPAddresses is a MAP keyed by PIP name (not a list): Helm merges
+    # maps deeply across base + overlay values files, so an overlay can flip a
+    # single base entry to enabled: false — or add new entries — without
+    # re-specifying every base PIP. A list would be replaced wholesale on
+    # overlay and cannot express per-entry overrides.
     #
-    #   service.beta.kubernetes.io/azure-pip-name: pip-<release>-<name>
+    # Each entry defaults to enabled: true. Setting enabled: false omits the
+    # PublicIPAddress CR; on the following upgrade (or uninstall) ASO deletes
+    # the underlying Azure PublicIP. That IP address is NOT recoverable once
+    # deleted and future requests may allocate it to someone else.
+    #
+    # The map key becomes the Azure resource name as pip-<release>-<key>, and
+    # the Service references it via the Azure CCM annotations:
+    #
+    #   service.beta.kubernetes.io/azure-pip-name: pip-<release>-<key>
     #   service.beta.kubernetes.io/azure-load-balancer-resource-group: <cluster RG>
     #
-    # The Azure cloud-controller-manager binds the pre-provisioned PIP to the
-    # Service's LB frontend, giving the gateway a stable public address that
-    # survives Service/LB reconciliation.
+    # Use case: Envoy gateways (or any workload needing a deterministic public
+    # address) — the Azure cloud-controller-manager binds the pre-provisioned
+    # PIP to the Service's LB frontend, giving the gateway a stable public
+    # address that survives Service/LB reconciliation.
     #
-    # Available in all Azure configurations (public/private, BYO-VNet/managed).
+    # Available in all Azure configurations (public/private, BYO/managed VNet).
     # The chart owns the lifecycle: `helm uninstall` deletes the CRs and ASO
     # then removes the underlying Azure PublicIPs.
     #
     # azure:
     #   publicIPAddresses:
-    #     - name: envoy-gateway
+    #     envoy-gateway:
+    #       # Optional: set false to skip this PIP (overlay-friendly disable).
+    #       # Defaults to true. Removing the CR triggers ASO deletion of the
+    #       # Azure PublicIP on the next upgrade/uninstall.
+    #       enabled: true
     #       # Optional: availability zones for zone-redundant PIPs
     #       # zones:
     #       #   - "1"
@@ -121,6 +136,8 @@ kommodity:
     #       # Optional: Azure resource tags
     #       # tags:
     #       #   managed-by: kommodity
+    #     ingress:
+    #       enabled: true
 
   oidc:
     enabled: true
