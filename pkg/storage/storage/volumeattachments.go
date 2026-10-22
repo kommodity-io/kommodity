@@ -38,6 +38,7 @@ type volumeAttachmentStrategy struct {
 
 // Strategy is the default logic that applies when creating and updating
 // VolumeAttachment objects via the REST API.
+//
 //nolint:gochecknoglobals // Strategy is intended to be global.
 var Strategy = volumeAttachmentStrategy{legacyscheme.Scheme, names.SimpleNameGenerator}
 
@@ -194,6 +195,7 @@ type volumeAttachmentStatusStrategy struct {
 
 // StatusStrategy is the default logic that applies when creating and updating
 // VolumeAttachmentStatus subresource via the REST API.
+//
 //nolint:gochecknoglobals // Strategy is intended to be global.
 var StatusStrategy = volumeAttachmentStatusStrategy{Strategy}
 

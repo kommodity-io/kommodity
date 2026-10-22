@@ -106,7 +106,7 @@ func bootstrapDefaultNamespaceHook(
 		}
 
 		_, err = kubeClient.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{Name: bootstrapNamespace},
+			Name: bootstrapNamespace,
 		}, metav1.CreateOptions{})
 		if err != nil && !apierrors.IsAlreadyExists(err) {
 			return fmt.Errorf("failed to create namespace %q: %w", bootstrapNamespace, err)

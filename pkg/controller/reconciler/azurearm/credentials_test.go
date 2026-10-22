@@ -7,7 +7,6 @@ import (
 
 	"github.com/Azure/azure-service-operator/v2/pkg/common/annotations"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
 
@@ -75,7 +74,7 @@ func TestBuildCredentials(t *testing.T) {
 	t.Parallel()
 
 	secret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{Namespace: testNamespace, Name: "creds"},
+		Namespace: testNamespace, Name: "creds",
 		Data: map[string][]byte{
 			keyAzureSubscriptionID: []byte("sub-123"),
 			keyAzureTenantID:       []byte("tenant-123"),
@@ -102,7 +101,7 @@ func TestBuildCredentialsIncomplete(t *testing.T) {
 	t.Parallel()
 
 	secret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{Namespace: testNamespace, Name: "creds"},
+		Namespace: testNamespace, Name: "creds",
 		Data: map[string][]byte{
 			keyAzureSubscriptionID: []byte("sub-123"),
 			// missing tenant, client, secret

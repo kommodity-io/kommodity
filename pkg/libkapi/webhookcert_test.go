@@ -17,7 +17,8 @@ import (
 func TestWriteWebhookCertFiles_WritesFiles(t *testing.T) {
 	withTempWebhookCertDir(t)
 
-	certPEM, keyPEM, err := certutil.GenerateSelfSignedCertKey("localhost", nil, []string{"localhost"})
+	certPEM, keyPEM, err := certutil.GenerateSelfSignedCertKey(
+		defaultWebhookDNSName, nil, []string{defaultWebhookDNSName})
 	require.NoError(t, err)
 
 	err = writeWebhookCertFiles(certPEM, keyPEM)
@@ -45,13 +46,15 @@ func TestWriteWebhookCertFiles_WritesFiles(t *testing.T) {
 func TestWriteWebhookCertFiles_OverwritesExisting(t *testing.T) {
 	withTempWebhookCertDir(t)
 
-	firstCertPEM, firstKeyPEM, err := certutil.GenerateSelfSignedCertKey("localhost", nil, []string{"localhost"})
+	firstCertPEM, firstKeyPEM, err := certutil.GenerateSelfSignedCertKey(
+		defaultWebhookDNSName, nil, []string{defaultWebhookDNSName})
 	require.NoError(t, err)
 
 	err = writeWebhookCertFiles(firstCertPEM, firstKeyPEM)
 	require.NoError(t, err)
 
-	secondCertPEM, secondKeyPEM, err := certutil.GenerateSelfSignedCertKey("localhost", nil, []string{"localhost"})
+	secondCertPEM, secondKeyPEM, err := certutil.GenerateSelfSignedCertKey(
+		defaultWebhookDNSName, nil, []string{defaultWebhookDNSName})
 	require.NoError(t, err)
 
 	err = writeWebhookCertFiles(secondCertPEM, secondKeyPEM)

@@ -73,12 +73,10 @@ func CreateWebhookCertSecret(
 	}
 
 	secret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      secretName,
-			Namespace: namespace,
-			Labels: map[string]string{
-				auth.SigningKeyLabel: auth.SigningKeyValue,
-			},
+		Name:      secretName,
+		Namespace: namespace,
+		Labels: map[string]string{
+			auth.SigningKeyLabel: auth.SigningKeyValue,
 		},
 		Data: map[string][]byte{
 			corev1.TLSCertKey:       certPEM,

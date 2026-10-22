@@ -8,10 +8,13 @@ linters:
     - wsl
     # We may enable this in the future.
     - exhaustruct
+    - exhaustruct_v5
     # Acting up with replace directives in go.mod
     - gomoddirectives
     # Kubernetes objects are all interface based
     - ireturn
+    # Deprecated, replaced by gomodguard_v2.
+    - gomodguard
   exclusions:
     rules:
       - path: "pkg/net/"

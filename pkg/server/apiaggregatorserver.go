@@ -187,9 +187,7 @@ func bootstrapRequiredResourcesHook(
 
 		for _, name := range requiredNamespaces {
 			_, err = kubeClient.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: name,
-				},
+				Name: name,
 			}, metav1.CreateOptions{})
 			if err != nil {
 				if !apierrors.IsAlreadyExists(err) {

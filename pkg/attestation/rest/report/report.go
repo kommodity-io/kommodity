@@ -118,11 +118,9 @@ func saveAttestationReport(ctx context.Context, cfg *config.KommodityConfig, req
 	resourceName := restutils.GetConfigMapReportName(machine)
 
 	_, err = restutils.GetConfigMapAPI(kubeClient).Create(ctx, &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      resourceName,
-			Namespace: config.KommodityNamespace,
-			Labels:    labels,
-		},
+		Name:      resourceName,
+		Namespace: config.KommodityNamespace,
+		Labels:    labels,
 		Data: map[string]string{
 			"report": string(jsonReport),
 		},
@@ -132,11 +130,9 @@ func saveAttestationReport(ctx context.Context, cfg *config.KommodityConfig, req
 	}
 
 	_, err = restutils.GetSecretAPI(kubeClient).Create(ctx, &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      resourceName,
-			Namespace: config.KommodityNamespace,
-			Labels:    labels,
-		},
+		Name:      resourceName,
+		Namespace: config.KommodityNamespace,
+		Labels:    labels,
 		StringData: map[string]string{
 			"nonce": request.Nonce,
 		},

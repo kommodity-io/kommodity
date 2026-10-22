@@ -19,11 +19,11 @@ func TestMonitorPortForward_MarksTunnelClosed(t *testing.T) {
 	proxyConfig := &config.TalosProxyConfig{
 		Enabled:        true,
 		ListenPort:     0,
-		ProxyNamespace: "talos-cluster-proxy",
+		ProxyNamespace: testProxyNamespace,
 	}
 
 	tunnel := talosproxy.NewTunnel(talosproxy.TunnelDeps{
-		ClusterName: "test-cluster",
+		ClusterName: testClusterName,
 		Config:      proxyConfig,
 	})
 
@@ -44,11 +44,11 @@ func TestMonitorPortForward_NilErrAlsoMarksClosed(t *testing.T) {
 	proxyConfig := &config.TalosProxyConfig{
 		Enabled:        true,
 		ListenPort:     0,
-		ProxyNamespace: "talos-cluster-proxy",
+		ProxyNamespace: testProxyNamespace,
 	}
 
 	tunnel := talosproxy.NewTunnel(talosproxy.TunnelDeps{
-		ClusterName: "test-cluster",
+		ClusterName: testClusterName,
 		Config:      proxyConfig,
 	})
 
@@ -69,7 +69,7 @@ func TestTunnelPool_IdleTimeoutLifecycle(t *testing.T) {
 	proxyConfig := &config.TalosProxyConfig{
 		Enabled:        true,
 		ListenPort:     0,
-		ProxyNamespace: "talos-cluster-proxy",
+		ProxyNamespace: testProxyNamespace,
 		IdleTimeout:    idleTimeout,
 	}
 
@@ -105,7 +105,7 @@ func TestTunnelPool_ActiveConnectionsCancelIdleTimer(t *testing.T) {
 	proxyConfig := &config.TalosProxyConfig{
 		Enabled:        true,
 		ListenPort:     0,
-		ProxyNamespace: "talos-cluster-proxy",
+		ProxyNamespace: testProxyNamespace,
 		IdleTimeout:    idleTimeout,
 	}
 

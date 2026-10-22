@@ -105,9 +105,7 @@ func TestCreateScalewayCluster(t *testing.T) {
 	}
 
 	_, err = client.CoreV1().Secrets("default").Create(ctx, &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "scaleway-secret",
-		},
+		Name: "scaleway-secret",
 		Type: corev1.SecretTypeOpaque,
 		Data: map[string][]byte{
 			"SCW_ACCESS_KEY":         []byte(scalewayAccessKey),
@@ -170,9 +168,7 @@ func TestCreateHetznerCluster(t *testing.T) {
 
 	// Create secret that holds the Hetzner Cloud API token
 	_, err = client.CoreV1().Secrets("default").Create(ctx, &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "hetzner",
-		},
+		Name: "hetzner",
 		Type: corev1.SecretTypeOpaque,
 		Data: map[string][]byte{
 			"hcloud": []byte(hcloudToken),
@@ -233,9 +229,7 @@ func TestCreateKubevirtCluster(t *testing.T) {
 
 	// Create kubevirt-credentials secret in Kommodity with the container-accessible kubeconfig
 	_, err = client.CoreV1().Secrets("default").Create(ctx, &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "kubevirt-credentials",
-		},
+		Name: "kubevirt-credentials",
 		Type: corev1.SecretTypeOpaque,
 		Data: map[string][]byte{
 			"kubeconfig": infraEnv.Kubeconfig,

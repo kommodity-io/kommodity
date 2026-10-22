@@ -252,13 +252,11 @@ func RotateServiceAccountTokenSecret(
 	}
 
 	newSecret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:        oldSecret.Name,
-			Namespace:   oldSecret.Namespace,
-			Labels:      labels,
-			Annotations: annotations,
-		},
-		Type: corev1.SecretTypeServiceAccountToken,
+		Name:        oldSecret.Name,
+		Namespace:   oldSecret.Namespace,
+		Labels:      labels,
+		Annotations: annotations,
+		Type:        corev1.SecretTypeServiceAccountToken,
 	}
 
 	_, err = coreClient.Secrets(oldSecret.Namespace).Create(ctx, newSecret, metav1.CreateOptions{})

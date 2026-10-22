@@ -45,11 +45,11 @@ func TestRenewWebhookCertIfDue_NotDue_ReturnsExistingUnchanged(t *testing.T) {
 	client := fake.NewSimpleClientset()
 
 	originalCertPEM, originalKeyPEM, err := libkapi.LoadOrCreateWebhookCert(
-		ctx, client.CoreV1(), []string{"localhost"}, "libkapi", libkapi.DefaultWebhookCertSecretName)
+		ctx, client.CoreV1(), []string{webhookTestDNSName}, webhookTestNamespace, libkapi.DefaultWebhookCertSecretName)
 	require.NoError(t, err)
 
 	certPEM, keyPEM, err := libkapi.RenewWebhookCertIfDue(
-		ctx, client.CoreV1(), []string{"localhost"}, "libkapi", libkapi.DefaultWebhookCertSecretName,
+		ctx, client.CoreV1(), []string{webhookTestDNSName}, webhookTestNamespace, libkapi.DefaultWebhookCertSecretName,
 		wellWithinRenewalWindow, time.Now)
 	require.NoError(t, err)
 
@@ -68,17 +68,18 @@ func TestRenewWebhookCertIfDue_Due_RotatesAndUpdatesSecret(t *testing.T) {
 	client := fake.NewSimpleClientset()
 
 	originalCertPEM, _, err := libkapi.LoadOrCreateWebhookCert(
-		ctx, client.CoreV1(), []string{"localhost"}, "libkapi", libkapi.DefaultWebhookCertSecretName)
+		ctx, client.CoreV1(), []string{webhookTestDNSName}, webhookTestNamespace, libkapi.DefaultWebhookCertSecretName)
 	require.NoError(t, err)
 
 	rotatedCertPEM, rotatedKeyPEM, err := libkapi.RenewWebhookCertIfDue(
-		ctx, client.CoreV1(), []string{"localhost"}, "libkapi", libkapi.DefaultWebhookCertSecretName,
+		ctx, client.CoreV1(), []string{webhookTestDNSName}, webhookTestNamespace, libkapi.DefaultWebhookCertSecretName,
 		farOutsideRenewalWindow, time.Now)
 	require.NoError(t, err)
 
 	assert.NotEqual(t, originalCertPEM, rotatedCertPEM, "expected a due certificate to be rotated")
 
-	secret, err := client.CoreV1().Secrets("libkapi").Get(ctx, libkapi.DefaultWebhookCertSecretName, metav1.GetOptions{})
+	secret, err := client.CoreV1().Secrets(webhookTestNamespace).Get(
+		ctx, libkapi.DefaultWebhookCertSecretName, metav1.GetOptions{})
 	require.NoError(t, err)
 	assert.Equal(t, rotatedCertPEM, secret.Data[corev1.TLSCertKey])
 	assert.Equal(t, rotatedKeyPEM, secret.Data[corev1.TLSPrivateKeyKey])
@@ -95,13 +96,14 @@ func TestRenewWebhookCertIfDue_SecretMissing_CreatesIt(t *testing.T) {
 	client := fake.NewSimpleClientset()
 
 	certPEM, keyPEM, err := libkapi.RenewWebhookCertIfDue(
-		ctx, client.CoreV1(), []string{"localhost"}, "libkapi", libkapi.DefaultWebhookCertSecretName,
+		ctx, client.CoreV1(), []string{webhookTestDNSName}, webhookTestNamespace, libkapi.DefaultWebhookCertSecretName,
 		wellWithinRenewalWindow, time.Now)
 	require.NoError(t, err)
 	assert.NotEmpty(t, certPEM)
 	assert.NotEmpty(t, keyPEM)
 
-	_, err = client.CoreV1().Secrets("libkapi").Get(ctx, libkapi.DefaultWebhookCertSecretName, metav1.GetOptions{})
+	_, err = client.CoreV1().Secrets(webhookTestNamespace).Get(
+		ctx, libkapi.DefaultWebhookCertSecretName, metav1.GetOptions{})
 	require.NoError(t, err, "expected the Secret to have been created")
 }
 
@@ -115,11 +117,12 @@ func TestRenewWebhookCertIfDue_ConflictOnUpdate_AdoptsWinner(t *testing.T) {
 
 	ctx := context.Background()
 
-	winnerCertPEM, winnerKeyPEM, err := certutil.GenerateSelfSignedCertKey("localhost", nil, []string{"localhost"})
+	winnerCertPEM, winnerKeyPEM, err := certutil.GenerateSelfSignedCertKey(
+		webhookTestDNSName, nil, []string{webhookTestDNSName})
 	require.NoError(t, err)
 
 	existingSecret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{Name: libkapi.DefaultWebhookCertSecretName, Namespace: "libkapi"},
+		Name: libkapi.DefaultWebhookCertSecretName, Namespace: webhookTestNamespace,
 		Data: map[string][]byte{
 			corev1.TLSCertKey:       winnerCertPEM,
 			corev1.TLSPrivateKeyKey: winnerKeyPEM,
@@ -133,18 +136,19 @@ func TestRenewWebhookCertIfDue_ConflictOnUpdate_AdoptsWinner(t *testing.T) {
 		conflictErr := apierrors.NewConflict(
 			corev1.Resource("secrets"), libkapi.DefaultWebhookCertSecretName, errSimulatedConflict)
 
-		return true, nil, conflictErr
+		return true, nil, conflictErr //nolint:wrapcheck // reactor must return typed conflict error
 	})
 
 	certPEM, keyPEM, err := libkapi.RenewWebhookCertIfDue(
-		ctx, client.CoreV1(), []string{"localhost"}, "libkapi", libkapi.DefaultWebhookCertSecretName,
+		ctx, client.CoreV1(), []string{webhookTestDNSName}, webhookTestNamespace, libkapi.DefaultWebhookCertSecretName,
 		farOutsideRenewalWindow, time.Now)
 	require.NoError(t, err)
 
 	assert.Equal(t, winnerCertPEM, certPEM, "expected the winner's certificate, not a newly-generated one")
 	assert.Equal(t, winnerKeyPEM, keyPEM)
 
-	secret, err := client.CoreV1().Secrets("libkapi").Get(ctx, libkapi.DefaultWebhookCertSecretName, metav1.GetOptions{})
+	secret, err := client.CoreV1().Secrets(webhookTestNamespace).Get(
+		ctx, libkapi.DefaultWebhookCertSecretName, metav1.GetOptions{})
 	require.NoError(t, err)
 	assert.Equal(t, winnerCertPEM, secret.Data[corev1.TLSCertKey], "the rejected update must not have landed")
 }

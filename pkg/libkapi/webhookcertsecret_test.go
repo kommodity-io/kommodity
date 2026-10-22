@@ -16,6 +16,13 @@ import (
 	"github.com/kommodity-io/kommodity/pkg/libkapi/auth"
 )
 
+const (
+	// webhookTestDNSName is the DNS name used in webhook cert tests.
+	webhookTestDNSName = "localhost"
+	// webhookTestNamespace is the namespace used for webhook cert tests.
+	webhookTestNamespace = "libkapi"
+)
+
 // TestLoadOrCreateWebhookCert_SecretExists_LoadsCert verifies that
 // LoadOrCreateWebhookCert loads the existing certificate from a Secret when
 // it already exists, rather than generating a new one.
@@ -24,14 +31,13 @@ func TestLoadOrCreateWebhookCert_SecretExists_LoadsCert(t *testing.T) {
 
 	ctx := context.Background()
 
-	originalCertPEM, originalKeyPEM, err := certutil.GenerateSelfSignedCertKey("localhost", nil, []string{"localhost"})
+	originalCertPEM, originalKeyPEM, err := certutil.GenerateSelfSignedCertKey(
+		webhookTestDNSName, nil, []string{webhookTestDNSName})
 	require.NoError(t, err)
 
 	existingSecret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      libkapi.DefaultWebhookCertSecretName,
-			Namespace: "libkapi",
-		},
+		Name:      libkapi.DefaultWebhookCertSecretName,
+		Namespace: webhookTestNamespace,
 		Data: map[string][]byte{
 			corev1.TLSCertKey:       originalCertPEM,
 			corev1.TLSPrivateKeyKey: originalKeyPEM,
@@ -42,7 +48,7 @@ func TestLoadOrCreateWebhookCert_SecretExists_LoadsCert(t *testing.T) {
 	client := fake.NewSimpleClientset(existingSecret)
 
 	loadedCertPEM, loadedKeyPEM, err := libkapi.LoadOrCreateWebhookCert(
-		ctx, client.CoreV1(), []string{"localhost"}, "libkapi", libkapi.DefaultWebhookCertSecretName)
+		ctx, client.CoreV1(), []string{webhookTestDNSName}, webhookTestNamespace, libkapi.DefaultWebhookCertSecretName)
 	require.NoError(t, err)
 
 	assert.Equal(t, originalCertPEM, loadedCertPEM)
@@ -60,12 +66,13 @@ func TestLoadOrCreateWebhookCert_SecretDoesNotExist_CreatesCert(t *testing.T) {
 	client := fake.NewSimpleClientset()
 
 	createdCertPEM, createdKeyPEM, err := libkapi.LoadOrCreateWebhookCert(
-		ctx, client.CoreV1(), []string{"localhost"}, "libkapi", libkapi.DefaultWebhookCertSecretName)
+		ctx, client.CoreV1(), []string{webhookTestDNSName}, webhookTestNamespace, libkapi.DefaultWebhookCertSecretName)
 	require.NoError(t, err)
 	assert.NotEmpty(t, createdCertPEM)
 	assert.NotEmpty(t, createdKeyPEM)
 
-	secret, err := client.CoreV1().Secrets("libkapi").Get(ctx, libkapi.DefaultWebhookCertSecretName, metav1.GetOptions{})
+	secret, err := client.CoreV1().Secrets(webhookTestNamespace).Get(
+		ctx, libkapi.DefaultWebhookCertSecretName, metav1.GetOptions{})
 	require.NoError(t, err)
 
 	assert.Equal(t, corev1.SecretTypeTLS, secret.Type)
@@ -85,11 +92,11 @@ func TestLoadOrCreateWebhookCert_IsIdempotent(t *testing.T) {
 	client := fake.NewSimpleClientset()
 
 	cert1, key1, err := libkapi.LoadOrCreateWebhookCert(
-		ctx, client.CoreV1(), []string{"localhost"}, "libkapi", libkapi.DefaultWebhookCertSecretName)
+		ctx, client.CoreV1(), []string{webhookTestDNSName}, webhookTestNamespace, libkapi.DefaultWebhookCertSecretName)
 	require.NoError(t, err)
 
 	cert2, key2, err := libkapi.LoadOrCreateWebhookCert(
-		ctx, client.CoreV1(), []string{"localhost"}, "libkapi", libkapi.DefaultWebhookCertSecretName)
+		ctx, client.CoreV1(), []string{webhookTestDNSName}, webhookTestNamespace, libkapi.DefaultWebhookCertSecretName)
 	require.NoError(t, err)
 
 	assert.Equal(t, cert1, cert2, "second call should return the same certificate as the first")
@@ -107,7 +114,7 @@ func TestLoadOrCreateWebhookCert_EmptyDNSNames_ReturnsError(t *testing.T) {
 	client := fake.NewSimpleClientset()
 
 	_, _, err := libkapi.LoadOrCreateWebhookCert(
-		ctx, client.CoreV1(), nil, "libkapi", libkapi.DefaultWebhookCertSecretName)
+		ctx, client.CoreV1(), nil, webhookTestNamespace, libkapi.DefaultWebhookCertSecretName)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, libkapi.ErrWebhookCertDNSNamesRequired)
 }
@@ -121,17 +128,16 @@ func TestLoadWebhookCertFromSecret_MissingData_ReturnsError(t *testing.T) {
 	ctx := context.Background()
 
 	existingSecret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      libkapi.DefaultWebhookCertSecretName,
-			Namespace: "libkapi",
-		},
-		Data: map[string][]byte{},
-		Type: corev1.SecretTypeTLS,
+		Name:      libkapi.DefaultWebhookCertSecretName,
+		Namespace: webhookTestNamespace,
+		Data:      map[string][]byte{},
+		Type:      corev1.SecretTypeTLS,
 	}
 
 	client := fake.NewSimpleClientset(existingSecret)
 
-	_, _, err := libkapi.LoadWebhookCertFromSecret(ctx, client.CoreV1(), "libkapi", libkapi.DefaultWebhookCertSecretName)
+	_, _, err := libkapi.LoadWebhookCertFromSecret(
+		ctx, client.CoreV1(), webhookTestNamespace, libkapi.DefaultWebhookCertSecretName)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, libkapi.ErrWebhookCertDataMissing)
 }
@@ -144,7 +150,7 @@ func TestCreateWebhookCertSecret_CreatesSecret(t *testing.T) {
 
 	ctx := context.Background()
 
-	certPEM, keyPEM, err := certutil.GenerateSelfSignedCertKey("localhost", nil, []string{"localhost"})
+	certPEM, keyPEM, err := certutil.GenerateSelfSignedCertKey(webhookTestDNSName, nil, []string{webhookTestDNSName})
 	require.NoError(t, err)
 
 	client := fake.NewSimpleClientset()
@@ -170,11 +176,11 @@ func TestCreateWebhookCertSecret_AlreadyExists_ReturnsError(t *testing.T) {
 
 	ctx := context.Background()
 
-	certPEM, keyPEM, err := certutil.GenerateSelfSignedCertKey("localhost", nil, []string{"localhost"})
+	certPEM, keyPEM, err := certutil.GenerateSelfSignedCertKey(webhookTestDNSName, nil, []string{webhookTestDNSName})
 	require.NoError(t, err)
 
 	existingSecret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{Name: "test-secret", Namespace: "test-ns"},
+		Name: "test-secret", Namespace: "test-ns",
 		Data: map[string][]byte{
 			corev1.TLSCertKey:       certPEM,
 			corev1.TLSPrivateKeyKey: keyPEM,

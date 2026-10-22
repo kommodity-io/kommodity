@@ -228,9 +228,6 @@ func requestGroupVersion(ctx context.Context) schema.GroupVersion {
 	return schema.GroupVersion{}
 }
 
-// legacyValidateEvent makes sure that the event makes sense.
-//
-//nolint:cyclop, funlen // Too long or too complex due to many error checks, no real complexity here
 func legacyValidateEvent(event *corev1.Event, requestVersion schema.GroupVersion) field.ErrorList {
 	allErrs := field.ErrorList{}
 	// Because go
@@ -264,76 +261,87 @@ func legacyValidateEvent(event *corev1.Event, requestVersion schema.GroupVersion
 			}
 		}
 	} else {
-		if len(event.InvolvedObject.Namespace) == 0 &&
-			event.Namespace != metav1.NamespaceDefault &&
-			event.Namespace != metav1.NamespaceSystem {
-			allErrs = append(allErrs, field.Invalid(
-				field.NewPath("involvedObject", "namespace"),
-				event.InvolvedObject.Namespace,
-				"does not match event.namespace",
-			),
-			)
-		}
-
-		if len(event.ReportingController) == 0 {
-			allErrs = append(allErrs, field.Required(field.NewPath(reportingControllerFieldName), ""))
-		}
-
-		qualifiedNameErrs := validateQualifiedName(
-			event.ReportingController,
-			field.NewPath(reportingControllerFieldName),
-		)
-
-		allErrs = append(allErrs, qualifiedNameErrs...)
-		if len(event.ReportingInstance) == 0 {
-			allErrs = append(allErrs, field.Required(field.NewPath("reportingInstance"), ""))
-		}
-
-		if len(event.ReportingInstance) > reportingInstanceLengthLimit {
-			allErrs = append(allErrs, field.Invalid(
-				field.NewPath("reportingInstance"),
-				"",
-				fmt.Sprintf("can have at most %v characters", reportingInstanceLengthLimit),
-			))
-		}
-
-		if len(event.Action) == 0 {
-			allErrs = append(allErrs, field.Required(field.NewPath("action"), ""))
-		}
-
-		if len(event.Action) > actionLengthLimit {
-			allErrs = append(allErrs, field.Invalid(
-				field.NewPath("action"),
-				"",
-				fmt.Sprintf("can have at most %v characters", actionLengthLimit),
-			),
-			)
-		}
-
-		if len(event.Reason) == 0 {
-			allErrs = append(allErrs, field.Required(field.NewPath("reason"), ""))
-		}
-
-		if len(event.Reason) > reasonLengthLimit {
-			allErrs = append(allErrs, field.Invalid(
-				field.NewPath("reason"),
-				"",
-				fmt.Sprintf("can have at most %v characters", reasonLengthLimit),
-			),
-			)
-		}
-
-		if len(event.Message) > noteLengthLimit {
-			allErrs = append(allErrs, field.Invalid(
-				field.NewPath("message"),
-				"",
-				fmt.Sprintf("can have at most %v characters", noteLengthLimit),
-			))
-		}
+		allErrs = append(allErrs, validateNewEventFields(event, reportingControllerFieldName)...)
 	}
 
 	for _, msg := range utilvalidation.IsDNS1123Subdomain(event.Namespace) {
 		allErrs = append(allErrs, field.Invalid(field.NewPath("namespace"), event.Namespace, msg))
+	}
+
+	return allErrs
+}
+
+// validateNewEventFields validates fields required on "new" Events (EventTime set).
+//
+//nolint:cyclop, funlen // Flat sequence of independent field checks, no real complexity here.
+func validateNewEventFields(event *corev1.Event, reportingControllerFieldName string) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	if len(event.InvolvedObject.Namespace) == 0 &&
+		event.Namespace != metav1.NamespaceDefault &&
+		event.Namespace != metav1.NamespaceSystem {
+		allErrs = append(allErrs, field.Invalid(
+			field.NewPath("involvedObject", "namespace"),
+			event.InvolvedObject.Namespace,
+			"does not match event.namespace",
+		),
+		)
+	}
+
+	if len(event.ReportingController) == 0 {
+		allErrs = append(allErrs, field.Required(field.NewPath(reportingControllerFieldName), ""))
+	}
+
+	qualifiedNameErrs := validateQualifiedName(
+		event.ReportingController,
+		field.NewPath(reportingControllerFieldName),
+	)
+
+	allErrs = append(allErrs, qualifiedNameErrs...)
+	if len(event.ReportingInstance) == 0 {
+		allErrs = append(allErrs, field.Required(field.NewPath("reportingInstance"), ""))
+	}
+
+	if len(event.ReportingInstance) > reportingInstanceLengthLimit {
+		allErrs = append(allErrs, field.Invalid(
+			field.NewPath("reportingInstance"),
+			"",
+			fmt.Sprintf("can have at most %v characters", reportingInstanceLengthLimit),
+		))
+	}
+
+	if len(event.Action) == 0 {
+		allErrs = append(allErrs, field.Required(field.NewPath("action"), ""))
+	}
+
+	if len(event.Action) > actionLengthLimit {
+		allErrs = append(allErrs, field.Invalid(
+			field.NewPath("action"),
+			"",
+			fmt.Sprintf("can have at most %v characters", actionLengthLimit),
+		),
+		)
+	}
+
+	if len(event.Reason) == 0 {
+		allErrs = append(allErrs, field.Required(field.NewPath("reason"), ""))
+	}
+
+	if len(event.Reason) > reasonLengthLimit {
+		allErrs = append(allErrs, field.Invalid(
+			field.NewPath("reason"),
+			"",
+			fmt.Sprintf("can have at most %v characters", reasonLengthLimit),
+		),
+		)
+	}
+
+	if len(event.Message) > noteLengthLimit {
+		allErrs = append(allErrs, field.Invalid(
+			field.NewPath("message"),
+			"",
+			fmt.Sprintf("can have at most %v characters", noteLengthLimit),
+		))
 	}
 
 	return allErrs

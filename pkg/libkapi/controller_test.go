@@ -49,7 +49,7 @@ type registryRunnable struct {
 //
 //nolint:contextcheck
 func (r *registryRunnable) Start(ctx context.Context) error {
-	configMap := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: r.name, Namespace: r.namespace}}
+	configMap := &corev1.ConfigMap{Name: r.name, Namespace: r.namespace}
 
 	err := r.client.Create(ctx, configMap)
 	if err != nil {
@@ -106,7 +106,7 @@ func TestServerEndToEnd_WithController(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "libkapi-controller.db")
 
 	runnable := &registryRunnable{
-		name: "controller-test", namespace: "default",
+		name: "controller-test", namespace: gcTestNamespace,
 		created: make(chan struct{}), done: make(chan struct{}),
 	}
 	testController := &registryTestController{runnable: runnable}
@@ -384,7 +384,7 @@ func newLeaderElectionContender(t *testing.T, restConfig *restclient.Config) ctr
 		LeaderElection:             true,
 		LeaderElectionResourceLock: resourcelock.LeasesResourceLock,
 		LeaderElectionID:           leaderElectionContenderID,
-		LeaderElectionNamespace:    "default",
+		LeaderElectionNamespace:    gcTestNamespace,
 		LeaderElectionConfig:       restConfig,
 	})
 	require.NoError(t, err)

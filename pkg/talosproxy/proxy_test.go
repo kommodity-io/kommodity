@@ -18,7 +18,7 @@ func TestProxy_RegisterAndDeregisterCluster(t *testing.T) {
 	proxyConfig := &config.TalosProxyConfig{
 		Enabled:        true,
 		ListenPort:     0,
-		ProxyNamespace: "talos-cluster-proxy",
+		ProxyNamespace: testProxyNamespace,
 	}
 
 	proxy := talosproxy.NewProxy(talosproxy.ProxyDeps{
@@ -61,7 +61,7 @@ func TestProxy_ListenAndStart(t *testing.T) {
 	proxyConfig := &config.TalosProxyConfig{
 		Enabled:        true,
 		ListenPort:     0, // Use random port
-		ProxyNamespace: "talos-cluster-proxy",
+		ProxyNamespace: testProxyNamespace,
 	}
 
 	proxy := talosproxy.NewProxy(talosproxy.ProxyDeps{
@@ -99,7 +99,7 @@ func TestProxy_StartWithoutListen(t *testing.T) {
 	proxyConfig := &config.TalosProxyConfig{
 		Enabled:        true,
 		ListenPort:     0,
-		ProxyNamespace: "talos-cluster-proxy",
+		ProxyNamespace: testProxyNamespace,
 	}
 
 	proxy := talosproxy.NewProxy(talosproxy.ProxyDeps{

@@ -109,7 +109,7 @@ func newRetryTestPool(
 	proxyConfig := &config.TalosProxyConfig{
 		Enabled:        true,
 		ListenPort:     0,
-		ProxyNamespace: "talos-cluster-proxy",
+		ProxyNamespace: testProxyNamespace,
 		MaxRetries:     testMaxRetries,
 	}
 
@@ -126,7 +126,7 @@ func newRetryTestRegistry(t *testing.T) *talosproxy.CIDRRegistry {
 	registry := talosproxy.NewCIDRRegistry()
 	_, cidr, err := net.ParseCIDR("10.200.0.0/20")
 	require.NoError(t, err)
-	require.NoError(t, registry.Register("test-cluster", "default", cidr))
+	require.NoError(t, registry.Register(testClusterName, "default", cidr))
 
 	return registry
 }
@@ -225,7 +225,7 @@ func TestDialTunnel_RemovesTunnelAfterExhaustingRetries(t *testing.T) {
 	_, err := talosproxy.DialTunnelForTest(context.Background(), handler, entry, "10.200.0.5:50000")
 	require.Error(t, err)
 
-	assert.False(t, talosproxy.PoolHasTunnel(pool, "test-cluster"),
+	assert.False(t, talosproxy.PoolHasTunnel(pool, testClusterName),
 		"tunnel should be removed from pool after all retries exhausted")
 }
 

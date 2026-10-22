@@ -19,13 +19,18 @@ import (
 )
 
 const (
-	postgresDefaultPort = "5432"
-	startupTimeout      = 60 * time.Second
-	pollInterval        = 5 * time.Second
-	writeTimeout        = 15 * time.Second
-	filePermission      = 0o600
-	kindClusterName     = "kommodity-kubevirt-test"
-	scalewayTestSKU     = "DEV1-S"
+	postgresDefaultPort  = "5432"
+	postgresUser         = "kommodity"
+	startupTimeout       = 60 * time.Second
+	pollInterval         = 5 * time.Second
+	writeTimeout         = 15 * time.Second
+	filePermission        = 0o600
+	kindClusterName      = "kommodity-kubevirt-test"
+	scalewayTestSKU      = "DEV1-S"
+	helmKeyControlPlaneReplicas = "kommodity.controlplane.replicas"
+	helmKeyControlPlaneSKU      = "kommodity.controlplane.sku"
+	helmKeyNodePoolReplicas     = "kommodity.nodepools.default.replicas"
+	helmKeyNodePoolSKU          = "kommodity.nodepools.default.sku"
 )
 
 // InfraClusterNamespace is the namespace in the kind cluster where KubeVirt VMs are deployed.
@@ -51,8 +56,8 @@ func (s ScalewayInfra) ValuesFile() string { return scalewayValuesFile }
 // Overrides returns the Helm value overrides for Scaleway testing.
 func (s ScalewayInfra) Overrides() map[string]any {
 	return map[string]any{
-		"kommodity.nodepools.default.sku":     scalewayTestSKU,
-		"kommodity.controlplane.sku":          scalewayTestSKU,
+		helmKeyNodePoolSKU:               scalewayTestSKU,
+		helmKeyControlPlaneSKU:           scalewayTestSKU,
 		"kommodity.provider.config.projectID": s.ProjectID,
 		"kommodity.network.ipv4.nodeCIDR":     nil,
 	}
@@ -94,22 +99,20 @@ func SetupContainers() (TestEnvironment, error) {
 
 func startPostgresContainer(ctx context.Context, networkName string) (tc.Container, error) {
 	postgres, err := tc.GenericContainer(ctx, tc.GenericContainerRequest{
-		ContainerRequest: tc.ContainerRequest{
-			Image:    "postgres:16",
-			Networks: []string{networkName},
-			NetworkAliases: map[string][]string{
-				networkName: {"postgres"},
-			},
-
-			ExposedPorts: []string{postgresDefaultPort + "/tcp"},
-			Env: map[string]string{
-				"POSTGRES_USER":     "kommodity",
-				"POSTGRES_PASSWORD": "kommodity",
-				"POSTGRES_DB":       "kommodity",
-			},
-			WaitingFor: wait.ForLog("database system is ready to accept connections"),
+		Image:    "postgres:16",
+		Networks: []string{networkName},
+		NetworkAliases: map[string][]string{
+			networkName: {"postgres"},
 		},
-		Started: true,
+
+		ExposedPorts: []string{postgresDefaultPort + "/tcp"},
+		Env: map[string]string{
+			"POSTGRES_USER":     postgresUser,
+			"POSTGRES_PASSWORD": postgresUser,
+			"POSTGRES_DB":       postgresUser,
+		},
+		WaitingFor: wait.ForLog("database system is ready to accept connections"),
+		Started:    true,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create postgres container: %w", err)
@@ -120,21 +123,19 @@ func startPostgresContainer(ctx context.Context, networkName string) (tc.Contain
 
 func startKommodityContainer(ctx context.Context, networkName string) (tc.Container, *rest.Config, error) {
 	kommodity, err := tc.GenericContainer(ctx, tc.GenericContainerRequest{
-		ContainerRequest: tc.ContainerRequest{
-			Image:        "kommodity:latest",
-			Networks:     []string{networkName},
-			ExposedPorts: []string{"5000/tcp"},
-			ExtraHosts:   []string{"host.docker.internal:host-gateway"},
-			Env: map[string]string{
-				"KOMMODITY_DB_URI": "postgres://kommodity:kommodity@postgres:" +
-					postgresDefaultPort + "/kommodity?sslmode=disable",
-				"KOMMODITY_INSECURE_DISABLE_AUTHENTICATION": "true",
-				"KOMMODITY_INFRASTRUCTURE_PROVIDERS":        "kubevirt,scaleway,byot,hetzner",
-				"KOMMODITY_KINE_URI":                        "unix:///tmp/kine.sock",
-			},
-			WaitingFor: wait.ForHTTP("/readyz").WithPort("5000/tcp").WithStartupTimeout(startupTimeout),
+		Image:        "kommodity:latest",
+		Networks:     []string{networkName},
+		ExposedPorts: []string{"5000/tcp"},
+		ExtraHosts:   []string{"host.docker.internal:host-gateway"},
+		Env: map[string]string{
+			"KOMMODITY_DB_URI": "postgres://kommodity:kommodity@postgres:" +
+				postgresDefaultPort + "/kommodity?sslmode=disable",
+			"KOMMODITY_INSECURE_DISABLE_AUTHENTICATION": "true",
+			"KOMMODITY_INFRASTRUCTURE_PROVIDERS":        "kubevirt,scaleway,byot,hetzner",
+			"KOMMODITY_KINE_URI":                        "unix:///tmp/kine.sock",
 		},
-		Started: true,
+		WaitingFor: wait.ForHTTP("/readyz").WithPort("5000/tcp").WithStartupTimeout(startupTimeout),
+		Started:    true,
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to start Kommodity container: %w", err)
