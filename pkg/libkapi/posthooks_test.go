@@ -73,9 +73,9 @@ func configMapHook(tracker *orderTracker, name, configMapName string) func(conte
 			return fmt.Errorf("failed to build client from loopback config: %w", err)
 		}
 
-		configMap := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: configMapName, Namespace: "default"}}
+		configMap := &corev1.ConfigMap{Name: configMapName, Namespace: gcTestNamespace}
 
-		_, err = kubeClient.CoreV1().ConfigMaps("default").Create(ctx, configMap, metav1.CreateOptions{})
+		_, err = kubeClient.CoreV1().ConfigMaps(gcTestNamespace).Create(ctx, configMap, metav1.CreateOptions{})
 		if err != nil {
 			return fmt.Errorf("failed to create test ConfigMap: %w", err)
 		}
@@ -100,7 +100,7 @@ func TestServerEndToEnd_WithPostStartHook(t *testing.T) {
 	tracker := &orderTracker{}
 
 	runnable := &registryRunnable{
-		name: "post-start-hook-runnable", namespace: "default",
+		name: "post-start-hook-runnable", namespace: gcTestNamespace,
 		created: make(chan struct{}), done: make(chan struct{}),
 	}
 	runnableController := &registryTestController{runnable: runnable}
@@ -108,7 +108,7 @@ func TestServerEndToEnd_WithPostStartHook(t *testing.T) {
 	server, err := libkapi.New(ctx,
 		libkapi.WithAddr(addr),
 		libkapi.WithStorage("sqlite://"+dbPath),
-		libkapi.WithAdminAuthorizer(libkapi.AdminAuthorizerConfig{AdminGroups: "test-admins"}),
+		libkapi.WithAdminAuthorizer(libkapi.AdminAuthorizerConfig{AdminGroups: testAdminGroups}),
 		libkapi.WithPostStartHook(orderOnlyHook(tracker, "first")),
 		libkapi.WithPostStartHook(configMapHook(tracker, "second", "post-start-hook-test")),
 		libkapi.WithController(runnableController),
@@ -165,7 +165,7 @@ func crdEstablishedHook(
 		}
 
 		crd := &apiextensionsv1.CustomResourceDefinition{
-			ObjectMeta: metav1.ObjectMeta{Name: crdName},
+			Name: crdName,
 			Spec: apiextensionsv1.CustomResourceDefinitionSpec{
 				Group: group,
 				Names: apiextensionsv1.CustomResourceDefinitionNames{

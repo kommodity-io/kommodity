@@ -17,8 +17,8 @@ imprecise (e.g., multiple data disks of similar size, or a local temp
 disk that matches the size threshold).
 
 See:
-  - UserVolumeConfig: https://docs.siderolabs.com/talos/v1.13/reference/configuration/block/uservolumeconfig
-  - Disk management:  https://docs.siderolabs.com/talos/v1.13/configure-your-talos-cluster/storage-and-disk-management/disk-management/common
+  - UserVolumeConfig: https://docs.siderolabs.com/talos/v1.14/reference/configuration/block/uservolumeconfig
+  - Disk management:  https://docs.siderolabs.com/talos/v1.14/configure-your-talos-cluster/storage-and-disk-management/disk-management/common
 
 Usage: {{ include "kommodity.talos.additionalVolumes" (dict "additionalVolumes" .additionalVolumes "kmsEndpoint" .kmsEndpoint) }}
 Returns empty string when additionalVolumes is not set or no entries have nameSuffix.

@@ -7,12 +7,10 @@ import (
 	"embed"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"text/template"
-	"os"
 	"sort"
 	"strings"
+	"text/template"
 
 	"github.com/Masterminds/sprig/v3"
 	"github.com/kommodity-io/kommodity/pkg/config"
@@ -35,7 +33,9 @@ type oidcKubeConfig struct {
 	*api.Config
 	config.OIDCConfig
 
-	BaseURL string
+	BaseURL               string
+	InstanceName          string
+	InsecureSkipTLSVerify bool
 }
 
 func (o *oidcKubeConfig) renderToString(templateFS embed.FS, templateName string) (string, error) {
@@ -61,40 +61,20 @@ func (o *oidcKubeConfig) renderToString(templateFS embed.FS, templateName string
 	return buf.String(), nil
 }
 
-const kommodityKubeconfigFile = "kommodity.yaml"
-
-func readDevKubeconfig(developmentMode bool) (string, error) {
-	if !developmentMode {
-		return "", nil
-	}
-
-	content, err := os.ReadFile(kommodityKubeconfigFile)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return "", nil
-		}
-
-		return "", fmt.Errorf("failed to read %s: %w", kommodityKubeconfigFile, err)
-	}
-
-	return string(content), nil
-}
-
 // GetKommodityKubeConfig returns the Kommodity kubeconfig as a string.
-// In development mode without OIDC, falls back to reading kommodity.yaml from the
-// working directory. Returns an empty string if neither is available.
 func GetKommodityKubeConfig(cfg *config.KommodityConfig) (string, error) {
-	if cfg.AuthConfig.OIDCConfig == nil {
-		return readDevKubeconfig(cfg.DevelopmentMode)
+	oidcCfg := &oidcKubeConfig{
+		BaseURL:               cfg.BaseURL,
+		InstanceName:          cfg.InstanceName,
+		InsecureSkipTLSVerify: cfg.DevelopmentMode,
+		Config:                nil,
+	}
+
+	if cfg.AuthConfig.OIDCConfig != nil {
+		oidcCfg.OIDCConfig = *cfg.AuthConfig.OIDCConfig
 	}
 
 	var buf bytes.Buffer
-
-	oidcCfg := &oidcKubeConfig{
-		BaseURL:    cfg.BaseURL,
-		Config:     nil,
-		OIDCConfig: *cfg.AuthConfig.OIDCConfig,
-	}
 
 	funcs := sprig.FuncMap()
 	funcs["b64encBytes"] = func(b []byte) string {

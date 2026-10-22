@@ -47,10 +47,10 @@ func (f *fakeARM) put(_ context.Context, _ string, _ string, _ any) (*armRespons
 // newManagedResourceGroup builds a ResourceGroup CR with metadata, our finalizer,
 // and optional extra finalizers/annotations for delete-path tests.
 func newManagedResourceGroup(finalizers []string, annos map[string]string) *resourcesv1.ResourceGroup {
-	resourceGroup := newResourceGroup("my-rg")
+	resourceGroup := newResourceGroup(testRGName)
 	resourceGroup.ObjectMeta = metav1.ObjectMeta{
 		Namespace:   testNamespace,
-		Name:        "my-rg",
+		Name:        testRGName,
 		Finalizers:  finalizers,
 		Annotations: annos,
 	}
@@ -85,7 +85,7 @@ func getResourceGroup(t *testing.T, reconciler *Reconciler) *resourcesv1.Resourc
 	t.Helper()
 
 	fetched := &resourcesv1.ResourceGroup{}
-	key := types.NamespacedName{Namespace: testNamespace, Name: "my-rg"}
+	key := types.NamespacedName{Namespace: testNamespace, Name: testRGName}
 
 	err := reconciler.Get(context.Background(), key, fetched)
 	if err != nil {
@@ -363,7 +363,7 @@ func TestReconcilePolicyFor(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			resourceGroup := newResourceGroup("my-rg")
+			resourceGroup := newResourceGroup(testRGName)
 			resourceGroup.ObjectMeta = metav1.ObjectMeta{Annotations: test.annotations}
 
 			got := reconcilePolicyFor(resourceGroup)

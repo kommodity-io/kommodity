@@ -22,8 +22,9 @@ var errSimulatedConnectionFailure = errors.New("simulated connection failure")
 // 5-minute database outage. startKine must recover and return a wrapped
 // error rather than letting the panic escape.
 //
-//nolint:paralleltest // mutates the package-level endpointListen seam that
 // storage_test.go's parallel tests call indirectly through storage.Resolve.
+//
+//nolint:paralleltest // mutates the package-level endpointListen seam that
 func TestStartKineRecoversFromListenPanic(t *testing.T) {
 	original := endpointListen
 

@@ -196,12 +196,10 @@ func createNodeSecret(ctx context.Context,
 
 	secretName := fmt.Sprintf("%s-%s", secretPrefix, nodeUUID)
 	secret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      secretName,
-			Namespace: config.KommodityNamespace,
-			Labels:    config.GetKommodityLabels(nodeUUID, peerIP),
-		},
-		Type: corev1.SecretTypeOpaque,
+		Name:      secretName,
+		Namespace: config.KommodityNamespace,
+		Labels:    config.GetKommodityLabels(nodeUUID, peerIP),
+		Type:      corev1.SecretTypeOpaque,
 		Data: map[string][]byte{
 			sealedFromIPKey:        []byte(peerIP),
 			prefix + keySuffix:     key,

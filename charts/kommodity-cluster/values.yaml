@@ -300,8 +300,8 @@ kommodity:
     # Talos version and imageName can be overridden here, otherwise the top-level talos.version and talos.imageName are used
     # This is especially useful for Talos upgrades, where it is recommended to not upgrade all nodes at once (https://docs.siderolabs.com/talos/v1.12/configure-your-talos-cluster/lifecycle-management/upgrading-talos)
     # talos:
-    #   version: v1.13.0
-    #   imageName: talos-base-v1.13.0
+    #   version: v1.14.2
+    #   imageName: talos-base-v1.14.2
 
     # labels:
     #   my-label: my-value
@@ -329,6 +329,14 @@ kommodity:
     #   additionalVolumes:
     #     - nameSuffix: data
     #       size: 100
+
+    # raidArrays:
+    #   # Linux MD (software RAID) arrays. Emits RAIDArrayConfig
+    #   # Can be selected by instanceVolumes (see https://docs.siderolabs.com/talos/v1.14/configure-your-talos-cluster/storage-and-disk-management/raid#use-raid-with-user-volumes)
+    #   - name: data              # required — 1-32 chars, ASCII letters/digits/hyphens/underscores
+    #     # level: raid1          # optional, default raid1
+    #     # metadata: "1.0"       # optional, default "1.0" — use "1.0" for boot volume, otherwise "1.2"
+    #     volumeSelector: "disk.transport == 'nvme' && disk.size > 100u * GiB"  # required — CEL expression
 
     # instanceVolumes:
     #   # Instance-local disks that exist on the VM at boot (not provisioned via
@@ -382,8 +390,8 @@ kommodity:
 
     #   # Talos version and imageName can be overridden here, otherwise the top-level talos.version and talos.imageName are used
     #   talos:
-    #     version: v1.13.0
-    #     imageName: talos-base-v1.13.0
+    #     version: v1.14.2
+    #     imageName: talos-base-v1.14.2
 
     #   labels:
     #     my-label: my-value
@@ -422,13 +430,18 @@ kommodity:
     #         provider: luks2
     #         keySource: nodeID  # or kms (default: kms if kommodity.kms.enabled, else nodeID)
     #         lockToState: true
+    #   # RAID arrays (see kommodity.controlplane.raidArrays above)
+    #   raidArrays:
+    #     - name: data
+    #       level: raid1
+    #       volumeSelector: "disk.transport == 'nvme' && disk.size > 100u * GiB"
 
   # Logging verbosity: debug, info, warn, error (set as LOG_LEVEL env var)
   logLevel: warn
 
 # Configurations related to Talos
 talos:
-  version: v1.13.0
+  version: v1.14.2
   imageName: my-talos-image
   autoBootstrap:
     enabled: true

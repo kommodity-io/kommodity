@@ -1,7 +1,6 @@
 package apiserver
 
 import (
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	v1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 )
@@ -45,7 +44,7 @@ func makeAPIService(groupVersion schema.GroupVersion,
 	}
 
 	return &v1.APIService{
-		ObjectMeta: metav1.ObjectMeta{Name: groupVersion.Version + "." + groupVersion.Group},
+		Name: groupVersion.Version + "." + groupVersion.Group,
 		Spec: v1.APIServiceSpec{
 			Group:                groupVersion.Group,
 			Version:              groupVersion.Version,

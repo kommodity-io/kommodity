@@ -27,6 +27,10 @@ import (
 // testResourceName names every resource this test creates.
 const testResourceName = "libkapi-test"
 
+// testAdminGroups is the admin group passed to authorizer options in the
+// end-to-end server tests below.
+const testAdminGroups = "test-admins"
+
 // TestServerEndToEnd builds a real libkapi Server backed by an in-process
 // Kine instance (sqlite, no external database needed), mounts a custom HTTP
 // handler alongside it, and exercises it as a real client would: hitting the
@@ -138,7 +142,7 @@ func assertServerEndToEndDeniesAnonymous(t *testing.T, dbName string, authOpt li
 	kubeClient, err := kubernetes.NewForConfig(&restclient.Config{Host: baseURL})
 	require.NoError(t, err)
 
-	_, err = kubeClient.CoreV1().Namespaces().Get(ctx, "default", metav1.GetOptions{})
+	_, err = kubeClient.CoreV1().Namespaces().Get(ctx, gcTestNamespace, metav1.GetOptions{})
 	require.Error(t, err)
 	assert.True(t, apierrors.IsForbidden(err), "expected anonymous request to be forbidden, got: %v", err)
 }
@@ -150,7 +154,7 @@ func TestServerEndToEnd_WithAdminAuthorizer(t *testing.T) {
 	t.Parallel()
 
 	assertServerEndToEndDeniesAnonymous(t, "libkapi-admin.db",
-		libkapi.WithAdminAuthorizer(libkapi.AdminAuthorizerConfig{AdminGroups: "test-admins"}))
+		libkapi.WithAdminAuthorizer(libkapi.AdminAuthorizerConfig{AdminGroups: testAdminGroups}))
 }
 
 // TestServerEndToEnd_WithRBACAuthorizer verifies that a real libkapi Server
@@ -171,13 +175,13 @@ func TestServerEndToEnd_WithRBACAuthorizer(t *testing.T) {
 	t.Parallel()
 
 	assertServerEndToEndDeniesAnonymous(t, "libkapi-rbac.db",
-		libkapi.WithRBACAuthorizer(libkapi.RBACAuthorizerConfig{AdminGroups: "test-admins"}))
+		libkapi.WithRBACAuthorizer(libkapi.RBACAuthorizerConfig{AdminGroups: testAdminGroups}))
 }
 
 func assertCoreV1(ctx context.Context, t *testing.T, kubeClient *kubernetes.Clientset) {
 	t.Helper()
 
-	ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: testResourceName}}
+	ns := &corev1.Namespace{Name: testResourceName}
 
 	_, err := kubeClient.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{})
 	require.NoError(t, err)
@@ -192,7 +196,7 @@ func assertAppsV1(ctx context.Context, t *testing.T, kubeClient *kubernetes.Clie
 
 	replicas := int32(1)
 	deployment := &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{Name: testResourceName, Namespace: "default"},
+		Name: testResourceName, Namespace: gcTestNamespace,
 		Spec: appsv1.DeploymentSpec{
 			Replicas: &replicas,
 			Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": testResourceName}},
@@ -205,10 +209,10 @@ func assertAppsV1(ctx context.Context, t *testing.T, kubeClient *kubernetes.Clie
 		},
 	}
 
-	_, err := kubeClient.AppsV1().Deployments("default").Create(ctx, deployment, metav1.CreateOptions{})
+	_, err := kubeClient.AppsV1().Deployments(gcTestNamespace).Create(ctx, deployment, metav1.CreateOptions{})
 	require.NoError(t, err)
 
-	got, err := kubeClient.AppsV1().Deployments("default").Get(ctx, testResourceName, metav1.GetOptions{})
+	got, err := kubeClient.AppsV1().Deployments(gcTestNamespace).Get(ctx, testResourceName, metav1.GetOptions{})
 	require.NoError(t, err)
 	assert.Equal(t, testResourceName, got.Name)
 }
@@ -217,16 +221,16 @@ func assertRBACV1(ctx context.Context, t *testing.T, kubeClient *kubernetes.Clie
 	t.Helper()
 
 	role := &rbacv1.Role{
-		ObjectMeta: metav1.ObjectMeta{Name: testResourceName, Namespace: "default"},
+		Name: testResourceName, Namespace: gcTestNamespace,
 		Rules: []rbacv1.PolicyRule{
 			{APIGroups: []string{""}, Resources: []string{"pods"}, Verbs: []string{"get", "list"}},
 		},
 	}
 
-	_, err := kubeClient.RbacV1().Roles("default").Create(ctx, role, metav1.CreateOptions{})
+	_, err := kubeClient.RbacV1().Roles(gcTestNamespace).Create(ctx, role, metav1.CreateOptions{})
 	require.NoError(t, err)
 
-	got, err := kubeClient.RbacV1().Roles("default").Get(ctx, testResourceName, metav1.GetOptions{})
+	got, err := kubeClient.RbacV1().Roles(gcTestNamespace).Get(ctx, testResourceName, metav1.GetOptions{})
 	require.NoError(t, err)
 	assert.Equal(t, testResourceName, got.Name)
 }
@@ -238,7 +242,7 @@ func assertCRDServerLive(ctx context.Context, t *testing.T, restConfig *restclie
 	require.NoError(t, err)
 
 	crd := &apiextensionsv1.CustomResourceDefinition{
-		ObjectMeta: metav1.ObjectMeta{Name: "widgets.libkapi.test"},
+		Name: "widgets.libkapi.test",
 		Spec: apiextensionsv1.CustomResourceDefinitionSpec{
 			Group: "libkapi.test",
 			Names: apiextensionsv1.CustomResourceDefinitionNames{

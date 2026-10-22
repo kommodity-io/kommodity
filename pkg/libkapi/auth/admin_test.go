@@ -14,6 +14,12 @@ import (
 	"github.com/kommodity-io/kommodity/pkg/libkapi/auth"
 )
 
+const (
+	testAdminGroups = "my-admins"
+	testPodPath     = "/api/v1/pods"
+	testUserEmail   = "user@example.com"
+)
+
 // TestWithAdminAuthorizer_MissingAdminGroup_ReturnsError verifies that
 // WithAdminAuthorizer returns ErrAdminGroupRequired when AdminGroups is
 // empty.
@@ -52,7 +58,7 @@ func TestWithAdminAuthorizer_SetsAuthorizer(t *testing.T) {
 	ctx := context.Background()
 
 	resolved, err := auth.Resolve(ctx, []auth.Option{
-		auth.WithAdminAuthorizer(auth.AdminAuthorizerConfig{AdminGroups: "my-admins"}),
+		auth.WithAdminAuthorizer(auth.AdminAuthorizerConfig{AdminGroups: testAdminGroups}),
 	}, slog.Default())
 	require.NoError(t, err)
 
@@ -79,7 +85,7 @@ func resolveAdminAuthorizer(t *testing.T, adminGroup string) authorizer.Authoriz
 func TestAdminAuthorizer_AllowsHealthEndpoints(t *testing.T) {
 	t.Parallel()
 
-	authz := resolveAdminAuthorizer(t, "my-admins")
+	authz := resolveAdminAuthorizer(t, testAdminGroups)
 
 	for _, path := range auth.HealthPaths() {
 		attrs := &fakeAttributes{path: path, user: nil}
@@ -94,7 +100,7 @@ func TestAdminAuthorizer_AllowsHealthEndpoints(t *testing.T) {
 func TestAdminAuthorizer_DeniesNonHealthForAnonymous(t *testing.T) {
 	t.Parallel()
 
-	authz := resolveAdminAuthorizer(t, "my-admins")
+	authz := resolveAdminAuthorizer(t, testAdminGroups)
 	anonUser := &user.DefaultInfo{Name: "system:anonymous", Groups: []string{"system:unauthenticated"}}
 	attrs := &fakeAttributes{path: "/api/v1/namespaces", user: anonUser}
 
@@ -108,8 +114,8 @@ func TestAdminAuthorizer_DeniesNonHealthForAnonymous(t *testing.T) {
 func TestAdminAuthorizer_DeniesNilUser(t *testing.T) {
 	t.Parallel()
 
-	authz := resolveAdminAuthorizer(t, "my-admins")
-	attrs := &fakeAttributes{path: "/api/v1/pods", user: nil}
+	authz := resolveAdminAuthorizer(t, testAdminGroups)
+	attrs := &fakeAttributes{path: testPodPath, user: nil}
 
 	decision, _, err := authz.Authorize(context.Background(), attrs)
 	require.NoError(t, err)
@@ -121,9 +127,9 @@ func TestAdminAuthorizer_DeniesNilUser(t *testing.T) {
 func TestAdminAuthorizer_AllowsSystemMasters(t *testing.T) {
 	t.Parallel()
 
-	authz := resolveAdminAuthorizer(t, "my-admins")
+	authz := resolveAdminAuthorizer(t, testAdminGroups)
 	adminUser := &user.DefaultInfo{Name: "admin", Groups: []string{"system:masters"}}
-	attrs := &fakeAttributes{path: "/api/v1/pods", user: adminUser}
+	attrs := &fakeAttributes{path: testPodPath, user: adminUser}
 
 	decision, _, err := authz.Authorize(context.Background(), attrs)
 	require.NoError(t, err)
@@ -136,8 +142,8 @@ func TestAdminAuthorizer_AllowsAdminGroup(t *testing.T) {
 	t.Parallel()
 
 	authz := resolveAdminAuthorizer(t, "corti-admin")
-	adminUser := &user.DefaultInfo{Name: "user@example.com", Groups: []string{"corti-admin"}}
-	attrs := &fakeAttributes{path: "/api/v1/pods", user: adminUser}
+	adminUser := &user.DefaultInfo{Name: testUserEmail, Groups: []string{"corti-admin"}}
+	attrs := &fakeAttributes{path: testPodPath, user: adminUser}
 
 	decision, _, err := authz.Authorize(context.Background(), attrs)
 	require.NoError(t, err)
@@ -151,8 +157,8 @@ func TestAdminAuthorizer_AllowsAnyConfiguredGroup(t *testing.T) {
 	t.Parallel()
 
 	authz := resolveAdminAuthorizer(t, "corti-admin, corti-sre ,corti-oncall")
-	adminUser := &user.DefaultInfo{Name: "user@example.com", Groups: []string{"corti-sre"}}
-	attrs := &fakeAttributes{path: "/api/v1/pods", user: adminUser}
+	adminUser := &user.DefaultInfo{Name: testUserEmail, Groups: []string{"corti-sre"}}
+	attrs := &fakeAttributes{path: testPodPath, user: adminUser}
 
 	decision, _, err := authz.Authorize(context.Background(), attrs)
 	require.NoError(t, err)
@@ -164,12 +170,12 @@ func TestAdminAuthorizer_AllowsAnyConfiguredGroup(t *testing.T) {
 func TestAdminAuthorizer_AllowsServiceAccounts(t *testing.T) {
 	t.Parallel()
 
-	authz := resolveAdminAuthorizer(t, "my-admins")
+	authz := resolveAdminAuthorizer(t, testAdminGroups)
 	saUser := &user.DefaultInfo{
 		Name:   "system:serviceaccount:default:my-sa",
 		Groups: []string{"system:serviceaccounts"},
 	}
-	attrs := &fakeAttributes{path: "/api/v1/pods", user: saUser}
+	attrs := &fakeAttributes{path: testPodPath, user: saUser}
 
 	decision, _, err := authz.Authorize(context.Background(), attrs)
 	require.NoError(t, err)
@@ -181,9 +187,9 @@ func TestAdminAuthorizer_AllowsServiceAccounts(t *testing.T) {
 func TestAdminAuthorizer_DeniesUnknownGroup(t *testing.T) {
 	t.Parallel()
 
-	authz := resolveAdminAuthorizer(t, "my-admins")
-	unknownUser := &user.DefaultInfo{Name: "user@example.com", Groups: []string{"some-other-group"}}
-	attrs := &fakeAttributes{path: "/api/v1/pods", user: unknownUser}
+	authz := resolveAdminAuthorizer(t, testAdminGroups)
+	unknownUser := &user.DefaultInfo{Name: testUserEmail, Groups: []string{"some-other-group"}}
+	attrs := &fakeAttributes{path: testPodPath, user: unknownUser}
 
 	decision, _, err := authz.Authorize(context.Background(), attrs)
 	require.NoError(t, err)
@@ -210,14 +216,14 @@ func TestAdminAuthorizer_OverridesDefault(t *testing.T) {
 	ctx := context.Background()
 
 	resolved, err := auth.Resolve(ctx, []auth.Option{
-		auth.WithAdminAuthorizer(auth.AdminAuthorizerConfig{AdminGroups: "my-admins"}),
+		auth.WithAdminAuthorizer(auth.AdminAuthorizerConfig{AdminGroups: testAdminGroups}),
 	}, slog.Default())
 	require.NoError(t, err)
 
 	// The resolved authorizer should NOT be always-allow (which would allow
 	// everything). Verify by checking that an unknown user is denied.
 	unknownUser := &user.DefaultInfo{Name: "unknown", Groups: []string{"unknown-group"}}
-	attrs := &fakeAttributes{path: "/api/v1/pods", user: unknownUser}
+	attrs := &fakeAttributes{path: testPodPath, user: unknownUser}
 
 	decision, _, err := resolved.Authorizer.Authorize(ctx, attrs)
 	require.NoError(t, err)

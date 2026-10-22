@@ -51,7 +51,7 @@ Talos does not publish to the Azure Marketplace, so you must bring your own imag
 publishes pre-built Talos VHDs as OCI artifacts on GHCR:
 
 - Repository: `ghcr.io/kommodity-io/kommodity-talos-azure`
-- Tags: one per Talos release, e.g. `v1.13.0`, plus `latest`.
+- Tags: one per Talos release, e.g. `v1.14.2`, plus `latest`.
 - Layer: a single fixed-size `.vhd` (~11.7 GiB).
 
 ### Turn the VHD into an Azure VM image (one-time per Talos version)
@@ -59,8 +59,8 @@ publishes pre-built Talos VHDs as OCI artifacts on GHCR:
 1. Pull the VHD with `oras`:
 
    ```bash
-   oras pull ghcr.io/kommodity-io/kommodity-talos-azure:v1.13.0
-   # produces _out/kommodity-talos-azure-v1.13.0.vhd
+   oras pull ghcr.io/kommodity-io/kommodity-talos-azure:v1.14.2
+   # produces _out/kommodity-talos-azure-v1.14.2.vhd
    ```
 
 2. Create a resource group, storage account, and blob container:
@@ -79,8 +79,8 @@ publishes pre-built Talos VHDs as OCI artifacts on GHCR:
 3. Upload the VHD as a **page blob** (block blobs are rejected as VM image sources):
 
    ```bash
-   azcopy copy _out/kommodity-talos-azure-v1.13.0.vhd \
-     "https://kommodityimages.blob.core.windows.net/vhds/kommodity-talos-azure-v1.13.0.vhd" \
+   azcopy copy _out/kommodity-talos-azure-v1.14.2.vhd \
+     "https://kommodityimages.blob.core.windows.net/vhds/kommodity-talos-azure-v1.14.2.vhd" \
      --blob-type=PageBlob
    ```
 
@@ -92,8 +92,8 @@ publishes pre-built Talos VHDs as OCI artifacts on GHCR:
    ```bash
    az image create \
      --resource-group kommodity-images-rg \
-     --name kommodity-talos-azure-v1.13.0 \
-     --source "https://kommodityimages.blob.core.windows.net/vhds/kommodity-talos-azure-v1.13.0.vhd" \
+     --name kommodity-talos-azure-v1.14.2 \
+     --source "https://kommodityimages.blob.core.windows.net/vhds/kommodity-talos-azure-v1.14.2.vhd" \
      --os-type Linux \
      --hyper-v-generation V2
    ```
@@ -107,7 +107,7 @@ publishes pre-built Talos VHDs as OCI artifacts on GHCR:
        config:
          talosImageResourceGroup: kommodity-images-rg   # RG holding the image
    talos:
-     imageName: kommodity-talos-azure-v1.13.0           # just the name
+     imageName: kommodity-talos-azure-v1.14.2           # just the name
    ```
 
    The chart assembles the full ARM ID
@@ -300,7 +300,7 @@ kommodity:
       talosImageResourceGroup: <image-rg> # RG holding the Talos managed image
 
 talos:
-  imageName: kommodity-talos-azure-v1.13.0   # name only — full ARM ID is built
+  imageName: kommodity-talos-azure-v1.14.2   # name only — full ARM ID is built
                                              # from subscriptionID + talosImageResourceGroup
 ```
 

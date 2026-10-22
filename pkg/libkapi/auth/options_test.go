@@ -8,6 +8,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"k8s.io/apiserver/pkg/authentication/authenticator"
+	"k8s.io/apiserver/pkg/authentication/user"
 	"k8s.io/apiserver/pkg/authorization/authorizer"
 	"k8s.io/apiserver/pkg/authorization/authorizerfactory"
 
@@ -72,7 +74,7 @@ func TestResolve_WithAuthorizer_AfterRBACAuthorizer_ClearsRBACListerSource(t *te
 	customAuthz := authorizerfactory.NewAlwaysAllowAuthorizer()
 
 	resolved, err := auth.Resolve(ctx, []auth.Option{
-		auth.WithRBACAuthorizer(auth.RBACAuthorizerConfig{AdminGroups: "my-admins"}),
+		auth.WithRBACAuthorizer(auth.RBACAuthorizerConfig{AdminGroups: testAdminGroups}),
 		auth.WithAuthorizer(customAuthz),
 	}, slog.Default())
 	require.NoError(t, err)
@@ -91,8 +93,8 @@ func TestResolve_WithAdminAuthorizer_AfterRBACAuthorizer_ClearsRBACListerSource(
 	ctx := context.Background()
 
 	resolved, err := auth.Resolve(ctx, []auth.Option{
-		auth.WithRBACAuthorizer(auth.RBACAuthorizerConfig{AdminGroups: "my-admins"}),
-		auth.WithAdminAuthorizer(auth.AdminAuthorizerConfig{AdminGroups: "my-admins"}),
+		auth.WithRBACAuthorizer(auth.RBACAuthorizerConfig{AdminGroups: testAdminGroups}),
+		auth.WithAdminAuthorizer(auth.AdminAuthorizerConfig{AdminGroups: testAdminGroups}),
 	}, slog.Default())
 	require.NoError(t, err)
 
@@ -182,6 +184,76 @@ func TestBuildUnionAuthenticator_Both_IncludesBoth(t *testing.T) {
 	assert.Positive(t, saAuth.callCount, "SA authenticator should have been tried")
 }
 
+// TestResolve_WithAuthenticator_AppendsInOrder verifies that each
+// WithAuthenticator call appends to ResolvedConfig.Authenticators in
+// registration order.
+func TestResolve_WithAuthenticator_AppendsInOrder(t *testing.T) {
+	t.Parallel()
+
+	first := &fakeAuthenticator{}
+	second := &fakeAuthenticator{}
+
+	cfg, err := auth.Resolve(context.Background(), []auth.Option{
+		auth.WithAuthenticator(first),
+		auth.WithAuthenticator(second),
+	}, slog.Default())
+	require.NoError(t, err)
+	require.Len(t, cfg.Authenticators, 2)
+	assert.Same(t, first, cfg.Authenticators[0])
+	assert.Same(t, second, cfg.Authenticators[1])
+}
+
+// TestResolve_WithAuthenticator_NilReturnsError verifies that passing a nil
+// authenticator is rejected instead of silently ignored.
+func TestResolve_WithAuthenticator_NilReturnsError(t *testing.T) {
+	t.Parallel()
+
+	_, err := auth.Resolve(context.Background(), []auth.Option{auth.WithAuthenticator(nil)}, slog.Default())
+	require.ErrorIs(t, err, auth.ErrAuthenticatorNil)
+}
+
+// TestResolve_WithAuthenticatorWithoutAuthorizer_LogsWarning verifies that a
+// custom authenticator alone, like OIDC or SA, triggers the always-allow
+// warning.
+func TestResolve_WithAuthenticatorWithoutAuthorizer_LogsWarning(t *testing.T) {
+	t.Parallel()
+
+	var buf strings.Builder
+
+	logger := slog.New(slog.NewTextHandler(&buf, nil))
+
+	_, err := auth.Resolve(context.Background(), []auth.Option{
+		auth.WithAuthenticator(&fakeAuthenticator{}),
+	}, logger)
+	require.NoError(t, err)
+	assert.Contains(t, buf.String(), "no authorizer set")
+}
+
+// TestBuildUnionAuthenticator_Custom_TriedAfterBuiltins verifies that custom
+// authenticators are tried after OIDC and SA, that nil entries are skipped,
+// and that a custom authenticator's identity wins over the anonymous
+// fallback.
+func TestBuildUnionAuthenticator_Custom_TriedAfterBuiltins(t *testing.T) {
+	t.Parallel()
+
+	oidcAuth := &fakeAuthenticator{ok: false}
+	saAuth := &fakeAuthenticator{ok: false}
+	custom := &fakeAuthenticator{
+		ok:       true,
+		response: &authenticator.Response{User: &user.DefaultInfo{Name: "custom-user"}},
+	}
+
+	authn := auth.BuildUnionAuthenticator(oidcAuth, saAuth, nil, custom)
+
+	resp, ok, err := authn.AuthenticateRequest(newRequestWithNoAuth())
+	require.NoError(t, err)
+	assert.True(t, ok)
+	assert.Equal(t, "custom-user", resp.User.GetName())
+	assert.Positive(t, oidcAuth.callCount)
+	assert.Positive(t, saAuth.callCount)
+	assert.Positive(t, custom.callCount)
+}
+
 // TestResolve_OptionError_StopsAndReturns verifies that if one option
 // returns an error, Resolve stops applying further options and returns
 // the error. Uses WithOIDC with an empty IssuerURL to trigger an error.
@@ -191,7 +263,7 @@ func TestResolve_OptionError_StopsAndReturns(t *testing.T) {
 	ctx := context.Background()
 
 	// WithOIDC with empty IssuerURL returns ErrOIDCIssuerRequired.
-	badOIDC := auth.WithOIDC(auth.OIDCConfig{ClientID: "test-client"})
+	badOIDC := auth.WithOIDC(auth.OIDCConfig{ClientID: testClientID})
 
 	_, err := auth.Resolve(ctx, []auth.Option{badOIDC}, slog.Default())
 	require.ErrorIs(t, err, auth.ErrOIDCIssuerRequired)

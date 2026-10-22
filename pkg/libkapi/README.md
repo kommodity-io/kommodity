@@ -249,6 +249,7 @@ auth-specific alike — pass any combination, in any order.
 | `WithScheme(scheme *runtime.Scheme)`             | Registers additional types beyond the standard API groups libkapi wires by default.                                                                                                                    |
 | `WithTLS(cfg TLSConfig)`                         | Reserved for future use; passing it makes `New` return `ErrNotImplemented`.                                                                                                                            |
 | `WithOIDC(cfg OIDCConfig)`                       | Adds an OIDC bearer-token authenticator. Fetches the issuer's discovery document at `IssuerURL/.well-known/openid-configuration` during `New`.                                                         |
+| `WithAuthenticator(a Authenticator)`             | Adds a custom `k8s.io/apiserver` request authenticator, tried after OIDC and ServiceAccount and before the anonymous fallback. See [Custom authenticators](#custom-authenticators). Repeatable. |
 | `WithServiceAccount(cfg ServiceAccountConfig)`   | Adds a ServiceAccount token authenticator and starts the SA token controller (issues tokens for ServiceAccounts). Optionally persists the signing key to a Secret and watches for key rotation.        |
 | `WithAdminAuthorizer(cfg AdminAuthorizerConfig)` | Sets an authorizer that allows health endpoints (anonymous), `system:masters`, any group listed in the configured comma-delimited `AdminGroups`, and `system:serviceaccounts`; denies everything else. |
 | `WithRBACAuthorizer(cfg RBACAuthorizerConfig)`   | Sets an authorizer that evaluates real `Role`/`RoleBinding`/`ClusterRole`/`ClusterRoleBinding` objects via upstream Kubernetes's own RBAC authorizer, falling back to `WithAdminAuthorizer`'s exact behavior whenever no RBAC rule matches. See [RBAC authorizer](#rbac-authorizer). |
@@ -271,6 +272,26 @@ auth-specific alike — pass any combination, in any order.
 | `GroupsClaim`   | `"groups"`  | JWT claim used for group membership.  |
 | `ExtraScopes`   | none        | Additional OAuth 2.0 scopes.          |
 | `SigningAlgs`   | `["RS256"]` | Accepted JWT signing algorithms.      |
+
+#### Custom authenticators
+
+`WithAuthenticator` plugs any `authenticator.Request` into the chain, after
+the built-in OIDC and ServiceAccount authenticators and before the anonymous
+fallback. libkapi calls it as-is on every request, so an authenticator whose
+configuration changes at runtime (for example, issuers loaded from custom
+resources) can swap its own internal state behind a lock without rebuilding
+the server:
+
+```go
+// reloadable implements authenticator.Request and swaps its issuers
+// behind a lock whenever its own controller sees a configuration change.
+reloadable := newReloadableAuthenticator()
+
+server, err := libkapi.New(ctx,
+    libkapi.WithAuthenticator(reloadable),
+    libkapi.WithRBACAuthorizer(libkapi.RBACAuthorizerConfig{AdminGroups: "admins"}),
+)
+```
 
 #### ServiceAccount
 

@@ -3,68 +3,118 @@
 package provider //nolint
 
 import (
-    "k8s.io/apimachinery/pkg/runtime"
-    "k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	scheme_1 "sigs.k8s.io/cluster-api/test/infrastructure/docker/api/v1beta1"
-	scheme_2 "sigs.k8s.io/cluster-api/api/v1beta1"
-	scheme_3 "sigs.k8s.io/cluster-api/api/addons/v1beta1"
-	scheme_4 "sigs.k8s.io/cluster-api/exp/api/v1beta1"
-	scheme_5 "sigs.k8s.io/cluster-api/exp/runtime/api/v1alpha1"
-	scheme_6 "github.com/siderolabs/cluster-api-bootstrap-provider-talos/api/v1alpha2"
-	scheme_7 "github.com/siderolabs/cluster-api-bootstrap-provider-talos/api/v1alpha3"
-	scheme_8 "github.com/siderolabs/cluster-api-control-plane-provider-talos/api/v1alpha3"
-	scheme_9 "github.com/scaleway/cluster-api-provider-scaleway/api/v1alpha1"
-	scheme_10 "sigs.k8s.io/cluster-api-provider-azure/api/v1alpha1"
-	scheme_11 "sigs.k8s.io/cluster-api-provider-azure/api/v1beta1"
-	scheme_12 "sigs.k8s.io/cluster-api-provider-azure/exp/api/v1beta1"
-	scheme_13 "github.com/Azure/azure-service-operator/v2/api/resources/v1api20200601"
-	scheme_14 "github.com/Azure/azure-service-operator/v2/api/resources/v1api20200601/storage"
 	scheme_15 "github.com/Azure/azure-service-operator/v2/api/network/v1api20201101"
 	scheme_16 "github.com/Azure/azure-service-operator/v2/api/network/v1api20201101/storage"
 	scheme_17 "github.com/Azure/azure-service-operator/v2/api/network/v1api20220701"
 	scheme_18 "github.com/Azure/azure-service-operator/v2/api/network/v1api20220701/storage"
 	scheme_19 "github.com/Azure/azure-service-operator/v2/api/network/v1api20240301"
 	scheme_20 "github.com/Azure/azure-service-operator/v2/api/network/v1api20240301/storage"
+	scheme_13 "github.com/Azure/azure-service-operator/v2/api/resources/v1api20200601"
+	scheme_14 "github.com/Azure/azure-service-operator/v2/api/resources/v1api20200601/storage"
 	scheme_21 "github.com/kommodity-io/cluster-api-provider-bringyourowntalos/api/v1alpha1"
-	scheme_22 "sigs.k8s.io/cluster-api-provider-kubevirt/api/v1alpha1"
+	scheme_9 "github.com/scaleway/cluster-api-provider-scaleway/api/v1alpha1"
+	scheme_6 "github.com/siderolabs/cluster-api-bootstrap-provider-talos/api/v1alpha2"
+	scheme_7 "github.com/siderolabs/cluster-api-bootstrap-provider-talos/api/v1alpha3"
+	scheme_8 "github.com/siderolabs/cluster-api-control-plane-provider-talos/api/v1alpha3"
+	scheme_25 "github.com/syself/cluster-api-provider-hetzner/api/v1beta1"
 	scheme_23 "kubevirt.io/api/core/v1"
 	scheme_24 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
-	scheme_25 "github.com/syself/cluster-api-provider-hetzner/api/v1beta1"
+	scheme_10 "sigs.k8s.io/cluster-api-provider-azure/api/v1alpha1"
+	scheme_11 "sigs.k8s.io/cluster-api-provider-azure/api/v1beta1"
+	scheme_12 "sigs.k8s.io/cluster-api-provider-azure/exp/api/v1beta1"
+	scheme_22 "sigs.k8s.io/cluster-api-provider-kubevirt/api/v1alpha1"
+	scheme_3 "sigs.k8s.io/cluster-api/api/addons/v1beta1"
+	scheme_2 "sigs.k8s.io/cluster-api/api/v1beta1"
+	scheme_4 "sigs.k8s.io/cluster-api/exp/api/v1beta1"
+	scheme_5 "sigs.k8s.io/cluster-api/exp/runtime/api/v1alpha1"
+	scheme_1 "sigs.k8s.io/cluster-api/test/infrastructure/docker/api/v1beta1"
 )
 
 func addAllProvidersToScheme(scheme *runtime.Scheme) error {
-    var err error
-	if err = scheme_1.AddToScheme(scheme); err != nil { return err }
-	if err = scheme_2.AddToScheme(scheme); err != nil { return err }
-	if err = scheme_3.AddToScheme(scheme); err != nil { return err }
-	if err = scheme_4.AddToScheme(scheme); err != nil { return err }
-	if err = scheme_5.AddToScheme(scheme); err != nil { return err }
-	if err = scheme_6.AddToScheme(scheme); err != nil { return err }
-	if err = scheme_7.AddToScheme(scheme); err != nil { return err }
-	if err = scheme_8.AddToScheme(scheme); err != nil { return err }
-	if err = scheme_9.AddToScheme(scheme); err != nil { return err }
-	if err = scheme_10.AddToScheme(scheme); err != nil { return err }
-	if err = scheme_11.AddToScheme(scheme); err != nil { return err }
-	if err = scheme_12.AddToScheme(scheme); err != nil { return err }
-	if err = scheme_13.AddToScheme(scheme); err != nil { return err }
-	if err = scheme_14.AddToScheme(scheme); err != nil { return err }
-	if err = scheme_15.AddToScheme(scheme); err != nil { return err }
-	if err = scheme_16.AddToScheme(scheme); err != nil { return err }
-	if err = scheme_17.AddToScheme(scheme); err != nil { return err }
-	if err = scheme_18.AddToScheme(scheme); err != nil { return err }
-	if err = scheme_19.AddToScheme(scheme); err != nil { return err }
-	if err = scheme_20.AddToScheme(scheme); err != nil { return err }
-	if err = scheme_21.AddToScheme(scheme); err != nil { return err }
-	if err = scheme_22.AddToScheme(scheme); err != nil { return err }
-	if err = scheme_23.AddToScheme(scheme); err != nil { return err }
-	if err = scheme_24.AddToScheme(scheme); err != nil { return err }
-	if err = scheme_25.AddToScheme(scheme); err != nil { return err }
-    return nil
+	var err error
+	if err = scheme_1.AddToScheme(scheme); err != nil {
+		return err
+	}
+	if err = scheme_2.AddToScheme(scheme); err != nil {
+		return err
+	}
+	if err = scheme_3.AddToScheme(scheme); err != nil {
+		return err
+	}
+	if err = scheme_4.AddToScheme(scheme); err != nil {
+		return err
+	}
+	if err = scheme_5.AddToScheme(scheme); err != nil {
+		return err
+	}
+	if err = scheme_6.AddToScheme(scheme); err != nil {
+		return err
+	}
+	if err = scheme_7.AddToScheme(scheme); err != nil {
+		return err
+	}
+	if err = scheme_8.AddToScheme(scheme); err != nil {
+		return err
+	}
+	if err = scheme_9.AddToScheme(scheme); err != nil {
+		return err
+	}
+	if err = scheme_10.AddToScheme(scheme); err != nil {
+		return err
+	}
+	if err = scheme_11.AddToScheme(scheme); err != nil {
+		return err
+	}
+	if err = scheme_12.AddToScheme(scheme); err != nil {
+		return err
+	}
+	if err = scheme_13.AddToScheme(scheme); err != nil {
+		return err
+	}
+	if err = scheme_14.AddToScheme(scheme); err != nil {
+		return err
+	}
+	if err = scheme_15.AddToScheme(scheme); err != nil {
+		return err
+	}
+	if err = scheme_16.AddToScheme(scheme); err != nil {
+		return err
+	}
+	if err = scheme_17.AddToScheme(scheme); err != nil {
+		return err
+	}
+	if err = scheme_18.AddToScheme(scheme); err != nil {
+		return err
+	}
+	if err = scheme_19.AddToScheme(scheme); err != nil {
+		return err
+	}
+	if err = scheme_20.AddToScheme(scheme); err != nil {
+		return err
+	}
+	if err = scheme_21.AddToScheme(scheme); err != nil {
+		return err
+	}
+	if err = scheme_22.AddToScheme(scheme); err != nil {
+		return err
+	}
+	if err = scheme_23.AddToScheme(scheme); err != nil {
+		return err
+	}
+	if err = scheme_24.AddToScheme(scheme); err != nil {
+		return err
+	}
+	if err = scheme_25.AddToScheme(scheme); err != nil {
+		return err
+	}
+	return nil
 }
 
 func GetProviderGroupKindVersions() []schema.GroupVersion {
-  return []schema.GroupVersion{
+	return []schema.GroupVersion{
 		scheme_1.GroupVersion,
 		scheme_2.GroupVersion,
 		scheme_3.GroupVersion,
@@ -90,5 +140,5 @@ func GetProviderGroupKindVersions() []schema.GroupVersion {
 		scheme_23.GroupVersion,
 		scheme_24.GroupVersion,
 		scheme_25.GroupVersion,
-  }
+	}
 }

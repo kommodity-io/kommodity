@@ -398,7 +398,7 @@ func resolveAndSetAuth(
 ) error {
 	if authCfg.SAConfig == nil {
 		genericServerConfig.Authentication.Authenticator = auth.BuildUnionAuthenticator(
-			authCfg.OIDCAuthenticator, nil)
+			authCfg.OIDCAuthenticator, nil, authCfg.Authenticators...)
 
 		if len(authCfg.APIAudiences) > 0 {
 			genericServerConfig.Authentication.APIAudiences = authCfg.APIAudiences
@@ -425,7 +425,7 @@ func resolveDeferredSAAuth(
 	controllersLogger *slog.Logger,
 	systemNamespace string,
 ) error {
-	placeholder := auth.BuildUnionAuthenticator(authCfg.OIDCAuthenticator, nil)
+	placeholder := auth.BuildUnionAuthenticator(authCfg.OIDCAuthenticator, nil, authCfg.Authenticators...)
 	dynAuth := auth.NewDynamicAuthenticator(placeholder)
 
 	genericServerConfig.Authentication.Authenticator = dynAuth
@@ -438,6 +438,7 @@ func resolveDeferredSAAuth(
 		controllers.ServiceAccountSetupHookConfig{
 			SACfg:            authCfg.SAConfig,
 			OIDCAuth:         authCfg.OIDCAuthenticator,
+			Authenticators:   authCfg.Authenticators,
 			SetAuthenticator: dynAuth.Set,
 			LoopbackConfig:   genericServerConfig.LoopbackClientConfig,
 			InformerFactory:  genericServerConfig.SharedInformerFactory,
@@ -480,7 +481,7 @@ func resolveImmediateSAAuth(
 	}
 
 	genericServerConfig.Authentication.Authenticator = auth.BuildUnionAuthenticator(
-		authCfg.OIDCAuthenticator, saAuthn)
+		authCfg.OIDCAuthenticator, saAuthn, authCfg.Authenticators...)
 
 	if len(authCfg.APIAudiences) > 0 {
 		genericServerConfig.Authentication.APIAudiences = authCfg.APIAudiences

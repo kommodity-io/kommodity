@@ -51,7 +51,7 @@ Common selectors:
 Size constants: KiB, MiB, GiB, TiB, PiB, EiB (binary) or kB, MB, GB, TB, PB, EB (decimal).
 Use `u` suffix for unsigned integers: disk.size > 2u * TiB.
 
-See: https://docs.siderolabs.com/talos/v1.13/configure-your-talos-cluster/storage-and-disk-management/disk-management/common
+See: https://docs.siderolabs.com/talos/v1.14/configure-your-talos-cluster/storage-and-disk-management/disk-management/common
 
 When KMS is enabled and keySource is "kms" (the default when KMS is enabled),
 the volume is encrypted with luks2+KMS matching STATE/EPHEMERAL. When
@@ -60,8 +60,8 @@ encrypted with luks2+nodeID, matching the encryption method used by
 STATE/EPHEMERAL on clusters without KMS.
 
 See:
-  - UserVolumeConfig: https://docs.siderolabs.com/talos/v1.13/reference/configuration/block/uservolumeconfig
-  - Disk encryption:  https://docs.siderolabs.com/talos/v1.13/configure-your-talos-cluster/storage-and-disk-management/disk-encryption
+  - UserVolumeConfig: https://docs.siderolabs.com/talos/v1.14/reference/configuration/block/uservolumeconfig
+  - Disk encryption:  https://docs.siderolabs.com/talos/v1.14/configure-your-talos-cluster/storage-and-disk-management/disk-encryption
 
 Usage: {{ include "kommodity.talos.instanceVolumes" (dict "instanceVolumes" .instanceVolumes "kmsEndpoint" .kmsEndpoint) }}
 Returns empty string when instanceVolumes is not set or empty.

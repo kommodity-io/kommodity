@@ -46,8 +46,18 @@ import (
 // bypassing that lock - keeping this one here makes NewScheme safe on its
 // own regardless of caller.
 //
+// schemeOnce runs standard AddToScheme calls exactly once. Go 1.27 makes
+// concurrent map read and map write a fatal error; AddToScheme writes the
+// shared scheme's maps even when types are already registered, so
+// parallel tests calling NewScheme while a server serves requests (which
+// reads scheme maps without a lock) would crash without this.
+//
 //nolint:gochecknoglobals // guards legacyscheme.Scheme, itself a package-level singleton.
-var schemeMu sync.Mutex
+var (
+	schemeMu      sync.Mutex
+	schemeOnce    sync.Once
+	errSchemeInit error
+)
 
 // NewScheme returns the shared runtime.Scheme and CodecFactory used across the
 // entire delegation chain: the standard-API delegate, the CRD server, and the
@@ -63,23 +73,32 @@ func NewScheme(extra *runtime.Scheme) (*runtime.Scheme, serializer.CodecFactory,
 
 	scheme := legacyscheme.Scheme
 
-	addFuncs := []struct {
-		name string
-		fn   func(*runtime.Scheme) error
-	}{
-		{"apiextensionsinternal.AddToScheme", apiextensionsinternal.AddToScheme},
-		{"apiextensionsv1.AddToScheme", apiextensionsv1.AddToScheme},
-		{"apiregistration.AddToScheme", apiregistration.AddToScheme},
-		{"apiregistrationv1.AddToScheme", apiregistrationv1.AddToScheme},
-		{"metav1.AddMetaToScheme", metav1.AddMetaToScheme},
-		{"audit.AddToScheme", audit.AddToScheme},
-	}
-
-	for _, add := range addFuncs {
-		err := add.fn(scheme)
-		if err != nil {
-			return nil, serializer.CodecFactory{}, fmt.Errorf("failed to add %s to scheme: %w", add.name, err)
+	// Register standard types once — see the schemeOnce comment above.
+	schemeOnce.Do(func() {
+		addFuncs := []struct {
+			name string
+			fn   func(*runtime.Scheme) error
+		}{
+			{"apiextensionsinternal.AddToScheme", apiextensionsinternal.AddToScheme},
+			{"apiextensionsv1.AddToScheme", apiextensionsv1.AddToScheme},
+			{"apiregistration.AddToScheme", apiregistration.AddToScheme},
+			{"apiregistrationv1.AddToScheme", apiregistrationv1.AddToScheme},
+			{"metav1.AddMetaToScheme", metav1.AddMetaToScheme},
+			{"audit.AddToScheme", audit.AddToScheme},
 		}
+
+		for _, add := range addFuncs {
+			err := add.fn(scheme)
+			if err != nil {
+				errSchemeInit = fmt.Errorf("failed to add %s to scheme: %w", add.name, err)
+
+				return
+			}
+		}
+	})
+
+	if errSchemeInit != nil {
+		return nil, serializer.CodecFactory{}, errSchemeInit
 	}
 
 	err := addExtraTypes(scheme, extra)

@@ -54,7 +54,7 @@ kommodity:
     # kubernetes:
     #   version: v1.33.4
     # talos:
-    #   version: v1.13.0
+    #   version: v1.14.2
 
   nodepools:
     default:

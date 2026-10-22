@@ -15,6 +15,13 @@ import (
 	"github.com/kommodity-io/kommodity/pkg/libkapi/controllers"
 )
 
+const (
+	testSATokenName  = "sa-token-1"
+	testSAName       = "my-sa"
+	testTokenDataKey = "token"
+	testKubeSystemNs = controllers.DefaultTokenSecretsNamespace
+)
+
 // TestResolveTokenSecretsNamespace_DefaultsToKubeSystem verifies that
 // ResolveTokenSecretsNamespace falls back to "kube-system" when both
 // kp.TokenSecretsNamespace and systemNamespace are unset.
@@ -22,7 +29,7 @@ func TestResolveTokenSecretsNamespace_DefaultsToKubeSystem(t *testing.T) {
 	t.Parallel()
 
 	keyPersistence := &auth.KeyPersistenceConfig{}
-	assert.Equal(t, "kube-system", controllers.ResolveTokenSecretsNamespace(keyPersistence, ""))
+	assert.Equal(t, testKubeSystemNs, controllers.ResolveTokenSecretsNamespace(keyPersistence, ""))
 }
 
 // TestResolveTokenSecretsNamespace_UsesConfigured verifies that
@@ -56,15 +63,13 @@ func TestHandleSecretUpdate_KeyDataChanged_TriggersRotation(t *testing.T) {
 
 	// Create an SA token secret in kube-system that should be rotated.
 	saTokenSecret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "sa-token-1",
-			Namespace: "kube-system",
-			Annotations: map[string]string{
-				controllers.ServiceAccountNameAnnotation: "my-sa",
-			},
-			Labels: map[string]string{
-				"app.kubernetes.io/managed-by": "test",
-			},
+		Name:      testSATokenName,
+		Namespace: testKubeSystemNs,
+		Annotations: map[string]string{
+			controllers.ServiceAccountNameAnnotation: testSAName,
+		},
+		Labels: map[string]string{
+			"app.kubernetes.io/managed-by": "test",
 		},
 		Type: corev1.SecretTypeServiceAccountToken,
 	}
@@ -76,27 +81,27 @@ func TestHandleSecretUpdate_KeyDataChanged_TriggersRotation(t *testing.T) {
 	signingKeySecretName := auth.DefaultSigningKeySecretName
 
 	oldSecret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{Name: signingKeySecretName, Namespace: signingKeyNamespace},
-		Data:       map[string][]byte{controllers.SigningKeyDataKey: []byte("old-key")},
+		Name: signingKeySecretName, Namespace: signingKeyNamespace,
+		Data: map[string][]byte{controllers.SigningKeyDataKey: []byte("old-key")},
 	}
 
 	newSecret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{Name: signingKeySecretName, Namespace: signingKeyNamespace},
-		Data:       map[string][]byte{controllers.SigningKeyDataKey: []byte("new-key")},
+		Name: signingKeySecretName, Namespace: signingKeyNamespace,
+		Data: map[string][]byte{controllers.SigningKeyDataKey: []byte("new-key")},
 	}
 
 	keyPersistence := &auth.KeyPersistenceConfig{}
 
 	controllers.HandleSecretUpdate(
-		oldSecret, newSecret, coreClient, keyPersistence, "kube-system",
+		oldSecret, newSecret, coreClient, keyPersistence, testKubeSystemNs,
 		signingKeyNamespace, signingKeySecretName, slog.Default())
 
 	// The SA token secret should have been deleted and recreated.
-	got, err := coreClient.Secrets("kube-system").Get(ctx, "sa-token-1", metav1.GetOptions{})
+	got, err := coreClient.Secrets(testKubeSystemNs).Get(ctx, testSATokenName, metav1.GetOptions{})
 	require.NoError(t, err, "secret should still exist (recreated)")
 
 	// Labels and annotations should be preserved.
-	assert.Equal(t, "my-sa", got.Annotations[controllers.ServiceAccountNameAnnotation])
+	assert.Equal(t, testSAName, got.Annotations[controllers.ServiceAccountNameAnnotation])
 	assert.Equal(t, "test", got.Labels["app.kubernetes.io/managed-by"])
 }
 
@@ -107,15 +112,13 @@ func TestHandleSecretUpdate_KeyDataUnchanged_NoRotation(t *testing.T) {
 	t.Parallel()
 
 	saTokenSecret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "sa-token-1",
-			Namespace: "kube-system",
-			Annotations: map[string]string{
-				controllers.ServiceAccountNameAnnotation: "my-sa",
-			},
+		Name:      testSATokenName,
+		Namespace: testKubeSystemNs,
+		Annotations: map[string]string{
+			controllers.ServiceAccountNameAnnotation: testSAName,
 		},
 		Type: corev1.SecretTypeServiceAccountToken,
-		Data: map[string][]byte{"token": []byte("original-token")},
+		Data: map[string][]byte{testTokenDataKey: []byte("original-token")},
 	}
 
 	client := fake.NewSimpleClientset(saTokenSecret)
@@ -125,24 +128,24 @@ func TestHandleSecretUpdate_KeyDataUnchanged_NoRotation(t *testing.T) {
 	signingKeySecretName := auth.DefaultSigningKeySecretName
 
 	oldSecret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{Name: signingKeySecretName, Namespace: signingKeyNamespace},
-		Data:       map[string][]byte{controllers.SigningKeyDataKey: []byte("same-key")},
+		Name: signingKeySecretName, Namespace: signingKeyNamespace,
+		Data: map[string][]byte{controllers.SigningKeyDataKey: []byte("same-key")},
 	}
 
 	newSecret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{Name: signingKeySecretName, Namespace: signingKeyNamespace},
-		Data:       map[string][]byte{controllers.SigningKeyDataKey: []byte("same-key")},
+		Name: signingKeySecretName, Namespace: signingKeyNamespace,
+		Data: map[string][]byte{controllers.SigningKeyDataKey: []byte("same-key")},
 	}
 
 	controllers.HandleSecretUpdate(
-		oldSecret, newSecret, coreClient, &auth.KeyPersistenceConfig{}, "kube-system",
+		oldSecret, newSecret, coreClient, &auth.KeyPersistenceConfig{}, testKubeSystemNs,
 		signingKeyNamespace, signingKeySecretName, slog.Default())
 
 	// The SA token secret should NOT have been rotated — its data should
 	// still contain the original token.
-	got, err := coreClient.Secrets("kube-system").Get(context.Background(), "sa-token-1", metav1.GetOptions{})
+	got, err := coreClient.Secrets(testKubeSystemNs).Get(context.Background(), testSATokenName, metav1.GetOptions{})
 	require.NoError(t, err)
-	assert.Equal(t, []byte("original-token"), got.Data["token"], "secret should not have been rotated")
+	assert.Equal(t, []byte("original-token"), got.Data[testTokenDataKey], "secret should not have been rotated")
 }
 
 // TestHandleSecretUpdate_DifferentSecret_NoRotation verifies that
@@ -152,15 +155,13 @@ func TestHandleSecretUpdate_DifferentSecret_NoRotation(t *testing.T) {
 	t.Parallel()
 
 	saTokenSecret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "sa-token-1",
-			Namespace: "kube-system",
-			Annotations: map[string]string{
-				controllers.ServiceAccountNameAnnotation: "my-sa",
-			},
+		Name:      testSATokenName,
+		Namespace: testKubeSystemNs,
+		Annotations: map[string]string{
+			controllers.ServiceAccountNameAnnotation: testSAName,
 		},
 		Type: corev1.SecretTypeServiceAccountToken,
-		Data: map[string][]byte{"token": []byte("original-token")},
+		Data: map[string][]byte{testTokenDataKey: []byte("original-token")},
 	}
 
 	client := fake.NewSimpleClientset(saTokenSecret)
@@ -168,23 +169,23 @@ func TestHandleSecretUpdate_DifferentSecret_NoRotation(t *testing.T) {
 
 	// Update a different secret entirely.
 	oldSecret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{Name: "some-other-secret", Namespace: "default"},
-		Data:       map[string][]byte{controllers.SigningKeyDataKey: []byte("old")},
+		Name: "some-other-secret", Namespace: "default",
+		Data: map[string][]byte{controllers.SigningKeyDataKey: []byte("old")},
 	}
 
 	newSecret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{Name: "some-other-secret", Namespace: "default"},
-		Data:       map[string][]byte{controllers.SigningKeyDataKey: []byte("new")},
+		Name: "some-other-secret", Namespace: "default",
+		Data: map[string][]byte{controllers.SigningKeyDataKey: []byte("new")},
 	}
 
 	controllers.HandleSecretUpdate(
-		oldSecret, newSecret, coreClient, &auth.KeyPersistenceConfig{}, "kube-system",
+		oldSecret, newSecret, coreClient, &auth.KeyPersistenceConfig{}, testKubeSystemNs,
 		auth.DefaultSigningKeyNamespace, auth.DefaultSigningKeySecretName, slog.Default())
 
 	// SA token secret should not have been touched.
-	got, err := coreClient.Secrets("kube-system").Get(context.Background(), "sa-token-1", metav1.GetOptions{})
+	got, err := coreClient.Secrets(testKubeSystemNs).Get(context.Background(), testSATokenName, metav1.GetOptions{})
 	require.NoError(t, err)
-	assert.Equal(t, []byte("original-token"), got.Data["token"])
+	assert.Equal(t, []byte("original-token"), got.Data[testTokenDataKey])
 }
 
 // TestHandleSecretUpdate_NonSecretType_NoOp verifies that HandleSecretUpdate
@@ -197,7 +198,7 @@ func TestHandleSecretUpdate_NonSecretType_NoOp(t *testing.T) {
 
 	// Pass non-Secret objects — should be a no-op, not a panic.
 	controllers.HandleSecretUpdate(
-		"not-a-secret", "also-not-a-secret", coreClient, &auth.KeyPersistenceConfig{}, "kube-system",
+		"not-a-secret", "also-not-a-secret", coreClient, &auth.KeyPersistenceConfig{}, testKubeSystemNs,
 		auth.DefaultSigningKeyNamespace, auth.DefaultSigningKeySecretName, slog.Default())
 }
 
@@ -209,15 +210,13 @@ func TestRotateServiceAccountTokenSecret_CallsOnTokenRotated(t *testing.T) {
 	ctx := context.Background()
 
 	oldSecret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "sa-token-1",
-			Namespace: "kube-system",
-			Annotations: map[string]string{
-				controllers.ServiceAccountNameAnnotation: "my-sa",
-			},
-			Labels: map[string]string{"app": "test"},
+		Name:      testSATokenName,
+		Namespace: testKubeSystemNs,
+		Annotations: map[string]string{
+			controllers.ServiceAccountNameAnnotation: testSAName,
 		},
-		Type: corev1.SecretTypeServiceAccountToken,
+		Labels: map[string]string{"app": "test"},
+		Type:   corev1.SecretTypeServiceAccountToken,
 	}
 
 	client := fake.NewSimpleClientset(oldSecret)
@@ -238,8 +237,8 @@ func TestRotateServiceAccountTokenSecret_CallsOnTokenRotated(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NotNil(t, rotatedSecret, "OnTokenRotated should have been called")
-	assert.Equal(t, "sa-token-1", rotatedSecret.Name)
-	assert.Equal(t, "my-sa", rotatedSecret.Annotations[controllers.ServiceAccountNameAnnotation])
+	assert.Equal(t, testSATokenName, rotatedSecret.Name)
+	assert.Equal(t, testSAName, rotatedSecret.Annotations[controllers.ServiceAccountNameAnnotation])
 }
 
 // TestRotateServiceAccountTokenSecret_MissingAnnotation_Skips verifies
@@ -252,12 +251,12 @@ func TestRotateServiceAccountTokenSecret_MissingAnnotation_Skips(t *testing.T) {
 
 	oldSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "sa-token-1",
-			Namespace: "kube-system",
+			Name:      testSATokenName,
+			Namespace: testKubeSystemNs,
 			// Missing ServiceAccountNameAnnotation.
 		},
 		Type: corev1.SecretTypeServiceAccountToken,
-		Data: map[string][]byte{"token": []byte("original")},
+		Data: map[string][]byte{testTokenDataKey: []byte("original")},
 	}
 
 	client := fake.NewSimpleClientset(oldSecret)
@@ -279,9 +278,9 @@ func TestRotateServiceAccountTokenSecret_MissingAnnotation_Skips(t *testing.T) {
 	assert.False(t, callbackCalled, "OnTokenRotated should not have been called")
 
 	// Original secret should still exist.
-	got, err := coreClient.Secrets("kube-system").Get(ctx, "sa-token-1", metav1.GetOptions{})
+	got, err := coreClient.Secrets(testKubeSystemNs).Get(ctx, testSATokenName, metav1.GetOptions{})
 	require.NoError(t, err)
-	assert.Equal(t, []byte("original"), got.Data["token"], "secret should not have been deleted")
+	assert.Equal(t, []byte("original"), got.Data[testTokenDataKey], "secret should not have been deleted")
 }
 
 // TestRotateTokens_SkipsNonSATokenSecrets verifies that RotateTokens only
@@ -292,33 +291,29 @@ func TestRotateTokens_SkipsNonSATokenSecrets(t *testing.T) {
 	ctx := context.Background()
 
 	saTokenSecret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "sa-token",
-			Namespace: "kube-system",
-			Annotations: map[string]string{
-				controllers.ServiceAccountNameAnnotation: "my-sa",
-			},
+		Name:      "sa-token",
+		Namespace: testKubeSystemNs,
+		Annotations: map[string]string{
+			controllers.ServiceAccountNameAnnotation: testSAName,
 		},
 		Type: corev1.SecretTypeServiceAccountToken,
 	}
 
 	otherSecret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "other-secret",
-			Namespace: "kube-system",
-		},
-		Type: corev1.SecretTypeOpaque,
-		Data: map[string][]byte{"data": []byte("should-not-change")},
+		Name:      "other-secret",
+		Namespace: testKubeSystemNs,
+		Type:      corev1.SecretTypeOpaque,
+		Data:      map[string][]byte{"data": []byte("should-not-change")},
 	}
 
 	client := fake.NewSimpleClientset(saTokenSecret, otherSecret)
 	coreClient := client.CoreV1()
 
 	keyPersistence := &auth.KeyPersistenceConfig{}
-	controllers.RotateTokens(ctx, coreClient, keyPersistence, "kube-system", slog.Default())
+	controllers.RotateTokens(ctx, coreClient, keyPersistence, testKubeSystemNs, slog.Default())
 
 	// The Opaque secret should be untouched.
-	got, err := coreClient.Secrets("kube-system").Get(ctx, "other-secret", metav1.GetOptions{})
+	got, err := coreClient.Secrets(testKubeSystemNs).Get(ctx, "other-secret", metav1.GetOptions{})
 	require.NoError(t, err)
 	assert.Equal(t, []byte("should-not-change"), got.Data["data"],
 		"non-SA-token secret should not be rotated")
@@ -330,18 +325,16 @@ func TestRotateTokens_NoSATokenSecrets_NoOp(t *testing.T) {
 	t.Parallel()
 
 	otherSecret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "other-secret",
-			Namespace: "kube-system",
-		},
-		Type: corev1.SecretTypeOpaque,
+		Name:      "other-secret",
+		Namespace: testKubeSystemNs,
+		Type:      corev1.SecretTypeOpaque,
 	}
 
 	client := fake.NewSimpleClientset(otherSecret)
 
 	keyPersistence := &auth.KeyPersistenceConfig{}
 	controllers.RotateTokens(
-		context.Background(), client.CoreV1(), keyPersistence, "kube-system", slog.Default())
+		context.Background(), client.CoreV1(), keyPersistence, testKubeSystemNs, slog.Default())
 
 	// No error, no panic — the test passes if we get here.
 }

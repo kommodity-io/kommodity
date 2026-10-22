@@ -12,6 +12,9 @@ import (
 	ctrlcontroller "sigs.k8s.io/controller-runtime/pkg/controller"
 )
 
+// 20 minutes before giving up.
+const byotUpgradeThreshold int32 = 40
+
 type byotModule struct{}
 
 // NewByotModule creates a new module for the Bring Your Own Talos provider.
@@ -88,6 +91,9 @@ func setupByotMachineWithManager(
 ) error {
 	reconciler := byot_controller.NewByotMachineReconciler(manager.GetClient())
 	reconciler.SetClusterCache(clusterCache)
+	reconciler.SetOptions(byot_controller.ByotMachineOptions{
+		UpgradeThreshold: byotUpgradeThreshold,
+	})
 
 	err := reconciler.SetupWithManager(manager, opt)
 	if err != nil {

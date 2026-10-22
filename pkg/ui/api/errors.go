@@ -22,4 +22,3 @@ var (
 	// ErrAuthConfigDisabled is returned when auth config application is disabled.
 	ErrAuthConfigDisabled = errors.New("auth config application is disabled")
 )
-

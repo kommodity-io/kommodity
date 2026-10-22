@@ -78,8 +78,8 @@ A single `kommodity` binary that combines:
 A recent version of Go (we recommend [gvm][gvm]):
 
 ```bash
-gvm install go1.26.7 -B
-gvm use go1.26.7 --default
+gvm install go1.27.3 -B
+gvm use go1.27.3 --default
 ```
 
 ### Run It Locally
@@ -293,7 +293,7 @@ clusters:
       server: https://localhost:5443
       insecure-skip-tls-verify: true
 users:
-  - name: oidc
+  - name: oidc-kommodity
     user:
       exec:
         apiVersion: client.authentication.k8s.io/v1
@@ -304,14 +304,14 @@ users:
           - --oidc-issuer-url=ISSUER_URL
           - --oidc-client-id=YOUR_CLIENT_ID
           - --oidc-extra-scope=email
-        interactiveMode: Always
+        interactiveMode: IfAvailable
 contexts:
-  - name: kommodity-context
+  - name: kommodity
     context:
       cluster: kommodity
-      user: oidc
+      user: oidc-kommodity
       namespace: default
-current-context: kommodity-context
+current-context: kommodity
 ```
 
 ## Development
@@ -414,6 +414,7 @@ The default audit policy is [`pkg/server/audit-policy.yaml`](pkg/server/audit-po
 | -------------------------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------ |
 | `KOMMODITY_PORT`                                   | Port for the Kommodity server                                     | `5000`                                                       |
 | `KOMMODITY_BASE_URL`                               | Base URL for the Kommodity server                                 | `http://localhost:5000`                                      |
+| `KOMMODITY_INSTANCE_NAME`                          | Instance name used in kubeconfig                                  | `kommodity`                                                  |
 | `KOMMODITY_DB_URI`                                 | PostgreSQL connection URI                                         | (none)                                                       |
 | `KOMMODITY_DEVELOPMENT_MODE`                       | Enable development mode                                           | `false`                                                      |
 | `KOMMODITY_INSECURE_DISABLE_AUTHENTICATION`        | Disable authentication for local development                      | `false`                                                      |
@@ -451,7 +452,7 @@ compatible with Cluster API `v1.10.x`.
 | cluster-api-control-plane-provider-talos | v0.5.13        | Control Plane  |
 | cluster-api-bootstrap-provider-talos     | v0.6.12        | Bootstrap      |
 | cluster-api-provider-azure               | v1.21.0        | Infrastructure |
-| cluster-api-provider-bringyourowntalos   | v0.8.1         | Infrastructure |
+| cluster-api-provider-bringyourowntalos   | v0.11.0        | Infrastructure |
 | cluster-api-provider-hetzner             | v1.1.0-alpha.4 | Infrastructure |
 | cluster-api-provider-kubevirt            | v0.1.10        | Infrastructure |
 | cluster-api-provider-scaleway            | v0.1.7         | Infrastructure |

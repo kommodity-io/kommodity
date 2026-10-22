@@ -159,6 +159,13 @@ spec:
                       type: object
                   type: object
                   x-kubernetes-map-type: atomic
+                installDisk:
+                  description: |-
+                    InstallDisk overrides auto-detection of the system install disk. When
+                    set (e.g. /dev/md127), it is injected as machine.install.disk directly,
+                    skipping the Talos storage API query. When empty, the controller
+                    auto-detects the system disk, preferring md (RAID) devices.
+                  type: string
                 providerID:
                   description: ProviderID is set by the controller once the machine has been adopted.
                   type: string
@@ -301,6 +308,13 @@ spec:
                   description: |-
                     ResolvedHost is the name of the ByotHost this machine has claimed. The
                     public IP for adoption is read from that host.
+                  type: string
+                resolvedInternalIP:
+                  description: |-
+                    ResolvedInternalIP is the discovered internal (RFC1918) IPv4 address
+                    of the claimed ByotHost, copied from host status at claim time. Empty
+                    when discovery found no private IPv4 address. Used to populate the
+                    MachineInternalIP entry in status.addresses.
                   type: string
                 resolvedPublicIP:
                   description: |-

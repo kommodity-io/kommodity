@@ -209,16 +209,12 @@ func (r *CCMCRSReconciler) fetchSourceSecret(ctx context.Context,
 
 func buildDownstreamSecretManifest(name string, data map[string][]byte) ([]byte, error) {
 	downstream := &corev1.Secret{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: corev1.SchemeGroupVersion.String(),
-			Kind:       "Secret",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: downstreamCCMSecretNamespace,
-		},
-		Type: corev1.SecretTypeOpaque,
-		Data: data,
+		APIVersion: corev1.SchemeGroupVersion.String(),
+		Kind:       "Secret",
+		Name:       name,
+		Namespace:  downstreamCCMSecretNamespace,
+		Type:       corev1.SecretTypeOpaque,
+		Data:       data,
 	}
 
 	manifest, err := yaml.Marshal(downstream)
@@ -234,10 +230,8 @@ func (r *CCMCRSReconciler) applyPayloadSecret(ctx context.Context,
 	payloadName := cluster.Name + ccmPayloadSecretSuffix
 
 	payload := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      payloadName,
-			Namespace: cluster.Namespace,
-		},
+		Name:      payloadName,
+		Namespace: cluster.Namespace,
 	}
 
 	operation, err := ctrl.CreateOrUpdate(ctx, r.Client, payload, func() error {

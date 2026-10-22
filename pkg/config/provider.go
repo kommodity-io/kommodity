@@ -6,14 +6,14 @@ package config //nolint
 type Provider string
 
 const (
-	ProviderDocker Provider = "docker"
-	ProviderCapi Provider = "capi"
-	ProviderTalos Provider = "talos"
+	ProviderDocker   Provider = "docker"
+	ProviderCapi     Provider = "capi"
+	ProviderTalos    Provider = "talos"
 	ProviderScaleway Provider = "scaleway"
-	ProviderAzure Provider = "azure"
-	ProviderByot Provider = "byot"
+	ProviderAzure    Provider = "azure"
+	ProviderByot     Provider = "byot"
 	ProviderKubevirt Provider = "kubevirt"
-	ProviderHetzner Provider = "hetzner"
+	ProviderHetzner  Provider = "hetzner"
 )
 
 // GetAllProviders returns a list of all supported providers without local development providers.

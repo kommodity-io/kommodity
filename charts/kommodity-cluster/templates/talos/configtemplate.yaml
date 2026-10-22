@@ -37,7 +37,7 @@ spec:
       {{- $kmsEndpoint := "" -}}
       {{- if $.Values.kommodity.kms.enabled }}{{- $kmsEndpoint = $.Values.kommodity.kms.endpoint -}}{{- end -}}
       {{- $additionalVolumesPatch := include "kommodity.talos.additionalVolumes" (dict "additionalVolumes" $np.additionalVolumes "kmsEndpoint" $kmsEndpoint) | trim -}}
-      {{- $needsStrategicPatches := or (not (empty $mergedPatch)) $.Values.kommodity.kms.enabled $.Values.kommodity.security.enabled (gt (len (default list $np.instanceVolumes)) 0) (not (empty $additionalVolumesPatch)) $hetznerPrivate (not (empty $hetznerNameservers)) }}
+      {{- $needsStrategicPatches := or (not (empty $mergedPatch)) $.Values.kommodity.kms.enabled $.Values.kommodity.security.enabled (gt (len (default list $np.instanceVolumes)) 0) (gt (len (default list $np.raidArrays)) 0) (not (empty $additionalVolumesPatch)) $hetznerPrivate (not (empty $hetznerNameservers)) }}
       {{- if $needsStrategicPatches }}
       strategicPatches:
       {{- if not (empty $mergedPatch) }}
@@ -50,6 +50,10 @@ spec:
       {{- if $np.instanceVolumes }}
       {{- /* UserVolumeConfig for instance-local disks (not cloud-provisioned) */ -}}
 {{- include "kommodity.talos.instanceVolumes" (dict "instanceVolumes" $np.instanceVolumes "kmsEndpoint" $kmsEndpoint "kmsEnabled" $.Values.kommodity.kms.enabled) | nindent 6 }}
+      {{- end }}
+      {{- if $np.raidArrays }}
+      {{- /* RAIDArrayConfig for software RAID arrays */ -}}
+{{- include "kommodity.talos.raidArrays" (dict "raidArrays" $np.raidArrays) | nindent 6 }}
       {{- end }}
       {{- if not (empty $additionalVolumesPatch) }}
       {{- /* UserVolumeConfig for cloud-provisioned data disks (Azure dataDisks, etc.) */ -}}

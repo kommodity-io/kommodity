@@ -352,6 +352,10 @@ resource "azurerm_container_app" "kommodity-app" {
         name  = "KOMMODITY_AUDIT_ENABLED"
         value = var.kommodity_container.audit_enabled
       }
+      env {
+        name  = "KOMMODITY_INSTANCE_NAME"
+        value = var.kommodity_container.instance_name
+      }
       dynamic "env" {
         for_each = var.kommodity_container.azure_default_credential_secret != "" ? [var.kommodity_container.azure_default_credential_secret] : []
         content {

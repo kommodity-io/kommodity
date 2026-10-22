@@ -88,12 +88,10 @@ func CreateSigningKeySecret(
 	keyPEM := ConvertRSAKeyToPEM(key)
 
 	secret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      secretName,
-			Namespace: namespace,
-			Labels: map[string]string{
-				SigningKeyLabel: SigningKeyValue,
-			},
+		Name:      secretName,
+		Namespace: namespace,
+		Labels: map[string]string{
+			SigningKeyLabel: SigningKeyValue,
 		},
 		Data: map[string][]byte{
 			SigningKeyDataKey: keyPEM,
@@ -191,12 +189,10 @@ func PersistSigningKey(
 	keyPEM := ConvertRSAKeyToPEM(key)
 
 	secret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      secretName,
-			Namespace: namespace,
-			Labels: map[string]string{
-				SigningKeyLabel: SigningKeyValue,
-			},
+		Name:      secretName,
+		Namespace: namespace,
+		Labels: map[string]string{
+			SigningKeyLabel: SigningKeyValue,
 		},
 		Data: map[string][]byte{
 			SigningKeyDataKey: keyPEM,
@@ -230,7 +226,7 @@ func PersistSigningKey(
 // EnsureNamespace creates the namespace if it doesn't already exist.
 func EnsureNamespace(ctx context.Context, client corev1client.CoreV1Interface, namespace string) error {
 	_, err := client.Namespaces().Create(ctx, &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{Name: namespace},
+		Name: namespace,
 	}, metav1.CreateOptions{})
 	if err != nil && !apierrors.IsAlreadyExists(err) {
 		return fmt.Errorf("failed to create namespace %q: %w", namespace, err)

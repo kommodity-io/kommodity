@@ -55,11 +55,9 @@ func TestCreateSigningKeySecret_NoOpIfSecretExists(t *testing.T) {
 	signingKey := testSigningKey(t)
 
 	existingSecret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-key",
-			Namespace: "test-ns",
-		},
-		Data: map[string][]byte{"key": []byte("existing-key-data")},
+		Name:      "test-key",
+		Namespace: "test-ns",
+		Data:      map[string][]byte{"key": []byte("existing-key-data")},
 	}
 
 	client := fake.NewSimpleClientset(existingSecret)
@@ -119,11 +117,9 @@ func TestPersistSigningKey_OverwritesExisting(t *testing.T) {
 	signingKey := testSigningKey(t)
 
 	existingSecret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-key",
-			Namespace: "test-ns",
-		},
-		Data: map[string][]byte{"key": []byte("old-data")},
+		Name:      "test-key",
+		Namespace: "test-ns",
+		Data:      map[string][]byte{"key": []byte("old-data")},
 	}
 
 	client := fake.NewSimpleClientset(existingSecret)

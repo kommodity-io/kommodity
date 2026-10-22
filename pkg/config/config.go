@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -47,7 +48,9 @@ const (
 	//nolint:gosec // G101: env var name, not a credential
 	envAzureDefaultCredentialSecret = "KOMMODITY_AZURE_DEFAULT_CREDENTIAL_SECRET"
 	envAzureARMDeletionGracePeriod  = "KOMMODITY_AZURE_ARM_DELETION_GRACE_PERIOD"
+	envInstanceName                 = "KOMMODITY_INSTANCE_NAME"
 
+	defaultInstanceName                       = "kommodity"
 	defaultServerPort                         = 5000
 	defaultAPIServerPort                      = 8443
 	defaultDisableAuth                        = false
@@ -82,6 +85,7 @@ const (
 
 // KommodityConfig holds the configuration settings for the Kommodity API server.
 type KommodityConfig struct {
+	InstanceName            string
 	BaseURL                 string
 	ServerPort              int
 	APIServerPort           int
@@ -154,15 +158,20 @@ type ClientConfig struct {
 // config (apiserver validation flags) plus the cluster's OIDC client Secret
 // (kubelogin exec-block flags).
 type OIDCConfig struct {
-	IssuerURL         string
-	ClientID          string
-	UsernameClaim     string
-	GroupsClaim       string
-	ClientExtraFlags  []string
+	IssuerURL        string
+	ClientID         string
+	UsernameClaim    string
+	GroupsClaim      string
+	ClientExtraFlags []string
 }
 
 // LoadConfig loads the configuration settings from environment variables and returns a KommodityConfig instance.
 func LoadConfig(ctx context.Context) (*KommodityConfig, error) {
+	instanceName, err := getInstanceName(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get instance name: %w", err)
+	}
+
 	baseURL := getBaseURL(ctx)
 	serverPort := getServerPort(ctx)
 	apply := getApplyAuth(ctx)
@@ -186,6 +195,7 @@ func LoadConfig(ctx context.Context) (*KommodityConfig, error) {
 	azureConfig := getAzureConfig(ctx)
 
 	return &KommodityConfig{
+		InstanceName:        instanceName,
 		BaseURL:             baseURL,
 		ServerPort:          serverPort,
 		APIServerPort:       getAPIServerPort(ctx),
@@ -269,6 +279,37 @@ func getBaseURL(ctx context.Context) string {
 	}
 
 	return baseURL
+}
+
+func getInstanceName(ctx context.Context) (string, error) {
+	logger := logging.FromContext(ctx)
+
+	instanceName := os.Getenv(envInstanceName)
+	if instanceName == "" {
+		logger.Info(configurationNotSpecified,
+			zap.String("envVar", envInstanceName),
+			zap.String("default", defaultInstanceName))
+
+		return defaultInstanceName, nil
+	}
+
+	if !validInstanceName(instanceName) {
+		logger.Error("invalid instance name",
+			zap.String("envVar", envInstanceName),
+			zap.String("value", instanceName))
+
+		return "", ErrInvalidInstanceName
+	}
+
+	return instanceName, nil
+}
+
+// instanceNameRe matches valid DNS-1123 labels: lowercase alphanumeric or hyphens,
+// must start and end with alphanumeric, max 63 characters.
+var instanceNameRe = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`)
+
+func validInstanceName(name string) bool {
+	return len(name) <= 63 && instanceNameRe.MatchString(name)
 }
 
 func getServerPort(ctx context.Context) int {
