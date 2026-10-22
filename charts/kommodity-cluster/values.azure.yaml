@@ -90,6 +90,38 @@ kommodity:
             cpu: 2
             memory: 512Mi
 
+    # Standalone PublicIP addresses — opt-in, chart-managed ASO PublicIPAddress
+    # CRs provisioned in the cluster's resource group. Not emitted by default.
+    # Each PIP is created with Standard SKU and Static allocation, which is
+    # required for the Azure Standard Load Balancer to attach it as a frontend
+    # public IP.
+    #
+    # Use case: Envoy gateways (or any workload needing a deterministic public
+    # address) reference the PIP from a Kubernetes Service of type LoadBalancer
+    # via the Azure CCM annotations:
+    #
+    #   service.beta.kubernetes.io/azure-pip-name: pip-<release>-<name>
+    #   service.beta.kubernetes.io/azure-load-balancer-resource-group: <cluster RG>
+    #
+    # The Azure cloud-controller-manager binds the pre-provisioned PIP to the
+    # Service's LB frontend, giving the gateway a stable public address that
+    # survives Service/LB reconciliation.
+    #
+    # Available in all Azure configurations (public/private, BYO-VNet/managed).
+    # The chart owns the lifecycle: `helm uninstall` deletes the CRs and ASO
+    # then removes the underlying Azure PublicIPs.
+    #
+    # azure:
+    #   publicIPAddresses:
+    #     - name: envoy-gateway
+    #       # Optional: availability zones for zone-redundant PIPs
+    #       # zones:
+    #       #   - "1"
+    #       #   - "2"
+    #       # Optional: Azure resource tags
+    #       # tags:
+    #       #   managed-by: kommodity
+
   oidc:
     enabled: true
 

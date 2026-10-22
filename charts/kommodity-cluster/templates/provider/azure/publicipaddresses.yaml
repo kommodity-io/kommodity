@@ -1,0 +1,68 @@
+{{- /*
+  publicipaddresses.yaml — standalone ASO PublicIPAddress CRs for Azure clusters.
+
+  These are opt-in, Azure-only resources that provision one or more standalone
+  PublicIP addresses in the cluster's resource group. They are NOT bound to a
+  CAPZ-managed load balancer or NAT gateway — CAPZ has no standalone
+  PublicIPAddress CRD and only creates PIPs implicitly inside AzureCluster
+  networkSpec (apiServerLB frontend, NAT-gw, outbound LBs).
+
+  Use case: Envoy gateways (or any workload needing a deterministic public
+  address) reference the PIP from a Kubernetes Service of type LoadBalancer
+  via the Azure CCM annotations:
+
+    service.beta.kubernetes.io/azure-pip-name: <azureName of the PIP>
+    service.beta.kubernetes.io/azure-load-balancer-resource-group: <cluster RG>
+
+  The Azure cloud-controller-manager then binds the pre-provisioned PIP to the
+  Service's LB frontend, giving the gateway a stable public address that
+  survives Service/LB reconciliation.
+
+  Gating: only emitted when
+    1. provider is Azure
+    2. kommodity.provider.azure.publicIPAddresses is a non-empty list
+
+  Available in all Azure configurations (public/private, BYO-VNet/managed-VNet).
+
+  Lifecycle: these CRs deliberately do NOT carry helm.sh/resource-policy: keep.
+  They use the default ASO reconcile-policy (manage), so `helm uninstall` deletes
+  the CR and ASO then deletes the underlying Azure PublicIP. This matches the
+  established ASO network-resources pattern (networkresources.yaml).
+*/}}
+{{- $isAzure := eq .Values.kommodity.provider.name "Azure" }}
+{{- $pips := dig "provider" "azure" "publicIPAddresses" list .Values.kommodity }}
+{{- if and $isAzure $pips }}
+{{- $rg := dig "config" "resourceGroup" "" .Values.kommodity.provider | default .Release.Name }}
+{{- $asoSecret := printf "%s-aso-secret" .Release.Name }}
+{{- $location := required "missing required location in kommodity.provider.config for Azure" (dig "config" "location" "" .Values.kommodity.provider) }}
+{{- range $pip := $pips }}
+{{- if not $pip.name }}
+{{- fail "each entry in kommodity.provider.azure.publicIPAddresses must have a 'name'" }}
+{{- end }}
+{{- $pipName := printf "pip-%s-%s" $.Release.Name $pip.name }}
+---
+apiVersion: network.azure.com/v1api20240301
+kind: PublicIPAddress
+metadata:
+  name: {{ $pipName }}
+  namespace: {{ $.Release.Namespace }}
+  annotations:
+    serviceoperator.azure.com/credential-from: {{ $asoSecret }}
+spec:
+  azureName: {{ $pipName }}
+  location: {{ $location }}
+  owner:
+    name: {{ $rg }}
+  publicIPAllocationMethod: Static
+  sku:
+    name: Standard
+  {{- with $pip.tags }}
+  tags:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $pip.zones }}
+  zones:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}
+{{- end }}
