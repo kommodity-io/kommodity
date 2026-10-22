@@ -223,6 +223,22 @@ tests:
           path: spec.azureName
           value: zeta-gateway
 
+  # All-numeric map keys pass DNS-1123 but decode as YAML ints when rendered
+  # unquoted — the CR name would arrive at the API server as an integer and be
+  # rejected. | quote preserves the string type.
+  - it: "should quote a numeric PIP key so it stays a string"
+    set:
+      kommodity.provider.azure.publicIPAddresses:
+        "123": {}
+    documentIndex: 0
+    asserts:
+      - matchRegex:
+          path: metadata.name
+          pattern: '^123$'
+      - matchRegex:
+          path: spec.azureName
+          pattern: '^123$'
+
 
   # Map keys become the CR metadata.name, so invalid DNS-1123 keys must
   # fail at render time with an actionable message instead of surfacing as a

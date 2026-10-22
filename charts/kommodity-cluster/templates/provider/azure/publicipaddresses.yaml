@@ -63,12 +63,12 @@
 apiVersion: network.azure.com/v1api20240301
 kind: PublicIPAddress
 metadata:
-  name: {{ $pipResName }}
+  name: {{ $pipResName | quote }}
   namespace: {{ $.Release.Namespace }}
   annotations:
     serviceoperator.azure.com/credential-from: {{ $asoSecret }}
 spec:
-  azureName: {{ $pipResName }}
+  azureName: {{ $pipResName | quote }}
   location: {{ $location }}
   owner:
     name: {{ $rg }}

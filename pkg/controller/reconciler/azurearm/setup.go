@@ -46,11 +46,15 @@
 //     This is the gap this package fills, and it is exactly the set of kinds in
 //     registry.go.
 //   - Compute and its immediate dependencies — virtual machines, OS disks, network
-//     interfaces, load balancers, and public IPs — are provisioned by CAPZ's own
-//     controllers calling the Azure SDK directly. These never become ASO CRs (the
-//     apiserver does not even serve compute.azure.com / loadBalancers /
-//     networkInterfaces / publicIPAddresses CRDs), so this package neither sees nor
-//     manages them.
+//     interfaces, load balancers, and the PublicIPs that CAPZ itself creates — are
+//     provisioned by CAPZ's own controllers calling the Azure SDK directly. These
+//     never become ASO CRs (the apiserver does not even serve compute.azure.com /
+//     loadBalancers / networkInterfaces CRDs), so this package neither sees nor
+//     manages them. PublicIPAddress is the single exception: the kommodity-cluster
+//     chart emits standalone PublicIPAddress CRs (see publicipaddresses.yaml) for a
+//     deterministic, chart-owned frontend IP that the Azure CCM's
+//     service.beta.kubernetes.io/azure-pip-name annotation binds to a Service.
+//     Those CRs use the same generic reconciler as the other kinds.
 //
 // The practical consequence, and the reason the embedded reconciler is mandatory
 // rather than optional: CAPZ on its own cannot bring up a cluster. It would create

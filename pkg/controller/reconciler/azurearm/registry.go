@@ -53,6 +53,12 @@ func managedResources() []managedResource {
 			armIDFor:       rgScopedARMID,
 		},
 		{
+			controllerName: "azurearm-publicipaddress",
+			newObj:         func() genruntime.ARMMetaObject { return &networkv20240301.PublicIPAddress{} },
+			armIDFor:       rgScopedARMID,
+		},
+
+		{
 			controllerName: "azurearm-routetable",
 			newObj:         func() genruntime.ARMMetaObject { return &networkv20240301.RouteTable{} },
 			armIDFor:       rgScopedARMID,

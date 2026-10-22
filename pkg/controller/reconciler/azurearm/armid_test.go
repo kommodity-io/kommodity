@@ -196,6 +196,36 @@ func TestRGScopedARMIDNetworkSecurityGroup(t *testing.T) {
 	}
 }
 
+func TestRGScopedARMIDPublicIPAddress(t *testing.T) {
+	t.Parallel()
+
+	scheme := newTestScheme(t)
+	ownerRG := provisionedRG("owner-rg", testNamespace)
+
+	kubeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(ownerRG).
+		Build()
+
+	pip := &networkv20240301.PublicIPAddress{
+		ObjectMeta: metav1.ObjectMeta{Name: "my-pip", Namespace: testNamespace},
+		Spec: networkv20240301.PublicIPAddress_Spec{
+			AzureName: "my-pip",
+			Owner:     &genruntime.KnownResourceReference{Name: "owner-rg"},
+		},
+	}
+
+	got, err := rgScopedARMID(context.Background(), kubeClient, pip, testSubscriptionID)
+	if err != nil {
+		t.Fatalf("rgScopedARMID returned error: %v", err)
+	}
+
+	want := testRGARMID + "/providers/Microsoft.Network/publicIPAddresses/my-pip"
+	if got != want {
+		t.Fatalf("armID = %q, want %q", got, want)
+	}
+}
+
 func TestRGScopedARMIDRouteTable(t *testing.T) {
 	t.Parallel()
 
