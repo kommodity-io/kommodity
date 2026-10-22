@@ -222,3 +222,31 @@ tests:
       - equal:
           path: spec.azureName
           value: zeta-gateway
+
+
+  # Map keys become the CR metadata.name, so invalid DNS-1123 keys must
+  # fail at render time with an actionable message instead of surfacing as a
+  # cryptic CR-admission error at install time.
+  - it: "should fail on an invalid DNS-1123 key (underscore)"
+    set:
+      kommodity.provider.azure.publicIPAddresses:
+        my_pip: {}
+    asserts:
+      - failedTemplate:
+          errorMessage: "invalid PublicIP key \"my_pip\" in kommodity.provider.azure.publicIPAddresses: map keys become the PublicIPAddress resource name and must be valid DNS-1123 subdomains (lowercase alphanumeric, '-' and '.', max 253 chars). An invalid key otherwise fails at CR admission with a cryptic error far from the values file."
+
+  - it: "should fail on an invalid DNS-1123 key (uppercase)"
+    set:
+      kommodity.provider.azure.publicIPAddresses:
+        My-Pip: {}
+    asserts:
+      - failedTemplate:
+          errorMessage: "invalid PublicIP key \"My-Pip\" in kommodity.provider.azure.publicIPAddresses: map keys become the PublicIPAddress resource name and must be valid DNS-1123 subdomains (lowercase alphanumeric, '-' and '.', max 253 chars). An invalid key otherwise fails at CR admission with a cryptic error far from the values file."
+
+  - it: "should fail on a key longer than 253 characters"
+    set:
+      kommodity.provider.azure.publicIPAddresses:
+        aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa: {}
+    asserts:
+      - failedTemplate:
+          errorPattern: "invalid PublicIP key \".*\" in kommodity.provider.azure.publicIPAddresses: map keys become the PublicIPAddress resource name and must be valid DNS-1123 subdomains"

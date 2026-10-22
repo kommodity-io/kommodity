@@ -114,6 +114,11 @@ kommodity:
     #   service.beta.kubernetes.io/azure-pip-name: <map key>
     #   service.beta.kubernetes.io/azure-load-balancer-resource-group: <cluster RG>
     #
+    # The key must be a valid DNS-1123 subdomain (lowercase alphanumeric,
+    # '-' and '.', max 253 chars) — the same rule Kubernetes enforces on
+    # resource names. Invalid keys fail at helm template/install time
+    # with an actionable error naming the offending key.
+    #
     # Use case: Envoy gateways (or any workload needing a deterministic public
     # address) — the Azure cloud-controller-manager binds the pre-provisioned
     # PIP to the Service's LB frontend, giving the gateway a stable public
