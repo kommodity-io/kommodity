@@ -78,8 +78,8 @@ A single `kommodity` binary that combines:
 A recent version of Go (we recommend [gvm][gvm]):
 
 ```bash
-gvm install go1.26.7 -B
-gvm use go1.26.7 --default
+gvm install go1.27.3 -B
+gvm use go1.27.3 --default
 ```
 
 ### Run It Locally
