@@ -11,7 +11,7 @@
   address) reference the PIP from a Kubernetes Service of type LoadBalancer
   via the Azure CCM annotations:
 
-    service.beta.kubernetes.io/azure-pip-name: pip-<release>-<pip name>
+    service.beta.kubernetes.io/azure-pip-name: <map key>
     service.beta.kubernetes.io/azure-load-balancer-resource-group: <cluster RG>
 
   The Azure cloud-controller-manager then binds the pre-provisioned PIP to the
@@ -47,7 +47,10 @@
 {{- range $pipName, $pip := $pips }}
 {{- $enabled := dig "enabled" true $pip }}
 {{- if $enabled }}
-{{- $pipResName := printf "pip-%s-%s" $.Release.Name $pipName }}
+{{- /* The map key IS the full Azure resource name: the PIP lives in the
+     cluster-specific resource group, so no release-name prefix is needed
+     to avoid cross-cluster collisions. */}}
+{{- $pipResName := $pipName }}
 ---
 apiVersion: network.azure.com/v1api20240301
 kind: PublicIPAddress

@@ -107,10 +107,11 @@ kommodity:
     # the underlying Azure PublicIP. That IP address is NOT recoverable once
     # deleted and future requests may allocate it to someone else.
     #
-    # The map key becomes the Azure resource name as pip-<release>-<key>, and
-    # the Service references it via the Azure CCM annotations:
+    # The map key IS the full Azure resource / Kubernetes CR name: the PIP
+    # lives in the cluster's own resource group, so no release-name prefix is
+    # needed for uniqueness. Reference it from a Service via the annotations:
     #
-    #   service.beta.kubernetes.io/azure-pip-name: pip-<release>-<key>
+    #   service.beta.kubernetes.io/azure-pip-name: <map key>
     #   service.beta.kubernetes.io/azure-load-balancer-resource-group: <cluster RG>
     #
     # Use case: Envoy gateways (or any workload needing a deterministic public

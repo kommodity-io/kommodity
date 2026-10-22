@@ -41,6 +41,8 @@ tests:
       - hasDocuments:
           count: 2
 
+  # The map key IS the full Azure resource name (CR name + azureName): the PIP
+  # lives in the cluster's own resource group, so no release-name prefix.
   - it: should render PublicIPAddress with correct fields
     set:
       kommodity.provider.azure.publicIPAddresses:
@@ -54,7 +56,7 @@ tests:
           value: network.azure.com/v1api20240301
       - equal:
           path: metadata.name
-          value: pip-test-cluster-envoy-gateway
+          value: envoy-gateway
       - equal:
           path: metadata.namespace
           value: default
@@ -67,7 +69,7 @@ tests:
           path: metadata.annotations["helm.sh/resource-policy"]
       - equal:
           path: spec.azureName
-          value: pip-test-cluster-envoy-gateway
+          value: envoy-gateway
       - equal:
           path: spec.location
           value: westeurope
@@ -180,7 +182,7 @@ tests:
       # as the only (first) document.
       - equal:
           path: metadata.name
-          value: pip-test-cluster-ingress-controller
+          value: ingress-controller
 
   - it: "should render a PIP with enabled: true"
     set:
@@ -192,7 +194,7 @@ tests:
           count: 1
       - equal:
           path: metadata.name
-          value: pip-test-cluster-envoy-gateway
+          value: envoy-gateway
 
   # Map iteration in Go templates ranges over sorted keys, so the render order
   # (and the documentIndex) is deterministic regardless of values-file ordering.
@@ -205,7 +207,7 @@ tests:
     asserts:
       - equal:
           path: metadata.name
-          value: pip-test-cluster-alpha-gateway
+          value: alpha-gateway
 
   - it: should render the alphabetically-later PIP at documentIndex 1
     set:
@@ -216,7 +218,7 @@ tests:
     asserts:
       - equal:
           path: metadata.name
-          value: pip-test-cluster-zeta-gateway
+          value: zeta-gateway
       - equal:
           path: spec.azureName
-          value: pip-test-cluster-zeta-gateway
+          value: zeta-gateway
