@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	testNamespace    = "default"
+	testNamespace     = "default"
 	testWidgetReaders = "widget-readers"
 )
 

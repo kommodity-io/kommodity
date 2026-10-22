@@ -26,7 +26,7 @@ func TestWithOIDC_MissingIssuerURL_ReturnsError(t *testing.T) {
 	_, err := auth.Resolve(ctx, []auth.Option{
 		auth.WithOIDC(auth.OIDCConfig{
 			IssuerURL: "",
-		ClientID:  testClientID,
+			ClientID:  testClientID,
 		}),
 	}, slog.Default())
 
@@ -42,7 +42,7 @@ func TestWithOIDC_MissingClientID_ReturnsError(t *testing.T) {
 
 	_, err := auth.Resolve(ctx, []auth.Option{
 		auth.WithOIDC(auth.OIDCConfig{
-		IssuerURL: testIssuerURL,
+			IssuerURL: testIssuerURL,
 			ClientID:  "",
 		}),
 	}, slog.Default())

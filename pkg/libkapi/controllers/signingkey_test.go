@@ -16,10 +16,10 @@ import (
 )
 
 const (
-	testSATokenName   = "sa-token-1"
-	testSAName        = "my-sa"
-	testTokenDataKey  = "token"
-	testKubeSystemNs  = controllers.DefaultTokenSecretsNamespace
+	testSATokenName  = "sa-token-1"
+	testSAName       = "my-sa"
+	testTokenDataKey = "token"
+	testKubeSystemNs = controllers.DefaultTokenSecretsNamespace
 )
 
 // TestResolveTokenSecretsNamespace_DefaultsToKubeSystem verifies that

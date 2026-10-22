@@ -21,14 +21,14 @@ const (
 	testVNetARMID      = testRGARMID + "/providers/Microsoft.Network/virtualNetworks/my-vnet"
 	testNSGARMID       = testRGARMID + "/providers/Microsoft.Network/networkSecurityGroups/my-nsg"
 
-	testRGName       = "my-rg"
-	testVNetName     = "my-vnet"
-	testNSGName      = "my-nsg"
-	testOwnerRGName  = "owner-rg"
-	testSubnetName   = "my-subnet"
+	testRGName        = "my-rg"
+	testVNetName      = "my-vnet"
+	testNSGName       = "my-nsg"
+	testOwnerRGName   = "owner-rg"
+	testSubnetName    = "my-subnet"
 	testOwnerVNetName = "owner-vnet"
-	testRuleName     = "my-rule"
-	testOwnerNSGName = "owner-nsg"
+	testRuleName      = "my-rule"
+	testOwnerNSGName  = "owner-nsg"
 )
 
 func newResourceGroup(azureName string) *resourcesv1.ResourceGroup {

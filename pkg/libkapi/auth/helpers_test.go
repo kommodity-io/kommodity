@@ -12,9 +12,9 @@ import (
 )
 
 const (
-	verbGet           = "get"
-	verbList          = "list"
-	verbWatch         = "watch"
+	verbGet             = "get"
+	verbList            = "list"
+	verbWatch           = "watch"
 	testWidgetsAPIGroup = "widgets.example.com"
 	testWidgetsResource = "widgets"
 )

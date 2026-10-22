@@ -183,13 +183,13 @@ func TestParseVolumeKeySets(t *testing.T) {
 	t.Parallel()
 
 	secretData := map[string][]byte{
-		kms.SealedFromIPKey:                     []byte("10.0.0.1"),
-		"a1b2c3d4" + kms.KeySuffix:              make([]byte, kms.KeySize),
-		"a1b2c3d4" + kms.NonceSuffix:            make([]byte, kms.AADNonceSize),
-		"a1b2c3d4" + kms.LuksKeySuffix:           []byte("encrypted-data-1"),
-		"e5f6a7b8" + kms.KeySuffix:              make([]byte, kms.KeySize),
-		"e5f6a7b8" + kms.NonceSuffix:            make([]byte, kms.AADNonceSize),
-		"e5f6a7b8" + kms.LuksKeySuffix:           []byte("encrypted-data-2"),
+		kms.SealedFromIPKey:            []byte("10.0.0.1"),
+		"a1b2c3d4" + kms.KeySuffix:     make([]byte, kms.KeySize),
+		"a1b2c3d4" + kms.NonceSuffix:   make([]byte, kms.AADNonceSize),
+		"a1b2c3d4" + kms.LuksKeySuffix: []byte("encrypted-data-1"),
+		"e5f6a7b8" + kms.KeySuffix:     make([]byte, kms.KeySize),
+		"e5f6a7b8" + kms.NonceSuffix:   make([]byte, kms.AADNonceSize),
+		"e5f6a7b8" + kms.LuksKeySuffix: []byte("encrypted-data-2"),
 	}
 
 	sets := kms.ParseVolumeKeySets(secretData)
@@ -202,10 +202,10 @@ func TestParseVolumeKeySetsSkipsIncomplete(t *testing.T) {
 	t.Parallel()
 
 	secretData := map[string][]byte{
-		kms.SealedFromIPKey:                   []byte("10.0.0.1"),
-		"complete" + kms.KeySuffix:            make([]byte, kms.KeySize),
-		"complete" + kms.NonceSuffix:          make([]byte, kms.AADNonceSize),
-		"complete" + kms.LuksKeySuffix:         []byte("encrypted-data"),
+		kms.SealedFromIPKey:            []byte("10.0.0.1"),
+		"complete" + kms.KeySuffix:     make([]byte, kms.KeySize),
+		"complete" + kms.NonceSuffix:   make([]byte, kms.AADNonceSize),
+		"complete" + kms.LuksKeySuffix: []byte("encrypted-data"),
 		// incomplete: missing nonce and luksKey
 		"incomplete" + kms.KeySuffix: make([]byte, kms.KeySize),
 	}

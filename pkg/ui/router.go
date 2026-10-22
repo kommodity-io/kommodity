@@ -53,8 +53,8 @@ func buildDashboardMetricCards(metrics *api.DashboardMetrics) []MetricCard {
 var templatesFS embed.FS
 
 const (
-	htmxRequestHeader = "Hx-Request"
-	htmxTrue          = "true"
+	htmxRequestHeader   = "Hx-Request"
+	htmxTrue            = "true"
 	pageApp             = "app.html"
 	pageClusterDetail   = "cluster_detail.html"
 	pageClusterNotFound = "cluster_not_found.html"
@@ -152,10 +152,10 @@ func (r *Router) handleApp(writer http.ResponseWriter, req *http.Request) {
 
 	// Build template data
 	data := map[string]any{
-		keyTitle:    "Dashboard",
+		keyTitle:   "Dashboard",
 		"Metrics":  buildDashboardMetricCards(metrics),
 		"Clusters": clusters,
-		keyVersion:  getKommodityVersion(),
+		keyVersion: getKommodityVersion(),
 		"KubeconfigSection": KubeconfigSection{
 			ID:            r.cfg.InstanceName,
 			ContentBase64: base64.StdEncoding.EncodeToString([]byte(kubeconfigContent)),
@@ -422,9 +422,9 @@ func (r *Router) renderClusterNotFound(writer http.ResponseWriter, req *http.Req
 	writer.WriteHeader(http.StatusNotFound)
 
 	data := map[string]any{
-		keyTitle:       "Cluster: " + clusterName,
+		keyTitle:      "Cluster: " + clusterName,
 		"ClusterName": clusterName,
-		keyVersion:     getKommodityVersion(),
+		keyVersion:    getKommodityVersion(),
 	}
 
 	err := r.renderPageOrContent(writer, req, pageClusterNotFound, data)
@@ -465,12 +465,12 @@ func buildClusterDetailData(
 	}
 
 	return map[string]any{
-		keyTitle:          "Cluster: " + clusterName,
+		keyTitle:         "Cluster: " + clusterName,
 		"Cluster":        clusterDetail,
 		"ClusterName":    clusterName,
 		"ClusterMetrics": clusterMetrics,
 		"HasAutoscaler":  hasAutoscaler,
-		keyVersion:        getKommodityVersion(),
+		keyVersion:       getKommodityVersion(),
 		"KubeconfigSection": KubeconfigSection{
 			ID:            clusterName,
 			ContentBase64: base64.StdEncoding.EncodeToString([]byte(kubeconfigContent)),

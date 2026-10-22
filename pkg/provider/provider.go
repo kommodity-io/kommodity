@@ -114,7 +114,7 @@ func (pc *Cache) ApplyCRDProviders(ctx context.Context,
 			conversion, found, _ := unstructured.NestedFieldNoCopy(obj.Object, "spec", "conversion")
 			if found && conversion != nil {
 				conversionStrategy, found, _ := unstructured.NestedString(obj.Object, "spec", "conversion", "strategy")
-			if found && conversionStrategy == conversionWebhook {
+				if found && conversionStrategy == conversionWebhook {
 					webhook, found, err := unstructured.NestedFieldNoCopy(obj.Object, "spec", "conversion", "webhook")
 					if err != nil || !found {
 						return fmt.Errorf("failed to extract webhook from crd configuration: %w", err)
@@ -175,7 +175,7 @@ func (pc *Cache) ReconcileConversionCABundles(
 	for _, objs := range pc.providerCRDs {
 		for _, obj := range objs {
 			strategy, found, _ := unstructured.NestedString(obj.Object, "spec", "conversion", "strategy")
-		if !found || strategy != conversionWebhook {
+			if !found || strategy != conversionWebhook {
 				continue
 			}
 

@@ -31,8 +31,8 @@ import (
 	"github.com/kommodity-io/kommodity/pkg/openapi/intstr"
 	"github.com/kommodity-io/kommodity/pkg/openapi/meta"
 	"github.com/kommodity-io/kommodity/pkg/openapi/rbac"
-	"github.com/kommodity-io/kommodity/pkg/openapi/storage"
 	"github.com/kommodity-io/kommodity/pkg/openapi/runtime"
+	"github.com/kommodity-io/kommodity/pkg/openapi/storage"
 	"github.com/kommodity-io/kommodity/pkg/openapi/version"
 
 	yaml "gopkg.in/yaml.v3"

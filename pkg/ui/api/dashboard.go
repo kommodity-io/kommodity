@@ -10,11 +10,11 @@ import (
 	"io"
 
 	"github.com/kommodity-io/kommodity/pkg/logging"
-	"go.uber.org/zap"
-	clientgoclientset "k8s.io/client-go/kubernetes"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	taloscontrolplanev1 "github.com/siderolabs/cluster-api-control-plane-provider-talos/api/v1alpha3"
+	"go.uber.org/zap"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	clientgoclientset "k8s.io/client-go/kubernetes"
+	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -26,7 +26,6 @@ type helmRelease struct {
 		} `json:"metadata"`
 	} `json:"chart"`
 }
-
 
 // DashboardMetrics holds the metrics for the dashboard.
 type DashboardMetrics struct {
@@ -298,5 +297,3 @@ func buildClusterInfoFromCache(
 
 	return info
 }
-
-
