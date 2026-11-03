@@ -114,11 +114,16 @@ kommodity:
     #   service.beta.kubernetes.io/azure-pip-name: <map key>
     #   service.beta.kubernetes.io/azure-load-balancer-resource-group: <cluster RG>
     #
-    # The key must be a valid DNS-1123 subdomain (lowercase alphanumeric,
-    # '-' and '.', max 253 chars total, max 63 chars per dot-separated
-    # label) — the same ruleset Kubernetes enforces on resource names.
-    # Invalid keys fail at helm template/install time with an actionable
-    # error naming the offending key.
+    # The key must be a lowercase DNS-1123-style name (lowercase
+    # alphanumeric, '-' and '.') with at most 63 chars per
+    # dot-separated label. The chart also enforces Azure's 80-char
+    # limit for publicIPAddresses resource names — the strictest of
+    # the applicable limits and stricter than Kubernetes' 253-char
+    # subdomain cap, which is why it is enforced at render time.
+    # Invalid keys fail at helm template/install time with an
+    # actionable error naming the offending key — including entries
+    # with enabled: false (invalid config should fail loudly even
+    # when dormant).
     #
     # Use case: Envoy gateways (or any workload needing a deterministic public
     # address) — the Azure cloud-controller-manager binds the pre-provisioned

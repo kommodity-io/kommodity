@@ -11,6 +11,8 @@ import (
 	networkv20240301 "github.com/Azure/azure-service-operator/v2/api/network/v1api20240301"
 	resourcesv1 "github.com/Azure/azure-service-operator/v2/api/resources/v1api20200601"
 	"github.com/Azure/azure-service-operator/v2/pkg/genruntime"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
@@ -218,14 +220,10 @@ func TestRGScopedARMIDPublicIPAddress(t *testing.T) {
 	}
 
 	got, err := rgScopedARMID(context.Background(), kubeClient, pip, testSubscriptionID)
-	if err != nil {
-		t.Fatalf("rgScopedARMID returned error: %v", err)
-	}
+	require.NoError(t, err)
 
 	want := testRGARMID + "/providers/Microsoft.Network/publicIPAddresses/my-pip"
-	if got != want {
-		t.Fatalf("armID = %q, want %q", got, want)
-	}
+	assert.Equal(t, want, got)
 }
 
 func TestRGScopedARMIDRouteTable(t *testing.T) {

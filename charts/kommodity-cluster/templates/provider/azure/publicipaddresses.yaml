@@ -45,13 +45,16 @@
 {{- /* Go templates range over maps in sorted key order, so the render order
      (and the documentIndex order in helm unittest) is deterministic. */}}
 {{- range $pipName, $pip := $pips }}
-{{- /* The map key becomes the CR metadata.name, which the Kubernetes API
-     server validates as a DNS-1123 subdomain. Validate here and fail fast
-     with an actionable message at helm template/install time — an invalid
-     key otherwise surfaces as a cryptic admission error far from the
-     values file that set it. */}}
-{{- if or (gt (len $pipName) 253) (not (regexMatch "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$" $pipName)) }}
-{{- fail (printf "invalid PublicIP key %q in kommodity.provider.azure.publicIPAddresses: map keys become the PublicIPAddress resource name and must be valid DNS-1123 subdomains (lowercase alphanumeric, '-' and '.', max 253 chars total, max 63 chars per dot-separated label). An invalid key otherwise fails at CR admission with a cryptic error far from the values file." $pipName) }}
+{{- /* The map key becomes the CR metadata.name AND the Azure resource
+     name. Kubernetes validates metadata.name as a DNS-1123 subdomain
+     (charset + 253 chars total); the per-label 63-char cap below is
+     chart-imposed and stricter than K8s. Azure additionally caps
+     publicIPAddresses names at 80 chars — the strictest limit, so
+     enforce it here. Validate at render time and fail fast with an
+     actionable message; an invalid key otherwise surfaces as a cryptic
+     admission or ARM PUT error far from the values file that set it. */}}
+{{- if or (gt (len $pipName) 80) (not (regexMatch "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$" $pipName)) }}
+{{- fail (printf "invalid PublicIP key %q in kommodity.provider.azure.publicIPAddresses: map keys become the PublicIPAddress resource name and must be valid DNS-1123 subdomains (lowercase alphanumeric, '-' and '.', max 63 chars per dot-separated label) and respect Azure's 80-char limit for publicIPAddresses names. An invalid key otherwise fails at CR admission or ARM provisioning with a cryptic error far from the values file." $pipName) }}
 {{- end }}
 {{- $enabled := dig "enabled" true $pip }}
 {{- if $enabled }}
