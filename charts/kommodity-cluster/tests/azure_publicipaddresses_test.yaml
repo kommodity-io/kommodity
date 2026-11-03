@@ -282,10 +282,12 @@ tests:
   # Azure caps publicIPAddresses resource names at 80 chars — stricter than
   # the K8s 253-char subdomain cap, so the chart enforces it at render time;
   # an over-long name would otherwise pass admission and fail the ARM PUT.
-  - it: "should fail on a key longer than Azure's 80-char PIP name limit"
+  # The key is dotted (labels 41/41, within the 63-char label cap) so the
+  # failure is attributable to the 80-char total, not the label cap.
+  - it: "should fail on a dotted key longer than Azure's 80-char PIP name limit"
     set:
       kommodity.provider.azure.publicIPAddresses:
-        aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa: {}
+        aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa: {}
     asserts:
       - failedTemplate:
           errorPattern: "invalid PublicIP key \".*\" in kommodity.provider.azure.publicIPAddresses: map keys become the PublicIPAddress resource name and must be valid DNS-1123 subdomains"
