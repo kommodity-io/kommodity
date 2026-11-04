@@ -173,8 +173,8 @@ tests:
     template: templates/talos/controlplane.yaml
     set:
       kommodity.controlplane.machineConfig:
-        machine:
-          env:
+        EnvironmentConfig:
+          variables:
             CP_VAR: cp-value
     asserts:
       - hasDocuments:
@@ -187,12 +187,12 @@ tests:
     template: templates/talos/controlplane.yaml
     set:
       kommodity.global.machineConfig:
-        machine:
-          env:
+        EnvironmentConfig:
+          variables:
             GLOBAL_VAR: global-value
       kommodity.controlplane.machineConfig:
-        machine:
-          env:
+        EnvironmentConfig:
+          variables:
             CP_VAR: cp-value
     asserts:
       - hasDocuments:
