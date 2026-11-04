@@ -273,13 +273,21 @@ kommodity:
     # Configurations applied to all nodepools and controlplanes in the cluster
     # Talos v1.14 machine configuration (https://docs.siderolabs.com/talos/v1.14/getting-started/what's-new-in-talos#kubernetes-multi-document-configuration).
     # Top-level keys are Talos document kinds: KubeletConfig, KubeAPIServerConfig,
-    # KubeNodeConfig — fields map 1:1 to the document schema, and apiVersion/kind
-    # are injected automatically. Any other top-level key (machine, cluster, ...)
-    # is a v1alpha1 strategic patch fragment, emitted verbatim as an escape hatch
-    # for fields with no document kind yet.
+    # KubeNodeConfig, EnvironmentConfig (dict with variables; kommodity.logLevel
+    # is added as LOG_LEVEL), KernelModuleConfig (list of name+parameters entries),
+    # CRICustomizationConfig (list of name+content entries) — fields map 1:1 to
+    # the document schema, and apiVersion/kind are injected automatically.
+    # List kinds emit one document per entry. extraDocuments is a raw multi-doc
+    # YAML string split on --- and appended verbatim.
+    # Any other top-level key (machine, cluster, ...) is a v1alpha1 strategic
+    # patch fragment, emitted verbatim as an escape hatch for fields with no
+    # document kind yet.
     # Controlplane / nodepool machineConfig are deep-merged on top of global (later wins on conflicts).
     # Example:
     #   machineConfig:
+    #     EnvironmentConfig:
+    #       variables:
+    #         MY_VAR: my-value
     #     KubeletConfig:
     #       extraArgs:
     #         maxPods: "200"
