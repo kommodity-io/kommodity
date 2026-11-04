@@ -145,14 +145,13 @@ tests:
           path: spec.template.spec.strategicPatches[2]
           pattern: "SHARED_VAR: global-value"
 
-  - it: should deep-merge global and nodepool patches under disjoint subtrees of machine
+  - it: should merge KubeletConfig doc and v1alpha1 fragment from disjoint sources
     template: templates/talos/configtemplate.yaml
     set:
       kommodity.global.machineConfig:
-        machine:
-          kubelet:
-            extraArgs:
-              cloud-provider: external
+        KubeletConfig:
+          extraArgs:
+            cloud-provider: external
       kommodity.nodepools.default.machineConfig:
         machine:
           sysctls:
@@ -206,7 +205,7 @@ tests:
           pattern: "CP_VAR: cp-value"
 
   # Taints tests
-  - it: should generate kubelet extraArgs and nodeTaints in strategic patch for taints
+  - it: should emit pool-level taints as KubeNodeConfig taints
     template: templates/talos/configtemplate.yaml
     set:
       kommodity.global.machineConfig: {}
@@ -228,7 +227,7 @@ tests:
           pattern: "workload: gpu:NoSchedule"
 
   # Labels and annotations tests
-  - it: should generate nodeLabels and nodeAnnotations in strategic patch
+  - it: should emit pool-level labels and annotations as KubeNodeConfig
     template: templates/talos/configtemplate.yaml
     set:
       kommodity.global.machineConfig: {}
@@ -913,14 +912,13 @@ tests:
     asserts:
       - failedTemplate: {}
 
-  - it: should emit KubeletConfig with extraArgs from machine.kubelet.extraArgs
+  - it: should emit KubeletConfig with extraArgs
     template: templates/talos/configtemplate.yaml
     set:
       kommodity.global.machineConfig:
-        machine:
-          kubelet:
-            extraArgs:
-              maxPods: "200"
+        KubeletConfig:
+          extraArgs:
+            maxPods: "200"
     asserts:
       - matchRegex:
           path: spec.template.spec.strategicPatches[0]
@@ -929,14 +927,13 @@ tests:
           path: spec.template.spec.strategicPatches[0]
           pattern: "maxPods: \"200\""
 
-  - it: should emit KubeletConfig.config from machine.kubelet.extraConfig (field renamed)
+  - it: should pass KubeletConfig fields through verbatim
     template: templates/talos/configtemplate.yaml
     set:
       kommodity.global.machineConfig:
-        machine:
-          kubelet:
-            extraConfig:
-              maxPods: 200
+        KubeletConfig:
+          config:
+            maxPods: 200
     asserts:
       - matchRegex:
           path: spec.template.spec.strategicPatches[0]
@@ -947,18 +944,14 @@ tests:
       - matchRegex:
           path: spec.template.spec.strategicPatches[0]
           pattern: "maxPods: 200"
-      - notMatchRegex:
-          path: spec.template.spec.strategicPatches[0]
-          pattern: "extraConfig:"
 
-  - it: should emit KubeAPIServerConfig from cluster.apiServer.extraArgs
+  - it: should emit KubeAPIServerConfig with extraArgs
     template: templates/talos/controlplane.yaml
     set:
       kommodity.global.machineConfig:
-        cluster:
-          apiServer:
-            extraArgs:
-              anonymous-auth: "true"
+        KubeAPIServerConfig:
+          extraArgs:
+            anonymous-auth: "true"
     asserts:
       - matchRegex:
           path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
@@ -966,6 +959,27 @@ tests:
       - matchRegex:
           path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
           pattern: "anonymous-auth: \"true\""
+
+  - it: should not emit KubeAPIServerConfig on workers
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.global.machineConfig:
+        KubeAPIServerConfig:
+          extraArgs:
+            anonymous-auth: "true"
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[0]
+          pattern: "kind: KubeletConfig"
+      - notMatchRegex:
+          path: spec.template.spec.strategicPatches[0]
+          pattern: "KubeAPIServerConfig"
+      - notMatchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "KubeAPIServerConfig"
+      - notMatchRegex:
+          path: spec.template.spec.strategicPatches[2]
+          pattern: "KubeAPIServerConfig"
 
   - it: should emit OIDC extraArgs as KubeAPIServerConfig document
     template: templates/talos/controlplane.yaml
@@ -984,13 +998,30 @@ tests:
           path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
           pattern: "oidc-client-id: client-id"
 
+  - it: should let user KubeAPIServerConfig extraArgs override OIDC flags
+    template: templates/talos/controlplane.yaml
+    set:
+      kommodity.oidc.enabled: true
+      kommodity.oidc.issuerURL: https://example.com
+      kommodity.oidc.clientID: client-id
+      kommodity.global.machineConfig:
+        KubeAPIServerConfig:
+          extraArgs:
+            oidc-issuer-url: https://override.example.com
+    asserts:
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "oidc-issuer-url: https://override.example.com"
+      - notMatchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "oidc-issuer-url: https://example.com"
+
   - it: should emit KubeNodeConfig with registerWithFQDN
     template: templates/talos/configtemplate.yaml
     set:
       kommodity.global.machineConfig:
-        machine:
-          kubelet:
-            registerWithFQDN: true
+        KubeNodeConfig:
+          registerWithFQDN: true
     asserts:
       - matchRegex:
           path: spec.template.spec.strategicPatches[1]
@@ -1003,9 +1034,8 @@ tests:
     template: templates/talos/configtemplate.yaml
     set:
       kommodity.global.machineConfig:
-        machine:
-          kubelet:
-            skipNodeRegistration: true
+        KubeNodeConfig:
+          skipNodeRegistration: true
     asserts:
       - matchRegex:
           path: spec.template.spec.strategicPatches[1]
@@ -1018,11 +1048,10 @@ tests:
     template: templates/talos/configtemplate.yaml
     set:
       kommodity.global.machineConfig:
-        machine:
-          kubelet:
-            nodeIP:
-              validSubnets:
-                - 10.0.0.0/8
+        KubeNodeConfig:
+          nodeIP:
+            validSubnets:
+              - 10.0.0.0/8
     asserts:
       - matchRegex:
           path: spec.template.spec.strategicPatches[1]
@@ -1034,12 +1063,12 @@ tests:
           path: spec.template.spec.strategicPatches[1]
           pattern: "validSubnets:"
 
-  - it: should emit KubeNodeConfig with labels from nodeLabels
+  - it: should emit KubeNodeConfig with labels
     template: templates/talos/configtemplate.yaml
     set:
       kommodity.global.machineConfig:
-        machine:
-          nodeLabels:
+        KubeNodeConfig:
+          labels:
             custom-label: custom-value
     asserts:
       - matchRegex:
@@ -1049,12 +1078,12 @@ tests:
           path: spec.template.spec.strategicPatches[1]
           pattern: "custom-label: custom-value"
 
-  - it: should emit KubeNodeConfig with annotations from nodeAnnotations
+  - it: should emit KubeNodeConfig with annotations
     template: templates/talos/configtemplate.yaml
     set:
       kommodity.global.machineConfig:
-        machine:
-          nodeAnnotations:
+        KubeNodeConfig:
+          annotations:
             custom-annotation: custom-annotation-value
     asserts:
       - matchRegex:
@@ -1064,12 +1093,12 @@ tests:
           path: spec.template.spec.strategicPatches[1]
           pattern: "custom-annotation: custom-annotation-value"
 
-  - it: should emit KubeNodeConfig with taints from nodeTaints
+  - it: should emit KubeNodeConfig with taints
     template: templates/talos/configtemplate.yaml
     set:
       kommodity.global.machineConfig:
-        machine:
-          nodeTaints:
+        KubeNodeConfig:
+          taints:
             dedicated: "gpu:NoSchedule"
     asserts:
       - matchRegex:
@@ -1110,12 +1139,14 @@ tests:
           path: spec.template.spec.strategicPatches[2]
           pattern: "register-with-taints"
 
-  - it: should emit KubeNodeConfig with $patch delete taint for allowSchedulingOnControlPlanes
+  - it: should pass KubeNodeConfig control-plane taint $patch delete through verbatim
     template: templates/talos/controlplane.yaml
     set:
-      kommodity.global.machineConfig:
-        cluster:
-          allowSchedulingOnControlPlanes: true
+      kommodity.controlplane.machineConfig:
+        KubeNodeConfig:
+          taints:
+            node-role.kubernetes.io/control-plane:
+              $patch: delete
     asserts:
       - matchRegex:
           path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
