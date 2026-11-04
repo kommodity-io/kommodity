@@ -278,103 +278,24 @@ Any values that should trigger a new Machine template when changed should be add
 {{- end -}}
 
 {{/*
-Build merged machine config, emitting Talos v1.14 multi-document kinds.
-Returns multiple YAML block scalar list items (- |\n  <yaml>), one per document:
-  KubeletConfig, KubeAPIServerConfig, KubeNodeConfig, then a v1alpha1 fragment
-  for fields with no multi-doc equivalent. Returns empty string if nothing to emit.
-User patches from nodepools override global patches via deep merge.
+Build merged machine config for strategicPatches (Talos v1.14 multi-doc kinds).
+Each returned block is one YAML document as a "- |" list item:
+  KubeletConfig, KubeAPIServerConfig (control planes only), KubeNodeConfig,
+  then a v1alpha1 fragment. Returns empty string if nothing to emit.
+
+machineConfig keys are Talos document names — KubeletConfig, KubeAPIServerConfig,
+KubeNodeConfig — whose fields map 1:1 to the document schema (see
+https://docs.siderolabs.com/talos/v1.14/getting-started/what's-new-in-talos#kubernetes-multi-document-configuration).
+Any other top-level key (machine, cluster, ...) is a v1alpha1 strategic patch
+fragment, emitted verbatim as escape hatch for fields with no doc kind yet.
+
+Precedence: built-in settings (log level env, CNI/proxy disable, OIDC flags,
+pool-level labels/annotations/taints) are seeded first, then user patches overlay
+them (nodepool wins over global).
 */}}
 {{- define "kommodity-cluster.mergedMachineConfig" -}}
-{{- /* Merge global + nodepool user patches (nodepool wins on conflicts) */ -}}
+{{- /* v1alpha1 fragment: built-in fields first, user patches override them */ -}}
 {{- $merged := dict -}}
-{{- if and .globalPatches (gt (len .globalPatches) 0) -}}
-{{- $_ := mustMergeOverwrite $merged (deepCopy .globalPatches) -}}
-{{- end -}}
-{{- if and .nodepoolPatches (gt (len .nodepoolPatches) 0) -}}
-{{- $_ := mustMergeOverwrite $merged (deepCopy .nodepoolPatches) -}}
-{{- end -}}
-
-{{- /* KubeletConfig: extraArgs + config (renamed from extraConfig) */ -}}
-{{- $kubeletConfig := dict -}}
-{{- with (dig "machine" "kubelet" "extraArgs" nil $merged) -}}{{- $_ := set $kubeletConfig "extraArgs" (deepCopy .) -}}{{- end -}}
-{{- with (dig "machine" "kubelet" "extraConfig" nil $merged) -}}{{- $_ := set $kubeletConfig "config" (deepCopy .) -}}{{- end -}}
-{{- if gt (len (keys $kubeletConfig)) 0 -}}
-{{- $doc := dict "apiVersion" "v1alpha1" "kind" "KubeletConfig" -}}
-{{- $_ := mustMergeOverwrite $doc $kubeletConfig -}}
-- |
-{{ printf "%s\n" ($doc | toYaml | indent 2) }}
-{{- end -}}
-
-{{- /* KubeAPIServerConfig: user cluster.apiServer.extraArgs + OIDC extraArgs */ -}}
-{{- $apiServerExtraArgs := deepCopy (dig "cluster" "apiServer" "extraArgs" (dict) $merged) -}}
-{{- if and .oidc .oidc.enabled -}}
-{{- $oidcExtraArgs := include "kommodity.talos.oidc.extraArgs" (dict "oidc" .oidc) | fromJson -}}
-{{- $_ := mustMergeOverwrite $apiServerExtraArgs $oidcExtraArgs -}}
-{{- end -}}
-{{- if gt (len $apiServerExtraArgs) 0 -}}
-{{- $doc := dict "apiVersion" "v1alpha1" "kind" "KubeAPIServerConfig" "extraArgs" $apiServerExtraArgs -}}
-- |
-{{ printf "%s\n" ($doc | toYaml | indent 2) }}
-{{- end -}}
-
-{{- /* KubeNodeConfig: labels, annotations, taints, registerWithFQDN,
-     skipNodeRegistration, nodeIP, allowSchedulingOnControlPlanes */ -}}
-{{- $nodeConfig := dict -}}
-{{- /* Merge pool-level + user-patch labels */ -}}
-{{- $labels := dict -}}
-{{- if and .labels (gt (len .labels) 0) -}}{{- $_ := mustMergeOverwrite $labels (deepCopy .labels) -}}{{- end -}}
-{{- with (dig "machine" "nodeLabels" nil $merged) -}}{{- $_ := mustMergeOverwrite $labels (deepCopy .) -}}{{- end -}}
-{{- if gt (len $labels) 0 -}}{{- $_ := set $nodeConfig "labels" $labels -}}{{- end -}}
-{{- /* Merge pool-level + user-patch annotations */ -}}
-{{- $annotations := dict -}}
-{{- if and .annotations (gt (len .annotations) 0) -}}{{- $_ := mustMergeOverwrite $annotations (deepCopy .annotations) -}}{{- end -}}
-{{- with (dig "machine" "nodeAnnotations" nil $merged) -}}{{- $_ := mustMergeOverwrite $annotations (deepCopy .) -}}{{- end -}}
-{{- if gt (len $annotations) 0 -}}{{- $_ := set $nodeConfig "annotations" $annotations -}}{{- end -}}
-{{- /* Merge pool-level + user-patch taints */ -}}
-{{- $taints := dict -}}
-{{- if and .taints (gt (len .taints) 0) -}}{{- $_ := mustMergeOverwrite $taints (deepCopy .taints) -}}{{- end -}}
-{{- with (dig "machine" "nodeTaints" nil $merged) -}}{{- $_ := mustMergeOverwrite $taints (deepCopy .) -}}{{- end -}}
-{{- if gt (len $taints) 0 -}}{{- $_ := set $nodeConfig "taints" $taints -}}{{- end -}}
-{{- /* registerWithFQDN, skipNodeRegistration, nodeIP from user patches */ -}}
-{{- with (dig "machine" "kubelet" "registerWithFQDN" nil $merged) -}}{{- $_ := set $nodeConfig "registerWithFQDN" . -}}{{- end -}}
-{{- with (dig "machine" "kubelet" "skipNodeRegistration" nil $merged) -}}{{- $_ := set $nodeConfig "skipNodeRegistration" . -}}{{- end -}}
-{{- with (dig "machine" "kubelet" "nodeIP" nil $merged) -}}{{- $_ := set $nodeConfig "nodeIP" (deepCopy .) -}}{{- end -}}
-{{- /* allowSchedulingOnControlPlanes: delete the control-plane taint */ -}}
-{{- if dig "cluster" "allowSchedulingOnControlPlanes" false $merged -}}
-{{- $cpTaints := deepCopy (dig "taints" (dict) $nodeConfig) -}}
-{{- $_ := set $cpTaints "node-role.kubernetes.io/control-plane" (dict "$patch" "delete") -}}
-{{- $_ := set $nodeConfig "taints" $cpTaints -}}
-{{- end -}}
-{{- if gt (len (keys $nodeConfig)) 0 -}}
-{{- $doc := dict "apiVersion" "v1alpha1" "kind" "KubeNodeConfig" -}}
-{{- $_ := mustMergeOverwrite $doc $nodeConfig -}}
-- |
-{{ printf "%s\n" ($doc | toYaml | indent 2) }}
-{{- end -}}
-
-{{- /* Remove extracted fields from $merged for the v1alpha1 fragment */ -}}
-{{- if hasKey $merged "machine" -}}
-{{- $m := get $merged "machine" -}}
-{{- if hasKey $m "kubelet" -}}
-{{- $_ := set $m "kubelet" (omit (get $m "kubelet") "extraArgs" "extraConfig" "registerWithFQDN" "skipNodeRegistration" "nodeIP") -}}
-{{- if eq (len (keys (get $m "kubelet"))) 0 -}}{{- $_ := unset $m "kubelet" -}}{{- end -}}
-{{- end -}}
-{{- $_ := unset $m "nodeLabels" -}}
-{{- $_ := unset $m "nodeAnnotations" -}}
-{{- $_ := unset $m "nodeTaints" -}}
-{{- if eq (len (keys $m)) 0 -}}{{- $_ := unset $merged "machine" -}}{{- end -}}
-{{- end -}}
-{{- if hasKey $merged "cluster" -}}
-{{- $c := get $merged "cluster" -}}
-{{- if hasKey $c "apiServer" -}}
-{{- $_ := set $c "apiServer" (omit (get $c "apiServer") "extraArgs") -}}
-{{- if eq (len (keys (get $c "apiServer"))) 0 -}}{{- $_ := unset $c "apiServer" -}}{{- end -}}
-{{- end -}}
-{{- $_ := unset $c "allowSchedulingOnControlPlanes" -}}
-{{- if eq (len (keys $c)) 0 -}}{{- $_ := unset $merged "cluster" -}}{{- end -}}
-{{- end -}}
-
-{{- /* Inject built-in v1alpha1 fields (no multi-doc equivalent yet) */ -}}
 {{- if .logLevel -}}
 {{- $globalEnv := include "kommodity.talos.globalEnv" (dict "logLevel" .logLevel) | fromJson -}}
 {{- $_ := mustMergeOverwrite $merged (dict "machine" (dict "env" $globalEnv)) -}}
@@ -386,7 +307,63 @@ User patches from nodepools override global patches via deep merge.
 {{- $_ := mustMergeOverwrite $merged (include "kommodity.talos.proxy.disable" . | fromJson) -}}
 {{- end -}}
 
-{{- /* Remaining v1alpha1 fragment */ -}}
+{{- /* KubeNodeConfig: pool-level labels/annotations/taints first, user patches override */ -}}
+{{- $nodeConfig := dict -}}
+{{- if and .labels (gt (len .labels) 0) -}}
+{{- $_ := mustMergeOverwrite $nodeConfig (dict "labels" (deepCopy .labels)) -}}
+{{- end -}}
+{{- if and .annotations (gt (len .annotations) 0) -}}
+{{- $_ := mustMergeOverwrite $nodeConfig (dict "annotations" (deepCopy .annotations)) -}}
+{{- end -}}
+{{- if and .taints (gt (len .taints) 0) -}}
+{{- $_ := mustMergeOverwrite $nodeConfig (dict "taints" (deepCopy .taints)) -}}
+{{- end -}}
+
+{{- /* KubeAPIServerConfig: OIDC flags first, user extraArgs override */ -}}
+{{- $apiServerConfig := dict -}}
+{{- if and .oidc .oidc.enabled -}}
+{{- $oidcExtraArgs := include "kommodity.talos.oidc.extraArgs" (dict "oidc" .oidc) | fromJson -}}
+{{- $_ := set $apiServerConfig "extraArgs" $oidcExtraArgs -}}
+{{- end -}}
+
+{{- /* Overlay user patches: global first, nodepool last (wins on conflicts) */ -}}
+{{- $kubeletConfig := dict -}}
+{{- range $patches := list .globalPatches .nodepoolPatches -}}
+{{- if and $patches (gt (len $patches) 0) -}}
+{{- range $key := keys $patches -}}
+{{- $value := deepCopy (index $patches $key) -}}
+{{- if eq $key "KubeletConfig" -}}
+{{- $_ := mustMergeOverwrite $kubeletConfig $value -}}
+{{- else if eq $key "KubeAPIServerConfig" -}}
+{{- $_ := mustMergeOverwrite $apiServerConfig $value -}}
+{{- else if eq $key "KubeNodeConfig" -}}
+{{- $_ := mustMergeOverwrite $nodeConfig $value -}}
+{{- else -}}
+{{- $_ := mustMergeOverwrite $merged (dict $key $value) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{- if gt (len (keys $kubeletConfig)) 0 -}}
+{{- $doc := dict "apiVersion" "v1alpha1" "kind" "KubeletConfig" -}}
+{{- $_ := mustMergeOverwrite $doc $kubeletConfig -}}
+- |
+{{ printf "%s\n" ($doc | toYaml | indent 2) }}
+{{- end -}}
+{{- /* Control-plane-only document: Talos rejects it on workers */ -}}
+{{- if and .isControlPlane (gt (len (keys $apiServerConfig)) 0) -}}
+{{- $doc := dict "apiVersion" "v1alpha1" "kind" "KubeAPIServerConfig" -}}
+{{- $_ := mustMergeOverwrite $doc $apiServerConfig -}}
+- |
+{{ printf "%s\n" ($doc | toYaml | indent 2) }}
+{{- end -}}
+{{- if gt (len (keys $nodeConfig)) 0 -}}
+{{- $doc := dict "apiVersion" "v1alpha1" "kind" "KubeNodeConfig" -}}
+{{- $_ := mustMergeOverwrite $doc $nodeConfig -}}
+- |
+{{ printf "%s\n" ($doc | toYaml | indent 2) }}
+{{- end -}}
 {{- if gt (len (keys $merged)) 0 -}}
 - |
 {{ printf "%s\n" ($merged | toYaml | indent 2) }}

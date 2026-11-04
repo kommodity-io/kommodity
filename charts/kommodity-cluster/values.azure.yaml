@@ -95,12 +95,6 @@ kommodity:
 
   global:
     machineConfig:
-      # NOTE: kubelet --cloud-provider=external is no longer set here — the chart
-      # auto-injects it whenever kommodity.provider.cloudControllerManager.enabled
-      # is true (see _helpers.tpl "mergedMachineConfig"). Omitting it previously
-      # left nodes without a providerID, which broke CAPI NodeRef linking and
-      # wedged control-plane rollouts, so it must never be optional.
-      #
       # Enable anonymous authentication on kube-apiserver.
       # CAPZ hardcodes an HTTPS GET /readyz probe on the apiserver LB (not configurable via the
       # AzureCluster spec). Talos defaults --anonymous-auth=false, so /readyz returns HTTP 401 to
@@ -108,10 +102,9 @@ kommodity:
       # apiserver traffic. Kubernetes' built-in system:public-info-viewer ClusterRoleBinding grants
       # system:unauthenticated read access to /livez, /readyz, /healthz, and /version only —
       # no resource data is exposed.
-      cluster:
-        apiServer:
-          extraArgs:
-            anonymous-auth: "true"
+      KubeAPIServerConfig:
+        extraArgs:
+          anonymous-auth: "true"
 
   network:
     ipv4:
