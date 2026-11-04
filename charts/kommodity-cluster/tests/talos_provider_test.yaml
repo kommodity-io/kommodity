@@ -54,8 +54,8 @@ tests:
     template: templates/talos/configtemplate.yaml
     set:
       kommodity.global.machineConfig:
-        machine:
-          env:
+        EnvironmentConfig:
+          variables:
             CHANGED_VAR: changed-value
     asserts:
       - isKind:
@@ -70,8 +70,8 @@ tests:
     template: templates/talos/configtemplate.yaml
     set:
       kommodity.nodepools.default.machineConfig:
-        machine:
-          env:
+        EnvironmentConfig:
+          variables:
             NODEPOOL_VAR: nodepool-value
     asserts:
       - isKind:
@@ -100,12 +100,12 @@ tests:
     template: templates/talos/configtemplate.yaml
     set:
       kommodity.global.machineConfig:
-        machine:
-          env:
+        EnvironmentConfig:
+          variables:
             GLOBAL_VAR: global-value
       kommodity.nodepools.default.machineConfig:
-        machine:
-          env:
+        EnvironmentConfig:
+          variables:
             NODEPOOL_VAR: nodepool-value
     asserts:
       - isKind:
@@ -126,12 +126,12 @@ tests:
     template: templates/talos/configtemplate.yaml
     set:
       kommodity.global.machineConfig:
-        machine:
-          env:
+        EnvironmentConfig:
+          variables:
             SHARED_VAR: global-value
       kommodity.nodepools.default.machineConfig:
-        machine:
-          env:
+        EnvironmentConfig:
+          variables:
             SHARED_VAR: nodepool-value
     asserts:
       - isKind:
@@ -1159,12 +1159,12 @@ tests:
           pattern: "\\$patch: delete"
 
   # EnvironmentConfig tests
-  - it: should emit EnvironmentConfig with variables from machine.env
+  - it: should emit EnvironmentConfig with variables from EnvironmentConfig.variables
     template: templates/talos/configtemplate.yaml
     set:
       kommodity.global.machineConfig:
-        machine:
-          env:
+        EnvironmentConfig:
+          variables:
             MY_VAR: my-value
     asserts:
       - matchRegex:
@@ -1200,12 +1200,12 @@ tests:
     template: templates/talos/configtemplate.yaml
     set:
       kommodity.global.machineConfig:
-        machine:
-          env:
+        EnvironmentConfig:
+          variables:
             GLOBAL_VAR: global-value
       kommodity.nodepools.default.machineConfig:
-        machine:
-          env:
+        EnvironmentConfig:
+          variables:
             NODEPOOL_VAR: nodepool-value
     asserts:
       - matchRegex:
@@ -1238,15 +1238,13 @@ tests:
           pattern: "kind: EnvironmentConfig"
 
   # KernelModuleConfig tests
-  - it: should emit KernelModuleConfig one per module from machine.kernel.modules
+  - it: should emit one KernelModuleConfig per entry
     template: templates/talos/configtemplate.yaml
     set:
       kommodity.global.machineConfig:
-        machine:
-          kernel:
-            modules:
-              - name: nvidia
-              - name: vfio_pci
+        KernelModuleConfig:
+          - name: nvidia
+          - name: vfio_pci
     asserts:
       - matchRegex:
           path: spec.template.spec.strategicPatches[3]
@@ -1261,15 +1259,14 @@ tests:
           path: spec.template.spec.strategicPatches[4]
           pattern: "name: vfio_pci"
 
-  - it: should emit KernelModuleConfig with parameters
+  - it: should emit KernelModuleConfig with parameters list
     template: templates/talos/configtemplate.yaml
     set:
       kommodity.global.machineConfig:
-        machine:
-          kernel:
-            modules:
-              - name: nvidia
-                parameters: nvidia.noa=1
+        KernelModuleConfig:
+          - name: nvidia
+            parameters:
+              - nvidia.noa=1
     asserts:
       - matchRegex:
           path: spec.template.spec.strategicPatches[3]
@@ -1279,12 +1276,13 @@ tests:
           pattern: "name: nvidia"
       - matchRegex:
           path: spec.template.spec.strategicPatches[3]
-          pattern: "parameters: nvidia.noa=1"
+          pattern: "- nvidia.noa=1"
 
-  - it: should not emit KernelModuleConfig when no modules
+  - it: should not emit KernelModuleConfig when list empty
     template: templates/talos/configtemplate.yaml
     set:
-      kommodity.global.machineConfig: {}
+      kommodity.global.machineConfig:
+        KernelModuleConfig: []
     asserts:
       - notMatchRegex:
           path: spec.template.spec.strategicPatches[0]
@@ -1295,13 +1293,12 @@ tests:
       - notMatchRegex:
           path: spec.template.spec.strategicPatches[2]
           pattern: "KernelModuleConfig"
-
   # CRICustomizationConfig tests
-  - it: should emit CRICustomizationConfig one per entry from criCustomization
+  - it: should emit one CRICustomizationConfig per entry
     template: templates/talos/configtemplate.yaml
     set:
       kommodity.global.machineConfig:
-        criCustomization:
+        CRICustomizationConfig:
           - name: custom-cri-1
             content: cri-content-1
           - name: custom-cri-2
@@ -1326,10 +1323,11 @@ tests:
           path: spec.template.spec.strategicPatches[4]
           pattern: "content: cri-content-2"
 
-  - it: should not emit CRICustomizationConfig when criCustomization is empty
+  - it: should not emit CRICustomizationConfig when list empty
     template: templates/talos/configtemplate.yaml
     set:
-      kommodity.global.machineConfig: {}
+      kommodity.global.machineConfig:
+        CRICustomizationConfig: []
     asserts:
       - notMatchRegex:
           path: spec.template.spec.strategicPatches[0]
