@@ -69,10 +69,9 @@ kommodity:
   global:
     machineConfig:
       # Required when using a Cloud Controller Manager (https://kubernetes.io/docs/tasks/administer-cluster/running-cloud-controller/#running-cloud-controller-manager)
-      machine:
-        kubelet:
-          extraArgs:
-            cloud-provider: external
+      KubeletConfig:
+        extraArgs:
+          cloud-provider: external
 
   network:
     # Nameservers for the nodes, propagated by Talos to CoreDNS as well.
