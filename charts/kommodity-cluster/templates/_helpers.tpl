@@ -350,9 +350,9 @@ then user patches overlay them (nodepool wins over global).
 {{- else if eq $key "EnvironmentConfig" -}}
 {{- $_ := mustMergeOverwrite $envConfig $value -}}
 {{- else if eq $key "KernelModuleConfig" -}}
-{{- $kernelModules = mustAppend $kernelModules $value -}}
+{{- range $module := $value -}}{{- $kernelModules = mustAppend $kernelModules $module -}}{{- end -}}
 {{- else if eq $key "CRICustomizationConfig" -}}
-{{- $criCustomizations = mustAppend $criCustomizations $value -}}
+{{- range $entry := $value -}}{{- $criCustomizations = mustAppend $criCustomizations $entry -}}{{- end -}}
 {{- else if eq $key "extraDocuments" -}}
 {{- $extraDocs = $value -}}
 {{- else -}}
