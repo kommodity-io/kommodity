@@ -11,12 +11,20 @@ flags. The translation follows the Talos v1.14 flag equivalents:
 
 The structured config has no defaulting (legacy flags default username claim
 to "sub", prefix to "<issuer-url>#"), so claim and prefix are always set
-explicitly. OIDC client extra flags for `kubectl oidc-login` do NOT belong
-here; those go in the oidc-client Secret.
+explicitly. The username prefix keeps names stable across the v1.13 flags ->
+v1.14 structured-config migration: legacy flags never prefixed the email
+claim, so email keeps an empty prefix (existing RoleBindings keep matching);
+any other claim uses the issuer prefix (structured-config default) to avoid
+colliding with system usernames. OIDC client extra flags for
+`kubectl oidc-login` do NOT belong here; those go in the oidc-client Secret.
 */ -}}
 {{- $oidc := .oidc -}}
 {{- $usernameClaim := $oidc.usernameClaim | default "sub" -}}
-{{- $username := dict "claim" $usernameClaim "prefix" (printf "%s#" $oidc.issuerURL) -}}
+{{- $usernamePrefix := "" -}}
+{{- if ne $usernameClaim "email" -}}
+{{- $usernamePrefix = printf "%s#" $oidc.issuerURL -}}
+{{- end -}}
+{{- $username := dict "claim" $usernameClaim "prefix" $usernamePrefix -}}
 {{- $jwt := dict "issuer" (dict "url" $oidc.issuerURL "audiences" (list $oidc.clientID)) "claimMappings" (dict "username" $username) -}}
 {{- if $oidc.groupsClaim -}}
 {{- $_ := set (index $jwt "claimMappings") "groups" (dict "claim" $oidc.groupsClaim "prefix" "") -}}

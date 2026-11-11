@@ -1166,13 +1166,31 @@ tests:
           pattern: "claim: email"
       - matchRegex:
           path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
-          pattern: "prefix: https://example.com#"
+          pattern: "prefix: \"\""
       - matchRegex:
           path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
           pattern: "groups:"
       - matchRegex:
           path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
           pattern: "claim: groups"
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "path: /readyz"
+
+  - it: should keep the issuer prefix for non-email username claims
+    template: templates/talos/controlplane.yaml
+    set:
+      kommodity.oidc.enabled: true
+      kommodity.oidc.issuerURL: https://example.com
+      kommodity.oidc.clientID: client-id
+      kommodity.oidc.usernameClaim: sub
+    asserts:
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "claim: sub"
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "prefix: https://example.com#"
 
   - it: should not emit OIDC KubeAuthenticationConfig on workers
     template: templates/talos/configtemplate.yaml

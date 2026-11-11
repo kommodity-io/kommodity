@@ -351,6 +351,10 @@ then user patches overlay them (nodepool wins over global).
 {{- $authConfig := dict -}}
 {{- if and .oidc .oidc.enabled -}}
 {{- $_ := mustMergeOverwrite $authConfig (include "kommodity-cluster.oidcAuthenticationConfig" (dict "oidc" .oidc) | fromYaml) -}}
+{{- /* Seed Talos's default anonymous policy: a KubeAuthenticationConfig doc
+     replaces Talos's whole auth config, and without it Kubernetes defaults
+     to anonymous on all paths. User patches override below. */ -}}
+{{- $_ := mustMergeOverwrite $authConfig (dict "configuration" (dict "anonymous" (dict "enabled" true "conditions" (list (dict "path" "/livez") (dict "path" "/readyz") (dict "path" "/healthz"))))) -}}
 {{- end -}}
 {{- $apiServerConfig := dict -}}
 
