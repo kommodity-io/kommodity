@@ -33,7 +33,9 @@ spec:
         "logLevel" $.Values.kommodity.logLevel
       ) | trim -}}
       {{- $hetznerPrivate := and (eq $.Values.kommodity.provider.name "Hetzner") (not $.Values.kommodity.network.ipv4.public) }}
-      {{- $hetznerNameservers := ternary (dig "nameservers" (list) $.Values.kommodity.network) (list) (eq $.Values.kommodity.provider.name "Hetzner") }}
+      {{- /* Built-in ResolverConfig skipped when user sets one — Talos rejects two */ -}}
+      {{- $userResolverConfig := or (dig "ResolverConfig" false (default (dict) $.Values.kommodity.global.machineConfig)) (dig "ResolverConfig" false (default (dict) $np.machineConfig)) -}}
+      {{- $hetznerNameservers := ternary (dig "nameservers" (list) $.Values.kommodity.network) (list) (and (eq $.Values.kommodity.provider.name "Hetzner") (not $userResolverConfig)) }}
       {{- $kmsEndpoint := "" -}}
       {{- if $.Values.kommodity.kms.enabled }}{{- $kmsEndpoint = $.Values.kommodity.kms.endpoint -}}{{- end -}}
       {{- $additionalVolumesPatch := include "kommodity.talos.additionalVolumes" (dict "additionalVolumes" $np.additionalVolumes "kmsEndpoint" $kmsEndpoint) | trim -}}
