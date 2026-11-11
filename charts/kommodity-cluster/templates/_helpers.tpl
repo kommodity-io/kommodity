@@ -313,7 +313,6 @@ Precedence: built-in settings (LOG_LEVEL from kommodity.logLevel, CNI/proxy
 disable documents, OIDC authentication config, pool-level labels/annotations/taints) are seeded first,
 then user patches overlay them (nodepool wins over global).
 */}}
-
 {{- define "kommodity-cluster.mergedMachineConfig" -}}
 {{- /* EnvironmentConfig: LOG_LEVEL from kommodity.logLevel seeded first,
      user EnvironmentConfig.variables override it */ -}}
