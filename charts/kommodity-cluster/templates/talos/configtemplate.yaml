@@ -31,7 +31,7 @@ spec:
         "annotations" $np.annotations
         "isControlPlane" false
         "logLevel" $.Values.kommodity.logLevel
-      ) | trim -}}
+      ) | trimSuffix "\n" -}}
       {{- $hetznerPrivate := and (eq $.Values.kommodity.provider.name "Hetzner") (not $.Values.kommodity.network.ipv4.public) }}
       {{- $hetznerNameservers := ternary (dig "nameservers" (list) $.Values.kommodity.network) (list) (eq $.Values.kommodity.provider.name "Hetzner") }}
       {{- $kmsEndpoint := "" -}}

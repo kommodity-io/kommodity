@@ -1452,3 +1452,49 @@ tests:
       - notMatchRegex:
           path: spec.template.spec.strategicPatches[2]
           pattern: "extraDocuments"
+      - notMatchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "extraDocuments"
+
+  - it: should split extraDocuments on --- with trailing comment and spaces
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.global.machineConfig:
+        extraDocuments: |
+          apiVersion: v1alpha1
+          kind: CommentDoc
+          spec:
+            foo: bar
+          --- # next document
+          apiVersion: v1alpha1
+          kind: TrailingSpacesDoc
+          spec:
+            baz: qux
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "kind: CommentDoc"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[4]
+          pattern: "kind: TrailingSpacesDoc"
+      - notMatchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "TrailingSpacesDoc"
+
+  - it: should update TalosConfigTemplate name when global list-kind entries change
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.global.machineConfig:
+        KernelModuleConfig:
+          - name: global-mod
+      kommodity.nodepools.default.machineConfig:
+        KernelModuleConfig:
+          - name: pool-mod
+    asserts:
+      - isKind:
+          of: TalosConfigTemplate
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: metadata.name
+          value: test-cluster-worker-default-37f7d8

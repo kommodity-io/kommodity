@@ -91,7 +91,7 @@ spec:
         "logLevel" $.Values.kommodity.logLevel
         "disableCNI" $.Values.talos.disableCNI
         "disableProxy" $.Values.talos.disableKubeProxy
-      ) | trim }}
+      ) | trimSuffix "\n" }}
       {{- $hetznerNameservers := ternary (dig "nameservers" (list) $.Values.kommodity.network) (list) (eq $.Values.kommodity.provider.name "Hetzner") }}
       {{- $kmsEndpoint := "" -}}
       {{- if $.Values.kommodity.kms.enabled }}{{- $kmsEndpoint = $.Values.kommodity.kms.endpoint -}}{{- end -}}

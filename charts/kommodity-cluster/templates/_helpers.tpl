@@ -179,19 +179,19 @@ Compute sha256sum of parameters givens to the TalosConfigTemplate.
 Any values that should trigger a new Talos config template when changed should be added to the hash computation.
 */}}
 {{- define "kommodity-cluster.talosConfigHash" -}}
-{{- $hasPoolPatches := and .poolValues.machineConfig (gt (len .poolValues.machineConfig) 0) }}
-{{- $hasGlobalPatches := and .allValues.kommodity.global.machineConfig (gt (len .allValues.kommodity.global.machineConfig) 0) }}
 {{- $data := dict -}}
-{{- $patches := dict -}}
-{{- if $hasGlobalPatches }}
-	{{- $patches = mustMergeOverwrite $patches (deepCopy .allValues.kommodity.global.machineConfig) -}}
-{{- end }}
-{{- if $hasPoolPatches }}
-	{{- $patches = mustMergeOverwrite $patches (deepCopy .poolValues.machineConfig) -}}
-{{- end }}
-{{- if gt (len $patches) 0 }}
-	{{- $_ := set $data "machineConfig" $patches -}}
-{{- end }}
+{{- /* Global and pool patches are hashed separately: merging them into one
+     dict would replace list-kind entries (KernelModuleConfig,
+     CRICustomizationConfig) wholesale, silently dropping global entries the
+     renderer retains — a change to those would then not roll the workers. */ -}}
+{{- if and .allValues.kommodity.global.machineConfig (gt (len .allValues.kommodity.global.machineConfig) 0) -}}
+{{- $_ := set $data "globalMachineConfig" (deepCopy .allValues.kommodity.global.machineConfig) -}}
+{{- end -}}
+{{- if and .poolValues.machineConfig (gt (len .poolValues.machineConfig) 0) -}}
+{{- $_ := set $data "poolMachineConfig" (deepCopy .poolValues.machineConfig) -}}
+{{- end -}}
+{{- /* logLevel feeds LOG_LEVEL into every worker EnvironmentConfig */ -}}
+{{- $_ := set $data "logLevel" (default "" (index (index .allValues "kommodity") "logLevel")) -}}
 {{- $talosVersion := default .allValues.talos.version (dig "talos" "version" "" .poolValues) -}}
 {{- $_ := set $data "talosVersion" $talosVersion -}}
 
@@ -417,12 +417,16 @@ then user patches overlay them (nodepool wins over global).
 - |
 {{ printf "%s\n" ($merged | toYaml | indent 2) }}
 {{- end -}}
-{{- /* extraDocuments: raw multi-doc YAML split on ---, appended verbatim */ -}}
+{{- /* extraDocuments: raw multi-doc YAML appended verbatim. Split on
+     document separators (--- plus optional comment, trailing whitespace,
+     CRLF) so each document lands in its own patch item; content between
+     separators is preserved byte-for-byte, only its trailing newlines are
+     dropped (block scalar chomping adds them back). */ -}}
 {{- with $extraDocs -}}
-{{- range $doc := (splitList "\n---\n" .) -}}
+{{- range $doc := (regexSplit `(?:\r?\n|^)---(?:[ \t]+[^\r\n]*)?\r?\n` . -1) -}}
 {{- if (trim $doc) -}}
-- |
-{{ printf "%s\n" ($doc | indent 2) }}
+- |+
+{{ printf "%s\n" (trimSuffix "\n" $doc | indent 2) }}
 {{- end -}}
 {{- end -}}
 {{- end -}}
