@@ -1,3 +1,12 @@
+{{/*
+KubeFlannelCNIConfig document with $patch: delete — Talos generates a
+KubeFlannelCNIConfig by default, so disabling the built-in CNI requires
+deleting the document, not just setting the v1alpha1 cni name to none.
+Returns a single strategic patch list item.
+*/}}
 {{- define "kommodity.talos.cni.disable" -}}
-{"cluster":{"network":{"cni":{"name":"none"}}}}
-{{- end}}
+- |
+  apiVersion: v1alpha1
+  kind: KubeFlannelCNIConfig
+  $patch: delete
+{{ "\n" }}{{- end}}

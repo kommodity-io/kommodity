@@ -282,7 +282,8 @@ Build merged machine config for strategicPatches (Talos v1.14 multi-doc kinds).
 Each returned block is one YAML document as a "- |" list item:
   KubeletConfig, KubeAPIServerConfig (control planes only),
   KubeAuthenticationConfig (control planes only), KubeNodeConfig,
-  EnvironmentConfig, one KernelModuleConfig per entry, one
+  EnvironmentConfig, KubeProxyConfig (disableProxy), KubeFlannelCNIConfig
+  with $patch: delete (disableCNI), one KernelModuleConfig per entry, one
   RegistryMirrorConfig per host, one RegistryAuthConfig per host,
   one RegistryTLSConfig per host, ResolverConfig, one
   CRICustomizationConfig per entry, then a v1alpha1 fragment, then
@@ -303,7 +304,7 @@ fields with no doc kind yet. extraDocuments is a raw multi-doc YAML string
 split on --- and appended verbatim.
 
 Precedence: built-in settings (LOG_LEVEL from kommodity.logLevel, CNI/proxy
-disable, OIDC authentication config, pool-level labels/annotations/taints) are seeded first,
+disable documents, OIDC authentication config, pool-level labels/annotations/taints) are seeded first,
 then user patches overlay them (nodepool wins over global).
 */}}
 
@@ -314,12 +315,9 @@ then user patches overlay them (nodepool wins over global).
 {{- if .logLevel -}}{{- $_ := set $envConfig "variables" (dict "LOG_LEVEL" .logLevel) -}}{{- end -}}
 {{- /* v1alpha1 fragment: built-in fields first, user patches override them */ -}}
 {{- $merged := dict -}}
-{{- if .disableCNI -}}
-{{- $_ := mustMergeOverwrite $merged (include "kommodity.talos.cni.disable" . | fromJson) -}}
-{{- end -}}
-{{- if .disableProxy -}}
-{{- $_ := mustMergeOverwrite $merged (include "kommodity.talos.proxy.disable" . | fromJson) -}}
-{{- end -}}
+{{- /* Built-in disable flags emit dedicated documents via the talos helpers,
+     not v1alpha1 fragments (Talos generates KubeFlannelCNIConfig by
+     default, so it must be deleted, not overridden). */ -}}
 
 {{- /* KubeNodeConfig: pool-level labels/annotations/taints first, user patches override */ -}}
 {{- $nodeConfig := dict -}}
@@ -420,6 +418,13 @@ then user patches overlay them (nodepool wins over global).
 {{- $doc := dict "apiVersion" "v1alpha1" "kind" "EnvironmentConfig" "variables" $envVars -}}
 - |
 {{ printf "%s\n" ($doc | toYaml | indent 2) }}
+{{- end -}}
+{{- /* Built-in disable documents (kommodity.talos.proxy.disable / cni.disable) */ -}}
+{{- if .disableProxy -}}
+{{ include "kommodity.talos.proxy.disable" . }}
+{{- end -}}
+{{- if .disableCNI -}}
+{{ include "kommodity.talos.cni.disable" . }}
 {{- end -}}
 {{- /* KernelModuleConfig: one document per entry */ -}}
 {{- range $module := $kernelModules -}}

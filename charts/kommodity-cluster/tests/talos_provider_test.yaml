@@ -168,6 +168,64 @@ tests:
           path: spec.template.spec.strategicPatches[3]
           pattern: "net.ipv4.ip_forward"
 
+  # Built-in disable document tests (Talos v1.14 multi-doc kinds)
+  - it: should emit KubeProxyConfig with enabled false when disableKubeProxy is true
+    template: templates/talos/controlplane.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[2]
+          pattern: "kind: KubeProxyConfig"
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[2]
+          pattern: "enabled: false"
+      - notMatchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[2]
+          pattern: "disabled: true"
+
+  - it: should emit KubeFlannelCNIConfig with $patch delete when disableCNI is true
+    template: templates/talos/controlplane.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
+          pattern: "kind: KubeFlannelCNIConfig"
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
+          pattern: "\\$patch: delete"
+      - notMatchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
+          pattern: "name: none"
+
+  - it: should not emit disable documents when flags are false
+    template: templates/talos/controlplane.yaml
+    set:
+      talos.disableCNI: false
+      talos.disableKubeProxy: false
+    asserts:
+      - hasDocuments:
+          count: 1
+      - notMatchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[0]
+          pattern: "KubeProxyConfig"
+      - notMatchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[0]
+          pattern: "KubeFlannelCNIConfig"
+      - notMatchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "KubeProxyConfig"
+      - notMatchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "KubeFlannelCNIConfig"
+      - notMatchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[2]
+          pattern: "KubeProxyConfig"
+      - notMatchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[2]
+          pattern: "KubeFlannelCNIConfig"
+
   # Control-plane machineConfig tests
   - it: should render controlplane machineConfig in strategic patches
     template: templates/talos/controlplane.yaml
@@ -297,7 +355,7 @@ tests:
       - exists:
           path: spec.controlPlaneConfig.controlplane.strategicPatches
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[4]
           pattern: "name: kommodity-autobootstrap"
 
   - it: should include autoBootstrap extension when enabled by default
@@ -308,7 +366,7 @@ tests:
       - exists:
           path: spec.controlPlaneConfig.controlplane.strategicPatches
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[4]
           pattern: "name: kommodity-autobootstrap"
 
   - it: should not include autoBootstrap extension when disabled
@@ -332,7 +390,7 @@ tests:
       - exists:
           path: spec.controlPlaneConfig.controlplane.strategicPatches
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[4]
           pattern: "name: kommodity-autobootstrap"
 
   - it: should default quorumNodes to etcd quorum (floor(replicas/2)+1) when not set
@@ -344,7 +402,7 @@ tests:
       - hasDocuments:
           count: 1
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[4]
           pattern: "TALOS_AUTO_BOOTSTRAP_QUORUM_NODES=2"
 
   - it: should default quorumNodes to 3 for 5 replicas
@@ -356,7 +414,7 @@ tests:
       - hasDocuments:
           count: 1
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[4]
           pattern: "TALOS_AUTO_BOOTSTRAP_QUORUM_NODES=3"
 
   - it: should default quorumNodes to 1 for single-node CP
@@ -368,7 +426,7 @@ tests:
       - hasDocuments:
           count: 1
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[4]
           pattern: "TALOS_AUTO_BOOTSTRAP_QUORUM_NODES=1"
 
   - it: should use explicit quorumNodes when set
@@ -380,7 +438,7 @@ tests:
       - hasDocuments:
           count: 1
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[4]
           pattern: "TALOS_AUTO_BOOTSTRAP_QUORUM_NODES=2"
 
   - it: should emit TALOS_AUTO_BOOTSTRAP_SCAN_CIDR when scanCIDR is set
@@ -391,7 +449,7 @@ tests:
       - hasDocuments:
           count: 1
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[4]
           pattern: "TALOS_AUTO_BOOTSTRAP_SCAN_CIDR=10.0.0.0/24"
 
   - it: should not emit TALOS_AUTO_BOOTSTRAP_SCAN_CIDR when scanCIDR is empty
@@ -411,7 +469,7 @@ tests:
       - hasDocuments:
           count: 1
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[4]
           pattern: "TALOS_AUTO_BOOTSTRAP_SCAN_CIDR=10.0.0.0/16"
 
   - it: should prefer explicit scanCIDR over controlplaneSubnet
@@ -423,7 +481,7 @@ tests:
       - hasDocuments:
           count: 1
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[4]
           pattern: "TALOS_AUTO_BOOTSTRAP_SCAN_CIDR=10.0.0.0/24"
 
   - it: should not emit scanCIDR when neither scanCIDR nor controlplaneSubnet is set
@@ -443,7 +501,7 @@ tests:
       - hasDocuments:
           count: 1
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[4]
           pattern: "TALOS_AUTO_BOOTSTRAP_SCAN_CONCURRENCY=256"
 
   - it: should not emit TALOS_AUTO_BOOTSTRAP_SCAN_CONCURRENCY when scanConcurrency is 0
@@ -542,10 +600,10 @@ tests:
           diskSelector: "disk.model == 'scratch'"
     asserts:
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[4]
           pattern: "kind: UserVolumeConfig"
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[4]
           pattern: "name: scratch"
 
   - it: should emit multiple UserVolumeConfig for multiple instanceVolumes
@@ -691,10 +749,10 @@ tests:
           size: 100
     asserts:
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[4]
           pattern: "kind: UserVolumeConfig"
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[4]
           pattern: "name: data"
 
   - it: should use custom diskSelector when provided
@@ -815,10 +873,10 @@ tests:
           volumeSelector: "disk.transport == 'nvme'"
     asserts:
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[4]
           pattern: "kind: RAIDArrayConfig"
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[4]
           pattern: "name: data"
 
   - it: should emit default metadata 1.0 when not specified
