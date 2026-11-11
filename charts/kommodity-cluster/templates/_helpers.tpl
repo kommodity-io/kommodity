@@ -182,19 +182,22 @@ KubeAuthenticationConfig) — they are dropped from the hash so changing only
 these does not roll every worker's bootstrap configRef.
 */}}
 {{- define "kommodity-cluster.talosConfigHash" -}}
-{{- $hasPoolPatches := and .poolValues.machineConfig (gt (len .poolValues.machineConfig) 0) }}
-{{- $hasGlobalPatches := and .allValues.kommodity.global.machineConfig (gt (len .allValues.kommodity.global.machineConfig) 0) }}
 {{- $data := dict -}}
-{{- $patches := dict -}}
-{{- if $hasGlobalPatches }}
-	{{- $patches = mustMergeOverwrite $patches (omit (deepCopy .allValues.kommodity.global.machineConfig) "KubeAPIServerConfig" "KubeAuthenticationConfig") -}}
-{{- end }}
-{{- if $hasPoolPatches }}
-	{{- $patches = mustMergeOverwrite $patches (omit (deepCopy .poolValues.machineConfig) "KubeAPIServerConfig" "KubeAuthenticationConfig") -}}
-{{- end }}
-{{- if gt (len $patches) 0 }}
-	{{- $_ := set $data "machineConfig" $patches -}}
-{{- end }}
+{{- /* Global and pool patches are hashed separately: merging them into one
+     dict would replace list-kind entries (KernelModuleConfig,
+     CRICustomizationConfig) wholesale, silently dropping global entries the
+     renderer retains — a change to those would then not roll the workers. */ -}}
+{{- /* Workers never receive control-plane-only documents (KubeAPIServerConfig,
+     KubeAuthenticationConfig) — dropped so changing only these does not roll
+     every worker's bootstrap configRef. */ -}}
+{{- if and .allValues.kommodity.global.machineConfig (gt (len .allValues.kommodity.global.machineConfig) 0) -}}
+{{- $_ := set $data "globalMachineConfig" (omit (deepCopy .allValues.kommodity.global.machineConfig) "KubeAPIServerConfig" "KubeAuthenticationConfig") -}}
+{{- end -}}
+{{- if and .poolValues.machineConfig (gt (len .poolValues.machineConfig) 0) -}}
+{{- $_ := set $data "poolMachineConfig" (omit (deepCopy .poolValues.machineConfig) "KubeAPIServerConfig" "KubeAuthenticationConfig") -}}
+{{- end -}}
+{{- /* logLevel feeds LOG_LEVEL into every worker EnvironmentConfig */ -}}
+{{- $_ := set $data "logLevel" (default "" (index (index .allValues "kommodity") "logLevel")) -}}
 {{- $talosVersion := default .allValues.talos.version (dig "talos" "version" "" .poolValues) -}}
 {{- $_ := set $data "talosVersion" $talosVersion -}}
 
@@ -283,28 +286,33 @@ Any values that should trigger a new Machine template when changed should be add
 {{/*
 Build merged machine config for strategicPatches (Talos v1.14 multi-doc kinds).
 Each returned block is one YAML document as a "- |" list item:
-  KubeletConfig, KubeAPIServerConfig, KubeAuthenticationConfig (control planes
-  only), KubeNodeConfig, then a v1alpha1 fragment. Returns empty string if
-  nothing to emit.
+  KubeletConfig, KubeAPIServerConfig (control planes only),
+  KubeAuthenticationConfig (control planes only), KubeNodeConfig,
+  EnvironmentConfig, one KernelModuleConfig per entry, one
+  CRICustomizationConfig per entry, then a v1alpha1 fragment, then
+  extraDocuments appended verbatim. Returns empty string if nothing to emit.
 
 machineConfig keys are Talos document names — KubeletConfig, KubeAPIServerConfig,
-KubeAuthenticationConfig, KubeNodeConfig — whose fields map 1:1 to the document
-schema (see https://docs.siderolabs.com/talos/v1.14/getting-started/what's-new-in-talos#kubernetes-multi-document-configuration).
-Any other top-level key (machine, cluster, ...) is a v1alpha1 strategic patch
-fragment, emitted verbatim as escape hatch for fields with no doc kind yet.
+KubeAuthenticationConfig, KubeNodeConfig, EnvironmentConfig, KernelModuleConfig,
+CRICustomizationConfig — whose fields map 1:1 to the document schema (see
+https://docs.siderolabs.com/talos/v1.14/getting-started/what's-new-in-talos#kubernetes-multi-document-configuration).
+List-kind keys (KernelModuleConfig, CRICustomizationConfig) emit one document
+per entry. Any other top-level key (machine, cluster, ...) is a v1alpha1
+strategic patch fragment, emitted verbatim as escape hatch for fields with no
+doc kind yet. extraDocuments is a raw multi-doc YAML string split on ---
+and appended verbatim.
 
-Precedence: built-in settings (log level env, CNI/proxy disable, OIDC
-authentication config, pool-level labels/annotations/taints) are seeded first,
+Precedence: built-in settings (LOG_LEVEL from kommodity.logLevel, CNI/proxy
+disable, OIDC authentication config, pool-level labels/annotations/taints) are seeded first,
 then user patches overlay them (nodepool wins over global).
 */}}
 {{- define "kommodity-cluster.mergedMachineConfig" -}}
+{{- /* EnvironmentConfig: LOG_LEVEL from kommodity.logLevel seeded first,
+     user EnvironmentConfig.variables override it */ -}}
+{{- $envConfig := dict -}}
+{{- if .logLevel -}}{{- $_ := set $envConfig "variables" (dict "LOG_LEVEL" .logLevel) -}}{{- end -}}
 {{- /* v1alpha1 fragment: built-in fields first, user patches override them */ -}}
 {{- $merged := dict -}}
-{{- if .logLevel -}}
-{{- $globalEnv := include "kommodity.talos.globalEnv" (dict "logLevel" .logLevel) | fromJson -}}
-{{- $_ := mustMergeOverwrite $merged (dict "machine" (dict "env" $globalEnv)) -}}
-{{- end -}}
-
 {{- /* KubeFlannelCNIConfig/KubeProxyConfig: cluster.network.cni and cluster.proxy
      are deprecated v1alpha1 paths in Talos v1.14; disabling is document-level:
      delete the auto-generated flannel doc, set enabled: false on kube-proxy.
@@ -341,6 +349,9 @@ then user patches overlay them (nodepool wins over global).
 
 {{- /* Overlay user patches: global first, nodepool last (wins on conflicts) */ -}}
 {{- $kubeletConfig := dict -}}
+{{- $kernelModules := list -}}
+{{- $criCustomizations := list -}}
+{{- $extraDocs := "" -}}
 {{- range $patches := list .globalPatches .nodepoolPatches -}}
 {{- if and $patches (gt (len $patches) 0) -}}
 {{- range $key := keys $patches -}}
@@ -357,6 +368,14 @@ then user patches overlay them (nodepool wins over global).
 {{- $_ := mustMergeOverwrite $proxyConfig $value -}}
 {{- else if eq $key "KubeNodeConfig" -}}
 {{- $_ := mustMergeOverwrite $nodeConfig $value -}}
+{{- else if eq $key "EnvironmentConfig" -}}
+{{- $_ := mustMergeOverwrite $envConfig $value -}}
+{{- else if eq $key "KernelModuleConfig" -}}
+{{- range $module := $value -}}{{- $kernelModules = mustAppend $kernelModules $module -}}{{- end -}}
+{{- else if eq $key "CRICustomizationConfig" -}}
+{{- range $entry := $value -}}{{- $criCustomizations = mustAppend $criCustomizations $entry -}}{{- end -}}
+{{- else if eq $key "extraDocuments" -}}
+{{- $extraDocs = $value -}}
 {{- else -}}
 {{- $_ := mustMergeOverwrite $merged (dict $key $value) -}}
 {{- end -}}
@@ -404,9 +423,43 @@ then user patches overlay them (nodepool wins over global).
 - |
 {{ printf "%s\n" ($doc | toYaml | indent 2) }}
 {{- end -}}
+{{- /* EnvironmentConfig: variables dict, LOG_LEVEL seeded from kommodity.logLevel */ -}}
+{{- $envVars := deepCopy (default (dict) (dig "variables" (dict) $envConfig)) -}}
+{{- if gt (len $envVars) 0 -}}
+{{- $doc := dict "apiVersion" "v1alpha1" "kind" "EnvironmentConfig" "variables" $envVars -}}
+- |
+{{ printf "%s\n" ($doc | toYaml | indent 2) }}
+{{- end -}}
+{{- /* KernelModuleConfig: one document per entry */ -}}
+{{- range $module := $kernelModules -}}
+{{- $doc := dict "apiVersion" "v1alpha1" "kind" "KernelModuleConfig" -}}
+{{- $_ := mustMergeOverwrite $doc (deepCopy $module) -}}
+- |
+{{ printf "%s\n" ($doc | toYaml | indent 2) }}
+{{- end -}}
+{{- /* CRICustomizationConfig: one document per entry */ -}}
+{{- range $entry := $criCustomizations -}}
+{{- $doc := dict "apiVersion" "v1alpha1" "kind" "CRICustomizationConfig" -}}
+{{- $_ := mustMergeOverwrite $doc (deepCopy $entry) -}}
+- |
+{{ printf "%s\n" ($doc | toYaml | indent 2) }}
+{{- end -}}
 {{- if gt (len (keys $merged)) 0 -}}
 - |
 {{ printf "%s\n" ($merged | toYaml | indent 2) }}
+{{- end -}}
+{{- /* extraDocuments: raw multi-doc YAML appended verbatim. Split on
+     document separators (--- plus optional comment, trailing whitespace,
+     CRLF) so each document lands in its own patch item; content between
+     separators is preserved byte-for-byte, only its trailing newlines are
+     dropped (block scalar chomping adds them back). */ -}}
+{{- with $extraDocs -}}
+{{- range $doc := (regexSplit `(?:\r?\n|^)---(?:[ \t]+[^\r\n]*)?\r?\n` . -1) -}}
+{{- if (trim $doc) -}}
+- |+
+{{ printf "%s\n" (trimSuffix "\n" $doc | indent 2) }}
+{{- end -}}
+{{- end -}}
 {{- end -}}
 {{- end -}}
 
