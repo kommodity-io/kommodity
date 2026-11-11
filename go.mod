@@ -41,7 +41,7 @@ require (
 	github.com/siderolabs/cluster-api-bootstrap-provider-talos v0.6.13
 	github.com/siderolabs/cluster-api-control-plane-provider-talos v0.5.14
 	github.com/siderolabs/kms-client v0.1.0
-	github.com/siderolabs/talos/pkg/machinery v1.14.1
+	github.com/siderolabs/talos/pkg/machinery v1.14.5
 	github.com/sirupsen/logrus v1.10.2
 	github.com/stretchr/testify v1.12.1
 	github.com/syself/cluster-api-provider-hetzner v1.1.0-alpha.4
