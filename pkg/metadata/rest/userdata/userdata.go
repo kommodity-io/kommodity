@@ -12,13 +12,14 @@ import (
 	"github.com/kommodity-io/kommodity/pkg/config"
 	restutils "github.com/kommodity-io/kommodity/pkg/metadata/rest"
 	"github.com/kommodity-io/kommodity/pkg/net"
-	"github.com/siderolabs/talos/pkg/machinery/config/types/v1alpha1"
-	"gopkg.in/yaml.v3"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientgoclientset "k8s.io/client-go/kubernetes"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	ctrlclint "sigs.k8s.io/controller-runtime/pkg/client"
 )
+
+// ErrEmptyMachineConfig is returned when the bootstrap data secret has no "value" key.
+var ErrEmptyMachineConfig = errors.New("machine config secret is empty")
 
 // GetUserData godoc
 // @Summary  Get user-data for Talos machine config
@@ -95,9 +96,10 @@ func GetUserData(cfg *config.KommodityConfig) func(http.ResponseWriter, *http.Re
 			return
 		}
 
-		err = yaml.NewEncoder(response).Encode(machineConfig)
+		//nolint:gosec // G705: Data originates from a cluster secret served to a trusted, attested machine.
+		_, err = response.Write(machineConfig)
 		if err != nil {
-			http.Error(response, "Failed to encode machine config", http.StatusInternalServerError)
+			http.Error(response, "Failed to write machine config", http.StatusInternalServerError)
 
 			return
 		}
@@ -137,7 +139,7 @@ func isTrusted(ctx context.Context, ip string, cfg *config.KommodityConfig) (boo
 }
 
 func fetchMachineConfig(ctx context.Context, cfg *config.KommodityConfig,
-	machine *clusterv1.Machine) (*v1alpha1.Config, error) {
+	machine *clusterv1.Machine) ([]byte, error) {
 	kubeClient, err := clientgoclientset.NewForConfig(cfg.ClientConfig.LoopbackClientConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create kube client: %w", err)
@@ -151,12 +153,9 @@ func fetchMachineConfig(ctx context.Context, cfg *config.KommodityConfig,
 		return nil, fmt.Errorf("failed to get secret: %w", err)
 	}
 
-	var machineConfig v1alpha1.Config
-
-	err = yaml.Unmarshal(secret.Data["value"], &machineConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal machine config: %w", err)
+	if secret.Data["value"] == nil {
+		return nil, fmt.Errorf("%w: %s", ErrEmptyMachineConfig, secretName)
 	}
 
-	return &machineConfig, nil
+	return secret.Data["value"], nil
 }
