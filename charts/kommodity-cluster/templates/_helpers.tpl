@@ -280,18 +280,19 @@ Any values that should trigger a new Machine template when changed should be add
 {{/*
 Build merged machine config for strategicPatches (Talos v1.14 multi-doc kinds).
 Each returned block is one YAML document as a "- |" list item:
-  KubeletConfig, KubeAPIServerConfig (control planes only), KubeNodeConfig,
-  then a v1alpha1 fragment. Returns empty string if nothing to emit.
+  KubeletConfig, KubeAPIServerConfig, KubeAuthenticationConfig (control planes
+  only), KubeNodeConfig, then a v1alpha1 fragment. Returns empty string if
+  nothing to emit.
 
 machineConfig keys are Talos document names — KubeletConfig, KubeAPIServerConfig,
-KubeNodeConfig — whose fields map 1:1 to the document schema (see
-https://docs.siderolabs.com/talos/v1.14/getting-started/what's-new-in-talos#kubernetes-multi-document-configuration).
+KubeAuthenticationConfig, KubeNodeConfig — whose fields map 1:1 to the document
+schema (see https://docs.siderolabs.com/talos/v1.14/getting-started/what's-new-in-talos#kubernetes-multi-document-configuration).
 Any other top-level key (machine, cluster, ...) is a v1alpha1 strategic patch
 fragment, emitted verbatim as escape hatch for fields with no doc kind yet.
 
-Precedence: built-in settings (log level env, CNI/proxy disable, OIDC flags,
-pool-level labels/annotations/taints) are seeded first, then user patches overlay
-them (nodepool wins over global).
+Precedence: built-in settings (log level env, CNI/proxy disable, OIDC
+authentication config, pool-level labels/annotations/taints) are seeded first,
+then user patches overlay them (nodepool wins over global).
 */}}
 {{- define "kommodity-cluster.mergedMachineConfig" -}}
 {{- /* v1alpha1 fragment: built-in fields first, user patches override them */ -}}
@@ -319,12 +320,13 @@ them (nodepool wins over global).
 {{- $_ := mustMergeOverwrite $nodeConfig (dict "taints" (deepCopy .taints)) -}}
 {{- end -}}
 
-{{- /* KubeAPIServerConfig: OIDC flags first, user extraArgs override */ -}}
-{{- $apiServerConfig := dict -}}
+{{- /* KubeAuthenticationConfig: Talos v1.14 rejects oidc and anonymous-auth
+     args in KubeAPIServerConfig.extraArgs; auth is structured configuration */ -}}
+{{- $authConfig := dict -}}
 {{- if and .oidc .oidc.enabled -}}
-{{- $oidcExtraArgs := include "kommodity.talos.oidc.extraArgs" (dict "oidc" .oidc) | fromJson -}}
-{{- $_ := set $apiServerConfig "extraArgs" $oidcExtraArgs -}}
+{{- $_ := mustMergeOverwrite $authConfig (include "kommodity-cluster.oidcAuthenticationConfig" (dict "oidc" .oidc) | fromYaml) -}}
 {{- end -}}
+{{- $apiServerConfig := dict -}}
 
 {{- /* Overlay user patches: global first, nodepool last (wins on conflicts) */ -}}
 {{- $kubeletConfig := dict -}}
@@ -336,6 +338,8 @@ them (nodepool wins over global).
 {{- $_ := mustMergeOverwrite $kubeletConfig $value -}}
 {{- else if eq $key "KubeAPIServerConfig" -}}
 {{- $_ := mustMergeOverwrite $apiServerConfig $value -}}
+{{- else if eq $key "KubeAuthenticationConfig" -}}
+{{- $_ := mustMergeOverwrite $authConfig $value -}}
 {{- else if eq $key "KubeNodeConfig" -}}
 {{- $_ := mustMergeOverwrite $nodeConfig $value -}}
 {{- else -}}
@@ -355,6 +359,13 @@ them (nodepool wins over global).
 {{- if and .isControlPlane (gt (len (keys $apiServerConfig)) 0) -}}
 {{- $doc := dict "apiVersion" "v1alpha1" "kind" "KubeAPIServerConfig" -}}
 {{- $_ := mustMergeOverwrite $doc $apiServerConfig -}}
+- |
+{{ printf "%s\n" ($doc | toYaml | indent 2) }}
+{{- end -}}
+{{- /* Control-plane-only document: Talos rejects it on workers */ -}}
+{{- if and .isControlPlane (gt (len (keys $authConfig)) 0) -}}
+{{- $doc := dict "apiVersion" "v1alpha1" "kind" "KubeAuthenticationConfig" -}}
+{{- $_ := mustMergeOverwrite $doc $authConfig -}}
 - |
 {{ printf "%s\n" ($doc | toYaml | indent 2) }}
 {{- end -}}
