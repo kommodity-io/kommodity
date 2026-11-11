@@ -177,6 +177,9 @@ Create the name of the service account to use
 {{/*
 Compute sha256sum of parameters givens to the TalosConfigTemplate.
 Any values that should trigger a new Talos config template when changed should be added to the hash computation.
+Workers never receive control-plane-only documents (KubeAPIServerConfig,
+KubeAuthenticationConfig) — they are dropped from the hash so changing only
+these does not roll every worker's bootstrap configRef.
 */}}
 {{- define "kommodity-cluster.talosConfigHash" -}}
 {{- $hasPoolPatches := and .poolValues.machineConfig (gt (len .poolValues.machineConfig) 0) }}
@@ -184,10 +187,10 @@ Any values that should trigger a new Talos config template when changed should b
 {{- $data := dict -}}
 {{- $patches := dict -}}
 {{- if $hasGlobalPatches }}
-	{{- $patches = mustMergeOverwrite $patches (deepCopy .allValues.kommodity.global.machineConfig) -}}
+	{{- $patches = mustMergeOverwrite $patches (omit (deepCopy .allValues.kommodity.global.machineConfig) "KubeAPIServerConfig" "KubeAuthenticationConfig") -}}
 {{- end }}
 {{- if $hasPoolPatches }}
-	{{- $patches = mustMergeOverwrite $patches (deepCopy .poolValues.machineConfig) -}}
+	{{- $patches = mustMergeOverwrite $patches (omit (deepCopy .poolValues.machineConfig) "KubeAPIServerConfig" "KubeAuthenticationConfig") -}}
 {{- end }}
 {{- if gt (len $patches) 0 }}
 	{{- $_ := set $data "machineConfig" $patches -}}
@@ -278,63 +281,132 @@ Any values that should trigger a new Machine template when changed should be add
 {{- end -}}
 
 {{/*
-Build a merged machine config from all configuration sources.
-Returns a YAML block scalar list item (- |\n  <yaml>) representing a single MachineConfig strategic patch.
-Returns empty string if there are no patches to apply.
-User patches from nodepools override global patches for same keys via deep merge.
-Note: /cluster/inlineManifests are handled separately in controlplane.yaml
-to preserve YAML block scalar formatting for multi-line contents.
+Build merged machine config for strategicPatches (Talos v1.14 multi-doc kinds).
+Each returned block is one YAML document as a "- |" list item:
+  KubeletConfig, KubeAPIServerConfig, KubeAuthenticationConfig (control planes
+  only), KubeNodeConfig, then a v1alpha1 fragment. Returns empty string if
+  nothing to emit.
+
+machineConfig keys are Talos document names — KubeletConfig, KubeAPIServerConfig,
+KubeAuthenticationConfig, KubeNodeConfig — whose fields map 1:1 to the document
+schema (see https://docs.siderolabs.com/talos/v1.14/getting-started/what's-new-in-talos#kubernetes-multi-document-configuration).
+Any other top-level key (machine, cluster, ...) is a v1alpha1 strategic patch
+fragment, emitted verbatim as escape hatch for fields with no doc kind yet.
+
+Precedence: built-in settings (log level env, CNI/proxy disable, OIDC
+authentication config, pool-level labels/annotations/taints) are seeded first,
+then user patches overlay them (nodepool wins over global).
 */}}
 {{- define "kommodity-cluster.mergedMachineConfig" -}}
-{{- $result := dict -}}
-{{- /* Add labels */ -}}
-{{- if and .labels (gt (len .labels) 0) -}}
-{{- $_ := mustMergeOverwrite $result (dict "machine" (dict "nodeLabels" (deepCopy .labels))) -}}
-{{- end -}}
-{{- /* Add annotations */ -}}
-{{- if and .annotations (gt (len .annotations) 0) -}}
-{{- $_ := mustMergeOverwrite $result (dict "machine" (dict "nodeAnnotations" (deepCopy .annotations))) -}}
-{{- end -}}
-{{- /* Add taints */ -}}
-{{- if and .taints (gt (len .taints) 0) -}}
-{{- $taintStrings := list -}}
-{{- range $key, $value := .taints -}}
-{{- $taintStrings = append $taintStrings (printf "%s=%s" $key $value) -}}
-{{- end -}}
-{{- $_ := mustMergeOverwrite $result (dict "machine" (dict "kubelet" (dict "extraArgs" (dict "register-with-taints" (join "," $taintStrings))))) -}}
-{{- $_ := mustMergeOverwrite $result (dict "machine" (dict "nodeTaints" (deepCopy .taints))) -}}
-{{- end -}}
-{{- /* Add OIDC apiServer extraArgs */ -}}
-{{- if and .oidc .oidc.enabled -}}
-{{- $oidcExtraArgs := include "kommodity.talos.oidc.extraArgs" (dict "oidc" .oidc) | fromJson -}}
-{{- $_ := mustMergeOverwrite $result (dict "cluster" (dict "apiServer" (dict "extraArgs" $oidcExtraArgs))) -}}
-{{- end -}}
-
-{{- /* Add global Kommodity environment variables */ -}}
+{{- /* v1alpha1 fragment: built-in fields first, user patches override them */ -}}
+{{- $merged := dict -}}
 {{- if .logLevel -}}
 {{- $globalEnv := include "kommodity.talos.globalEnv" (dict "logLevel" .logLevel) | fromJson -}}
-{{- $_ := mustMergeOverwrite $result (dict "machine" (dict "env" $globalEnv)) -}}
+{{- $_ := mustMergeOverwrite $merged (dict "machine" (dict "env" $globalEnv)) -}}
 {{- end -}}
-{{- /* Disable CNI (controlplane only) */ -}}
+
+{{- /* KubeFlannelCNIConfig/KubeProxyConfig: cluster.network.cni and cluster.proxy
+     are deprecated v1alpha1 paths in Talos v1.14; disabling is document-level:
+     delete the auto-generated flannel doc, set enabled: false on kube-proxy.
+     Control-plane only: worker configs are generated separately and never
+     received these settings before either. */ -}}
+{{- $flannelConfig := dict -}}
 {{- if .disableCNI -}}
-{{- $_ := mustMergeOverwrite $result (include "kommodity.talos.cni.disable" . | fromJson) -}}
+{{- $_ := set $flannelConfig "$patch" "delete" -}}
 {{- end -}}
-{{- /* Disable proxy (controlplane only) */ -}}
+{{- $proxyConfig := dict -}}
 {{- if .disableProxy -}}
-{{- $_ := mustMergeOverwrite $result (include "kommodity.talos.proxy.disable" . | fromJson) -}}
+{{- $_ := set $proxyConfig "enabled" false -}}
 {{- end -}}
-{{- /* Merge global user patch (single MachineConfig dict) */ -}}
-{{- if and .globalPatches (gt (len .globalPatches) 0) -}}
-{{- $_ := mustMergeOverwrite $result (deepCopy .globalPatches) -}}
+
+{{- /* KubeNodeConfig: pool-level labels/annotations/taints first, user patches override */ -}}
+{{- $nodeConfig := dict -}}
+{{- if and .labels (gt (len .labels) 0) -}}
+{{- $_ := mustMergeOverwrite $nodeConfig (dict "labels" (deepCopy .labels)) -}}
 {{- end -}}
-{{- /* Merge nodepool/controlplane user patch on top of global (wins on conflicts) */ -}}
-{{- if and .nodepoolPatches (gt (len .nodepoolPatches) 0) -}}
-{{- $_ := mustMergeOverwrite $result (deepCopy .nodepoolPatches) -}}
+{{- if and .annotations (gt (len .annotations) 0) -}}
+{{- $_ := mustMergeOverwrite $nodeConfig (dict "annotations" (deepCopy .annotations)) -}}
 {{- end -}}
-{{- /* Output as YAML block scalar if non-empty */ -}}
-{{- if gt (len (keys $result)) 0 -}}
+{{- if and .taints (gt (len .taints) 0) -}}
+{{- $_ := mustMergeOverwrite $nodeConfig (dict "taints" (deepCopy .taints)) -}}
+{{- end -}}
+
+{{- /* KubeAuthenticationConfig: Talos v1.14 rejects oidc and anonymous-auth
+     args in KubeAPIServerConfig.extraArgs; auth is structured configuration */ -}}
+{{- $authConfig := dict -}}
+{{- if and .oidc .oidc.enabled -}}
+{{- $_ := mustMergeOverwrite $authConfig (include "kommodity-cluster.oidcAuthenticationConfig" (dict "oidc" .oidc) | fromYaml) -}}
+{{- end -}}
+{{- $apiServerConfig := dict -}}
+
+{{- /* Overlay user patches: global first, nodepool last (wins on conflicts) */ -}}
+{{- $kubeletConfig := dict -}}
+{{- range $patches := list .globalPatches .nodepoolPatches -}}
+{{- if and $patches (gt (len $patches) 0) -}}
+{{- range $key := keys $patches -}}
+{{- $value := deepCopy (index $patches $key) -}}
+{{- if eq $key "KubeletConfig" -}}
+{{- $_ := mustMergeOverwrite $kubeletConfig $value -}}
+{{- else if eq $key "KubeAPIServerConfig" -}}
+{{- $_ := mustMergeOverwrite $apiServerConfig $value -}}
+{{- else if eq $key "KubeAuthenticationConfig" -}}
+{{- $_ := mustMergeOverwrite $authConfig $value -}}
+{{- else if eq $key "KubeFlannelCNIConfig" -}}
+{{- $_ := mustMergeOverwrite $flannelConfig $value -}}
+{{- else if eq $key "KubeProxyConfig" -}}
+{{- $_ := mustMergeOverwrite $proxyConfig $value -}}
+{{- else if eq $key "KubeNodeConfig" -}}
+{{- $_ := mustMergeOverwrite $nodeConfig $value -}}
+{{- else -}}
+{{- $_ := mustMergeOverwrite $merged (dict $key $value) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{- if gt (len (keys $kubeletConfig)) 0 -}}
+{{- $doc := dict "apiVersion" "v1alpha1" "kind" "KubeletConfig" -}}
+{{- $_ := mustMergeOverwrite $doc $kubeletConfig -}}
 - |
-{{ $result | toYaml | indent 2 }}
+{{ printf "%s\n" ($doc | toYaml | indent 2) }}
+{{- end -}}
+{{- /* Control-plane-only document: Talos rejects it on workers */ -}}
+{{- if and .isControlPlane (gt (len (keys $apiServerConfig)) 0) -}}
+{{- $doc := dict "apiVersion" "v1alpha1" "kind" "KubeAPIServerConfig" -}}
+{{- $_ := mustMergeOverwrite $doc $apiServerConfig -}}
+- |
+{{ printf "%s\n" ($doc | toYaml | indent 2) }}
+{{- end -}}
+{{- /* Control-plane-only document: Talos rejects it on workers */ -}}
+{{- if and .isControlPlane (gt (len (keys $authConfig)) 0) -}}
+{{- $doc := dict "apiVersion" "v1alpha1" "kind" "KubeAuthenticationConfig" -}}
+{{- $_ := mustMergeOverwrite $doc $authConfig -}}
+- |
+{{ printf "%s\n" ($doc | toYaml | indent 2) }}
+{{- end -}}
+{{- /* Control-plane-only document: Talos rejects it on workers */ -}}
+{{- if and .isControlPlane (gt (len (keys $flannelConfig)) 0) -}}
+{{- $doc := dict "apiVersion" "v1alpha1" "kind" "KubeFlannelCNIConfig" -}}
+{{- $_ := mustMergeOverwrite $doc $flannelConfig -}}
+- |
+{{ printf "%s\n" ($doc | toYaml | indent 2) }}
+{{- end -}}
+{{- /* Control-plane-only document: Talos rejects it on workers */ -}}
+{{- if and .isControlPlane (gt (len (keys $proxyConfig)) 0) -}}
+{{- $doc := dict "apiVersion" "v1alpha1" "kind" "KubeProxyConfig" -}}
+{{- $_ := mustMergeOverwrite $doc $proxyConfig -}}
+- |
+{{ printf "%s\n" ($doc | toYaml | indent 2) }}
+{{- end -}}
+{{- if gt (len (keys $nodeConfig)) 0 -}}
+{{- $doc := dict "apiVersion" "v1alpha1" "kind" "KubeNodeConfig" -}}
+{{- $_ := mustMergeOverwrite $doc $nodeConfig -}}
+- |
+{{ printf "%s\n" ($doc | toYaml | indent 2) }}
+{{- end -}}
+{{- if gt (len (keys $merged)) 0 -}}
+- |
+{{ printf "%s\n" ($merged | toYaml | indent 2) }}
 {{- end -}}
 {{- end -}}
 

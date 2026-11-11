@@ -8,10 +8,10 @@ kommodity:
 
   oidc:
     enabled: false
-    issuerURL: <YOUR_ISSUER_URL> # sets apiserver flag and kubeconfig --oidc-issuer-url flag in UI
-    clientID: <YOUR_OIDC_CLIENT_ID> # sets apiserver flag and kubeconfig --oidc-client-id flag in UI
-    usernameClaim: email # sets apiserver flag
-    groupsClaim: groups # sets apiserver flag
+    issuerURL: <YOUR_ISSUER_URL> # sets jwt[].issuer.url in KubeAuthenticationConfig and the kubeconfig --oidc-issuer-url flag in UI
+    clientID: <YOUR_OIDC_CLIENT_ID> # sets jwt[].issuer.audiences in KubeAuthenticationConfig and the kubeconfig --oidc-client-id flag in UI
+    usernameClaim: email # sets jwt[].claimMappings.username.claim in KubeAuthenticationConfig
+    groupsClaim: groups # sets jwt[].claimMappings.groups.claim in KubeAuthenticationConfig
     # Extra flags for the OIDC client in the kubeconfig exec block served by the UI.
     # These are kubelogin (client) flags, NOT kube-apiserver flags.
     clientExtraFlags:
@@ -271,15 +271,18 @@ kommodity:
 
   global:
     # Configurations applied to all nodepools and controlplanes in the cluster
-    # Using Talos strategic merge patches: https://docs.siderolabs.com/talos/v1.12/configure-your-talos-cluster/system-configuration/patching
-    # A single partial MachineConfig YAML object that gets deep-merged into the base config.
+    # Talos v1.14 machine configuration (https://docs.siderolabs.com/talos/v1.14/getting-started/what's-new-in-talos#kubernetes-multi-document-configuration).
+    # Top-level keys are Talos document kinds: KubeletConfig, KubeAPIServerConfig,
+    # KubeNodeConfig — fields map 1:1 to the document schema, and apiVersion/kind
+    # are injected automatically. Any other top-level key (machine, cluster, ...)
+    # is a v1alpha1 strategic patch fragment, emitted verbatim as an escape hatch
+    # for fields with no document kind yet.
     # Controlplane / nodepool machineConfig are deep-merged on top of global (later wins on conflicts).
     # Example:
     #   machineConfig:
-    #     machine:
-    #       kubelet:
-    #         extraArgs:
-    #           cloud-provider: external
+    #     KubeletConfig:
+    #       extraArgs:
+    #         max-pods: "200"
     machineConfig: {}
 
   controlplane:

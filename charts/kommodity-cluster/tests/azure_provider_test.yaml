@@ -640,12 +640,18 @@ tests:
           path: spec.replicas
           value: 3
 
-  - it: should include anonymous-auth in strategicPatches via global.machineConfig
+  - it: should include anonymous-auth KubeAuthenticationConfig via global.machineConfig
     template: templates/talos/controlplane.yaml
     asserts:
       - matchRegex:
           path: spec.controlPlaneConfig.controlplane.strategicPatches[0]
-          pattern: "anonymous-auth"
+          pattern: "kind: KubeAuthenticationConfig"
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[0]
+          pattern: "enabled: true"
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[0]
+          pattern: "path: /readyz"
 
   # CCM CRS tests — CCM manifest is delivered via ClusterResourceSet, not inlineManifests
   - it: should render ConfigMap and ClusterResourceSet for Azure CCM
