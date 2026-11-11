@@ -1,3 +1,0 @@
-{{- define "kommodity.talos.proxy.disable" -}}
-{"cluster":{"proxy":{"disabled":true}}}
-{{- end}}
