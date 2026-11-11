@@ -72,15 +72,15 @@ spec:
       hostname: {}
       {{- end }}
       {{- $cp := $.Values.kommodity.controlplane }}
-      {{- $cpPatches := dig "strategicPatches" nil $cp }}
-      {{- $globalPatches := dig "global" "strategicPatches" nil $.Values.kommodity }}
+      {{- $cpPatches := dig "machineConfig" nil $cp }}
+      {{- $globalPatches := dig "global" "machineConfig" nil $.Values.kommodity }}
       {{- $cpTaints := dig "taints" nil $cp }}
       {{- $cpLabels := dig "labels" nil $cp }}
       {{- $cpAnnotations := dig "annotations" nil $cp }}
       {{- $oidc := dig "oidc" nil $.Values.kommodity }}
       {{- $hetznerPrivate := and (eq $.Values.kommodity.provider.name "Hetzner") (not $.Values.kommodity.network.ipv4.public) }}
       {{- /* Build merged MachineConfig strategic patch */ -}}
-      {{- $mergedPatch := include "kommodity-cluster.mergedStrategicPatch" (dict
+      {{- $mergedPatch := include "kommodity-cluster.mergedMachineConfig" (dict
         "globalPatches" $globalPatches
         "nodepoolPatches" $cpPatches
         "taints" $cpTaints
