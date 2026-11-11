@@ -177,6 +177,9 @@ Create the name of the service account to use
 {{/*
 Compute sha256sum of parameters givens to the TalosConfigTemplate.
 Any values that should trigger a new Talos config template when changed should be added to the hash computation.
+Workers never receive control-plane-only documents (KubeAPIServerConfig,
+KubeAuthenticationConfig) — they are dropped from the hash so changing only
+these does not roll every worker's bootstrap configRef.
 */}}
 {{- define "kommodity-cluster.talosConfigHash" -}}
 {{- $data := dict -}}
@@ -184,11 +187,14 @@ Any values that should trigger a new Talos config template when changed should b
      dict would replace list-kind entries (KernelModuleConfig,
      CRICustomizationConfig) wholesale, silently dropping global entries the
      renderer retains — a change to those would then not roll the workers. */ -}}
+{{- /* Workers never receive control-plane-only documents (KubeAPIServerConfig,
+     KubeAuthenticationConfig) — dropped so changing only these does not roll
+     every worker's bootstrap configRef. */ -}}
 {{- if and .allValues.kommodity.global.machineConfig (gt (len .allValues.kommodity.global.machineConfig) 0) -}}
-{{- $_ := set $data "globalMachineConfig" (deepCopy .allValues.kommodity.global.machineConfig) -}}
+{{- $_ := set $data "globalMachineConfig" (omit (deepCopy .allValues.kommodity.global.machineConfig) "KubeAPIServerConfig" "KubeAuthenticationConfig") -}}
 {{- end -}}
 {{- if and .poolValues.machineConfig (gt (len .poolValues.machineConfig) 0) -}}
-{{- $_ := set $data "poolMachineConfig" (deepCopy .poolValues.machineConfig) -}}
+{{- $_ := set $data "poolMachineConfig" (omit (deepCopy .poolValues.machineConfig) "KubeAPIServerConfig" "KubeAuthenticationConfig") -}}
 {{- end -}}
 {{- /* logLevel feeds LOG_LEVEL into every worker EnvironmentConfig */ -}}
 {{- $_ := set $data "logLevel" (default "" (index (index .allValues "kommodity") "logLevel")) -}}

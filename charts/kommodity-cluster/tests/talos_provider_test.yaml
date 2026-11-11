@@ -918,14 +918,14 @@ tests:
       kommodity.global.machineConfig:
         KubeletConfig:
           extraArgs:
-            maxPods: "200"
+            max-pods: "200"
     asserts:
       - matchRegex:
           path: spec.template.spec.strategicPatches[0]
           pattern: "kind: KubeletConfig"
       - matchRegex:
           path: spec.template.spec.strategicPatches[0]
-          pattern: "maxPods: \"200\""
+          pattern: "max-pods: \"200\""
 
   - it: should pass KubeletConfig fields through verbatim
     template: templates/talos/configtemplate.yaml
