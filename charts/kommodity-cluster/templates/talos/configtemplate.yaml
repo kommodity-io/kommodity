@@ -29,6 +29,7 @@ spec:
         "taints" $np.taints
         "labels" $np.labels
         "annotations" $np.annotations
+        "version" (default $.Values.talos.version (dig "talos" "version" "" $np))
         "isControlPlane" false
         "logLevel" $.Values.kommodity.logLevel
       ) | trim -}}
