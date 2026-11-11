@@ -282,7 +282,7 @@ kommodity:
     #   machineConfig:
     #     KubeletConfig:
     #       extraArgs:
-    #         maxPods: "200"
+    #         max-pods: "200"
     machineConfig: {}
 
   controlplane:
