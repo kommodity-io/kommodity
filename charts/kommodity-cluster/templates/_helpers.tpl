@@ -313,11 +313,18 @@ then user patches overlay them (nodepool wins over global).
 {{- if .logLevel -}}{{- $_ := set $envConfig "variables" (dict "LOG_LEVEL" .logLevel) -}}{{- end -}}
 {{- /* v1alpha1 fragment: built-in fields first, user patches override them */ -}}
 {{- $merged := dict -}}
+{{- /* KubeFlannelCNIConfig/KubeProxyConfig: cluster.network.cni and cluster.proxy
+     are deprecated v1alpha1 paths in Talos v1.14; disabling is document-level:
+     delete the auto-generated flannel doc, set enabled: false on kube-proxy.
+     Control-plane only: worker configs are generated separately and never
+     received these settings before either. */ -}}
+{{- $flannelConfig := dict -}}
 {{- if .disableCNI -}}
-{{- $_ := mustMergeOverwrite $merged (include "kommodity.talos.cni.disable" . | fromJson) -}}
+{{- $_ := set $flannelConfig "$patch" "delete" -}}
 {{- end -}}
+{{- $proxyConfig := dict -}}
 {{- if .disableProxy -}}
-{{- $_ := mustMergeOverwrite $merged (include "kommodity.talos.proxy.disable" . | fromJson) -}}
+{{- $_ := set $proxyConfig "enabled" false -}}
 {{- end -}}
 
 {{- /* KubeNodeConfig: pool-level labels/annotations/taints first, user patches override */ -}}
@@ -355,6 +362,10 @@ then user patches overlay them (nodepool wins over global).
 {{- $_ := mustMergeOverwrite $apiServerConfig $value -}}
 {{- else if eq $key "KubeAuthenticationConfig" -}}
 {{- $_ := mustMergeOverwrite $authConfig $value -}}
+{{- else if eq $key "KubeFlannelCNIConfig" -}}
+{{- $_ := mustMergeOverwrite $flannelConfig $value -}}
+{{- else if eq $key "KubeProxyConfig" -}}
+{{- $_ := mustMergeOverwrite $proxyConfig $value -}}
 {{- else if eq $key "KubeNodeConfig" -}}
 {{- $_ := mustMergeOverwrite $nodeConfig $value -}}
 {{- else if eq $key "EnvironmentConfig" -}}
@@ -389,6 +400,20 @@ then user patches overlay them (nodepool wins over global).
 {{- if and .isControlPlane (gt (len (keys $authConfig)) 0) -}}
 {{- $doc := dict "apiVersion" "v1alpha1" "kind" "KubeAuthenticationConfig" -}}
 {{- $_ := mustMergeOverwrite $doc $authConfig -}}
+- |
+{{ printf "%s\n" ($doc | toYaml | indent 2) }}
+{{- end -}}
+{{- /* Control-plane-only document: Talos rejects it on workers */ -}}
+{{- if and .isControlPlane (gt (len (keys $flannelConfig)) 0) -}}
+{{- $doc := dict "apiVersion" "v1alpha1" "kind" "KubeFlannelCNIConfig" -}}
+{{- $_ := mustMergeOverwrite $doc $flannelConfig -}}
+- |
+{{ printf "%s\n" ($doc | toYaml | indent 2) }}
+{{- end -}}
+{{- /* Control-plane-only document: Talos rejects it on workers */ -}}
+{{- if and .isControlPlane (gt (len (keys $proxyConfig)) 0) -}}
+{{- $doc := dict "apiVersion" "v1alpha1" "kind" "KubeProxyConfig" -}}
+{{- $_ := mustMergeOverwrite $doc $proxyConfig -}}
 - |
 {{ printf "%s\n" ($doc | toYaml | indent 2) }}
 {{- end -}}
