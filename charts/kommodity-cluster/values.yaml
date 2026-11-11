@@ -8,10 +8,10 @@ kommodity:
 
   oidc:
     enabled: false
-    issuerURL: <YOUR_ISSUER_URL> # sets apiserver flag and kubeconfig --oidc-issuer-url flag in UI
-    clientID: <YOUR_OIDC_CLIENT_ID> # sets apiserver flag and kubeconfig --oidc-client-id flag in UI
-    usernameClaim: email # sets apiserver flag
-    groupsClaim: groups # sets apiserver flag
+    issuerURL: <YOUR_ISSUER_URL> # sets jwt[].issuer.url in KubeAuthenticationConfig and the kubeconfig --oidc-issuer-url flag in UI
+    clientID: <YOUR_OIDC_CLIENT_ID> # sets jwt[].issuer.audiences in KubeAuthenticationConfig and the kubeconfig --oidc-client-id flag in UI
+    usernameClaim: email # sets jwt[].claimMappings.username.claim in KubeAuthenticationConfig
+    groupsClaim: groups # sets jwt[].claimMappings.groups.claim in KubeAuthenticationConfig
     # Extra flags for the OIDC client in the kubeconfig exec block served by the UI.
     # These are kubelogin (client) flags, NOT kube-apiserver flags.
     clientExtraFlags:

@@ -951,14 +951,14 @@ tests:
       kommodity.global.machineConfig:
         KubeAPIServerConfig:
           extraArgs:
-            anonymous-auth: "true"
+            feature-gates: SomeFeature=true
     asserts:
       - matchRegex:
           path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
           pattern: "kind: KubeAPIServerConfig"
       - matchRegex:
           path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
-          pattern: "anonymous-auth: \"true\""
+          pattern: "feature-gates: SomeFeature=true"
 
   - it: should not emit KubeAPIServerConfig on workers
     template: templates/talos/configtemplate.yaml
@@ -966,7 +966,7 @@ tests:
       kommodity.global.machineConfig:
         KubeAPIServerConfig:
           extraArgs:
-            anonymous-auth: "true"
+            feature-gates: SomeFeature=true
     asserts:
       - matchRegex:
           path: spec.template.spec.strategicPatches[0]
@@ -981,7 +981,7 @@ tests:
           path: spec.template.spec.strategicPatches[2]
           pattern: "KubeAPIServerConfig"
 
-  - it: should emit OIDC extraArgs as KubeAPIServerConfig document
+  - it: should emit OIDC as KubeAuthenticationConfig document on control planes
     template: templates/talos/controlplane.yaml
     set:
       kommodity.oidc.enabled: true
@@ -990,31 +990,84 @@ tests:
     asserts:
       - matchRegex:
           path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
-          pattern: "kind: KubeAPIServerConfig"
+          pattern: "kind: KubeAuthenticationConfig"
       - matchRegex:
           path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
-          pattern: "oidc-issuer-url: https://example.com"
+          pattern: "url: https://example.com"
       - matchRegex:
           path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
-          pattern: "oidc-client-id: client-id"
+          pattern: "audiences:"
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "client-id"
+      - notMatchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "oidc-issuer-url"
 
-  - it: should let user KubeAPIServerConfig extraArgs override OIDC flags
+  - it: should map oidc usernameClaim and groupsClaim to claimMappings
+    template: templates/talos/controlplane.yaml
+    set:
+      kommodity.oidc.enabled: true
+      kommodity.oidc.issuerURL: https://example.com
+      kommodity.oidc.clientID: client-id
+      kommodity.oidc.usernameClaim: email
+      kommodity.oidc.groupsClaim: groups
+    asserts:
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "claim: email"
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "prefix: https://example.com#"
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "groups:"
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "claim: groups"
+
+  - it: should not emit OIDC KubeAuthenticationConfig on workers
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.oidc.enabled: true
+      kommodity.oidc.issuerURL: https://example.com
+      kommodity.oidc.clientID: client-id
+    asserts:
+      - notMatchRegex:
+          path: spec.template.spec.strategicPatches[0]
+          pattern: "KubeAuthenticationConfig"
+      - notMatchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "KubeAuthenticationConfig"
+      - notMatchRegex:
+          path: spec.template.spec.strategicPatches[2]
+          pattern: "KubeAuthenticationConfig"
+
+  - it: should let user KubeAuthenticationConfig patches override OIDC issuer
     template: templates/talos/controlplane.yaml
     set:
       kommodity.oidc.enabled: true
       kommodity.oidc.issuerURL: https://example.com
       kommodity.oidc.clientID: client-id
       kommodity.global.machineConfig:
-        KubeAPIServerConfig:
-          extraArgs:
-            oidc-issuer-url: https://override.example.com
+        KubeAuthenticationConfig:
+          configuration:
+            jwt:
+              - issuer:
+                  url: https://override.example.com
+                  audiences:
+                    - client-id
+                claimMappings:
+                  username:
+                    claim: email
+                    prefix: "https://override.example.com#"
     asserts:
       - matchRegex:
           path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
-          pattern: "oidc-issuer-url: https://override.example.com"
+          pattern: "url: https://override.example.com"
       - notMatchRegex:
           path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
-          pattern: "oidc-issuer-url: https://example.com"
+          pattern: "url: https://example.com"
 
   - it: should emit KubeNodeConfig with registerWithFQDN
     template: templates/talos/configtemplate.yaml
