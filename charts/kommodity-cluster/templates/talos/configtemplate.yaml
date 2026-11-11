@@ -29,9 +29,10 @@ spec:
         "taints" $np.taints
         "labels" $np.labels
         "annotations" $np.annotations
+        "version" (default $.Values.talos.version (dig "talos" "version" "" $np))
         "isControlPlane" false
         "logLevel" $.Values.kommodity.logLevel
-      ) | trim -}}
+      ) | trimSuffix "\n" -}}
       {{- $hetznerPrivate := and (eq $.Values.kommodity.provider.name "Hetzner") (not $.Values.kommodity.network.ipv4.public) }}
       {{- /* Built-in ResolverConfig skipped when user sets one — Talos rejects two */ -}}
       {{- $userResolverConfig := or (dig "ResolverConfig" false (default (dict) $.Values.kommodity.global.machineConfig)) (dig "ResolverConfig" false (default (dict) $np.machineConfig)) -}}

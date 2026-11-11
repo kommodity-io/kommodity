@@ -190,14 +190,14 @@ tests:
       - hasDocuments:
           count: 1
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
           pattern: "kind: KubeFlannelCNIConfig"
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
           pattern: "\\$patch: delete"
       - notMatchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
-          pattern: "name: none"
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "cni:"
 
   - it: should not emit disable documents when flags are false
     template: templates/talos/controlplane.yaml
@@ -238,7 +238,7 @@ tests:
       - hasDocuments:
           count: 1
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
           pattern: "CP_VAR: cp-value"
 
   - it: should merge global and controlplane machineConfig patches
@@ -256,10 +256,10 @@ tests:
       - hasDocuments:
           count: 1
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
           pattern: "GLOBAL_VAR: global-value"
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
           pattern: "CP_VAR: cp-value"
 
   # Taints tests
@@ -367,6 +367,7 @@ tests:
           path: spec.controlPlaneConfig.controlplane.strategicPatches
       - matchRegex:
           path: spec.controlPlaneConfig.controlplane.strategicPatches[4]
+
           pattern: "name: kommodity-autobootstrap"
 
   - it: should not include autoBootstrap extension when disabled
@@ -458,7 +459,7 @@ tests:
       - hasDocuments:
           count: 1
       - notMatchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
           pattern: "TALOS_AUTO_BOOTSTRAP_SCAN_CIDR"
 
   - it: should auto-derive scanCIDR from controlplaneSubnet when scanCIDR is empty
@@ -490,7 +491,7 @@ tests:
       - hasDocuments:
           count: 1
       - notMatchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
           pattern: "TALOS_AUTO_BOOTSTRAP_SCAN_CIDR"
 
   - it: should emit TALOS_AUTO_BOOTSTRAP_SCAN_CONCURRENCY when scanConcurrency is set
@@ -512,7 +513,7 @@ tests:
       - hasDocuments:
           count: 1
       - notMatchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
           pattern: "TALOS_AUTO_BOOTSTRAP_SCAN_CONCURRENCY"
 
   # Kubernetes version precedence test
@@ -976,14 +977,14 @@ tests:
       kommodity.global.machineConfig:
         KubeletConfig:
           extraArgs:
-            maxPods: "200"
+            max-pods: "200"
     asserts:
       - matchRegex:
           path: spec.template.spec.strategicPatches[0]
           pattern: "kind: KubeletConfig"
       - matchRegex:
           path: spec.template.spec.strategicPatches[0]
-          pattern: "maxPods: \"200\""
+          pattern: "max-pods: \"200\""
 
   - it: should pass KubeletConfig fields through verbatim
     template: templates/talos/configtemplate.yaml
@@ -1002,6 +1003,96 @@ tests:
       - matchRegex:
           path: spec.template.spec.strategicPatches[0]
           pattern: "maxPods: 200"
+
+  - it: should disable CNI as KubeFlannelCNIConfig $patch delete on control planes
+    template: templates/talos/controlplane.yaml
+    asserts:
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "kind: KubeFlannelCNIConfig"
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "\\$patch: delete"
+      - notMatchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "cni:"
+
+  - it: should disable kube-proxy as KubeProxyConfig enabled false on control planes
+    template: templates/talos/controlplane.yaml
+    asserts:
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[2]
+          pattern: "kind: KubeProxyConfig"
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[2]
+          pattern: "enabled: false"
+      - notMatchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[2]
+          pattern: "proxy:"
+
+  - it: should not emit CNI or proxy disable documents on workers
+    template: templates/talos/configtemplate.yaml
+    asserts:
+      - notMatchRegex:
+          path: spec.template.spec.strategicPatches[0]
+          pattern: "KubeFlannelCNIConfig"
+      - notMatchRegex:
+          path: spec.template.spec.strategicPatches[0]
+          pattern: "KubeProxyConfig"
+      - notMatchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "KubeFlannelCNIConfig"
+      - notMatchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "KubeProxyConfig"
+
+  - it: should let user KubeFlannelCNIConfig patches extend the disable document
+    template: templates/talos/controlplane.yaml
+    set:
+      kommodity.global.machineConfig:
+        KubeFlannelCNIConfig:
+          name: patch-marker
+    asserts:
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "kind: KubeFlannelCNIConfig"
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "name: patch-marker"
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "\\$patch: delete"
+
+  - it: should not emit CNI/proxy disable documents when both flags are off
+    template: templates/talos/controlplane.yaml
+    set:
+      talos.disableCNI: false
+      talos.disableKubeProxy: false
+    asserts:
+      - notMatchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[0]
+          pattern: "KubeFlannelCNIConfig"
+      - notMatchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "KubeProxyConfig"
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[0]
+          pattern: "kind: KubeletConfig"
+
+  - it: should preserve proxy disable when user patches KubeProxyConfig extraArgs
+    template: templates/talos/controlplane.yaml
+    set:
+      kommodity.global.machineConfig:
+        KubeProxyConfig:
+          extraArgs:
+            some-flag: "true"
+    asserts:
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[2]
+          pattern: "enabled: false"
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[2]
+          pattern: "some-flag: \"true\""
 
   - it: should emit KubeAPIServerConfig with extraArgs
     template: templates/talos/controlplane.yaml
@@ -1260,13 +1351,13 @@ tests:
               $patch: delete
     asserts:
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
           pattern: "kind: KubeNodeConfig"
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
           pattern: "node-role.kubernetes.io/control-plane"
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
           pattern: "\\$patch: delete"
 
   # EnvironmentConfig tests

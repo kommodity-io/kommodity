@@ -282,7 +282,8 @@ kommodity:
     # ResolverConfig (dict: nameservers, searchDomains, hostDNS) — fields map
     # 1:1 to the document schema, and apiVersion/kind are injected automatically.
     # List kinds emit one document per entry. extraDocuments is a raw multi-doc
-    # YAML string split on --- and appended verbatim.
+    # YAML string split on document separators (--- line, optional trailing
+    # comment) and appended verbatim, one patch item per document.
     # Any other top-level key (machine, cluster, ...) is a v1alpha1 strategic
     # patch fragment, emitted verbatim as an escape hatch for fields with no
     # document kind yet.
@@ -294,7 +295,7 @@ kommodity:
     #         MY_VAR: my-value
     #     KubeletConfig:
     #       extraArgs:
-    #         maxPods: "200"
+    #         max-pods: "200"
     machineConfig: {}
 
   controlplane:

@@ -177,21 +177,27 @@ Create the name of the service account to use
 {{/*
 Compute sha256sum of parameters givens to the TalosConfigTemplate.
 Any values that should trigger a new Talos config template when changed should be added to the hash computation.
+Workers never receive control-plane-only documents (KubeAPIServerConfig,
+KubeAuthenticationConfig) — they are dropped from the hash so changing only
+these does not roll every worker's bootstrap configRef.
 */}}
 {{- define "kommodity-cluster.talosConfigHash" -}}
-{{- $hasPoolPatches := and .poolValues.machineConfig (gt (len .poolValues.machineConfig) 0) }}
-{{- $hasGlobalPatches := and .allValues.kommodity.global.machineConfig (gt (len .allValues.kommodity.global.machineConfig) 0) }}
 {{- $data := dict -}}
-{{- $patches := dict -}}
-{{- if $hasGlobalPatches }}
-	{{- $patches = mustMergeOverwrite $patches (deepCopy .allValues.kommodity.global.machineConfig) -}}
-{{- end }}
-{{- if $hasPoolPatches }}
-	{{- $patches = mustMergeOverwrite $patches (deepCopy .poolValues.machineConfig) -}}
-{{- end }}
-{{- if gt (len $patches) 0 }}
-	{{- $_ := set $data "machineConfig" $patches -}}
-{{- end }}
+{{- /* Global and pool patches are hashed separately: merging them into one
+     dict would replace list-kind entries (KernelModuleConfig,
+     CRICustomizationConfig) wholesale, silently dropping global entries the
+     renderer retains — a change to those would then not roll the workers. */ -}}
+{{- /* Workers never receive control-plane-only documents (KubeAPIServerConfig,
+     KubeAuthenticationConfig) — dropped so changing only these does not roll
+     every worker's bootstrap configRef. */ -}}
+{{- if and .allValues.kommodity.global.machineConfig (gt (len .allValues.kommodity.global.machineConfig) 0) -}}
+{{- $_ := set $data "globalMachineConfig" (omit (deepCopy .allValues.kommodity.global.machineConfig) "KubeAPIServerConfig" "KubeAuthenticationConfig") -}}
+{{- end -}}
+{{- if and .poolValues.machineConfig (gt (len .poolValues.machineConfig) 0) -}}
+{{- $_ := set $data "poolMachineConfig" (omit (deepCopy .poolValues.machineConfig) "KubeAPIServerConfig" "KubeAuthenticationConfig") -}}
+{{- end -}}
+{{- /* logLevel feeds LOG_LEVEL into every worker EnvironmentConfig */ -}}
+{{- $_ := set $data "logLevel" (default "" (index (index .allValues "kommodity") "logLevel")) -}}
 {{- $talosVersion := default .allValues.talos.version (dig "talos" "version" "" .poolValues) -}}
 {{- $_ := set $data "talosVersion" $talosVersion -}}
 
@@ -315,9 +321,19 @@ then user patches overlay them (nodepool wins over global).
 {{- if .logLevel -}}{{- $_ := set $envConfig "variables" (dict "LOG_LEVEL" .logLevel) -}}{{- end -}}
 {{- /* v1alpha1 fragment: built-in fields first, user patches override them */ -}}
 {{- $merged := dict -}}
-{{- /* Built-in disable flags emit dedicated documents via the talos helpers,
-     not v1alpha1 fragments (Talos generates KubeFlannelCNIConfig by
-     default, so it must be deleted, not overridden). */ -}}
+{{- /* KubeFlannelCNIConfig/KubeProxyConfig: cluster.network.cni and cluster.proxy
+     are deprecated v1alpha1 paths in Talos v1.14; disabling is document-level:
+     delete the auto-generated flannel doc, set enabled: false on kube-proxy.
+     Control-plane only: worker configs are generated separately and never
+     received these settings before either. */ -}}
+{{- $flannelConfig := dict -}}
+{{- if .disableCNI -}}
+{{- $_ := set $flannelConfig "$patch" "delete" -}}
+{{- end -}}
+{{- $proxyConfig := dict -}}
+{{- if .disableProxy -}}
+{{- $_ := set $proxyConfig "enabled" false -}}
+{{- end -}}
 
 {{- /* KubeNodeConfig: pool-level labels/annotations/taints first, user patches override */ -}}
 {{- $nodeConfig := dict -}}
@@ -361,6 +377,10 @@ then user patches overlay them (nodepool wins over global).
 {{- $_ := mustMergeOverwrite $apiServerConfig $value -}}
 {{- else if eq $key "KubeAuthenticationConfig" -}}
 {{- $_ := mustMergeOverwrite $authConfig $value -}}
+{{- else if eq $key "KubeFlannelCNIConfig" -}}
+{{- $_ := mustMergeOverwrite $flannelConfig $value -}}
+{{- else if eq $key "KubeProxyConfig" -}}
+{{- $_ := mustMergeOverwrite $proxyConfig $value -}}
 {{- else if eq $key "KubeNodeConfig" -}}
 {{- $_ := mustMergeOverwrite $nodeConfig $value -}}
 {{- else if eq $key "EnvironmentConfig" -}}
@@ -406,6 +426,20 @@ then user patches overlay them (nodepool wins over global).
 - |
 {{ printf "%s\n" ($doc | toYaml | indent 2) }}
 {{- end -}}
+{{- /* Control-plane-only document: Talos rejects it on workers */ -}}
+{{- if and .isControlPlane (gt (len (keys $flannelConfig)) 0) -}}
+{{- $doc := dict "apiVersion" "v1alpha1" "kind" "KubeFlannelCNIConfig" -}}
+{{- $_ := mustMergeOverwrite $doc $flannelConfig -}}
+- |
+{{ printf "%s\n" ($doc | toYaml | indent 2) }}
+{{- end -}}
+{{- /* Control-plane-only document: Talos rejects it on workers */ -}}
+{{- if and .isControlPlane (gt (len (keys $proxyConfig)) 0) -}}
+{{- $doc := dict "apiVersion" "v1alpha1" "kind" "KubeProxyConfig" -}}
+{{- $_ := mustMergeOverwrite $doc $proxyConfig -}}
+- |
+{{ printf "%s\n" ($doc | toYaml | indent 2) }}
+{{- end -}}
 {{- if gt (len (keys $nodeConfig)) 0 -}}
 {{- $doc := dict "apiVersion" "v1alpha1" "kind" "KubeNodeConfig" -}}
 {{- $_ := mustMergeOverwrite $doc $nodeConfig -}}
@@ -418,13 +452,6 @@ then user patches overlay them (nodepool wins over global).
 {{- $doc := dict "apiVersion" "v1alpha1" "kind" "EnvironmentConfig" "variables" $envVars -}}
 - |
 {{ printf "%s\n" ($doc | toYaml | indent 2) }}
-{{- end -}}
-{{- /* Built-in disable documents (kommodity.talos.proxy.disable / cni.disable) */ -}}
-{{- if .disableProxy -}}
-{{ include "kommodity.talos.proxy.disable" . }}
-{{- end -}}
-{{- if .disableCNI -}}
-{{ include "kommodity.talos.cni.disable" . }}
 {{- end -}}
 {{- /* KernelModuleConfig: one document per entry */ -}}
 {{- range $module := $kernelModules -}}
@@ -472,12 +499,16 @@ then user patches overlay them (nodepool wins over global).
 - |
 {{ printf "%s\n" ($merged | toYaml | indent 2) }}
 {{- end -}}
-{{- /* extraDocuments: raw multi-doc YAML split on ---, appended verbatim */ -}}
+{{- /* extraDocuments: raw multi-doc YAML appended verbatim. Split on
+     document separators (--- plus optional comment, trailing whitespace,
+     CRLF) so each document lands in its own patch item; content between
+     separators is preserved byte-for-byte, only its trailing newlines are
+     dropped (block scalar chomping adds them back). */ -}}
 {{- with $extraDocs -}}
-{{- range $doc := (splitList "\n---\n" .) -}}
+{{- range $doc := (regexSplit `(?:\r?\n|^)---(?:[ \t]+[^\r\n]*)?\r?\n` . -1) -}}
 {{- if (trim $doc) -}}
-- |
-{{ printf "%s\n" ($doc | indent 2) }}
+- |+
+{{ printf "%s\n" (trimSuffix "\n" $doc | indent 2) }}
 {{- end -}}
 {{- end -}}
 {{- end -}}
