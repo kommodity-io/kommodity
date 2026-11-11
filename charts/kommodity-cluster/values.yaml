@@ -275,8 +275,12 @@ kommodity:
     # Top-level keys are Talos document kinds: KubeletConfig, KubeAPIServerConfig,
     # KubeNodeConfig, EnvironmentConfig (dict with variables; kommodity.logLevel
     # is added as LOG_LEVEL), KernelModuleConfig (list of name+parameters entries),
-    # CRICustomizationConfig (list of name+content entries) — fields map 1:1 to
-    # the document schema, and apiVersion/kind are injected automatically.
+    # CRICustomizationConfig (list of name+content entries),
+    # RegistryMirrorConfig / RegistryAuthConfig / RegistryTLSConfig (lists of
+    # per-registry entries; one document per registry "name", nodepool entries
+    # with the same name replace global ones, emitted sorted by name),
+    # ResolverConfig (dict: nameservers, searchDomains, hostDNS) — fields map
+    # 1:1 to the document schema, and apiVersion/kind are injected automatically.
     # List kinds emit one document per entry. extraDocuments is a raw multi-doc
     # YAML string split on document separators (--- line, optional trailing
     # comment) and appended verbatim, one patch item per document.

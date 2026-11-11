@@ -215,7 +215,7 @@ tests:
           path: stringData["installer.yaml"]
           pattern: "hostNetwork: true"
 
-  - it: should not produce inlineManifests when no addon uses InlineManifest delivery
+  - it: should not produce inline manifests when no addon uses InlineManifest delivery
     template: templates/talos/controlplane.yaml
     values:
       - ../values.kubevirt.yaml
@@ -224,23 +224,23 @@ tests:
     asserts:
       - notMatchRegex:
           path: spec.controlPlaneConfig.controlplane.strategicPatches[0]
-          pattern: "inlineManifests"
+          pattern: "KubeInlineManifestConfig"
       - notMatchRegex:
           path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
-          pattern: "inlineManifests"
+          pattern: "KubeInlineManifestConfig"
       - notMatchRegex:
           path: spec.controlPlaneConfig.controlplane.strategicPatches[2]
-          pattern: "inlineManifests"
+          pattern: "KubeInlineManifestConfig"
       - notMatchRegex:
           path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
-          pattern: "inlineManifests"
+          pattern: "KubeInlineManifestConfig"
       - notMatchRegex:
           path: spec.controlPlaneConfig.controlplane.strategicPatches[4]
-          pattern: "inlineManifests"
+          pattern: "KubeInlineManifestConfig"
       - notExists:
           path: spec.controlPlaneConfig.controlplane.strategicPatches[5]
 
-  - it: should produce inlineManifests when addon delivery is InlineManifest
+  - it: should produce inline manifests when addon delivery is InlineManifest
     template: templates/talos/controlplane.yaml
     values:
       - ../values.kubevirt.yaml
@@ -251,10 +251,10 @@ tests:
     asserts:
       - matchRegex:
           path: spec.controlPlaneConfig.controlplane.strategicPatches[5]
-          pattern: "inlineManifests"
+          pattern: "kind: KubeInlineManifestConfig"
       - matchRegex:
           path: spec.controlPlaneConfig.controlplane.strategicPatches[5]
-          pattern: "external-dns-namespace"
+          pattern: "name: external-dns-namespace"
 
   - it: should not render CRS for InlineManifest addons
     template: templates/addons/crs.yaml

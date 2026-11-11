@@ -247,3 +247,22 @@ tests:
       - notMatchRegex:
           path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
           pattern: "kind: ResolverConfig"
+
+  - it: should skip built-in ResolverConfig when user sets their own
+    template: templates/talos/controlplane.yaml
+    set:
+      kommodity.global.machineConfig:
+        ResolverConfig:
+          nameservers:
+            - address: 10.0.0.2
+    asserts:
+      # User doc wins; no duplicate ResolverConfig from the built-in path.
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[4]
+          pattern: "kind: ResolverConfig"
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[4]
+          pattern: "address: 10\\.0\\.0\\.2"
+      - notMatchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "kind: ResolverConfig"
