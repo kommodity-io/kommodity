@@ -1399,3 +1399,291 @@ tests:
       - notMatchRegex:
           path: spec.template.spec.strategicPatches[2]
           pattern: "extraDocuments"
+  # RegistryMirrorConfig tests
+  - it: should emit one RegistryMirrorConfig per entry
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.global.machineConfig:
+        RegistryMirrorConfig:
+          - name: docker.io
+            endpoints:
+              - url: https://mirror.local:5000
+          - name: registry.k8s.io
+            endpoints:
+              - url: https://mirror.local:5001
+            skipFallback: true
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "kind: RegistryMirrorConfig"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "name: docker.io"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "url: https://mirror.local:5000"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[4]
+          pattern: "kind: RegistryMirrorConfig"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[4]
+          pattern: "name: registry.k8s.io"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[4]
+          pattern: "skipFallback: true"
+
+  - it: should not emit RegistryMirrorConfig when list empty
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.global.machineConfig:
+        RegistryMirrorConfig: []
+    asserts:
+      - notMatchRegex:
+          path: spec.template.spec.strategicPatches[0]
+          pattern: "RegistryMirrorConfig"
+      - notMatchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "RegistryMirrorConfig"
+      - notMatchRegex:
+          path: spec.template.spec.strategicPatches[2]
+          pattern: "RegistryMirrorConfig"
+
+  # RegistryAuthConfig tests
+  - it: should emit one RegistryAuthConfig per entry
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.global.machineConfig:
+        RegistryAuthConfig:
+          - name: my-private-registry.local:5000
+            username: my-username
+            password: my-password
+          - name: gcr.example.com
+            identityToken: my-token
+    asserts:
+      # Entries emitted sorted by name: gcr.example.com before my-private-registry
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "kind: RegistryAuthConfig"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "name: gcr\\.example\\.com"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "identityToken: my-token"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[4]
+          pattern: "kind: RegistryAuthConfig"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[4]
+          pattern: "name: my-private-registry\\.local:5000"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[4]
+          pattern: "username: my-username"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[4]
+          pattern: "password: my-password"
+
+  - it: should not emit RegistryAuthConfig when list empty
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.global.machineConfig:
+        RegistryAuthConfig: []
+    asserts:
+      - notMatchRegex:
+          path: spec.template.spec.strategicPatches[0]
+          pattern: "RegistryAuthConfig"
+      - notMatchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "RegistryAuthConfig"
+      - notMatchRegex:
+          path: spec.template.spec.strategicPatches[2]
+          pattern: "RegistryAuthConfig"
+
+  # RegistryTLSConfig tests
+  - it: should emit one RegistryTLSConfig per entry
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.global.machineConfig:
+        RegistryTLSConfig:
+          - name: my-private-registry.local:5000
+            insecureSkipVerify: true
+          - name: other-registry.local:5000
+            ca: |
+              -----BEGIN CERTIFICATE-----
+              MIID...IDAQAB
+              -----END CERTIFICATE-----
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "kind: RegistryTLSConfig"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "name: my-private-registry.local:5000"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "insecureSkipVerify: true"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[4]
+          pattern: "kind: RegistryTLSConfig"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[4]
+          pattern: "BEGIN CERTIFICATE"
+
+  - it: should not emit RegistryTLSConfig when list empty
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.global.machineConfig:
+        RegistryTLSConfig: []
+    asserts:
+      - notMatchRegex:
+          path: spec.template.spec.strategicPatches[0]
+          pattern: "RegistryTLSConfig"
+      - notMatchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "RegistryTLSConfig"
+      - notMatchRegex:
+          path: spec.template.spec.strategicPatches[2]
+          pattern: "RegistryTLSConfig"
+
+  # ResolverConfig tests
+  - it: should emit ResolverConfig from ResolverConfig kind key
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.global.machineConfig:
+        ResolverConfig:
+          nameservers:
+            - address: 1.1.1.1
+            - address: 9.9.9.9
+              protocol: DoT
+              tlsServerName: dns.quad9.net
+          searchDomains:
+            domains:
+              - example.com
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "kind: ResolverConfig"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "address: 1.1.1.1"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "protocol: DoT"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "tlsServerName: dns.quad9.net"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "example.com"
+
+  - it: should not emit ResolverConfig when empty dict
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.global.machineConfig:
+        ResolverConfig: {}
+    asserts:
+      - notMatchRegex:
+          path: spec.template.spec.strategicPatches[0]
+          pattern: "kind: ResolverConfig"
+      - notMatchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "kind: ResolverConfig"
+      - notMatchRegex:
+          path: spec.template.spec.strategicPatches[2]
+          pattern: "kind: ResolverConfig"
+
+  - it: should dedupe registry entries by name with nodepool winning
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.global.machineConfig:
+        RegistryMirrorConfig:
+          - name: docker.io
+            endpoints:
+              - url: https://global-mirror.local:5000
+          - name: registry.k8s.io
+            endpoints:
+              - url: https://global-mirror.local:5001
+      kommodity.nodepools.default.machineConfig:
+        RegistryMirrorConfig:
+          - name: docker.io
+            endpoints:
+              - url: https://nodepool-mirror.local:5000
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "kind: RegistryMirrorConfig"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "url: https://nodepool-mirror.local:5000"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[4]
+          pattern: "kind: RegistryMirrorConfig"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[4]
+          pattern: "name: registry.k8s.io"
+      - notMatchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "global-mirror"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[4]
+          pattern: "url: https://global-mirror.local:5001"
+
+  - it: should emit RegistryAuthConfig auth and RegistryTLSConfig clientIdentity fields
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.global.machineConfig:
+        RegistryAuthConfig:
+          - name: raw-auth-registry.local
+            auth: dXNlcjpwYXNz
+        RegistryTLSConfig:
+          - name: mtls-registry.local
+            clientIdentity:
+              cert: |
+                -----BEGIN CERTIFICATE-----
+                cert-data
+                -----END CERTIFICATE-----
+              key: |
+                -----BEGIN PRIVATE KEY-----
+                key-data
+                -----END PRIVATE KEY-----
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "kind: RegistryAuthConfig"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "auth: dXNlcjpwYXNz"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[4]
+          pattern: "kind: RegistryTLSConfig"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[4]
+          pattern: "BEGIN CERTIFICATE"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[4]
+          pattern: "BEGIN PRIVATE KEY"
+
+  - it: should emit ResolverConfig hostDNS and searchDomains fields
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.global.machineConfig:
+        ResolverConfig:
+          hostDNS:
+            enabled: true
+            forwardKubeDNSToHost: true
+            resolveMemberNames: true
+          searchDomains:
+            disableDefault: true
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "kind: ResolverConfig"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "enabled: true"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "forwardKubeDNSToHost: true"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "disableDefault: true"
