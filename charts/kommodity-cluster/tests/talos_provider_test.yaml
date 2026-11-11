@@ -1645,7 +1645,7 @@ tests:
           count: 1
       - equal:
           path: metadata.name
-          value: test-cluster-worker-default-37f7d8
+          value: test-cluster-worker-default-30592d
 
   # RegistryMirrorConfig tests
   - it: should emit one RegistryMirrorConfig per entry
