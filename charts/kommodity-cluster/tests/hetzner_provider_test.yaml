@@ -98,7 +98,7 @@ tests:
         documentIndex: 0
       - equal:
           path: spec.template.spec.imageName
-          value: kommodity-talos-hcloud-v1.14.2
+          value: kommodity-talos-hcloud-v1.14.5
         documentIndex: 0
       - equal:
           path: spec.template.spec.publicNetwork.enableIPv4
