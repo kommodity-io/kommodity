@@ -32,6 +32,7 @@ spec:
         "version" (default $.Values.talos.version (dig "talos" "version" "" $np))
         "isControlPlane" false
         "logLevel" $.Values.kommodity.logLevel
+        "docKinds" ($.Files.Get "files/talos-doc-kinds.yaml" | fromYaml)
       ) | trimSuffix "\n" -}}
       {{- $hetznerPrivate := and (eq $.Values.kommodity.provider.name "Hetzner") (not $.Values.kommodity.network.ipv4.public) }}
       {{- /* Built-in ResolverConfig skipped when user sets one — Talos rejects two */ -}}

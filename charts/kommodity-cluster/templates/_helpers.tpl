@@ -285,35 +285,36 @@ Any values that should trigger a new Machine template when changed should be add
 
 {{/*
 Build merged machine config for strategicPatches (Talos v1.14 multi-doc kinds).
-Each returned block is one YAML document as a "- |" list item:
-  KubeletConfig, KubeAPIServerConfig (control planes only),
-  KubeAuthenticationConfig (control planes only), KubeNodeConfig,
-  EnvironmentConfig, KubeProxyConfig (disableProxy), KubeFlannelCNIConfig
-  with $patch: delete (disableCNI), ResolverConfig, one document per entry
-  for the named kinds (KernelModuleConfig, CRICustomizationConfig,
-  RegistryMirrorConfig, RegistryAuthConfig, RegistryTLSConfig), then a
-  v1alpha1 fragment, then extraDocuments appended verbatim. Returns empty
-  string if nothing to emit.
+Each returned block is one YAML document as a "- |" list item. Returns empty
+string if nothing to emit.
 
-machineConfig keys are Talos document names — KubeletConfig, KubeAPIServerConfig,
-KubeAuthenticationConfig, KubeNodeConfig, EnvironmentConfig, KernelModuleConfig,
-CRICustomizationConfig, RegistryMirrorConfig, RegistryAuthConfig,
-RegistryTLSConfig, ResolverConfig — whose fields map 1:1 to the document schema (see
-https://docs.siderolabs.com/talos/v1.14/getting-started/what's-new-in-talos#kubernetes-multi-document-configuration).
-Named kinds (KernelModuleConfig, CRICustomizationConfig, RegistryMirrorConfig,
-RegistryAuthConfig, RegistryTLSConfig) are maps keyed by the document "name";
-the key is injected as the document name, one document per entry, emitted
-sorted by name for deterministic output, nodepool entries replace global ones
-on conflict. A body with an explicit "name" that disagrees with its map key
-fails rendering. Singleton kinds are plain maps of the document fields. Any
-other top-level key (machine, cluster, ...) is a v1alpha1 strategic patch
-fragment, emitted verbatim as escape hatch for fields with no doc kind yet.
-extraDocuments is a raw multi-doc YAML string split on --- and appended
-verbatim.
+machineConfig entries are dispatched three ways (kind classification is
+generated from Talos's published JSON schema for the chart's appVersion —
+see files/talos-doc-kinds.yaml, regenerated with `make
+generate-talos-doc-kinds`):
+  - named kinds (schema has a "name" property): map keyed by the document
+    "name"; the key is injected as the document name, one document per entry,
+    emitted sorted (kind, then name), nodepool entries replace global ones on
+    conflict. A body with an explicit "name" that disagrees with its map key
+    fails rendering. A non-map value fails rendering.
+  - singleton kinds (no "name" property): plain map of the document fields,
+    merged into a v1alpha1 apiVersion/kind envelope, no name. A non-map value
+    fails rendering.
+  - anything else (machine, cluster, ...): v1alpha1 strategic patch fragment,
+    emitted verbatim as escape hatch for fields with no document kind yet.
+
+The special-cased built-in kinds (KubeletConfig, KubeAPIServerConfig,
+KubeAuthenticationConfig, KubeNodeConfig, EnvironmentConfig,
+KubeFlannelCNIConfig, KubeProxyConfig) keep their earlier positions in the
+dispatch chain — their seeding/merge semantics (LOG_LEVEL, disable documents,
+OIDC, pool labels/taints) must not be entangled with the generated
+classification. extraDocuments is a raw multi-doc YAML string split on --- and
+appended verbatim.
 
 Precedence: built-in settings (LOG_LEVEL from kommodity.logLevel, CNI/proxy
-disable documents, OIDC authentication config, pool-level labels/annotations/taints) are seeded first,
-then user patches overlay them (nodepool wins over global).
+disable documents, OIDC authentication config, pool-level
+labels/annotations/taints) are seeded first, then user patches overlay them
+(nodepool wins over global).
 */}}
 {{- define "kommodity-cluster.mergedMachineConfig" -}}
 {{- /* EnvironmentConfig: LOG_LEVEL from kommodity.logLevel seeded first,
@@ -360,15 +361,20 @@ then user patches overlay them (nodepool wins over global).
 {{- end -}}
 {{- $apiServerConfig := dict -}}
 
-{{- /* Overlay user patches: global first, nodepool last (wins on conflicts) */ -}}
 {{- $kubeletConfig := dict -}}
-{{- /* Named kinds are maps keyed by the document "name": one document per
-     entry, nodepool entries replace global ones on conflict. Talos rejects
-     duplicate names within a kind, so name-keyed dicts make the merge
-     semantics unambiguous. */ -}}
-{{- $namedDocs := dict "KernelModuleConfig" (dict) "CRICustomizationConfig" (dict) "RegistryMirrorConfig" (dict) "RegistryAuthConfig" (dict) "RegistryTLSConfig" (dict) -}}
-{{- $resolverConfig := dict -}}
+{{- /* docKinds: generated kind classification (namedKinds/singletonKinds),
+     loaded by the caller from files/talos-doc-kinds.yaml. Named kinds are
+     maps keyed by the document "name": one document per entry, nodepool
+     entries replace global ones on conflict. Talos rejects duplicate names
+     within a kind, so name-keyed dicts make the merge semantics
+     unambiguous. */ -}}
+{{- $docKinds := default (dict) .docKinds -}}
+{{- $namedKinds := default (dict) (dig "namedKinds" (dict) $docKinds) -}}
+{{- $singletonKinds := default (dict) (dig "singletonKinds" (dict) $docKinds) -}}
+{{- $namedDocs := dict -}}
+{{- $singletonDocs := dict -}}
 {{- $extraDocs := "" -}}
+{{- /* Overlay user patches: global first, nodepool last (wins on conflicts) */ -}}
 {{- range $patches := list .globalPatches .nodepoolPatches -}}
 {{- if and $patches (gt (len $patches) 0) -}}
 {{- range $key := keys $patches -}}
@@ -387,9 +393,12 @@ then user patches overlay them (nodepool wins over global).
 {{- $_ := mustMergeOverwrite $nodeConfig $value -}}
 {{- else if eq $key "EnvironmentConfig" -}}
 {{- $_ := mustMergeOverwrite $envConfig $value -}}
-{{- else if hasKey $namedDocs $key -}}
+{{- else if hasKey $namedKinds $key -}}
 {{- if not (kindIs "map" $value) -}}
 {{- fail (printf "machineConfig.%s must be a map keyed by document name, got %s" $key (kindOf $value)) -}}
+{{- end -}}
+{{- if not (hasKey $namedDocs $key) -}}
+{{- $_ := set $namedDocs $key (dict) -}}
 {{- end -}}
 {{- range $name, $body := $value -}}
 {{- if and (kindIs "map" $body) (hasKey $body "name") -}}
@@ -400,8 +409,14 @@ then user patches overlay them (nodepool wins over global).
 {{- end -}}
 {{- $_ := set (index $namedDocs $key) $name $body -}}
 {{- end -}}
-{{- else if eq $key "ResolverConfig" -}}
-{{- $_ := mustMergeOverwrite $resolverConfig $value -}}
+{{- else if hasKey $singletonKinds $key -}}
+{{- if not (kindIs "map" $value) -}}
+{{- fail (printf "machineConfig.%s must be a map of document fields, got %s" $key (kindOf $value)) -}}
+{{- end -}}
+{{- if not (hasKey $singletonDocs $key) -}}
+{{- $_ := set $singletonDocs $key (dict) -}}
+{{- end -}}
+{{- $_ := mustMergeOverwrite (index $singletonDocs $key) $value -}}
 {{- else if eq $key "extraDocuments" -}}
 {{- $extraDocs = $value -}}
 {{- else -}}
@@ -470,10 +485,11 @@ then user patches overlay them (nodepool wins over global).
 {{ printf "%s\n" ($doc | toYaml | indent 2) }}
 {{- end -}}
 {{- end -}}
-{{- /* ResolverConfig: single document, no name */ -}}
-{{- if gt (len (keys $resolverConfig)) 0 -}}
-{{- $doc := dict "apiVersion" "v1alpha1" "kind" "ResolverConfig" -}}
-{{- $_ := mustMergeOverwrite $doc (deepCopy $resolverConfig) -}}
+{{- /* Singleton kinds: one document per kind, no name, envelope injected,
+     sorted for deterministic output. */ -}}
+{{- range $kind := keys $singletonDocs | sortAlpha -}}
+{{- $doc := dict "apiVersion" "v1alpha1" "kind" $kind -}}
+{{- $_ := mustMergeOverwrite $doc (deepCopy (index $singletonDocs $kind)) -}}
 - |
 {{ printf "%s\n" ($doc | toYaml | indent 2) }}
 {{- end -}}

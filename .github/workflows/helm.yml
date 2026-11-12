@@ -12,6 +12,8 @@ on:
       - main
     paths:
       - "charts/**"
+      - "scripts/generate-talos-doc-kinds.sh"
+      - "Makefile"
       - ".github/workflows/helm.yml"
 
 jobs:
@@ -353,6 +355,32 @@ jobs:
           done
 
           exit $exit_code
+
+  talos-doc-kinds-drift:
+    name: Check Talos document kind classification drift
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+
+      - name: Regenerate Talos document kind classification
+        run: make generate-talos-doc-kinds
+
+      - name: Fail on drift
+        run: |
+          set -eou pipefail
+
+          if ! git diff --exit-code -- charts/kommodity-cluster/files/talos-doc-kinds.yaml; then
+            echo "Error: charts/kommodity-cluster/files/talos-doc-kinds.yaml is out of date. Run 'make generate-talos-doc-kinds' and commit the result."
+            exit 1
+          fi
+
+          # Newly generated (untracked) files slip past git diff.
+          if [ -n "$(git ls-files --others --exclude-standard -- charts/kommodity-cluster/files/talos-doc-kinds.yaml)" ]; then
+            echo "Error: charts/kommodity-cluster/files/talos-doc-kinds.yaml is untracked. Commit the generated file."
+            exit 1
+          fi
 
   publish-charts:
     name: Publish charts

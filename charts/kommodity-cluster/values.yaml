@@ -272,24 +272,26 @@ kommodity:
   global:
     # Configurations applied to all nodepools and controlplanes in the cluster
     # Talos v1.14 machine configuration (https://docs.siderolabs.com/talos/v1.14/getting-started/what's-new-in-talos#kubernetes-multi-document-configuration).
-    # Top-level keys are Talos document kinds: KubeletConfig, KubeAPIServerConfig,
-    # KubeNodeConfig, EnvironmentConfig (dict with variables; kommodity.logLevel
-    # is added as LOG_LEVEL), ResolverConfig (dict: nameservers, searchDomains,
-    # hostDNS) — fields map 1:1 to the document schema, and apiVersion/kind are
-    # injected automatically.
-    # Named kinds — KernelModuleConfig, CRICustomizationConfig,
-    # RegistryMirrorConfig / RegistryAuthConfig / RegistryTLSConfig — are maps
-    # keyed by the document "name" (module name, customization name, registry
-    # host); one document per entry, nodepool entries with the same key replace
-    # global ones, emitted sorted by name. A null value (e.g. `btrfs:`) loads a
-    # kernel module with no parameters. Do not set "name" inside an entry; the
-    # map key is the name, and a mismatching body name fails rendering.
+    # Top-level keys are Talos document kinds, dispatched three ways (see
+    # below). Special-cased built-ins keep their seeded behavior:
+    # EnvironmentConfig (dict with variables; kommodity.logLevel is added as
+    # LOG_LEVEL), KubeletConfig, KubeAPIServerConfig, KubeAuthenticationConfig,
+    # KubeNodeConfig, KubeFlannelCNIConfig, KubeProxyConfig.
+    # machineConfig entries are dispatched three ways, based on the kind
+    # classification generated from Talos's published schema for the chart's
+    # appVersion (files/talos-doc-kinds.yaml):
+    #  - named kinds (any document kind with a "name" field): map keyed by
+    #    the document "name"; one document per entry, nodepool entries with
+    #    the same key replace global ones, emitted sorted. A null value (e.g.
+    #    `btrfs:`) emits a bare document. Do not set "name" inside an entry;
+    #    the map key is the name, and a mismatching body name fails rendering.
+    #  - singleton kinds (document kinds without a "name" field): plain map
+    #    of the document fields; the apiVersion/kind envelope is injected.
+    #  - anything else (machine, cluster, ...): v1alpha1 strategic patch
+    #    fragment, emitted verbatim as an escape hatch.
     # extraDocuments is a raw multi-doc
     # YAML string split on document separators (--- line, optional trailing
     # comment) and appended verbatim, one patch item per document.
-    # Any other top-level key (machine, cluster, ...) is a v1alpha1 strategic
-    # patch fragment, emitted verbatim as an escape hatch for fields with no
-    # document kind yet.
     # Controlplane / nodepool machineConfig are deep-merged on top of global (later wins on conflicts).
     # Example:
     #   machineConfig:
@@ -303,6 +305,12 @@ kommodity:
     #       btrfs:            # null: just load the module
     #       br_netfilter:
     #         parameters: ["bridge-stp=1"]
+    #     SysctlConfig:             # singleton kind: plain dict
+    #       sysctls:
+    #         fs.file-max: "131072"
+    #     machine:                   # v1alpha1 fragment escape hatch
+    #       install:
+    #         extraKernelArgs: ["talos.experimental.cgroups=v2"]
     machineConfig: {}
 
   controlplane:

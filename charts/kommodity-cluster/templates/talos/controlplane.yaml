@@ -92,6 +92,7 @@ spec:
         "logLevel" $.Values.kommodity.logLevel
         "disableCNI" $.Values.talos.disableCNI
         "disableProxy" $.Values.talos.disableKubeProxy
+        "docKinds" ($.Files.Get "files/talos-doc-kinds.yaml" | fromYaml)
       ) | trim }}
       {{- /* Built-in ResolverConfig skipped when user sets one — Talos rejects two */ -}}
       {{- $userResolverConfig := or (dig "ResolverConfig" false (default (dict) $.Values.kommodity.global.machineConfig)) (dig "ResolverConfig" false (default (dict) $.Values.kommodity.controlplane.machineConfig)) -}}

@@ -1968,3 +1968,67 @@ tests:
       - matchRegex:
           path: spec.template.spec.strategicPatches[3]
           pattern: "disableDefault: true"
+
+  # Schema-derived kind dispatch tests (files/talos-doc-kinds.yaml)
+  - it: should emit a schema-derived named kind (EtcFileConfig) as standalone named document
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.global.machineConfig:
+        EtcFileConfig:
+          motd:
+            contents: hello world
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "kind: EtcFileConfig"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "name: motd"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "contents: hello world"
+
+  - it: should emit a schema-derived singleton kind (SysctlConfig) with injected envelope
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.global.machineConfig:
+        SysctlConfig:
+          sysctls:
+            fs.file-max: "131072"
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "apiVersion: v1alpha1"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "kind: SysctlConfig"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "fs.file-max: \"131072\""
+
+  - it: should route unknown kinds into the v1alpha1 fragment
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.global.machineConfig:
+        NotATalosKind:
+          someField: someValue
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "NotATalosKind:"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "someField: someValue"
+      - notMatchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "kind: NotATalosKind"
+
+  - it: should fail when a schema-derived singleton kind value is not a map
+    template: templates/talos/controlplane.yaml
+    set:
+      kommodity.global.machineConfig:
+        SysctlConfig:
+          - not-a-map
+    asserts:
+      - failedTemplate:
+          errorPattern: 'machineConfig.SysctlConfig must be a map of document fields, got slice'
