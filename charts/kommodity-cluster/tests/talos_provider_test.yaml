@@ -1462,8 +1462,8 @@ tests:
     set:
       kommodity.global.machineConfig:
         KernelModuleConfig:
-          - name: nvidia
-          - name: vfio_pci
+          nvidia:
+          vfio_pci:
     asserts:
       - matchRegex:
           path: spec.template.spec.strategicPatches[3]
@@ -1483,7 +1483,7 @@ tests:
     set:
       kommodity.global.machineConfig:
         KernelModuleConfig:
-          - name: nvidia
+          nvidia:
             parameters:
               - nvidia.noa=1
     asserts:
@@ -1497,11 +1497,11 @@ tests:
           path: spec.template.spec.strategicPatches[3]
           pattern: "- nvidia.noa=1"
 
-  - it: should not emit KernelModuleConfig when list empty
+  - it: should not emit KernelModuleConfig when map empty
     template: templates/talos/configtemplate.yaml
     set:
       kommodity.global.machineConfig:
-        KernelModuleConfig: []
+        KernelModuleConfig: {}
     asserts:
       - notMatchRegex:
           path: spec.template.spec.strategicPatches[0]
@@ -1518,9 +1518,9 @@ tests:
     set:
       kommodity.global.machineConfig:
         CRICustomizationConfig:
-          - name: custom-cri-1
+          custom-cri-1:
             content: cri-content-1
-          - name: custom-cri-2
+          custom-cri-2:
             content: cri-content-2
     asserts:
       - matchRegex:
@@ -1542,11 +1542,11 @@ tests:
           path: spec.template.spec.strategicPatches[4]
           pattern: "content: cri-content-2"
 
-  - it: should not emit CRICustomizationConfig when list empty
+  - it: should not emit CRICustomizationConfig when map empty
     template: templates/talos/configtemplate.yaml
     set:
       kommodity.global.machineConfig:
-        CRICustomizationConfig: []
+        CRICustomizationConfig: {}
     asserts:
       - notMatchRegex:
           path: spec.template.spec.strategicPatches[0]
@@ -1647,15 +1647,15 @@ tests:
           path: spec.template.spec.strategicPatches[3]
           pattern: "TrailingSpacesDoc"
 
-  - it: should update TalosConfigTemplate name when global list-kind entries change
+  - it: should update TalosConfigTemplate name when global named-kind entries change
     template: templates/talos/configtemplate.yaml
     set:
       kommodity.global.machineConfig:
         KernelModuleConfig:
-          - name: global-mod
+          global-mod:
       kommodity.nodepools.default.machineConfig:
         KernelModuleConfig:
-          - name: pool-mod
+          pool-mod:
     asserts:
       - isKind:
           of: TalosConfigTemplate
@@ -1663,7 +1663,7 @@ tests:
           count: 1
       - equal:
           path: metadata.name
-          value: test-cluster-worker-default-30592d
+          value: test-cluster-worker-default-84613d
 
   # RegistryMirrorConfig tests
   - it: should emit one RegistryMirrorConfig per entry
@@ -1671,10 +1671,10 @@ tests:
     set:
       kommodity.global.machineConfig:
         RegistryMirrorConfig:
-          - name: docker.io
+          docker.io:
             endpoints:
               - url: https://mirror.local:5000
-          - name: registry.k8s.io
+          registry.k8s.io:
             endpoints:
               - url: https://mirror.local:5001
             skipFallback: true
@@ -1698,11 +1698,11 @@ tests:
           path: spec.template.spec.strategicPatches[4]
           pattern: "skipFallback: true"
 
-  - it: should not emit RegistryMirrorConfig when list empty
+  - it: should not emit RegistryMirrorConfig when map empty
     template: templates/talos/configtemplate.yaml
     set:
       kommodity.global.machineConfig:
-        RegistryMirrorConfig: []
+        RegistryMirrorConfig: {}
     asserts:
       - notMatchRegex:
           path: spec.template.spec.strategicPatches[0]
@@ -1720,11 +1720,11 @@ tests:
     set:
       kommodity.global.machineConfig:
         RegistryAuthConfig:
-          - name: my-private-registry.local:5000
+          gcr.example.com:
+            identityToken: my-token
+          my-private-registry.local:5000:
             username: my-username
             password: my-password
-          - name: gcr.example.com
-            identityToken: my-token
     asserts:
       # Entries emitted sorted by name: gcr.example.com before my-private-registry
       - matchRegex:
@@ -1749,11 +1749,11 @@ tests:
           path: spec.template.spec.strategicPatches[4]
           pattern: "password: my-password"
 
-  - it: should not emit RegistryAuthConfig when list empty
+  - it: should not emit RegistryAuthConfig when map empty
     template: templates/talos/configtemplate.yaml
     set:
       kommodity.global.machineConfig:
-        RegistryAuthConfig: []
+        RegistryAuthConfig: {}
     asserts:
       - notMatchRegex:
           path: spec.template.spec.strategicPatches[0]
@@ -1771,9 +1771,9 @@ tests:
     set:
       kommodity.global.machineConfig:
         RegistryTLSConfig:
-          - name: my-private-registry.local:5000
+          my-private-registry.local:5000:
             insecureSkipVerify: true
-          - name: other-registry.local:5000
+          other-registry.local:5000:
             ca: |
               -----BEGIN CERTIFICATE-----
               MIID...IDAQAB
@@ -1795,11 +1795,11 @@ tests:
           path: spec.template.spec.strategicPatches[4]
           pattern: "BEGIN CERTIFICATE"
 
-  - it: should not emit RegistryTLSConfig when list empty
+  - it: should not emit RegistryTLSConfig when map empty
     template: templates/talos/configtemplate.yaml
     set:
       kommodity.global.machineConfig:
-        RegistryTLSConfig: []
+        RegistryTLSConfig: {}
     asserts:
       - notMatchRegex:
           path: spec.template.spec.strategicPatches[0]
@@ -1863,15 +1863,15 @@ tests:
     set:
       kommodity.global.machineConfig:
         RegistryMirrorConfig:
-          - name: docker.io
+          docker.io:
             endpoints:
               - url: https://global-mirror.local:5000
-          - name: registry.k8s.io
+          registry.k8s.io:
             endpoints:
               - url: https://global-mirror.local:5001
       kommodity.nodepools.default.machineConfig:
         RegistryMirrorConfig:
-          - name: docker.io
+          docker.io:
             endpoints:
               - url: https://nodepool-mirror.local:5000
     asserts:
@@ -1899,10 +1899,10 @@ tests:
     set:
       kommodity.global.machineConfig:
         RegistryAuthConfig:
-          - name: raw-auth-registry.local
+          raw-auth-registry.local:
             auth: dXNlcjpwYXNz
         RegistryTLSConfig:
-          - name: mtls-registry.local
+          mtls-registry.local:
             clientIdentity:
               cert: |
                 -----BEGIN CERTIFICATE-----
@@ -1928,6 +1928,21 @@ tests:
       - matchRegex:
           path: spec.template.spec.strategicPatches[4]
           pattern: "BEGIN PRIVATE KEY"
+
+  - it: should fail when named-kind entry body name does not match map key
+    template: templates/talos/controlplane.yaml
+    set:
+      kommodity.global.machineConfig:
+        KernelModuleConfig:
+          key-name:
+            name: other-name
+            parameters:
+              - foo=1
+    asserts:
+      # failedTemplate.errorMessage is an exact match, and the render error is
+      # attributed to the include site in controlplane.yaml; match by pattern.
+      - failedTemplate:
+          errorPattern: 'body name "other-name" does not match map key'
 
   - it: should emit ResolverConfig hostDNS and searchDomains fields
     template: templates/talos/configtemplate.yaml

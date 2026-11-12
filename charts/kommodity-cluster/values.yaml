@@ -274,14 +274,17 @@ kommodity:
     # Talos v1.14 machine configuration (https://docs.siderolabs.com/talos/v1.14/getting-started/what's-new-in-talos#kubernetes-multi-document-configuration).
     # Top-level keys are Talos document kinds: KubeletConfig, KubeAPIServerConfig,
     # KubeNodeConfig, EnvironmentConfig (dict with variables; kommodity.logLevel
-    # is added as LOG_LEVEL), KernelModuleConfig (list of name+parameters entries),
-    # CRICustomizationConfig (list of name+content entries),
-    # RegistryMirrorConfig / RegistryAuthConfig / RegistryTLSConfig (lists of
-    # per-registry entries; one document per registry "name", nodepool entries
-    # with the same name replace global ones, emitted sorted by name),
-    # ResolverConfig (dict: nameservers, searchDomains, hostDNS) — fields map
-    # 1:1 to the document schema, and apiVersion/kind are injected automatically.
-    # List kinds emit one document per entry. extraDocuments is a raw multi-doc
+    # is added as LOG_LEVEL), ResolverConfig (dict: nameservers, searchDomains,
+    # hostDNS) — fields map 1:1 to the document schema, and apiVersion/kind are
+    # injected automatically.
+    # Named kinds — KernelModuleConfig, CRICustomizationConfig,
+    # RegistryMirrorConfig / RegistryAuthConfig / RegistryTLSConfig — are maps
+    # keyed by the document "name" (module name, customization name, registry
+    # host); one document per entry, nodepool entries with the same key replace
+    # global ones, emitted sorted by name. A null value (e.g. `btrfs:`) loads a
+    # kernel module with no parameters. Do not set "name" inside an entry; the
+    # map key is the name, and a mismatching body name fails rendering.
+    # extraDocuments is a raw multi-doc
     # YAML string split on document separators (--- line, optional trailing
     # comment) and appended verbatim, one patch item per document.
     # Any other top-level key (machine, cluster, ...) is a v1alpha1 strategic
@@ -296,6 +299,10 @@ kommodity:
     #     KubeletConfig:
     #       extraArgs:
     #         max-pods: "200"
+    #     KernelModuleConfig:
+    #       btrfs:            # null: just load the module
+    #       br_netfilter:
+    #         parameters: ["bridge-stp=1"]
     machineConfig: {}
 
   controlplane:

@@ -184,8 +184,8 @@ these does not roll every worker's bootstrap configRef.
 {{- define "kommodity-cluster.talosConfigHash" -}}
 {{- $data := dict -}}
 {{- /* Global and pool patches are hashed separately: merging them into one
-     dict would replace list-kind entries (KernelModuleConfig,
-     CRICustomizationConfig) wholesale, silently dropping global entries the
+     dict would replace per-name map entries wholesale, silently dropping
+     global entries (e.g. KernelModuleConfig modules, registry hosts) the
      renderer retains — a change to those would then not roll the workers. */ -}}
 {{- /* Workers never receive control-plane-only documents (KubeAPIServerConfig,
      KubeAuthenticationConfig) — dropped so changing only these does not roll
@@ -289,25 +289,27 @@ Each returned block is one YAML document as a "- |" list item:
   KubeletConfig, KubeAPIServerConfig (control planes only),
   KubeAuthenticationConfig (control planes only), KubeNodeConfig,
   EnvironmentConfig, KubeProxyConfig (disableProxy), KubeFlannelCNIConfig
-  with $patch: delete (disableCNI), one KernelModuleConfig per entry, one
-  RegistryMirrorConfig per host, one RegistryAuthConfig per host,
-  one RegistryTLSConfig per host, ResolverConfig, one
-  CRICustomizationConfig per entry, then a v1alpha1 fragment, then
-  extraDocuments appended verbatim. Returns empty string if nothing to emit.
+  with $patch: delete (disableCNI), ResolverConfig, one document per entry
+  for the named kinds (KernelModuleConfig, CRICustomizationConfig,
+  RegistryMirrorConfig, RegistryAuthConfig, RegistryTLSConfig), then a
+  v1alpha1 fragment, then extraDocuments appended verbatim. Returns empty
+  string if nothing to emit.
 
 machineConfig keys are Talos document names — KubeletConfig, KubeAPIServerConfig,
 KubeAuthenticationConfig, KubeNodeConfig, EnvironmentConfig, KernelModuleConfig,
 CRICustomizationConfig, RegistryMirrorConfig, RegistryAuthConfig,
 RegistryTLSConfig, ResolverConfig — whose fields map 1:1 to the document schema (see
 https://docs.siderolabs.com/talos/v1.14/getting-started/what's-new-in-talos#kubernetes-multi-document-configuration).
-Registry-kind keys (RegistryMirrorConfig, RegistryAuthConfig,
-RegistryTLSConfig) emit one document per registry host, keyed by the entry
-"name" (duplicate names: nodepool replaces global), sorted by name for
-deterministic output. List-kind keys (KernelModuleConfig, CRICustomizationConfig)
-emit one document per entry. Any other top-level key (machine, cluster, ...)
-is a v1alpha1 strategic patch fragment, emitted verbatim as escape hatch for
-fields with no doc kind yet. extraDocuments is a raw multi-doc YAML string
-split on --- and appended verbatim.
+Named kinds (KernelModuleConfig, CRICustomizationConfig, RegistryMirrorConfig,
+RegistryAuthConfig, RegistryTLSConfig) are maps keyed by the document "name";
+the key is injected as the document name, one document per entry, emitted
+sorted by name for deterministic output, nodepool entries replace global ones
+on conflict. A body with an explicit "name" that disagrees with its map key
+fails rendering. Singleton kinds are plain maps of the document fields. Any
+other top-level key (machine, cluster, ...) is a v1alpha1 strategic patch
+fragment, emitted verbatim as escape hatch for fields with no doc kind yet.
+extraDocuments is a raw multi-doc YAML string split on --- and appended
+verbatim.
 
 Precedence: built-in settings (LOG_LEVEL from kommodity.logLevel, CNI/proxy
 disable documents, OIDC authentication config, pool-level labels/annotations/taints) are seeded first,
@@ -360,14 +362,11 @@ then user patches overlay them (nodepool wins over global).
 
 {{- /* Overlay user patches: global first, nodepool last (wins on conflicts) */ -}}
 {{- $kubeletConfig := dict -}}
-{{- $kernelModules := list -}}
-{{- $criCustomizations := list -}}
-{{- /* Registry docs are keyed by name: one document per registry host.
-     Talos rejects duplicate names within a kind, so a name-keyed dict makes
-     nodepool entries replace global ones on conflict. */ -}}
-{{- $registryMirrors := dict -}}
-{{- $registryAuthConfigs := dict -}}
-{{- $registryTLSConfigs := dict -}}
+{{- /* Named kinds are maps keyed by the document "name": one document per
+     entry, nodepool entries replace global ones on conflict. Talos rejects
+     duplicate names within a kind, so name-keyed dicts make the merge
+     semantics unambiguous. */ -}}
+{{- $namedDocs := dict "KernelModuleConfig" (dict) "CRICustomizationConfig" (dict) "RegistryMirrorConfig" (dict) "RegistryAuthConfig" (dict) "RegistryTLSConfig" (dict) -}}
 {{- $resolverConfig := dict -}}
 {{- $extraDocs := "" -}}
 {{- range $patches := list .globalPatches .nodepoolPatches -}}
@@ -388,16 +387,19 @@ then user patches overlay them (nodepool wins over global).
 {{- $_ := mustMergeOverwrite $nodeConfig $value -}}
 {{- else if eq $key "EnvironmentConfig" -}}
 {{- $_ := mustMergeOverwrite $envConfig $value -}}
-{{- else if eq $key "KernelModuleConfig" -}}
-{{- range $module := $value -}}{{- $kernelModules = mustAppend $kernelModules $module -}}{{- end -}}
-{{- else if eq $key "CRICustomizationConfig" -}}
-{{- range $entry := $value -}}{{- $criCustomizations = mustAppend $criCustomizations $entry -}}{{- end -}}
-{{- else if eq $key "RegistryMirrorConfig" -}}
-{{- range $entry := $value -}}{{- $_ := set $registryMirrors (dig "name" "" $entry) $entry -}}{{- end -}}
-{{- else if eq $key "RegistryAuthConfig" -}}
-{{- range $entry := $value -}}{{- $_ := set $registryAuthConfigs (dig "name" "" $entry) $entry -}}{{- end -}}
-{{- else if eq $key "RegistryTLSConfig" -}}
-{{- range $entry := $value -}}{{- $_ := set $registryTLSConfigs (dig "name" "" $entry) $entry -}}{{- end -}}
+{{- else if hasKey $namedDocs $key -}}
+{{- if not (kindIs "map" $value) -}}
+{{- fail (printf "machineConfig.%s must be a map keyed by document name, got %s" $key (kindOf $value)) -}}
+{{- end -}}
+{{- range $name, $body := $value -}}
+{{- if and (kindIs "map" $body) (hasKey $body "name") -}}
+{{- $bodyName := index $body "name" -}}
+{{- if ne $bodyName $name -}}
+{{- fail (printf "machineConfig.%s[%q]: body name %q does not match map key; drop the name field, the key is used" $key $name $bodyName) -}}
+{{- end -}}
+{{- end -}}
+{{- $_ := set (index $namedDocs $key) $name $body -}}
+{{- end -}}
 {{- else if eq $key "ResolverConfig" -}}
 {{- $_ := mustMergeOverwrite $resolverConfig $value -}}
 {{- else if eq $key "extraDocuments" -}}
@@ -456,45 +458,22 @@ then user patches overlay them (nodepool wins over global).
 - |
 {{ printf "%s\n" ($doc | toYaml | indent 2) }}
 {{- end -}}
-{{- /* KernelModuleConfig: one document per entry */ -}}
-{{- range $module := $kernelModules -}}
-{{- $doc := dict "apiVersion" "v1alpha1" "kind" "KernelModuleConfig" -}}
-{{- $_ := mustMergeOverwrite $doc (deepCopy $module) -}}
+{{- /* Named kinds: one document per map entry, name from the map key,
+     sorted for deterministic output. */ -}}
+{{- range $kind := keys $namedDocs | sortAlpha -}}
+{{- range $name := keys (index $namedDocs $kind) | sortAlpha -}}
+{{- $doc := dict "apiVersion" "v1alpha1" "kind" $kind "name" $name -}}
+{{- /* Null body (e.g. `btrfs:` with no fields) contributes nothing
+     beyond the name; render it as an empty dict. */ -}}
+{{- $_ := mustMergeOverwrite $doc (deepCopy (default dict (index (index $namedDocs $kind) $name))) -}}
 - |
 {{ printf "%s\n" ($doc | toYaml | indent 2) }}
 {{- end -}}
-{{- /* RegistryMirrorConfig: one document per host, sorted by name */ -}}
-{{- range $name := keys $registryMirrors | sortAlpha -}}
-{{- $doc := dict "apiVersion" "v1alpha1" "kind" "RegistryMirrorConfig" -}}
-{{- $_ := mustMergeOverwrite $doc (deepCopy (index $registryMirrors $name)) -}}
-- |
-{{ printf "%s\n" ($doc | toYaml | indent 2) }}
-{{- end -}}
-{{- /* RegistryAuthConfig: one document per host, sorted by name */ -}}
-{{- range $name := keys $registryAuthConfigs | sortAlpha -}}
-{{- $doc := dict "apiVersion" "v1alpha1" "kind" "RegistryAuthConfig" -}}
-{{- $_ := mustMergeOverwrite $doc (deepCopy (index $registryAuthConfigs $name)) -}}
-- |
-{{ printf "%s\n" ($doc | toYaml | indent 2) }}
-{{- end -}}
-{{- /* RegistryTLSConfig: one document per host, sorted by name */ -}}
-{{- range $name := keys $registryTLSConfigs | sortAlpha -}}
-{{- $doc := dict "apiVersion" "v1alpha1" "kind" "RegistryTLSConfig" -}}
-{{- $_ := mustMergeOverwrite $doc (deepCopy (index $registryTLSConfigs $name)) -}}
-- |
-{{ printf "%s\n" ($doc | toYaml | indent 2) }}
 {{- end -}}
 {{- /* ResolverConfig: single document, no name */ -}}
 {{- if gt (len (keys $resolverConfig)) 0 -}}
 {{- $doc := dict "apiVersion" "v1alpha1" "kind" "ResolverConfig" -}}
 {{- $_ := mustMergeOverwrite $doc (deepCopy $resolverConfig) -}}
-- |
-{{ printf "%s\n" ($doc | toYaml | indent 2) }}
-{{- end -}}
-{{- /* CRICustomizationConfig: one document per entry */ -}}
-{{- range $entry := $criCustomizations -}}
-{{- $doc := dict "apiVersion" "v1alpha1" "kind" "CRICustomizationConfig" -}}
-{{- $_ := mustMergeOverwrite $doc (deepCopy $entry) -}}
 - |
 {{ printf "%s\n" ($doc | toYaml | indent 2) }}
 {{- end -}}
