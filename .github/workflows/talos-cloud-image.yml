@@ -97,15 +97,20 @@ jobs:
     steps:
       - name: Resolve inputs with defaults
         id: resolve-inputs
+        env:
+          TALOS_VERSION_INPUT: ${{ inputs.talos_version }}
+          DEFAULT_TALOS_VERSION: ${{ env.DEFAULT_TALOS_VERSION }}
+          PUSH_INPUT: ${{ inputs.push }}
+          EXTRA_KERNEL_ARGS_INPUT: ${{ inputs.extra_kernel_args }}
         run: |
           {
-            echo "talos_version=${{ inputs.talos_version || env.DEFAULT_TALOS_VERSION }}"
-            echo "push=${{ inputs.push == '' && 'true' || inputs.push }}"
+            echo "talos_version=${TALOS_VERSION_INPUT:-${DEFAULT_TALOS_VERSION}}"
+            echo "push=${PUSH_INPUT:-true}"
           } >> "$GITHUB_OUTPUT"
 
           {
             echo "extra_kernel_args<<EOF"
-            echo "${{ inputs.extra_kernel_args }}"
+            echo "${EXTRA_KERNEL_ARGS_INPUT}"
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
@@ -143,8 +148,22 @@ jobs:
         id: resolve-extensions
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          # Dispatch strings go through env vars, never into Bash source:
+          # interpolation of workflow expressions is code execution.
+          ATTESTATION_ENABLED: ${{ inputs.attestation_extension }}
+          ATTESTATION_VERSION: ${{ inputs.attestation_extension_version }}
+          AUTOBOOTSTRAP_ENABLED: ${{ inputs.autobootstrap_extension }}
+          AUTOBOOTSTRAP_VERSION: ${{ inputs.autobootstrap_extension_version }}
+          NVIDIA_TOOLKIT_ENABLED: ${{ inputs.nvidia_container_toolkit_production_extension }}
+          NVIDIA_TOOLKIT_VERSION: ${{ inputs.nvidia_container_toolkit_production_extension_version }}
+          NVIDIA_KERNEL_ENABLED: ${{ inputs.nvidia_open_gpu_kernel_modules_production_extension }}
+          NVIDIA_KERNEL_VERSION: ${{ inputs.nvidia_open_gpu_kernel_modules_production_extension_version }}
+          QEMU_GA_VERSION: ${{ inputs.qemu_guest_agent_extension_version }}
+          EXTRA_EXTENSIONS: ${{ inputs.extra_extensions }}
+          PLATFORMS_INPUT: ${{ inputs.platforms || 'all' }}
+          TALOS_VERSION: ${{ steps.resolve-inputs.outputs.talos_version }}
         run: |
-          ARGS=(--talos-version "${{ steps.resolve-inputs.outputs.talos_version }}")
+          ARGS=(--talos-version "${TALOS_VERSION}")
 
           # Toggle-to-spec mapping: each flag adds its spec only when the
           # toggle is on; an override rides along in the spec when set.
@@ -157,36 +176,31 @@ jobs:
             ARGS+=("${spec_flag}" "${spec}${override:+ ${override}}")
           }
 
-          add_toggle \
-            "${{ inputs.attestation_extension }}" \
+          add_toggle "${ATTESTATION_ENABLED}" \
             --github-release-extension \
             "kommodity-io/kommodity-attestation-extension ghcr.io/kommodity-io/kommodity-attestation-extension" \
-            "${{ inputs.attestation_extension_version }}"
-          add_toggle \
-            "${{ inputs.autobootstrap_extension }}" \
+            "${ATTESTATION_VERSION}"
+          add_toggle "${AUTOBOOTSTRAP_ENABLED}" \
             --github-release-extension \
             "kommodity-io/kommodity-autobootstrap-extension ghcr.io/kommodity-io/kommodity-autobootstrap-extension" \
-            "${{ inputs.autobootstrap_extension_version }}"
-          add_toggle \
-            "${{ inputs.nvidia_container_toolkit_production_extension }}" \
+            "${AUTOBOOTSTRAP_VERSION}"
+          add_toggle "${NVIDIA_TOOLKIT_ENABLED}" \
             --catalog-extension \
             "ghcr.io/siderolabs/nvidia-container-toolkit-production" \
-            "${{ inputs.nvidia_container_toolkit_production_extension_version }}"
-          add_toggle \
-            "${{ inputs.nvidia_open_gpu_kernel_modules_production_extension }}" \
+            "${NVIDIA_TOOLKIT_VERSION}"
+          add_toggle "${NVIDIA_KERNEL_ENABLED}" \
             --catalog-extension \
             "ghcr.io/siderolabs/nvidia-open-gpu-kernel-modules-production" \
-            "${{ inputs.nvidia_open_gpu_kernel_modules_production_extension_version }}"
+            "${NVIDIA_KERNEL_VERSION}"
 
           # qemu-guest-agent is required only by the openstack image; skip its
           # catalog lookup entirely when openstack is not part of the build.
-          PLATFORMS="${{ inputs.platforms || 'all' }}"
-          if [[ "${PLATFORMS}" == "all" || "${PLATFORMS}," == *openstack,* ]]; then
-            ARGS+=(--catalog-extension-version-only "ghcr.io/siderolabs/qemu-guest-agent ${{ inputs.qemu_guest_agent_extension_version }}")
+          if [[ "${PLATFORMS_INPUT}" == "all" || "${PLATFORMS_INPUT}," == *openstack,* ]]; then
+            ARGS+=(--catalog-extension-version-only "ghcr.io/siderolabs/qemu-guest-agent ${QEMU_GA_VERSION}")
           fi
 
-          if [[ -n "${{ inputs.extra_extensions }}" ]]; then
-            IFS=',' read -ra EXTRA_REFS <<< "${{ inputs.extra_extensions }}"
+          if [[ -n "${EXTRA_EXTENSIONS}" ]]; then
+            IFS=',' read -ra EXTRA_REFS <<< "${EXTRA_EXTENSIONS}"
             for ref in "${EXTRA_REFS[@]}"; do
               ref="$(echo "${ref}" | xargs)"
               [[ -n "${ref}" ]] && ARGS+=(--extra-extension "${ref}")
@@ -197,8 +211,10 @@ jobs:
 
       - name: Set build matrix
         id: set-matrix
+        env:
+          PLATFORMS_INPUT: ${{ inputs.platforms || 'all' }}
         run: |
-          PLATFORMS="${{ inputs.platforms || 'all' }}"
+          PLATFORMS="${PLATFORMS_INPUT}"
 
           # Define all available platforms with their configuration
           ALL_PLATFORMS='[
