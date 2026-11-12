@@ -29,15 +29,12 @@ spec:
         "taints" $np.taints
         "labels" $np.labels
         "annotations" $np.annotations
-        "version" (default $.Values.talos.version (dig "talos" "version" "" $np))
         "isControlPlane" false
         "logLevel" $.Values.kommodity.logLevel
         "docKinds" ($.Files.Get "files/talos-doc-kinds.yaml" | fromYaml)
-      ) | trimSuffix "\n" -}}
+      ) | trim -}}
       {{- $hetznerPrivate := and (eq $.Values.kommodity.provider.name "Hetzner") (not $.Values.kommodity.network.ipv4.public) }}
-      {{- /* Built-in ResolverConfig skipped when user sets one — Talos rejects two */ -}}
-      {{- $userResolverConfig := or (dig "ResolverConfig" false (default (dict) $.Values.kommodity.global.machineConfig)) (dig "ResolverConfig" false (default (dict) $np.machineConfig)) -}}
-      {{- $hetznerNameservers := ternary (dig "nameservers" (list) $.Values.kommodity.network) (list) (and (eq $.Values.kommodity.provider.name "Hetzner") (not $userResolverConfig)) }}
+      {{- $hetznerNameservers := include "kommodity-cluster.hetznerResolverNameservers" (dict "poolValues" $np "allValues" $.Values) | fromJsonArray -}}
       {{- $kmsEndpoint := "" -}}
       {{- if $.Values.kommodity.kms.enabled }}{{- $kmsEndpoint = $.Values.kommodity.kms.endpoint -}}{{- end -}}
       {{- $additionalVolumesPatch := include "kommodity.talos.additionalVolumes" (dict "additionalVolumes" $np.additionalVolumes "kmsEndpoint" $kmsEndpoint) | trim -}}

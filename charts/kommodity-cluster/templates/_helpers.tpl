@@ -278,6 +278,28 @@ Any values that should trigger a new Machine template when changed should be add
 {{- end -}}
 
 {{/*
+kommodity-cluster.hetznerResolverNameservers — Hetzner built-in ResolverConfig
+skip logic, shared by controlplane and worker templates. Returns the network
+nameservers on Hetzner when no user-supplied ResolverConfig exists (Talos
+rejects two ResolverConfig documents in one config), else an empty list.
+*/}}
+{{- define "kommodity-cluster.hetznerResolverNameservers" -}}
+{{- $globalPatches := default (dict) (dig "global" "machineConfig" (dict) .allValues.kommodity) -}}
+{{- $poolPatches := default (dict) (dig "machineConfig" (dict) .poolValues) -}}
+{{- $userResolverConfig := or (dig "ResolverConfig" false $globalPatches) (dig "ResolverConfig" false $poolPatches) -}}
+{{- ternary (dig "nameservers" (list) .allValues.kommodity.network) (list) (and (eq .allValues.kommodity.provider.name "Hetzner") (not $userResolverConfig)) | toJson -}}
+{{- end -}}
+
+{{/*
+kommodity-cluster.docListItem — render one machine-config document as a
+strategicPatches "- |" list item.
+*/}}
+{{- define "kommodity-cluster.docListItem" -}}
+- |
+{{ printf "%s\n" (.doc | toYaml | indent 2) }}
+{{- end -}}
+
+{{/*
 Build merged machine config for strategicPatches (Talos v1.14 multi-doc kinds).
 Each returned block is one YAML document as a "- |" list item. Returns empty
 string if nothing to emit.
@@ -414,8 +436,7 @@ labels/annotations/taints) are seeded first, then user patches overlay them
 {{- if $emit -}}
 {{- $doc := dict "apiVersion" "v1alpha1" "kind" $kind -}}
 {{- $_ := mustMergeOverwrite $doc (deepCopy $seeded) -}}
-- |
-{{ printf "%s\n" ($doc | toYaml | indent 2) }}
+{{ include "kommodity-cluster.docListItem" (dict "doc" $doc) }}
 {{- end -}}
 {{- end -}}
 {{- /* Named kinds: one document per map entry, name from the map key,
@@ -426,8 +447,7 @@ labels/annotations/taints) are seeded first, then user patches overlay them
 {{- /* Null body (e.g. `btrfs:` with no fields) contributes nothing
      beyond the name; render it as an empty dict. */ -}}
 {{- $_ := mustMergeOverwrite $doc (deepCopy (default dict (index (index $namedDocs $kind) $name))) -}}
-- |
-{{ printf "%s\n" ($doc | toYaml | indent 2) }}
+{{ include "kommodity-cluster.docListItem" (dict "doc" $doc) }}
 {{- end -}}
 {{- end -}}
 {{- /* Singleton kinds: one document per kind, no name, envelope injected,
@@ -435,12 +455,10 @@ labels/annotations/taints) are seeded first, then user patches overlay them
 {{- range $kind := keys $singletonDocs | sortAlpha -}}
 {{- $doc := dict "apiVersion" "v1alpha1" "kind" $kind -}}
 {{- $_ := mustMergeOverwrite $doc (deepCopy (index $singletonDocs $kind)) -}}
-- |
-{{ printf "%s\n" ($doc | toYaml | indent 2) }}
+{{ include "kommodity-cluster.docListItem" (dict "doc" $doc) }}
 {{- end -}}
 {{- if gt (len (keys $merged)) 0 -}}
-- |
-{{ printf "%s\n" ($merged | toYaml | indent 2) }}
+{{ include "kommodity-cluster.docListItem" (dict "doc" $merged) }}
 {{- end -}}
 {{- /* extraDocuments: raw multi-doc YAML appended verbatim. Split on
      document separators (--- plus optional comment, trailing whitespace,
