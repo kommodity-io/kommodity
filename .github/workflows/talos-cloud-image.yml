@@ -6,9 +6,10 @@ on:
   workflow_dispatch:
     inputs:
       talos_version:
-        description: "Talos version (e.g., v1.14.5)"
-        required: false
+        description: "Talos version"
+        required: true
         type: string
+        default: "v1.14.6"
       platforms:
         description: "Platforms to build"
         required: false
