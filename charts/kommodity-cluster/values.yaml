@@ -309,9 +309,9 @@ kommodity:
     #     SysctlConfig:             # singleton kind: plain dict
     #       sysctls:
     #         fs.file-max: "131072"
-    #     machine:                   # v1alpha1 fragment escape hatch
-    #       install:
-    #         extraKernelArgs: ["talos.experimental.cgroups=v2"]
+    #     cluster:                  # v1alpha1 fragment escape hatch
+    #       externalCloudProvider:
+    #         enabled: true
     machineConfig: {}
 
   controlplane:
