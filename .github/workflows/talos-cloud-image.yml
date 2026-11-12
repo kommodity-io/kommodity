@@ -26,47 +26,47 @@ on:
         default: true
         type: boolean
       attestation_extension:
-        description: "Enable kommodity-attestation-extension; version defaults to its latest GitHub release"
+        description: "kommodity-attestation-extension (defaults to latest release)"
         required: false
         default: true
         type: boolean
       attestation_extension_version:
-        description: "Override the discovered kommodity-attestation-extension version (ignored when attestation_extension is false)"
+        description: "Override kommodity-attestation-extension version"
         required: false
         type: string
       autobootstrap_extension:
-        description: "Enable kommodity-autobootstrap-extension; version defaults to its latest GitHub release"
+        description: "kommodity-autobootstrap-extension (defaults to latest release)"
         required: false
         default: true
         type: boolean
       autobootstrap_extension_version:
-        description: "Override the discovered kommodity-autobootstrap-extension version (ignored when autobootstrap_extension is false)"
+        description: "Override kommodity-autobootstrap-extension version"
         required: false
         type: string
       nvidia_container_toolkit_production_extension:
-        description: "Enable nvidia-container-toolkit-production; version resolved from the Talos extensions catalog for the requested Talos version"
+        description: "nvidia-container-toolkit-production (defaults to Talos extensions catalog)"
         required: false
         default: false
         type: boolean
       nvidia_container_toolkit_production_extension_version:
-        description: "Override the discovered nvidia-container-toolkit-production version (ignored when its toggle is false)"
+        description: "Override vidia-container-toolkit-production version"
         required: false
         type: string
       nvidia_open_gpu_kernel_modules_production_extension:
-        description: "Enable nvidia-open-gpu-kernel-modules-production; version resolved from the Talos extensions catalog for the requested Talos version"
+        description: "nvidia-open-gpu-kernel-modules-production (defaults to Talos extensions catalog)"
         required: false
         default: false
         type: boolean
       nvidia_open_gpu_kernel_modules_production_extension_version:
-        description: "Override the discovered nvidia-open-gpu-kernel-modules-production version (ignored when its toggle is false)"
+        description: "Override nvidia-open-gpu-kernel-modules-production version"
         required: false
         type: string
       qemu_guest_agent_extension_version:
-        description: "Override the qemu-guest-agent version (auto-added for the openstack image; default resolved from the Talos extensions catalog)"
+        description: "Override qemu-guest-agent version (for openstack image; defaults to Talos extensions catalog)"
         required: false
         type: string
       extra_extensions:
-        description: "Comma-separated extra extension image refs, each with a required tag (e.g. ghcr.io/siderolabs/tailscale:v1.16.3)"
+        description: "CSV extra extension image refs (e.g. ghcr.io/siderolabs/tailscale:v1.16.3)"
         required: false
         type: string
       extra_kernel_args:
