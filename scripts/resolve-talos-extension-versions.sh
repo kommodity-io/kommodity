@@ -1,42 +1,41 @@
 #!/usr/bin/env bash
 #
-# Resolve extension image versions for the talos-cloud-image workflow.
+# Resolve Talos extension image versions from their discovery sources.
 #
-# Kommodity extensions (attestation, autobootstrap): latest GitHub release tag
-# of the respective extension repository (release tag equals image tag).
-# Siderolabs extensions (qemu-guest-agent, NVIDIA production): the tag pinned
-# for the requested Talos version in the official Talos extensions catalog
-# (ghcr.io/siderolabs/extensions:<talos_version>), same source the Talos Image
-# Factory uses.
+# Discovery sources:
+#   github-release: latest release tag of a GitHub repository (release tag
+#                   equals image tag; used for the Kommodity extensions).
+#   catalog:        the tag pinned for the requested Talos version in the
+#                   official Talos extensions catalog
+#                   (ghcr.io/siderolabs/extensions:<talos_version>), the same
+#                   source the Talos Image Factory uses.
+#
+# Extension specs are passed as arguments: the script knows no specific
+# extension, callers decide which extensions exist and how they toggle.
 #
 # Output (GITHUB_OUTPUT when set, stdout otherwise):
-#   extensions:      comma-separated full image refs (empty when no extension enabled)
-#   qemu_ga_version: qemu-guest-agent version (used by the openstack image only)
+#   extensions: comma-separated full image refs of every list extension
+#   versions:   "<image-basename>=<version>" line per resolved extension,
+#               including version-only ones and extras
 #
 # When GITHUB_STEP_SUMMARY is set, a markdown table describing per-extension
 # version resolution is appended to it.
 #
 # Usage:
 #   resolve-talos-extension-versions.sh \
-#     --talos-version v1.14.5 \
-#     [--attestation <bool|override>] \
-#     [--autobootstrap <bool|override>] \
-#     [--nvidia-container-toolkit-production <bool|override>] \
-#     [--nvidia-open-gpu-kernel-modules-production <bool|override>] \
-#     [--qemu-guest-agent <override>] \
-#     [--extra-extension <full-image-ref:tag>] ...   (repeatable)
+#     --talos-version <version> \
+#     [--github-release-extension "<owner/repo> <image> [<version-override>]"] \
+#     [--catalog-extension "<image> [<version-override>]"] \
+#     [--catalog-extension-version-only "<image> [<version-override>]"] \
+#     [--extra-extension "<full-image-ref-with-tag>"] ...
+#
+# "version-only" catalog extensions are resolved and reported but excluded
+# from the extensions list; callers read their version from the versions map.
 
 set -euo pipefail
 
 GITHUB_API="https://api.github.com"
 CATALOG_REF_PREFIX="ghcr.io/siderolabs/extensions:"
-ATTESTATION_REPO="kommodity-io/kommodity-attestation-extension"
-ATTESTATION_IMAGE="ghcr.io/kommodity-io/kommodity-attestation-extension"
-AUTOBOOTSTRAP_REPO="kommodity-io/kommodity-autobootstrap-extension"
-AUTOBOOTSTRAP_IMAGE="ghcr.io/kommodity-io/kommodity-autobootstrap-extension"
-QEMU_GA_IMAGE="ghcr.io/siderolabs/qemu-guest-agent"
-NVIDIA_TOOLKIT_IMAGE="ghcr.io/siderolabs/nvidia-container-toolkit-production"
-NVIDIA_OPEN_KERNEL_IMAGE="ghcr.io/siderolabs/nvidia-open-gpu-kernel-modules-production"
 
 error() {
   echo "::error::${*}" >&2
@@ -46,77 +45,6 @@ usage() {
   grep '^#' "$0" | sed 's/^# \{0,1\}//' >&2
   exit 1
 }
-
-# Parse "<bool>|<version-override>": toggles accept true/false or an explicit
-# version string that implies true.
-parse_toggle() {
-  local value="$1"
-  if [[ "${value}" == "true" || "${value}" == "false" ]]; then
-    echo "${value}|"
-    return
-  fi
-  echo "true|${value}"
-}
-
-talos_version=""
-attestation=""
-autobootstrap=""
-nvidia_toolkit=""
-nvidia_open_kernel=""
-qemu_ga=""
-qemu_ga_requested="false"
-extra_extensions=()
-
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --talos-version)
-      talos_version="$2"
-      shift 2
-      ;;
-    --attestation)
-      attestation="$(parse_toggle "$2")"
-      shift 2
-      ;;
-    --autobootstrap)
-      autobootstrap="$(parse_toggle "$2")"
-      shift 2
-      ;;
-    --nvidia-container-toolkit-production)
-      nvidia_toolkit="$(parse_toggle "$2")"
-      shift 2
-      ;;
-    --nvidia-open-gpu-kernel-modules-production)
-      nvidia_open_kernel="$(parse_toggle "$2")"
-      shift 2
-      ;;
-    --qemu-guest-agent)
-      qemu_ga="$2"
-      qemu_ga_requested="true"
-      shift 2
-      ;;
-    --extra-extension)
-      extra_extensions+=("$2")
-      shift 2
-      ;;
-    *)
-      usage
-      ;;
-  esac
-done
-
-[[ -n "${talos_version}" ]] || { error "--talos-version is required"; exit 1; }
-
-if [[ ! "${talos_version}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
-  error "invalid --talos-version '${talos_version}', expected semver (e.g., v1.14.5)"
-  exit 1
-fi
-
-github_token="${GITHUB_TOKEN:-$(gh auth token 2>/dev/null || true)}"
-
-api_headers=()
-if [[ -n "${github_token}" ]]; then
-  api_headers=(-H "Authorization: Bearer ${github_token}")
-fi
 
 # Latest release tag of a GitHub repository, or fail loudly.
 latest_release() {
@@ -180,6 +108,13 @@ fetch_catalog() {
   return 1
 }
 
+catalog=""
+need_catalog() {
+  if [[ -z "${catalog}" ]]; then
+    catalog=$(fetch_catalog)
+  fi
+}
+
 # Tag pinned in the catalog for a Siderolabs extension, or fail loudly listing
 # what the catalog actually offers for this Talos version.
 catalog_version() {
@@ -198,88 +133,124 @@ catalog_version() {
   echo "${ref##*:}"
 }
 
-catalog=""
-need_catalog() {
-  if [[ -z "${catalog}" ]]; then
-    catalog=$(fetch_catalog)
-  fi
-}
+talos_version=""
+github_specs=()
+catalog_specs=()
+catalog_version_only_specs=()
+extra_refs=()
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --talos-version)
+      talos_version="$2"
+      shift 2
+      ;;
+    --github-release-extension)
+      github_specs+=("$2")
+      shift 2
+      ;;
+    --catalog-extension)
+      catalog_specs+=("$2")
+      shift 2
+      ;;
+    --catalog-extension-version-only)
+      catalog_version_only_specs+=("$2")
+      shift 2
+      ;;
+    --extra-extension)
+      extra_refs+=("$2")
+      shift 2
+      ;;
+    *)
+      usage
+      ;;
+  esac
+done
+
+[[ -n "${talos_version}" ]] || { error "--talos-version is required"; exit 1; }
+
+if [[ ! "${talos_version}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
+  error "invalid --talos-version '${talos_version}', expected semver (e.g., v1.14.5)"
+  exit 1
+fi
+
+github_token="${GITHUB_TOKEN:-$(gh auth token 2>/dev/null || true)}"
+
+api_headers=()
+if [[ -n "${github_token}" ]]; then
+  api_headers=(-H "Authorization: Bearer ${github_token}")
+fi
 
 refs=()
+version_lines=()
 summary_lines=()
 
-# Add an extension ref to the output list and record how its version was set.
-add_extension() {
+# add_resolved <image> <version> <version-source> <in-list: true|false>
+add_resolved() {
   local image="$1"
   local version="$2"
   local source="$3"
+  local in_list="$4"
 
-  refs+=("${image}:${version}")
+  if [[ "${in_list}" == "true" ]]; then
+    refs+=("${image}:${version}")
+  fi
+  version_lines+=("$(basename "${image%%@*}")=${version}")
   summary_lines+=("| \`${image}\` | \`${version}\` | ${source} |")
 }
 
-resolve_kommodity_extension() {
-  local enabled="$1"
-  local override="$2"
-  local repo="$3"
-  local image="$4"
+# Resolve a "<image> [<override>]" spec against a discovery function; the
+# override short-circuits discovery. Sources: 'github-release' specs carry a
+# repository as their first word, catalog specs do not.
+resolve_spec() {
+  local spec="$1"
+  local discover="$2"
+  local in_list="$3"
+  local source_label="$4"
 
-  [[ "${enabled}" == "true" ]] || return 0
+  local repo image override version
+  if [[ "${discover}" == "discover_github" ]]; then
+    read -r repo image override <<<"${spec}"
+  else
+    repo=""
+    read -r image override <<<"${spec}"
+  fi
+  if [[ -z "${image}" ]]; then
+    error "invalid extension spec '${spec}'"
+    exit 1
+  fi
 
   if [[ -n "${override}" ]]; then
-    add_extension "${image}" "${override}" "explicit override"
+    add_resolved "${image}" "${override}" "explicit override" "${in_list}"
     return 0
   fi
 
-  local version
-  version=$(latest_release "${repo}")
-  add_extension "${image}" "${version}" "latest GitHub release of ${repo}"
+  version=$("${discover}" "${repo}" "${image}")
+  add_resolved "${image}" "${version}" "${source_label}" "${in_list}"
 }
 
-resolve_catalog_extension() {
-  local enabled="$1"
-  local override="$2"
-  local image="$3"
-
-  [[ "${enabled}" == "true" ]] || return 0
-
-  if [[ -n "${override}" ]]; then
-    add_extension "${image}" "${override}" "explicit override"
-    return 0
-  fi
-
-  need_catalog
-
-  local version
-  version=$(catalog_version "${image}" "${catalog}")
-  add_extension "${image}" "${version}" "Talos extensions catalog for ${talos_version}"
+discover_github() {
+  latest_release "$1"
 }
 
-IFS='|' read -r attestation_enabled attestation_override <<<"${attestation:-false|}"
-IFS='|' read -r autobootstrap_enabled autobootstrap_override <<<"${autobootstrap:-false|}"
-IFS='|' read -r toolkit_enabled toolkit_override <<<"${nvidia_toolkit:-false|}"
-IFS='|' read -r kernel_enabled kernel_override <<<"${nvidia_open_kernel:-false|}"
-
-resolve_kommodity_extension "${attestation_enabled}" "${attestation_override}" "${ATTESTATION_REPO}" "${ATTESTATION_IMAGE}"
-resolve_kommodity_extension "${autobootstrap_enabled}" "${autobootstrap_override}" "${AUTOBOOTSTRAP_REPO}" "${AUTOBOOTSTRAP_IMAGE}"
-resolve_catalog_extension "${toolkit_enabled}" "${toolkit_override}" "${NVIDIA_TOOLKIT_IMAGE}" nvidia-container-toolkit-production
-resolve_catalog_extension "${kernel_enabled}" "${kernel_override}" "${NVIDIA_OPEN_KERNEL_IMAGE}" nvidia-open-gpu-kernel-modules-production
-
-qemu_ga_version=""
-if [[ -n "${qemu_ga}" ]]; then
-  qemu_ga_version="${qemu_ga}"
-  qemu_ga_source="explicit override"
-elif [[ "${qemu_ga_requested}" == "true" ]]; then
+discover_catalog() {
   need_catalog
-  qemu_ga_version=$(catalog_version "${QEMU_GA_IMAGE}" "${catalog}")
-  qemu_ga_source="Talos extensions catalog for ${talos_version}"
-fi
-if [[ -n "${qemu_ga_version}" ]]; then
-  summary_lines+=("| \`${QEMU_GA_IMAGE}\` | \`${qemu_ga_version}\` | ${qemu_ga_source} (required for the openstack image) |")
-fi
+  catalog_version "$2" "${catalog}"
+}
 
+for spec in ${github_specs[@]+"${github_specs[@]}"}; do
+  resolve_spec "${spec}" discover_github true "latest GitHub release"
+done
 
-for extra in ${extra_extensions[@]+"${extra_extensions[@]}"}; do
+for spec in ${catalog_specs[@]+"${catalog_specs[@]}"}; do
+  resolve_spec "${spec}" discover_catalog true "Talos extensions catalog for ${talos_version}"
+done
+
+for spec in ${catalog_version_only_specs[@]+"${catalog_version_only_specs[@]}"}; do
+  resolve_spec "${spec}" discover_catalog false "Talos extensions catalog for ${talos_version}"
+done
+
+for extra in ${extra_refs[@]+"${extra_refs[@]}"}; do
   # Full image refs must carry a tag: last path segment needs ':<tag>'.
   if [[ "$(basename "${extra%%@*}")" != *:* ]]; then
     error "extra extension '${extra}' has no tag; use a full image ref with a tag (e.g., ghcr.io/siderolabs/my-extension:v1.0.0)"
@@ -288,14 +259,19 @@ for extra in ${extra_extensions[@]+"${extra_extensions[@]}"}; do
   refs+=("${extra}")
   extra_image="${extra%:*}"
   extra_tag="${extra##*:}"
+  version_lines+=("$(basename "${extra_image%%@*}")=${extra_tag}")
   summary_lines+=("| \`${extra_image}\` | \`${extra_tag}\` | extra extension input |")
 done
-
 
 extensions=$(
   IFS=,
   echo "${refs[*]:-}"
 )
+
+versions=""
+if [[ ${#version_lines[@]} -gt 0 ]]; then
+  versions=$(printf '%s\n' "${version_lines[@]}")
+fi
 
 summary="| Extension image | Version | Version source |\n|---|---|---|\n"
 if [[ ${#summary_lines[@]} -gt 0 ]]; then
@@ -317,10 +293,14 @@ fi
 if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
   {
     echo "extensions=${extensions}"
-    echo "qemu_ga_version=${qemu_ga_version}"
+    echo "versions<<EOF"
+    echo "${versions}"
+    echo "EOF"
   } >> "${GITHUB_OUTPUT}"
 else
   echo "extensions=${extensions}"
-  echo "qemu_ga_version=${qemu_ga_version}"
+  echo "versions<<EOF"
+  echo "${versions}"
+  echo "EOF"
   printf '%b\n' "${summary}"
 fi

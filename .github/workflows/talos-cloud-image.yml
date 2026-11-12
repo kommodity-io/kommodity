@@ -91,7 +91,7 @@ jobs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
       talos_version: ${{ steps.resolve-inputs.outputs.talos_version }}
       extensions: ${{ steps.resolve-extensions.outputs.extensions }}
-      qemu_ga_version: ${{ steps.resolve-extensions.outputs.qemu_ga_version }}
+      versions: ${{ steps.resolve-extensions.outputs.versions }}
       push: ${{ steps.resolve-inputs.outputs.push }}
       extra_kernel_args: ${{ steps.resolve-inputs.outputs.extra_kernel_args }}
     steps:
@@ -144,31 +144,56 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          EXTRA_ARGS=()
+          ARGS=(--talos-version "${{ steps.resolve-inputs.outputs.talos_version }}")
+
+          # Toggle-to-spec mapping: each flag adds its spec only when the
+          # toggle is on; an override rides along in the spec when set.
+          add_toggle() {
+            local enabled="$1"
+            local spec_flag="$2"
+            local spec="$3"
+            local override="$4"
+            [[ "${enabled}" == "true" ]] || return 0
+            ARGS+=("${spec_flag}" "${spec}${override:+ ${override}}")
+          }
+
+          add_toggle \
+            "${{ inputs.attestation_extension }}" \
+            --github-release-extension \
+            "kommodity-io/kommodity-attestation-extension ghcr.io/kommodity-io/kommodity-attestation-extension" \
+            "${{ inputs.attestation_extension_version }}"
+          add_toggle \
+            "${{ inputs.autobootstrap_extension }}" \
+            --github-release-extension \
+            "kommodity-io/kommodity-autobootstrap-extension ghcr.io/kommodity-io/kommodity-autobootstrap-extension" \
+            "${{ inputs.autobootstrap_extension_version }}"
+          add_toggle \
+            "${{ inputs.nvidia_container_toolkit_production_extension }}" \
+            --catalog-extension \
+            "ghcr.io/siderolabs/nvidia-container-toolkit-production" \
+            "${{ inputs.nvidia_container_toolkit_production_extension_version }}"
+          add_toggle \
+            "${{ inputs.nvidia_open_gpu_kernel_modules_production_extension }}" \
+            --catalog-extension \
+            "ghcr.io/siderolabs/nvidia-open-gpu-kernel-modules-production" \
+            "${{ inputs.nvidia_open_gpu_kernel_modules_production_extension_version }}"
+
+          # qemu-guest-agent is required only by the openstack image; skip its
+          # catalog lookup entirely when openstack is not part of the build.
+          PLATFORMS="${{ inputs.platforms || 'all' }}"
+          if [[ "${PLATFORMS}" == "all" || "${PLATFORMS}," == *openstack,* ]]; then
+            ARGS+=(--catalog-extension-version-only "ghcr.io/siderolabs/qemu-guest-agent ${{ inputs.qemu_guest_agent_extension_version }}")
+          fi
+
           if [[ -n "${{ inputs.extra_extensions }}" ]]; then
             IFS=',' read -ra EXTRA_REFS <<< "${{ inputs.extra_extensions }}"
             for ref in "${EXTRA_REFS[@]}"; do
               ref="$(echo "${ref}" | xargs)"
-              [[ -n "${ref}" ]] && EXTRA_ARGS+=(--extra-extension "${ref}")
+              [[ -n "${ref}" ]] && ARGS+=(--extra-extension "${ref}")
             done
           fi
 
-          # qemu-guest-agent is required only by the openstack image; skip its
-          # catalog lookup entirely when openstack is not part of the build.
-          QEMU_GA_ARGS=()
-          PLATFORMS="${{ inputs.platforms || 'all' }}"
-          if [[ "${PLATFORMS}" == "all" || "${PLATFORMS}," == *openstack,* ]]; then
-            QEMU_GA_ARGS=(--qemu-guest-agent "${{ inputs.qemu_guest_agent_extension_version }}")
-          fi
-
-          ./scripts/resolve-talos-extension-versions.sh \
-            --talos-version "${{ steps.resolve-inputs.outputs.talos_version }}" \
-            --attestation "${{ inputs.attestation_extension && inputs.attestation_extension_version || inputs.attestation_extension }}" \
-            --autobootstrap "${{ inputs.autobootstrap_extension && inputs.autobootstrap_extension_version || inputs.autobootstrap_extension }}" \
-            --nvidia-container-toolkit-production "${{ inputs.nvidia_container_toolkit_production_extension && inputs.nvidia_container_toolkit_production_extension_version || inputs.nvidia_container_toolkit_production_extension }}" \
-            --nvidia-open-gpu-kernel-modules-production "${{ inputs.nvidia_open_gpu_kernel_modules_production_extension && inputs.nvidia_open_gpu_kernel_modules_production_extension_version || inputs.nvidia_open_gpu_kernel_modules_production_extension }}" \
-            "${QEMU_GA_ARGS[@]}" \
-            "${EXTRA_ARGS[@]}"
+          ./scripts/resolve-talos-extension-versions.sh "${ARGS[@]}"
 
       - name: Set build matrix
         id: set-matrix
@@ -249,7 +274,7 @@ jobs:
       ARTIFACT_TYPE: ${{ matrix.artifact_type }}
       NEEDS_CONVERSION: ${{ matrix.needs_conversion }}
       REQUIRED_EXTENSION_IMAGES: ${{ matrix.required_extension_images }}
-      QEMU_GA_VERSION: ${{ needs.setup.outputs.qemu_ga_version }}
+      VERSIONS: ${{ needs.setup.outputs.versions }}
       PUBLISH_CONTAINERDISK: ${{ matrix.publish_containerdisk }}
       EXTRA_KERNEL_ARGS: ${{ needs.setup.outputs.extra_kernel_args }}
     steps:
@@ -295,7 +320,12 @@ jobs:
             REQUIRED_EXTENSIONS=""
             IFS=',' read -ra REQUIRED_ARRAY <<< "${REQUIRED_EXTENSION_IMAGES}"
             for image in "${REQUIRED_ARRAY[@]}"; do
-              REQUIRED_EXTENSIONS="${REQUIRED_EXTENSIONS:+${REQUIRED_EXTENSIONS},}${image}:${QEMU_GA_VERSION}"
+              version=$(grep -F "$(basename "${image}")=" <<<"${VERSIONS}" | head -n1 | cut -d= -f2)
+              [[ -n "${version}" ]] || {
+                echo "::error::no resolved version for required extension ${image}"
+                exit 1
+              }
+              REQUIRED_EXTENSIONS="${REQUIRED_EXTENSIONS:+${REQUIRED_EXTENSIONS},}${image}:${version}"
             done
             if [[ -n "${ALL_EXTENSIONS}" ]]; then
               ALL_EXTENSIONS="${ALL_EXTENSIONS},${REQUIRED_EXTENSIONS}"
