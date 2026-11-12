@@ -6,11 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       talos_version:
-        description: "Talos version (e.g., v1.14.2)"
-        required: false
-        type: string
-      extensions:
-        description: "Comma-separated list of extension images ('none' for no extensions, empty for defaults)"
+        description: "Talos version (e.g., v1.14.5)"
         required: false
         type: string
       platforms:
@@ -29,20 +25,49 @@ on:
         required: false
         default: true
         type: boolean
+      attestation_extension:
+        description: "Enable kommodity-attestation-extension; version defaults to its latest GitHub release"
+        required: false
+        default: true
+        type: boolean
       attestation_extension_version:
-        description: "Version of kommodity-attestation-extension"
-        required: true
-        default: "v1.1.2"
+        description: "Override the discovered kommodity-attestation-extension version (ignored when attestation_extension is false)"
+        required: false
         type: string
+      autobootstrap_extension:
+        description: "Enable kommodity-autobootstrap-extension; version defaults to its latest GitHub release"
+        required: false
+        default: true
+        type: boolean
       autobootstrap_extension_version:
-        description: "Version of kommodity-autobootstrap-extension"
-        required: true
-        default: "v1.6.4"
+        description: "Override the discovered kommodity-autobootstrap-extension version (ignored when autobootstrap_extension is false)"
+        required: false
         type: string
-      qemu_ga_version:
-        description: "Version of qemu-guest-agent extension (required for openstack image only)"
-        required: true
-        default: "10.2.2"
+      nvidia_container_toolkit_production_extension:
+        description: "Enable nvidia-container-toolkit-production; version resolved from the Talos extensions catalog for the requested Talos version"
+        required: false
+        default: false
+        type: boolean
+      nvidia_container_toolkit_production_extension_version:
+        description: "Override the discovered nvidia-container-toolkit-production version (ignored when its toggle is false)"
+        required: false
+        type: string
+      nvidia_open_gpu_kernel_modules_production_extension:
+        description: "Enable nvidia-open-gpu-kernel-modules-production; version resolved from the Talos extensions catalog for the requested Talos version"
+        required: false
+        default: false
+        type: boolean
+      nvidia_open_gpu_kernel_modules_production_extension_version:
+        description: "Override the discovered nvidia-open-gpu-kernel-modules-production version (ignored when its toggle is false)"
+        required: false
+        type: string
+      qemu_guest_agent_extension_version:
+        description: "Override the qemu-guest-agent version (auto-added for the openstack image; default resolved from the Talos extensions catalog)"
+        required: false
+        type: string
+      extra_extensions:
+        description: "Comma-separated extra extension image refs, each with a required tag (e.g. ghcr.io/siderolabs/tailscale:v1.16.3)"
+        required: false
         type: string
       extra_kernel_args:
         description: "Extra kernel args passed to imager (space-separated, e.g. 'console=ttyS0 net.ifnames=0')"
@@ -57,7 +82,6 @@ env:
   REGISTRY: ghcr.io/kommodity-io
   # Default values for inputs
   DEFAULT_TALOS_VERSION: "v1.14.2"
-  DEFAULT_EXTENSIONS: "ghcr.io/kommodity-io/kommodity-attestation-extension:${{ inputs.attestation_extension_version }},ghcr.io/kommodity-io/kommodity-autobootstrap-extension:${{ inputs.autobootstrap_extension_version }}"
 
 jobs:
   setup:
@@ -66,26 +90,18 @@ jobs:
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
       talos_version: ${{ steps.resolve-inputs.outputs.talos_version }}
-      extensions: ${{ steps.resolve-inputs.outputs.extensions }}
+      extensions: ${{ steps.resolve-extensions.outputs.extensions }}
+      qemu_ga_version: ${{ steps.resolve-extensions.outputs.qemu_ga_version }}
       push: ${{ steps.resolve-inputs.outputs.push }}
       extra_kernel_args: ${{ steps.resolve-inputs.outputs.extra_kernel_args }}
     steps:
       - name: Resolve inputs with defaults
         id: resolve-inputs
         run: |
-          echo "talos_version=${{ inputs.talos_version || env.DEFAULT_TALOS_VERSION }}" >> "$GITHUB_OUTPUT"
-
-          # Handle extensions: 'none' means no extensions, empty means use defaults
-          EXTENSIONS_INPUT="${{ inputs.extensions }}"
-          if [[ "${EXTENSIONS_INPUT}" == "none" ]]; then
-            echo "extensions=" >> "$GITHUB_OUTPUT"
-          elif [[ -z "${EXTENSIONS_INPUT}" ]]; then
-            echo "extensions=${DEFAULT_EXTENSIONS}" >> "$GITHUB_OUTPUT"
-          else
-            echo "extensions=${EXTENSIONS_INPUT}" >> "$GITHUB_OUTPUT"
-          fi
-
-          echo "push=${{ inputs.push == '' && 'true' || inputs.push }}" >> "$GITHUB_OUTPUT"
+          {
+            echo "talos_version=${{ inputs.talos_version || env.DEFAULT_TALOS_VERSION }}"
+            echo "push=${{ inputs.push == '' && 'true' || inputs.push }}"
+          } >> "$GITHUB_OUTPUT"
 
           {
             echo "extra_kernel_args<<EOF"
@@ -111,6 +127,48 @@ jobs:
             echo "::error::Invalid talos_version format. Expected semver (e.g., v1.14.2)"
             exit 1
           fi
+
+      - name: Check out repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+
+      - name: Install oras
+        run: |
+          ORAS_VERSION="1.2.0"
+          curl -LO "https://github.com/oras-project/oras/releases/download/v${ORAS_VERSION}/oras_${ORAS_VERSION}_linux_amd64.tar.gz"
+          tar -xzf "oras_${ORAS_VERSION}_linux_amd64.tar.gz"
+          sudo mv oras /usr/local/bin/
+          oras version
+
+      - name: Resolve extension versions
+        id: resolve-extensions
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          EXTRA_ARGS=()
+          if [[ -n "${{ inputs.extra_extensions }}" ]]; then
+            IFS=',' read -ra EXTRA_REFS <<< "${{ inputs.extra_extensions }}"
+            for ref in "${EXTRA_REFS[@]}"; do
+              ref="$(echo "${ref}" | xargs)"
+              [[ -n "${ref}" ]] && EXTRA_ARGS+=(--extra-extension "${ref}")
+            done
+          fi
+
+          # qemu-guest-agent is required only by the openstack image; skip its
+          # catalog lookup entirely when openstack is not part of the build.
+          QEMU_GA_ARGS=()
+          PLATFORMS="${{ inputs.platforms || 'all' }}"
+          if [[ "${PLATFORMS}" == "all" || "${PLATFORMS}," == *openstack,* ]]; then
+            QEMU_GA_ARGS=(--qemu-guest-agent "${{ inputs.qemu_guest_agent_extension_version }}")
+          fi
+
+          ./scripts/resolve-talos-extension-versions.sh \
+            --talos-version "${{ steps.resolve-inputs.outputs.talos_version }}" \
+            --attestation "${{ inputs.attestation_extension && inputs.attestation_extension_version || inputs.attestation_extension }}" \
+            --autobootstrap "${{ inputs.autobootstrap_extension && inputs.autobootstrap_extension_version || inputs.autobootstrap_extension }}" \
+            --nvidia-container-toolkit-production "${{ inputs.nvidia_container_toolkit_production_extension && inputs.nvidia_container_toolkit_production_extension_version || inputs.nvidia_container_toolkit_production_extension }}" \
+            --nvidia-open-gpu-kernel-modules-production "${{ inputs.nvidia_open_gpu_kernel_modules_production_extension && inputs.nvidia_open_gpu_kernel_modules_production_extension_version || inputs.nvidia_open_gpu_kernel_modules_production_extension }}" \
+            "${QEMU_GA_ARGS[@]}" \
+            "${EXTRA_ARGS[@]}"
 
       - name: Set build matrix
         id: set-matrix
@@ -142,7 +200,7 @@ jobs:
               "final_extension": "qcow2",
               "artifact_type": "application/vnd.talos.openstack.image",
               "needs_conversion": "true",
-              "required_extensions": "ghcr.io/siderolabs/qemu-guest-agent:${{ inputs.qemu_ga_version }}",
+              "required_extension_images": "ghcr.io/siderolabs/qemu-guest-agent",
               "publish_containerdisk": "true"
             },
             {
@@ -190,7 +248,8 @@ jobs:
       FINAL_EXTENSION: ${{ matrix.final_extension }}
       ARTIFACT_TYPE: ${{ matrix.artifact_type }}
       NEEDS_CONVERSION: ${{ matrix.needs_conversion }}
-      REQUIRED_EXTENSIONS: ${{ matrix.required_extensions }}
+      REQUIRED_EXTENSION_IMAGES: ${{ matrix.required_extension_images }}
+      QEMU_GA_VERSION: ${{ needs.setup.outputs.qemu_ga_version }}
       PUBLISH_CONTAINERDISK: ${{ matrix.publish_containerdisk }}
       EXTRA_KERNEL_ARGS: ${{ needs.setup.outputs.extra_kernel_args }}
     steps:
@@ -230,9 +289,14 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Merge user-provided extensions with platform-required extensions
+          # Merge resolved extensions with platform-required extension images
           ALL_EXTENSIONS="${EXTENSIONS}"
-          if [[ -n "${REQUIRED_EXTENSIONS}" ]]; then
+          if [[ -n "${REQUIRED_EXTENSION_IMAGES}" ]]; then
+            REQUIRED_EXTENSIONS=""
+            IFS=',' read -ra REQUIRED_ARRAY <<< "${REQUIRED_EXTENSION_IMAGES}"
+            for image in "${REQUIRED_ARRAY[@]}"; do
+              REQUIRED_EXTENSIONS="${REQUIRED_EXTENSIONS:+${REQUIRED_EXTENSIONS},}${image}:${QEMU_GA_VERSION}"
+            done
             if [[ -n "${ALL_EXTENSIONS}" ]]; then
               ALL_EXTENSIONS="${ALL_EXTENSIONS},${REQUIRED_EXTENSIONS}"
             else
