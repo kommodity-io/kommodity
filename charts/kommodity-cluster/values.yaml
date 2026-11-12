@@ -272,11 +272,12 @@ kommodity:
   global:
     # Configurations applied to all nodepools and controlplanes in the cluster
     # Talos v1.14 machine configuration (https://docs.siderolabs.com/talos/v1.14/getting-started/what's-new-in-talos#kubernetes-multi-document-configuration).
-    # Top-level keys are Talos document kinds, dispatched three ways (see
-    # below). Special-cased built-ins keep their seeded behavior:
-    # EnvironmentConfig (dict with variables; kommodity.logLevel is added as
-    # LOG_LEVEL), KubeletConfig, KubeAPIServerConfig, KubeAuthenticationConfig,
-    # KubeNodeConfig, KubeFlannelCNIConfig, KubeProxyConfig.
+    # Seeded built-ins keep their built-in behavior: EnvironmentConfig
+    # (kommodity.logLevel is added as LOG_LEVEL), KubeNodeConfig (pool
+    # labels/annotations/taints), KubeAuthenticationConfig (OIDC + anonymous
+    # policy), KubeFlannelCNIConfig/KubeProxyConfig (disable documents).
+    # User-supplied document kinds are never control-plane-gated: the chart
+    # renders them on workers too and Talos validates at apply time.
     # machineConfig entries are dispatched three ways, based on the kind
     # classification generated from Talos's published schema for the chart's
     # appVersion (files/talos-doc-kinds.yaml):

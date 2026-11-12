@@ -113,13 +113,13 @@ tests:
       - hasDocuments:
           count: 1
       - matchRegex:
-          path: spec.template.spec.strategicPatches[2]
+          path: spec.template.spec.strategicPatches[0]
           pattern: "GLOBAL_VAR: global-value"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[2]
+          path: spec.template.spec.strategicPatches[0]
           pattern: "NODEPOOL_VAR: nodepool-value"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[2]
+          path: spec.template.spec.strategicPatches[0]
           pattern: "LOG_LEVEL: warn"
 
   - it: should let nodepool patches override global patches for same key
@@ -139,10 +139,10 @@ tests:
       - hasDocuments:
           count: 1
       - matchRegex:
-          path: spec.template.spec.strategicPatches[2]
+          path: spec.template.spec.strategicPatches[0]
           pattern: "SHARED_VAR: nodepool-value"
       - notMatchRegex:
-          path: spec.template.spec.strategicPatches[2]
+          path: spec.template.spec.strategicPatches[0]
           pattern: "SHARED_VAR: global-value"
 
   - it: should merge KubeletConfig doc and v1alpha1 fragment from disjoint sources
@@ -162,7 +162,7 @@ tests:
       - hasDocuments:
           count: 1
       - matchRegex:
-          path: spec.template.spec.strategicPatches[0]
+          path: spec.template.spec.strategicPatches[2]
           pattern: "cloud-provider: external"
       - matchRegex:
           path: spec.template.spec.strategicPatches[3]
@@ -237,7 +237,7 @@ tests:
       - hasDocuments:
           count: 1
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[0]
           pattern: "CP_VAR: cp-value"
 
   - it: should merge global and controlplane machineConfig patches
@@ -255,10 +255,10 @@ tests:
       - hasDocuments:
           count: 1
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[0]
           pattern: "GLOBAL_VAR: global-value"
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[0]
           pattern: "CP_VAR: cp-value"
 
   # Taints tests
@@ -979,10 +979,10 @@ tests:
             max-pods: "200"
     asserts:
       - matchRegex:
-          path: spec.template.spec.strategicPatches[0]
+          path: spec.template.spec.strategicPatches[2]
           pattern: "kind: KubeletConfig"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[0]
+          path: spec.template.spec.strategicPatches[2]
           pattern: "max-pods: \"200\""
 
   - it: should pass KubeletConfig fields through verbatim
@@ -994,13 +994,13 @@ tests:
             maxPods: 200
     asserts:
       - matchRegex:
-          path: spec.template.spec.strategicPatches[0]
+          path: spec.template.spec.strategicPatches[2]
           pattern: "kind: KubeletConfig"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[0]
+          path: spec.template.spec.strategicPatches[2]
           pattern: "config:"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[0]
+          path: spec.template.spec.strategicPatches[2]
           pattern: "maxPods: 200"
 
   - it: should disable CNI as KubeFlannelCNIConfig $patch delete on control planes
@@ -1072,10 +1072,13 @@ tests:
           path: spec.controlPlaneConfig.controlplane.strategicPatches[0]
           pattern: "KubeFlannelCNIConfig"
       - notMatchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[0]
+          pattern: "KubeProxyConfig"
+      - notMatchRegex:
           path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
           pattern: "KubeProxyConfig"
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[0]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
           pattern: "kind: KubeletConfig"
 
   - it: should preserve proxy disable when user patches KubeProxyConfig extraArgs
@@ -1102,13 +1105,13 @@ tests:
             feature-gates: SomeFeature=true
     asserts:
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
           pattern: "kind: KubeAPIServerConfig"
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
           pattern: "feature-gates: SomeFeature=true"
 
-  - it: should not emit KubeAPIServerConfig on workers
+  - it: should emit user KubeAPIServerConfig on workers ungated
     template: templates/talos/configtemplate.yaml
     set:
       kommodity.global.machineConfig:
@@ -1117,17 +1120,14 @@ tests:
             feature-gates: SomeFeature=true
     asserts:
       - matchRegex:
-          path: spec.template.spec.strategicPatches[0]
-          pattern: "kind: KubeletConfig"
-      - notMatchRegex:
-          path: spec.template.spec.strategicPatches[0]
-          pattern: "KubeAPIServerConfig"
-      - notMatchRegex:
-          path: spec.template.spec.strategicPatches[1]
-          pattern: "KubeAPIServerConfig"
-      - notMatchRegex:
           path: spec.template.spec.strategicPatches[2]
-          pattern: "KubeAPIServerConfig"
+          pattern: "kind: KubeAPIServerConfig"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[2]
+          pattern: "feature-gates: SomeFeature=true"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "kind: KubeletConfig"
 
   - it: should emit OIDC as KubeAuthenticationConfig document on control planes
     template: templates/talos/controlplane.yaml
@@ -1368,13 +1368,13 @@ tests:
               $patch: delete
     asserts:
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[2]
           pattern: "kind: KubeNodeConfig"
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[2]
           pattern: "node-role.kubernetes.io/control-plane"
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[3]
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[2]
           pattern: "\\$patch: delete"
 
   # EnvironmentConfig tests
@@ -1387,20 +1387,20 @@ tests:
             MY_VAR: my-value
     asserts:
       - matchRegex:
-          path: spec.template.spec.strategicPatches[2]
+          path: spec.template.spec.strategicPatches[0]
           pattern: "kind: EnvironmentConfig"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[2]
+          path: spec.template.spec.strategicPatches[0]
           pattern: "MY_VAR: my-value"
 
   - it: should emit LOG_LEVEL as EnvironmentConfig from kommodity.logLevel
     template: templates/talos/configtemplate.yaml
     asserts:
       - matchRegex:
-          path: spec.template.spec.strategicPatches[2]
+          path: spec.template.spec.strategicPatches[0]
           pattern: "kind: EnvironmentConfig"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[2]
+          path: spec.template.spec.strategicPatches[0]
           pattern: "LOG_LEVEL: warn"
 
   - it: should emit LOG_LEVEL from kommodity.logLevel not v1alpha1 machine.env
@@ -1409,10 +1409,10 @@ tests:
       kommodity.logLevel: debug
     asserts:
       - matchRegex:
-          path: spec.template.spec.strategicPatches[2]
+          path: spec.template.spec.strategicPatches[0]
           pattern: "kind: EnvironmentConfig"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[2]
+          path: spec.template.spec.strategicPatches[0]
           pattern: "LOG_LEVEL: debug"
 
   - it: should merge user env vars and LOG_LEVEL into EnvironmentConfig
@@ -1428,16 +1428,16 @@ tests:
             NODEPOOL_VAR: nodepool-value
     asserts:
       - matchRegex:
-          path: spec.template.spec.strategicPatches[2]
+          path: spec.template.spec.strategicPatches[0]
           pattern: "kind: EnvironmentConfig"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[2]
+          path: spec.template.spec.strategicPatches[0]
           pattern: "GLOBAL_VAR: global-value"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[2]
+          path: spec.template.spec.strategicPatches[0]
           pattern: "NODEPOOL_VAR: nodepool-value"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[2]
+          path: spec.template.spec.strategicPatches[0]
           pattern: "LOG_LEVEL: warn"
 
   - it: should not emit EnvironmentConfig when no env vars and no logLevel
@@ -1466,16 +1466,16 @@ tests:
           vfio_pci:
     asserts:
       - matchRegex:
-          path: spec.template.spec.strategicPatches[3]
+          path: spec.template.spec.strategicPatches[2]
           pattern: "kind: KernelModuleConfig"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[3]
+          path: spec.template.spec.strategicPatches[2]
           pattern: "name: nvidia"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[4]
+          path: spec.template.spec.strategicPatches[3]
           pattern: "kind: KernelModuleConfig"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[4]
+          path: spec.template.spec.strategicPatches[3]
           pattern: "name: vfio_pci"
 
   - it: should emit KernelModuleConfig with parameters list
@@ -1488,13 +1488,13 @@ tests:
               - nvidia.noa=1
     asserts:
       - matchRegex:
-          path: spec.template.spec.strategicPatches[3]
+          path: spec.template.spec.strategicPatches[2]
           pattern: "kind: KernelModuleConfig"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[3]
+          path: spec.template.spec.strategicPatches[2]
           pattern: "name: nvidia"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[3]
+          path: spec.template.spec.strategicPatches[2]
           pattern: "- nvidia.noa=1"
 
   - it: should not emit KernelModuleConfig when map empty
@@ -1524,22 +1524,22 @@ tests:
             content: cri-content-2
     asserts:
       - matchRegex:
-          path: spec.template.spec.strategicPatches[3]
+          path: spec.template.spec.strategicPatches[2]
           pattern: "kind: CRICustomizationConfig"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[3]
+          path: spec.template.spec.strategicPatches[2]
           pattern: "name: custom-cri-1"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[3]
+          path: spec.template.spec.strategicPatches[2]
           pattern: "content: cri-content-1"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[4]
+          path: spec.template.spec.strategicPatches[3]
           pattern: "kind: CRICustomizationConfig"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[4]
+          path: spec.template.spec.strategicPatches[3]
           pattern: "name: custom-cri-2"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[4]
+          path: spec.template.spec.strategicPatches[3]
           pattern: "content: cri-content-2"
 
   - it: should not emit CRICustomizationConfig when map empty
@@ -1680,22 +1680,22 @@ tests:
             skipFallback: true
     asserts:
       - matchRegex:
-          path: spec.template.spec.strategicPatches[3]
+          path: spec.template.spec.strategicPatches[2]
           pattern: "kind: RegistryMirrorConfig"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[3]
+          path: spec.template.spec.strategicPatches[2]
           pattern: "name: docker.io"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[3]
+          path: spec.template.spec.strategicPatches[2]
           pattern: "url: https://mirror.local:5000"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[4]
+          path: spec.template.spec.strategicPatches[3]
           pattern: "kind: RegistryMirrorConfig"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[4]
+          path: spec.template.spec.strategicPatches[3]
           pattern: "name: registry.k8s.io"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[4]
+          path: spec.template.spec.strategicPatches[3]
           pattern: "skipFallback: true"
 
   - it: should not emit RegistryMirrorConfig when map empty
@@ -1728,25 +1728,25 @@ tests:
     asserts:
       # Entries emitted sorted by name: gcr.example.com before my-private-registry
       - matchRegex:
-          path: spec.template.spec.strategicPatches[3]
+          path: spec.template.spec.strategicPatches[2]
           pattern: "kind: RegistryAuthConfig"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[3]
+          path: spec.template.spec.strategicPatches[2]
           pattern: "name: gcr\\.example\\.com"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[3]
+          path: spec.template.spec.strategicPatches[2]
           pattern: "identityToken: my-token"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[4]
+          path: spec.template.spec.strategicPatches[3]
           pattern: "kind: RegistryAuthConfig"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[4]
+          path: spec.template.spec.strategicPatches[3]
           pattern: "name: my-private-registry\\.local:5000"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[4]
+          path: spec.template.spec.strategicPatches[3]
           pattern: "username: my-username"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[4]
+          path: spec.template.spec.strategicPatches[3]
           pattern: "password: my-password"
 
   - it: should not emit RegistryAuthConfig when map empty
@@ -1780,19 +1780,19 @@ tests:
               -----END CERTIFICATE-----
     asserts:
       - matchRegex:
-          path: spec.template.spec.strategicPatches[3]
+          path: spec.template.spec.strategicPatches[2]
           pattern: "kind: RegistryTLSConfig"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[3]
+          path: spec.template.spec.strategicPatches[2]
           pattern: "name: my-private-registry.local:5000"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[3]
+          path: spec.template.spec.strategicPatches[2]
           pattern: "insecureSkipVerify: true"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[4]
+          path: spec.template.spec.strategicPatches[3]
           pattern: "kind: RegistryTLSConfig"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[4]
+          path: spec.template.spec.strategicPatches[3]
           pattern: "BEGIN CERTIFICATE"
 
   - it: should not emit RegistryTLSConfig when map empty
@@ -1876,22 +1876,22 @@ tests:
               - url: https://nodepool-mirror.local:5000
     asserts:
       - matchRegex:
-          path: spec.template.spec.strategicPatches[3]
+          path: spec.template.spec.strategicPatches[2]
           pattern: "kind: RegistryMirrorConfig"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[3]
+          path: spec.template.spec.strategicPatches[2]
           pattern: "url: https://nodepool-mirror.local:5000"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[4]
+          path: spec.template.spec.strategicPatches[3]
           pattern: "kind: RegistryMirrorConfig"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[4]
+          path: spec.template.spec.strategicPatches[3]
           pattern: "name: registry.k8s.io"
       - notMatchRegex:
-          path: spec.template.spec.strategicPatches[3]
+          path: spec.template.spec.strategicPatches[2]
           pattern: "global-mirror"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[4]
+          path: spec.template.spec.strategicPatches[3]
           pattern: "url: https://global-mirror.local:5001"
 
   - it: should emit RegistryAuthConfig auth and RegistryTLSConfig clientIdentity fields
@@ -1914,19 +1914,19 @@ tests:
                 -----END PRIVATE KEY-----
     asserts:
       - matchRegex:
-          path: spec.template.spec.strategicPatches[3]
+          path: spec.template.spec.strategicPatches[2]
           pattern: "kind: RegistryAuthConfig"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[3]
+          path: spec.template.spec.strategicPatches[2]
           pattern: "auth: dXNlcjpwYXNz"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[4]
+          path: spec.template.spec.strategicPatches[3]
           pattern: "kind: RegistryTLSConfig"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[4]
+          path: spec.template.spec.strategicPatches[3]
           pattern: "BEGIN CERTIFICATE"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[4]
+          path: spec.template.spec.strategicPatches[3]
           pattern: "BEGIN PRIVATE KEY"
 
   - it: should fail when named-kind entry body name does not match map key
@@ -1979,13 +1979,13 @@ tests:
             contents: hello world
     asserts:
       - matchRegex:
-          path: spec.template.spec.strategicPatches[3]
+          path: spec.template.spec.strategicPatches[2]
           pattern: "kind: EtcFileConfig"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[3]
+          path: spec.template.spec.strategicPatches[2]
           pattern: "name: motd"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[3]
+          path: spec.template.spec.strategicPatches[2]
           pattern: "contents: hello world"
 
   - it: should emit a schema-derived singleton kind (SysctlConfig) with injected envelope

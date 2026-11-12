@@ -177,9 +177,6 @@ Create the name of the service account to use
 {{/*
 Compute sha256sum of parameters givens to the TalosConfigTemplate.
 Any values that should trigger a new Talos config template when changed should be added to the hash computation.
-Workers never receive control-plane-only documents (KubeAPIServerConfig,
-KubeAuthenticationConfig) — they are dropped from the hash so changing only
-these does not roll every worker's bootstrap configRef.
 */}}
 {{- define "kommodity-cluster.talosConfigHash" -}}
 {{- $data := dict -}}
@@ -187,14 +184,11 @@ these does not roll every worker's bootstrap configRef.
      dict would replace per-name map entries wholesale, silently dropping
      global entries (e.g. KernelModuleConfig modules, registry hosts) the
      renderer retains — a change to those would then not roll the workers. */ -}}
-{{- /* Workers never receive control-plane-only documents (KubeAPIServerConfig,
-     KubeAuthenticationConfig) — dropped so changing only these does not roll
-     every worker's bootstrap configRef. */ -}}
 {{- if and .allValues.kommodity.global.machineConfig (gt (len .allValues.kommodity.global.machineConfig) 0) -}}
-{{- $_ := set $data "globalMachineConfig" (omit (deepCopy .allValues.kommodity.global.machineConfig) "KubeAPIServerConfig" "KubeAuthenticationConfig") -}}
+{{- $_ := set $data "globalMachineConfig" (deepCopy .allValues.kommodity.global.machineConfig) -}}
 {{- end -}}
 {{- if and .poolValues.machineConfig (gt (len .poolValues.machineConfig) 0) -}}
-{{- $_ := set $data "poolMachineConfig" (omit (deepCopy .poolValues.machineConfig) "KubeAPIServerConfig" "KubeAuthenticationConfig") -}}
+{{- $_ := set $data "poolMachineConfig" (deepCopy .poolValues.machineConfig) -}}
 {{- end -}}
 {{- /* logLevel feeds LOG_LEVEL into every worker EnvironmentConfig */ -}}
 {{- $_ := set $data "logLevel" (default "" (index (index .allValues "kommodity") "logLevel")) -}}
@@ -303,12 +297,13 @@ generate-talos-doc-kinds`):
   - anything else (machine, cluster, ...): v1alpha1 strategic patch fragment,
     emitted verbatim as escape hatch for fields with no document kind yet.
 
-The special-cased built-in kinds (KubeletConfig, KubeAPIServerConfig,
-KubeAuthenticationConfig, KubeNodeConfig, EnvironmentConfig,
-KubeFlannelCNIConfig, KubeProxyConfig) keep their earlier positions in the
-dispatch chain — their seeding/merge semantics (LOG_LEVEL, disable documents,
-OIDC, pool labels/taints) must not be entangled with the generated
-classification. extraDocuments is a raw multi-doc YAML string split on --- and
+Built-in documents (EnvironmentConfig LOG_LEVEL, KubeNodeConfig pool
+labels/annotations/taints, KubeAuthenticationConfig OIDC + anonymous policy,
+KubeFlannelCNIConfig/KubeProxyConfig disable documents) are seeded, then user
+patches overlay them. Seeded control-plane-only documents (auth, CNI/proxy
+disable) emit on control planes only; user-supplied keys of any kind are
+never gated — the chart renders them on workers too and Talos validates at
+apply time. extraDocuments is a raw multi-doc YAML string split on --- and
 appended verbatim.
 
 Precedence: built-in settings (LOG_LEVEL from kommodity.logLevel, CNI/proxy
@@ -317,17 +312,9 @@ labels/annotations/taints) are seeded first, then user patches overlay them
 (nodepool wins over global).
 */}}
 {{- define "kommodity-cluster.mergedMachineConfig" -}}
-{{- /* EnvironmentConfig: LOG_LEVEL from kommodity.logLevel seeded first,
-     user EnvironmentConfig.variables override it */ -}}
+{{- /* Seeded built-in documents; emission rule at the seededDocs loop below. */ -}}
 {{- $envConfig := dict -}}
 {{- if .logLevel -}}{{- $_ := set $envConfig "variables" (dict "LOG_LEVEL" .logLevel) -}}{{- end -}}
-{{- /* v1alpha1 fragment: built-in fields first, user patches override them */ -}}
-{{- $merged := dict -}}
-{{- /* KubeFlannelCNIConfig/KubeProxyConfig: cluster.network.cni and cluster.proxy
-     are deprecated v1alpha1 paths in Talos v1.14; disabling is document-level:
-     delete the auto-generated flannel doc, set enabled: false on kube-proxy.
-     Control-plane only: worker configs are generated separately and never
-     received these settings before either. */ -}}
 {{- $flannelConfig := dict -}}
 {{- if .disableCNI -}}
 {{- $_ := set $flannelConfig "$patch" "delete" -}}
@@ -336,8 +323,6 @@ labels/annotations/taints) are seeded first, then user patches overlay them
 {{- if .disableProxy -}}
 {{- $_ := set $proxyConfig "enabled" false -}}
 {{- end -}}
-
-{{- /* KubeNodeConfig: pool-level labels/annotations/taints first, user patches override */ -}}
 {{- $nodeConfig := dict -}}
 {{- if and .labels (gt (len .labels) 0) -}}
 {{- $_ := mustMergeOverwrite $nodeConfig (dict "labels" (deepCopy .labels)) -}}
@@ -348,9 +333,6 @@ labels/annotations/taints) are seeded first, then user patches overlay them
 {{- if and .taints (gt (len .taints) 0) -}}
 {{- $_ := mustMergeOverwrite $nodeConfig (dict "taints" (deepCopy .taints)) -}}
 {{- end -}}
-
-{{- /* KubeAuthenticationConfig: Talos v1.14 rejects oidc and anonymous-auth
-     args in KubeAPIServerConfig.extraArgs; auth is structured configuration */ -}}
 {{- $authConfig := dict -}}
 {{- if and .oidc .oidc.enabled -}}
 {{- $_ := mustMergeOverwrite $authConfig (include "kommodity-cluster.oidcAuthenticationConfig" (dict "oidc" .oidc) | fromYaml) -}}
@@ -359,9 +341,8 @@ labels/annotations/taints) are seeded first, then user patches overlay them
      to anonymous on all paths. User patches override below. */ -}}
 {{- $_ := mustMergeOverwrite $authConfig (dict "configuration" (dict "anonymous" (dict "enabled" true "conditions" (list (dict "path" "/livez") (dict "path" "/readyz") (dict "path" "/healthz"))))) -}}
 {{- end -}}
-{{- $apiServerConfig := dict -}}
+{{- $merged := dict -}}
 
-{{- $kubeletConfig := dict -}}
 {{- /* docKinds: generated kind classification (namedKinds/singletonKinds),
      loaded by the caller from files/talos-doc-kinds.yaml. Named kinds are
      maps keyed by the document "name": one document per entry, nodepool
@@ -374,25 +355,19 @@ labels/annotations/taints) are seeded first, then user patches overlay them
 {{- $namedDocs := dict -}}
 {{- $singletonDocs := dict -}}
 {{- $extraDocs := "" -}}
+{{- /* Seeded singletons by kind, tracked separately so user-supplied keys
+     can be emitted ungated on workers. */ -}}
+{{- $seededDocs := dict "EnvironmentConfig" $envConfig "KubeFlannelCNIConfig" $flannelConfig "KubeProxyConfig" $proxyConfig "KubeNodeConfig" $nodeConfig "KubeAuthenticationConfig" $authConfig -}}
+{{- /* Keys the user supplied in any machineConfig (global or nodepool) */ -}}
+{{- $userKeys := dict -}}
 {{- /* Overlay user patches: global first, nodepool last (wins on conflicts) */ -}}
 {{- range $patches := list .globalPatches .nodepoolPatches -}}
 {{- if and $patches (gt (len $patches) 0) -}}
 {{- range $key := keys $patches -}}
+{{- $_ := set $userKeys $key true -}}
 {{- $value := deepCopy (index $patches $key) -}}
-{{- if eq $key "KubeletConfig" -}}
-{{- $_ := mustMergeOverwrite $kubeletConfig $value -}}
-{{- else if eq $key "KubeAPIServerConfig" -}}
-{{- $_ := mustMergeOverwrite $apiServerConfig $value -}}
-{{- else if eq $key "KubeAuthenticationConfig" -}}
-{{- $_ := mustMergeOverwrite $authConfig $value -}}
-{{- else if eq $key "KubeFlannelCNIConfig" -}}
-{{- $_ := mustMergeOverwrite $flannelConfig $value -}}
-{{- else if eq $key "KubeProxyConfig" -}}
-{{- $_ := mustMergeOverwrite $proxyConfig $value -}}
-{{- else if eq $key "KubeNodeConfig" -}}
-{{- $_ := mustMergeOverwrite $nodeConfig $value -}}
-{{- else if eq $key "EnvironmentConfig" -}}
-{{- $_ := mustMergeOverwrite $envConfig $value -}}
+{{- if hasKey $seededDocs $key -}}
+{{- $_ := mustMergeOverwrite (index $seededDocs $key) $value -}}
 {{- else if hasKey $namedKinds $key -}}
 {{- if not (kindIs "map" $value) -}}
 {{- fail (printf "machineConfig.%s must be a map keyed by document name, got %s" $key (kindOf $value)) -}}
@@ -426,52 +401,22 @@ labels/annotations/taints) are seeded first, then user patches overlay them
 {{- end -}}
 {{- end -}}
 
-{{- if gt (len (keys $kubeletConfig)) 0 -}}
-{{- $doc := dict "apiVersion" "v1alpha1" "kind" "KubeletConfig" -}}
-{{- $_ := mustMergeOverwrite $doc $kubeletConfig -}}
+{{- /* Worker-safe seeded kinds (EnvironmentConfig LOG_LEVEL, KubeNodeConfig
+     pool labels/taints) are valid on worker configs: seeded content emits
+     everywhere. The remaining seeded kinds are control-plane-only: user
+     keys emit everywhere (Talos validates at apply time), seeded-only
+     content on control planes only. */ -}}
+{{- $workerSafeSeededKinds := dict "EnvironmentConfig" true "KubeNodeConfig" true -}}
+{{- range $kind := keys $seededDocs | sortAlpha -}}
+{{- $seeded := index $seededDocs $kind -}}
+{{- $isUserKey := hasKey $userKeys $kind -}}
+{{- $emit := or $isUserKey (and (or (hasKey $workerSafeSeededKinds $kind) $.isControlPlane) (gt (len (keys $seeded)) 0)) -}}
+{{- if $emit -}}
+{{- $doc := dict "apiVersion" "v1alpha1" "kind" $kind -}}
+{{- $_ := mustMergeOverwrite $doc (deepCopy $seeded) -}}
 - |
 {{ printf "%s\n" ($doc | toYaml | indent 2) }}
 {{- end -}}
-{{- /* Control-plane-only document: Talos rejects it on workers */ -}}
-{{- if and .isControlPlane (gt (len (keys $apiServerConfig)) 0) -}}
-{{- $doc := dict "apiVersion" "v1alpha1" "kind" "KubeAPIServerConfig" -}}
-{{- $_ := mustMergeOverwrite $doc $apiServerConfig -}}
-- |
-{{ printf "%s\n" ($doc | toYaml | indent 2) }}
-{{- end -}}
-{{- /* Control-plane-only document: Talos rejects it on workers */ -}}
-{{- if and .isControlPlane (gt (len (keys $authConfig)) 0) -}}
-{{- $doc := dict "apiVersion" "v1alpha1" "kind" "KubeAuthenticationConfig" -}}
-{{- $_ := mustMergeOverwrite $doc $authConfig -}}
-- |
-{{ printf "%s\n" ($doc | toYaml | indent 2) }}
-{{- end -}}
-{{- /* Control-plane-only document: Talos rejects it on workers */ -}}
-{{- if and .isControlPlane (gt (len (keys $flannelConfig)) 0) -}}
-{{- $doc := dict "apiVersion" "v1alpha1" "kind" "KubeFlannelCNIConfig" -}}
-{{- $_ := mustMergeOverwrite $doc $flannelConfig -}}
-- |
-{{ printf "%s\n" ($doc | toYaml | indent 2) }}
-{{- end -}}
-{{- /* Control-plane-only document: Talos rejects it on workers */ -}}
-{{- if and .isControlPlane (gt (len (keys $proxyConfig)) 0) -}}
-{{- $doc := dict "apiVersion" "v1alpha1" "kind" "KubeProxyConfig" -}}
-{{- $_ := mustMergeOverwrite $doc $proxyConfig -}}
-- |
-{{ printf "%s\n" ($doc | toYaml | indent 2) }}
-{{- end -}}
-{{- if gt (len (keys $nodeConfig)) 0 -}}
-{{- $doc := dict "apiVersion" "v1alpha1" "kind" "KubeNodeConfig" -}}
-{{- $_ := mustMergeOverwrite $doc $nodeConfig -}}
-- |
-{{ printf "%s\n" ($doc | toYaml | indent 2) }}
-{{- end -}}
-{{- /* EnvironmentConfig: variables dict, LOG_LEVEL seeded from kommodity.logLevel */ -}}
-{{- $envVars := deepCopy (default (dict) (dig "variables" (dict) $envConfig)) -}}
-{{- if gt (len $envVars) 0 -}}
-{{- $doc := dict "apiVersion" "v1alpha1" "kind" "EnvironmentConfig" "variables" $envVars -}}
-- |
-{{ printf "%s\n" ($doc | toYaml | indent 2) }}
 {{- end -}}
 {{- /* Named kinds: one document per map entry, name from the map key,
      sorted for deterministic output. */ -}}
