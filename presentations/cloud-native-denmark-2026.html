@@ -1,0 +1,1930 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Make Sovereign Cloud Boring - Kommodity · Cloud Native Denmark 2026</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+<style>
+:root {
+  --accent: #b8f818;
+  --accent-dim: #d4fb5e;
+  --blue: #4d65ff;
+  --red: #ef4444;
+  --bg-primary: #ffffff;
+  --bg-secondary: #f2f2f2;
+  --bg-tertiary: #f8f8f8;
+  --bg-dark: #0a0a0a;
+  --bg-dark-secondary: #161616;
+  --bg-dark-tertiary: #1e1e1e;
+  --text-primary: #191919;
+  --text-secondary: #666666;
+  --text-alternate: #fafafa;
+  --border-primary: rgba(0,0,0,0.2);
+  --border-secondary: rgba(0,0,0,0.1);
+  --border-faint: #eeeeee;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-button: 10px;
+  --font-sans: 'Inter', Arial, sans-serif;
+  --font-mono: 'IBM Plex Mono', Arial, sans-serif;
+  --shadow-elev: 0px 16px 16px 0px rgba(17,24,39,0.03), 0px 8px 8px 0px rgba(17,24,39,0.03), 0px 4px 4px 0px rgba(17,24,39,0.03), 0px 2px 2px -2px rgba(17,24,39,0.03), 0px 0px 0px 1px rgba(17,24,39,0.12);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html { scroll-behavior: smooth; }
+
+html, body {
+  font-family: var(--font-sans);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+b, strong { font-weight: 600; }
+
+/* ── Slide System ── */
+
+.deck { width: 100%; }
+
+.slide {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 3.5rem 6rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.slide.is-dark {
+  background: var(--bg-dark);
+  color: var(--text-alternate);
+}
+
+/* ── Nav UI ── */
+
+.nav-bar {
+  position: fixed;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  z-index: 100;
+  background: rgba(255,255,255,0.85);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border-secondary);
+  border-radius: 999px;
+  padding: 0.5rem 1.25rem;
+  box-shadow: var(--shadow-elev);
+  transition: background 0.3s, color 0.3s, border-color 0.3s;
+}
+
+.nav-bar.is-dark {
+  background: rgba(10,10,10,0.85);
+  border-color: rgba(255,255,255,0.1);
+  color: var(--text-alternate);
+}
+
+.nav-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  color: inherit;
+  opacity: 0.5;
+  transition: opacity 0.2s;
+  padding: 0.25rem;
+}
+
+.nav-btn:hover { opacity: 1; }
+.nav-btn:disabled { opacity: 0.2; cursor: default; }
+.nav-btn svg { width: 20px; height: 20px; }
+
+.slide-counter {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  letter-spacing: 0.5px;
+  min-width: 60px;
+  text-align: center;
+}
+
+.slide-dots { display: flex; gap: 6px; }
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.2;
+  transition: opacity 0.3s, width 0.3s;
+  cursor: pointer;
+}
+
+.dot.active { opacity: 1; width: 20px; border-radius: 3px; }
+
+/* ── Shared Components ── */
+
+.tag-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--accent);
+  color: var(--text-primary);
+  padding: 0.375rem 1rem;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  margin-bottom: 1.25rem;
+}
+
+.tag-pill svg { width: 14px; height: 14px; }
+
+.slide-header { margin-bottom: 1.5rem; }
+
+.slide-header h2 {
+  font-size: clamp(28px, 3.5vw, 44px);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.slide-header p {
+  font-size: 18px;
+  color: var(--text-secondary);
+  margin-top: 0.75rem;
+  max-width: 900px;
+}
+
+.slide.is-dark .slide-header p { color: #999; }
+
+.slide-brand {
+  position: absolute;
+  top: 2rem;
+  left: 6rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-secondary);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.slide-brand svg { width: 16px; height: 16px; }
+
+.slide.is-dark .slide-brand { color: #666; }
+
+.keylines-top, .keylines-bottom {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--border-faint);
+}
+
+.keylines-top { top: 0; }
+.keylines-bottom { bottom: 0; }
+
+.slide.is-dark .keylines-top,
+.slide.is-dark .keylines-bottom { background: rgba(255,255,255,0.06); }
+
+/* ── Slide 1: Title ── */
+
+.slide-title {
+  align-items: flex-start;
+  justify-content: center;
+  padding: 4rem 6rem;
+}
+
+.kommodity-logo {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 3rem;
+  color: var(--text-alternate);
+}
+
+.kommodity-lockup { height: 44px; width: auto; display: block; }
+
+.h1 {
+  font-size: clamp(44px, 5.9vw, 84px);
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  margin-bottom: 1.5rem;
+  white-space: nowrap;
+}
+
+.h1 .accent-text { color: var(--accent); }
+
+.subtitle {
+  font-size: clamp(18px, 2vw, 24px);
+  color: var(--text-secondary);
+  max-width: 720px;
+  line-height: 1.5;
+}
+
+.slide.is-dark .subtitle { color: #999; }
+
+.title-meta {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-top: 2rem;
+}
+
+.meta-chip {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.03em;
+  padding: 0.375rem 0.875rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.15);
+  color: #999;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.meta-chip svg { width: 13px; height: 13px; }
+
+/* ── Card grids ── */
+
+.card-grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; max-width: 1100px; }
+.card-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.25rem; max-width: 1150px; }
+
+.feature-card {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  padding: 1.25rem;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-faint);
+  background: var(--bg-tertiary);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.feature-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-elev); }
+
+.slide.is-dark .feature-card {
+  background: var(--bg-dark-secondary);
+  border-color: rgba(255,255,255,0.08);
+}
+
+.feature-icon {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  background: var(--accent);
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.feature-icon svg { width: 20px; height: 20px; stroke-width: 1.75; }
+
+.feature-card h4 { font-size: 15px; font-weight: 600; margin-bottom: 0.25rem; }
+
+.feature-card p { font-size: 13px; color: var(--text-secondary); line-height: 1.5; }
+
+.slide.is-dark .feature-card p { color: #888; }
+
+/* ── Aside callout ── */
+
+.callout-aside {
+  padding: 1.25rem;
+  border-radius: var(--radius-lg);
+  background: var(--bg-secondary);
+  border-left: 3px solid var(--accent);
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.slide.is-dark .callout-aside {
+  background: var(--bg-dark-secondary);
+  color: #999;
+}
+
+.callout-aside strong { color: var(--text-primary); }
+.slide.is-dark .callout-aside strong { color: var(--text-alternate); }
+
+.callout-aside-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  background: var(--accent);
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.75rem;
+}
+
+.callout-aside-icon svg { width: 18px; height: 18px; stroke-width: 1.75; }
+
+.callout-aside-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-primary);
+  margin-bottom: 0.5rem;
+}
+
+.slide.is-dark .callout-aside-label { color: var(--text-alternate); }
+
+/* ── Tier rows ── */
+
+.tier-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  max-width: 1050px;
+}
+
+.tier-row {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  gap: 1.5rem;
+  align-items: stretch;
+  padding: 0.625rem 1.25rem;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-faint);
+  background: var(--bg-tertiary);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.tier-row:hover { transform: translateX(4px); box-shadow: var(--shadow-elev); }
+
+.slide.is-dark .tier-row {
+  background: var(--bg-dark-secondary);
+  border-color: rgba(255,255,255,0.08);
+}
+
+.tier-row.rejected { opacity: 0.75; }
+.tier-row.chosen {
+  border-color: var(--accent);
+  border-width: 2px;
+  padding: calc(0.625rem - 1px) calc(1.25rem - 1px);
+  opacity: 1;
+}
+
+.tier-name { font-size: 16px; font-weight: 700; letter-spacing: -0.01em; }
+
+.tier-type {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  margin-top: 0.25rem;
+}
+
+.slide.is-dark .tier-type { color: #777; }
+
+.tier-right { display: flex; flex-direction: column; gap: 0.25rem; justify-content: center; }
+
+.tier-verdict { font-size: 14px; font-weight: 600; }
+
+.tier-desc { font-size: 13px; color: var(--text-secondary); line-height: 1.5; }
+
+.slide.is-dark .tier-desc { color: #888; }
+
+.tier-star {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+  background: var(--accent);
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  align-self: flex-start;
+  margin-top: 0.375rem;
+}
+
+/* ── Architecture figure ── */
+
+.arch-figure {
+  max-width: 1000px;
+  width: 100%;
+  border: 1px solid var(--border-faint);
+  border-radius: var(--radius-xl);
+  background: var(--bg-primary);
+  padding: 1rem;
+}
+
+.slide.is-dark .arch-figure {
+  background: var(--bg-dark-secondary);
+  border-color: rgba(255,255,255,0.08);
+}
+
+.arch-figure img {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: var(--radius-md);
+}
+
+.figure-caption {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 0.75rem;
+  letter-spacing: 0.03em;
+}
+
+.slide.is-dark .figure-caption { color: #666; }
+
+/* ── Stack layers (API server composition) ── */
+
+.stack-wrap {
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  gap: 3rem;
+  align-items: center;
+  max-width: 1200px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.stack { display: flex; flex-direction: column; gap: 0.5rem; }
+
+.stack-layer {
+  border: 1px solid rgba(255,255,255,0.1);
+  background: var(--bg-dark-secondary);
+  border-radius: var(--radius-lg);
+  padding: 0.875rem 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.stack-layer.accent-layer {
+  border-color: var(--accent);
+  background: rgba(184, 248, 24, 0.06);
+}
+
+.stack-layer-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #777;
+  min-width: 100px;
+}
+
+.stack-layer-title { font-size: 15px; font-weight: 600; }
+
+.stack-layer-sub { font-size: 12px; color: #888; margin-top: 0.125rem; line-height: 1.45; }
+
+.stack-cells {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.5rem;
+  flex: 1;
+}
+
+.stack-cell {
+  background: var(--bg-dark-tertiary);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: var(--radius-md);
+  padding: 0.5rem 0.875rem;
+  font-size: 12.5px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.stack-cell svg { width: 15px; height: 15px; stroke-width: 1.75; flex-shrink: 0; color: var(--accent); }
+
+.stack-cell small { display: block; font-size: 11px; color: #888; font-weight: 400; line-height: 1.35; }
+
+.stack-arrow { align-self: center; color: #555; line-height: 0; }
+
+.stack-arrow svg { width: 18px; height: 18px; }
+
+.stack-copy h3 {
+  font-size: clamp(20px, 2vw, 26px);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  margin-bottom: 1rem;
+}
+
+.stack-copy p {
+  font-size: 14px;
+  color: #999;
+  line-height: 1.6;
+  margin-bottom: 0.75rem;
+}
+
+.stack-copy p strong { color: var(--text-alternate); }
+
+.stack-copy .mono-fact {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--accent);
+  background: rgba(184,248,24,0.08);
+  border: 1px solid rgba(184,248,24,0.25);
+  border-radius: var(--radius-md);
+  padding: 0.5rem 0.875rem;
+  display: inline-block;
+  margin-top: 0.5rem;
+}
+
+/* ── Flow steps ── */
+
+.flow-steps {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0.75rem;
+  max-width: 1150px;
+  margin-bottom: 1rem;
+}
+
+.flow-step {
+  position: relative;
+  border: 1px solid var(--border-faint);
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-lg);
+  padding: 1rem 1.125rem;
+}
+
+.slide.is-dark .flow-step {
+  background: var(--bg-dark-secondary);
+  border-color: rgba(255,255,255,0.08);
+}
+
+.flow-num {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-primary);
+  background: var(--accent);
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.625rem;
+}
+
+.flow-step h4 { font-size: 13.5px; font-weight: 600; margin-bottom: 0.25rem; }
+
+.flow-step p { font-size: 12px; color: var(--text-secondary); line-height: 1.45; }
+
+.slide.is-dark .flow-step p { color: #888; }
+
+.flow-verdict {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  max-width: 1150px;
+}
+
+.verdict-box {
+  border-radius: var(--radius-lg);
+  padding: 0.875rem 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.verdict-box svg { width: 20px; height: 20px; stroke-width: 2; flex-shrink: 0; }
+
+.verdict-box.fail { background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239,68,68,0.35); color: #b91c1c; }
+.verdict-box.pass { background: rgba(184,248,24,0.12); border: 1px solid rgba(184,248,24,0.4); color: #3f6212; }
+
+.verdict-box small { display: block; font-size: 12px; font-weight: 400; color: var(--text-secondary); }
+
+/* ── Measurement chips ── */
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  max-width: 1150px;
+  margin-top: 1rem;
+}
+
+.m-chip {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  padding: 0.3rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid var(--border-faint);
+  background: var(--bg-primary);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.slide.is-dark .m-chip {
+  background: var(--bg-dark-secondary);
+  border-color: rgba(255,255,255,0.1);
+}
+
+.m-chip svg { width: 13px; height: 13px; stroke-width: 1.75; color: var(--text-secondary); }
+
+/* ── Code panel ── */
+
+.code-panel {
+  background: var(--bg-dark);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  max-width: 640px;
+  width: 100%;
+  box-shadow: var(--shadow-elev);
+}
+
+.code-titlebar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1rem;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.02);
+}
+
+.code-dot { width: 10px; height: 10px; border-radius: 50%; }
+.code-dot.r { background: #ff5f57; }
+.code-dot.y { background: #febc2e; }
+.code-dot.g { background: #28c840; }
+
+.code-filename {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: #888;
+  margin-left: 0.5rem;
+  letter-spacing: 0.03em;
+}
+
+.code-panel pre {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.65;
+  padding: 1rem 1.25rem;
+  overflow-x: auto;
+  color: #d4d4d4;
+}
+
+.code-panel .c-key { color: #7ee787; }
+.code-panel .c-str { color: #a5d6ff; }
+.code-panel .c-com { color: #6e7781; }
+.code-panel .c-acc { color: var(--accent); }
+
+/* ── Two-column layout ── */
+
+.two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3rem;
+  align-items: start;
+  max-width: 1200px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+/* ── Key lifecycle (KMS) ── */
+
+.keyflow { display: flex; flex-direction: column; gap: 0.5rem; }
+
+.keyflow-step {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: var(--bg-dark-secondary);
+  border-radius: var(--radius-lg);
+  padding: 0.75rem 1.125rem;
+}
+
+.keyflow-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-md);
+  background: rgba(184,248,24,0.12);
+  border: 1px solid rgba(184,248,24,0.3);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.keyflow-icon svg { width: 16px; height: 16px; stroke-width: 1.75; }
+
+.keyflow-step h5 { font-size: 13.5px; font-weight: 600; }
+
+.keyflow-step p { font-size: 12px; color: #888; line-height: 1.4; }
+
+.keyflow-step .mono-cmd {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--accent);
+}
+
+/* ── Provider chips ── */
+
+.provider-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.625rem;
+  margin: 1.25rem 0;
+}
+
+.provider-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 0.5rem 1rem;
+  border-radius: 999px;
+  border: 1px solid var(--border-primary);
+  background: var(--bg-primary);
+}
+
+.provider-chip svg { width: 15px; height: 15px; stroke-width: 1.75; }
+
+.provider-chip.bare {
+  border-color: var(--accent);
+  border-width: 2px;
+  padding: calc(0.5rem - 1px) calc(1rem - 1px);
+}
+
+/* ── Big statement ── */
+
+.big-statement {
+  font-size: clamp(24px, 3vw, 40px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  max-width: 950px;
+}
+
+.big-statement .highlight {
+  background: linear-gradient(180deg, transparent 62%, var(--accent) 62%);
+}
+
+.slide.is-dark .big-statement .highlight {
+  color: var(--accent);
+  background: none;
+}
+
+/* ── Q&A ── */
+
+.slide-qa { align-items: center; text-align: center; }
+
+.qa-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.qa-icon-circle {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  background: var(--text-alternate);
+  color: var(--bg-dark);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1rem;
+}
+
+.qa-icon-circle svg { width: 44px; height: 44px; stroke-width: 1.75; }
+
+.qa-content h2 {
+  font-size: clamp(40px, 5vw, 64px);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+.qa-content p {
+  font-size: clamp(16px, 1.5vw, 20px);
+  color: var(--text-secondary);
+  max-width: 560px;
+}
+
+.slide.is-dark .qa-content p { color: #999; }
+
+.qa-links {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 1rem;
+}
+
+.qa-link {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  padding: 0.5rem 1.125rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.15);
+  color: var(--text-alternate);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  text-decoration: none;
+}
+
+.qa-link svg { width: 15px; height: 15px; }
+
+.qa-link.is-accent {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* ── Speakers ── */
+
+.speaker-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2rem;
+  max-width: 950px;
+}
+
+.speaker-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.875rem;
+  padding: 2rem 2.5rem 1.75rem;
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--border-faint);
+  background: var(--bg-tertiary);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.speaker-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-elev); }
+
+.slide.is-dark .speaker-card {
+  background: var(--bg-dark-secondary);
+  border-color: rgba(255,255,255,0.08);
+}
+
+.speaker-photo {
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid var(--accent);
+  flex-shrink: 0;
+}
+
+.speaker-name { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
+
+.speaker-role {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-primary);
+  background: var(--accent);
+  padding: 0.25rem 0.875rem;
+  border-radius: 999px;
+  font-weight: 600;
+}
+
+.speaker-bio {
+  font-size: 13.5px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  max-width: 380px;
+}
+
+/* ── WIP badge ── */
+
+.pill-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.pill-row .tag-pill { margin-bottom: 0; }
+
+.wip-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #b45309;
+  background: transparent;
+  border: 1.5px solid #f59e0b;
+  padding: calc(0.375rem - 1.5px) calc(0.875rem - 1.5px);
+  border-radius: 999px;
+}
+
+.wip-badge svg { width: 13px; height: 13px; stroke-width: 2; }
+
+.provider-chip.is-wip {
+  background: transparent;
+  border: 1.5px solid #f59e0b;
+  color: #b45309;
+  padding: calc(0.5rem - 1.5px) calc(1rem - 1.5px);
+}
+
+/* ── Footnote ── */
+
+.slide-footnote {
+  position: absolute;
+  bottom: 2rem;
+  left: 6rem;
+  right: 6rem;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-secondary);
+  letter-spacing: 0.02em;
+}
+
+.slide.is-dark .slide-footnote { color: #555; }
+
+/* ── Animations ── */
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.slide.in-view .anim { animation: fadeInUp 0.6s cubic-bezier(0.4,0,0.2,1) both; }
+.slide:not(.in-view) .anim { opacity: 0; }
+
+.anim-group > .anim:nth-child(1) { animation-delay: 0.05s; }
+.anim-group > .anim:nth-child(2) { animation-delay: 0.1s; }
+.anim-group > .anim:nth-child(3) { animation-delay: 0.15s; }
+.anim-group > .anim:nth-child(4) { animation-delay: 0.2s; }
+.anim-group > .anim:nth-child(5) { animation-delay: 0.25s; }
+.anim-group > .anim:nth-child(6) { animation-delay: 0.3s; }
+.anim-group > .anim:nth-child(7) { animation-delay: 0.35s; }
+.anim-group > .anim:nth-child(8) { animation-delay: 0.4s; }
+.anim-group > .anim:nth-child(9) { animation-delay: 0.45s; }
+
+/* ── Responsive ── */
+
+@media (max-width: 900px) {
+  .slide { padding: 3rem 2rem; }
+  .slide-brand { left: 2rem; }
+  .card-grid-2, .card-grid-3 { grid-template-columns: 1fr; }
+  .flow-steps { grid-template-columns: 1fr 1fr; }
+  .two-col, .stack-wrap { grid-template-columns: 1fr; gap: 2rem; }
+  .speaker-grid { grid-template-columns: 1fr; }
+  .tier-row { grid-template-columns: 1fr; gap: 0.5rem; }
+  .slide-footnote { left: 2rem; right: 2rem; }
+}
+
+/* ── Print ── */
+
+@page { size: landscape; margin: 0; }
+
+@media print {
+  html { scroll-behavior: auto; }
+  html, body { background: #fff; }
+  .nav-bar { display: none; }
+
+  .slide {
+    min-height: auto;
+    height: 100vh;
+    page-break-after: always;
+    break-after: page;
+    overflow: hidden;
+  }
+
+  .slide:last-child { page-break-after: auto; break-after: auto; }
+
+  .slide .anim {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  .keylines-top, .keylines-bottom { display: none; }
+
+  .card-grid-2 { grid-template-columns: repeat(2, 1fr) !important; }
+  .card-grid-3 { grid-template-columns: repeat(3, 1fr) !important; }
+  .two-col, .stack-wrap { grid-template-columns: 1fr 1fr !important; }
+  .speaker-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .flow-steps { grid-template-columns: repeat(5, 1fr) !important; }
+  .tier-row { grid-template-columns: 260px 1fr !important; }
+}
+</style>
+</head>
+<body>
+
+<div class="deck" id="deck">
+
+  <!-- ── Slide 1: Title ── -->
+  <section class="slide slide-title is-dark" id="slide-1" data-theme="dark">
+    <div class="keylines-top"></div>
+    <div class="keylines-bottom"></div>
+    <div class="slide-brand">
+      <i data-lucide="layers"></i> Kommodity &middot; Cloud Native Denmark 2026
+    </div>
+    <div class="kommodity-logo anim">
+      <svg class="kommodity-lockup" viewBox="152 121 536 96" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M178.42 137.432H176.388V139.468H180.452V137.432H186.549V135.395H190.614V133.358H194.678V137.432H192.646V139.468H186.549V141.505H182.484V143.542H178.42V145.578H180.452V147.615H182.484V149.652H184.517V151.688H186.549V155.762H182.484V153.725H180.452V151.688H178.42V149.652H176.388V147.615H174.355V145.578H176.388V139.468H174.355V133.358H176.388V127.248H178.42V123.175H182.484V127.248H180.452V133.358H178.42V137.432ZM172.323 137.432V141.505H166.226V139.468H164.194V137.432H162.161V135.395H160.129V131.322H164.194V133.358H166.226V135.395H168.258V137.432H172.323ZM170.291 147.615H166.226V149.652H160.129V151.688H156.065V153.725H154.032V151.688H152V149.652H154.032V147.615H160.129V145.578H164.194V143.542H170.291V147.615ZM170.291 147.615H174.355V149.652H172.323V153.725H170.291V159.835H168.258V163.908H164.194V159.835H166.226V155.762H168.258V149.652H170.291V147.615Z" fill="#F6441C"/>
+      <path d="M178.412 194.459V192.422H180.444V190.385H186.541V188.349H188.573V186.312H190.606V182.239H192.638V176.129H194.67V172.055H196.703V165.945H198.735V161.872H200.767V155.762H202.799V149.652H204.832V145.578H206.864V139.468H208.896V135.395H210.929V127.248H204.832V125.212H202.799V123.175H233.284V125.212H231.252V127.248H225.155V129.285H223.122V131.322H221.09V135.395H219.058V139.468H217.026V145.578H214.993V151.688H212.961V155.762H210.929V159.835H208.896V161.872H206.864V163.908H208.896V161.872H210.929V159.835H214.993V157.798H217.026V155.762H219.058V153.725H223.122V151.688H225.155V149.652H227.187V147.615H231.252V145.578H233.284V143.542H235.316V141.505H239.381V139.468H241.413V137.432H243.445V135.395H247.51V133.358H249.542V131.322H251.575V127.248H247.51V123.175H269.865V127.248H263.768V129.285H259.704V131.322H255.639V133.358H253.607V135.395H249.542V137.432H247.51V139.468H245.478V141.505H241.413V143.542H239.381V145.578H237.349V147.615H233.284V149.652H231.252V151.688H229.219V155.762H231.252V161.872H233.284V167.982H235.316V172.055H237.349V178.165H239.381V182.239H241.413V188.349H243.445V190.385H247.51V194.459H231.252V190.385H229.219V184.275H227.187V178.165H225.155V172.055H223.122V167.982H221.09V161.872H219.058V159.835H217.026V161.872H214.993V163.908H212.961V165.945H208.896V167.982H206.864V172.055H204.832V178.165H202.799V182.239H200.767V190.385H206.864V192.422H208.896V194.459H178.412Z" fill="white"/>
+      <path d="M282.027 192.422V194.459H265.769V192.422H261.704V190.385H259.672V188.349H257.64V182.239H255.607V174.092H257.64V165.945H259.672V161.872H261.704V157.798H263.737V155.762H265.769V153.725H267.801V151.688H269.834V149.652H273.898V147.615H277.963V145.578H290.156V147.615H294.221V149.652H296.253V151.688H298.286V153.725H300.318V161.872H302.35V165.945H300.318V174.092H298.286V180.202H296.253V182.239H294.221V184.275H292.189V188.349H288.124V190.385H286.092V192.422H282.027ZM267.801 190.385H279.995V188.349H282.027V186.312H284.06V184.275H286.092V180.202H288.124V176.129H290.156V167.982H292.189V155.762H290.156V151.688H288.124V149.652H279.995V151.688H277.963V153.725H273.898V157.798H271.866V159.835H269.834V165.945H267.801V172.055H265.769V186.312H267.801V190.385Z" fill="white"/>
+      <path d="M312.512 192.422V194.459H304.383V190.385H306.415V186.312H308.447V180.202H310.479V176.129H312.512V170.018H314.544V163.908H316.576V159.835H318.609V151.688H316.576V149.652H314.544V147.615H324.705V145.578H330.802V151.688H328.77V155.762H326.738V157.798H324.705V161.872H322.673V163.908H324.705V161.872H326.738V157.798H328.77V155.762H330.802V153.725H332.835V151.688H334.867V149.652H338.932V147.615H340.964V145.578H351.125V147.615H353.158V149.652H355.19V155.762H353.158V159.835H351.125V161.872H353.158V159.835H355.19V157.798H357.222V155.762H359.255V151.688H363.319V149.652H365.351V147.615H369.416V145.578H377.545V147.615H381.61V159.835H379.578V163.908H377.545V170.018H375.513V174.092H373.481V180.202H371.448V184.275H369.416V188.349H375.513V186.312H379.578V184.275H381.61V182.239H383.642V184.275H381.61V186.312H379.578V188.349H377.545V190.385H375.513V192.422H371.448V194.459H361.287V182.239H363.319V178.165H365.351V172.055H367.384V167.982H369.416V161.872H371.448V157.798H373.481V153.725H371.448V151.688H365.351V153.725H363.319V155.762H359.255V157.798H357.222V161.872H355.19V163.908H353.158V165.945H351.125V167.982H349.093V174.092H347.061V178.165H345.028V184.275H342.996V190.385H340.964V194.459H330.802V192.422H332.835V188.349H334.867V182.239H336.899V178.165H338.932V172.055H340.964V165.945H342.996V161.872H345.028V151.688H338.932V153.725H334.867V155.762H332.835V157.798H330.802V159.835H328.77V161.872H326.738V165.945H324.705V167.982H322.673V172.055H320.641V178.165H318.609V182.239H316.576V188.349H314.544V192.422H312.512Z" fill="white"/>
+      <path d="M393.784 192.422V194.459H385.655V190.385H387.687V186.312H389.719V180.202H391.751V176.129H393.784V170.018H395.816V163.908H397.848V159.835H399.881V151.688H397.848V149.652H395.816V147.615H405.977V145.578H412.074V151.688H410.042V155.762H408.01V157.798H405.977V161.872H403.945V163.908H405.977V161.872H408.01V157.798H410.042V155.762H412.074V153.725H414.107V151.688H416.139V149.652H420.204V147.615H422.236V145.578H432.397V147.615H434.43V149.652H436.462V155.762H434.43V159.835H432.397V161.872H434.43V159.835H436.462V157.798H438.494V155.762H440.527V151.688H444.591V149.652H446.623V147.615H450.688V145.578H458.817V147.615H462.882V159.835H460.849V163.908H458.817V170.018H456.785V174.092H454.753V180.202H452.72V184.275H450.688V188.349H456.785V186.312H460.849V184.275H462.882V182.239H464.914V184.275H462.882V186.312H460.849V188.349H458.817V190.385H456.785V192.422H452.72V194.459H442.559V182.239H444.591V178.165H446.623V172.055H448.656V167.982H450.688V161.872H452.72V157.798H454.753V153.725H452.72V151.688H446.623V153.725H444.591V155.762H440.527V157.798H438.494V161.872H436.462V163.908H434.43V165.945H432.397V167.982H430.365V174.092H428.333V178.165H426.3V184.275H424.268V190.385H422.236V194.459H412.074V192.422H414.107V188.349H416.139V182.239H418.171V178.165H420.204V172.055H422.236V165.945H424.268V161.872H426.3V151.688H420.204V153.725H416.139V155.762H414.107V157.798H412.074V159.835H410.042V161.872H408.01V165.945H405.977V167.982H403.945V172.055H401.913V178.165H399.881V182.239H397.848V188.349H395.816V192.422H393.784Z" fill="white"/>
+      <path d="M495.379 192.422V194.459H479.12V192.422H475.056V190.385H473.023V188.349H470.991V182.239H468.959V174.092H470.991V165.945H473.023V161.872H475.056V157.798H477.088V155.762H479.12V153.725H481.153V151.688H483.185V149.652H487.249V147.615H491.314V145.578H503.508V147.615H507.572V149.652H509.605V151.688H511.637V153.725H513.669V161.872H515.702V165.945H513.669V174.092H511.637V180.202H509.605V182.239H507.572V184.275H505.54V188.349H501.476V190.385H499.443V192.422H495.379ZM481.153 190.385H493.346V188.349H495.379V186.312H497.411V184.275H499.443V180.202H501.476V176.129H503.508V167.982H505.54V155.762H503.508V151.688H501.476V149.652H493.346V151.688H491.314V153.725H487.249V157.798H485.217V159.835H483.185V165.945H481.153V172.055H479.12V186.312H481.153V190.385Z" fill="white"/>
+      <path d="M570.574 133.358V127.248H568.541V125.212H566.509V123.175H578.703V121.138H582.767V125.212H580.735V129.285H578.703V135.395H576.671V141.505H574.638V145.578H572.606V151.688H570.574V155.762H568.541V161.872H566.509V165.945H564.477V172.055H562.444V176.129H560.412V182.239H558.38V188.349H564.477V186.312H566.509V184.275H568.541V182.239H570.574V184.275H568.541V186.312H566.509V190.385H562.444V192.422H560.412V194.459H550.251V192.422H548.218V188.349H550.251V184.275H552.283V182.239H550.251V184.275H548.218V186.312H546.186V188.349H544.154V190.385H542.122V192.422H538.057V194.459H525.863V192.422H523.831V190.385H521.799V186.312H519.766V172.055H521.799V167.982H523.831V163.908H525.863V159.835H527.895V157.798H529.928V155.762H531.96V153.725H533.992V151.688H536.025V149.652H540.089V147.615H544.154V145.578H556.348V147.615H560.412V149.652H564.477V143.542H566.509V139.468H568.541V133.358H570.574ZM531.96 188.349H542.122V186.312H544.154V184.275H546.186V182.239H548.218V180.202H550.251V178.165H552.283V174.092H554.315V170.018H556.348V163.908H558.38V159.835H560.412V153.725H558.38V151.688H556.348V149.652H546.186V151.688H544.154V153.725H540.089V155.762H538.057V159.835H536.025V161.872H533.992V165.945H531.96V172.055H529.928V186.312H531.96V188.349ZM554.315 178.165H552.283V180.202H554.315V178.165Z" fill="white"/>
+      <path d="M596.95 135.395V131.322H598.982V127.248H601.014V125.212H611.176V127.248H609.144V131.322H607.111V135.395H596.95ZM588.821 192.422V194.459H578.659V192.422H576.627V184.275H578.659V180.202H580.691V174.092H582.724V170.018H584.756V163.908H586.788V159.835H588.821V151.688H586.788V149.652H584.756V147.615H594.918V145.578H601.014V151.688H598.982V155.762H596.95V159.835H594.918V165.945H592.885V172.055H590.853V176.129H588.821V182.239H586.788V188.349H592.885V190.385H590.853V192.422H588.821ZM594.918 188.349H592.885V186.312H594.918V184.275H596.95V182.239H598.982V184.275H596.95V186.312H594.918V188.349Z" fill="white"/>
+      <path d="M629.494 151.688V153.725H627.462V157.798H625.43V163.908H623.397V167.982H621.365V174.092H619.333V180.202H617.301V186.312H619.333V188.349H623.397V186.312H627.462V184.275H629.494V186.312H627.462V188.349H625.43V190.385H623.397V192.422H621.365V194.459H609.171V192.422H607.139V182.239H609.171V176.129H611.204V172.055H613.236V165.945H615.268V161.872H617.301V155.762H619.333V149.652H613.236V147.615H617.301V145.578H621.365V143.542H623.397V141.505H625.43V139.468H627.462V137.432H631.527V135.395H633.559V133.358H635.591V137.432H633.559V141.505H631.527V145.578H643.72V149.652H625.43V151.688H629.494Z" fill="white"/>
+      <path d="M641.672 214.825V216.862H627.446V214.825H625.414V208.715H627.446V206.679H629.478V204.642H631.511V206.679H635.575V212.789H633.543V214.825H635.575V212.789H641.672V210.752H645.737V208.715H647.769V206.679H649.801V204.642H651.834V202.605H653.866V200.569H655.898V186.312H653.866V167.982H651.834V155.762H649.801V151.688H647.769V147.615H653.866V145.578H657.931V147.615H659.963V157.798H661.995V172.055H664.028V190.385H661.995V192.422H664.028V190.385H666.06V188.349H668.092V186.312H670.124V182.239H672.157V180.202H674.189V176.129H676.221V172.055H678.254V167.982H680.286V161.872H682.318V153.725H678.254V147.615H680.286V145.578H686.383V147.615H688.415V161.872H686.383V167.982H684.35V172.055H682.318V174.092H680.286V178.165H678.254V180.202H676.221V184.275H674.189V186.312H672.157V190.385H670.124V192.422H668.092V194.459H666.06V196.495H664.028V198.532H661.995V200.569H659.963V202.605H657.931V204.642H655.898V206.679H653.866V208.715H651.834V210.752H649.801V212.789H645.737V214.825H641.672Z" fill="white"/>
+    </svg>
+    </div>    <div class="tag-pill anim">
+      <i data-lucide="mic"></i> Cloud Native Denmark 2026 &middot; Copenhagen
+    </div>
+    <h1 class="h1 anim">Make sovereign cloud <span class="accent-text">boring</span>.</h1>
+    <p class="subtitle anim">One binary to run Kubernetes anywhere - Cluster API, Talos Linux, and hardware-rooted security, packaged so that compliant multi-cloud is as routine as any other deployment.</p>
+    <div class="title-meta anim">
+      <span class="meta-chip"><i data-lucide="git-branch"></i> github.com/kommodity-io</span>
+      <span class="meta-chip"><i data-lucide="scale"></i> Apache 2.0</span>
+      <span class="meta-chip"><i data-lucide="heart"></i> Built by Corti with love</span>
+    </div>
+  </section>
+
+  <!-- ── Slide 2: Speakers ── -->
+  <section class="slide" id="slide-speakers" data-theme="light">
+    <div class="keylines-top"></div>
+    <div class="keylines-bottom"></div>
+    <div class="slide-brand">
+      <i data-lucide="layers"></i> Kommodity &middot; Speakers
+    </div>
+    <div class="slide-header">
+      <div class="tag-pill anim">
+        <i data-lucide="users"></i> Speakers
+      </div>
+      <h2 class="anim">The humans behind the binary.</h2>
+      <p class="anim">Two platform engineers who think sovereign infrastructure should be as boring as it is important.</p>
+    </div>
+    <div class="speaker-grid anim-group">
+      <div class="speaker-card anim">
+        <img class="speaker-photo" src="https://cdn.sessionize.com/image/9476-400o400o2-LKuLq34gyCMpVvwWkngTzX.png" alt="Steffen Karlsson">
+        <div class="speaker-name">Steffen Karlsson</div>
+        <div class="speaker-role">Principal Platform Engineer &middot; Corti.ai</div>
+        <p class="speaker-bio">Platform Engineer and Dad at day - endurance athlete at night. Building the next generation sovereign AI infrastructure for health care at Corti.ai, as well as running and biking the trails and tracks of Copenhagen.</p>
+      </div>
+      <div class="speaker-card anim">
+        <img class="speaker-photo" src="https://cdn.sessionize.com/image/32f3-200o200o2-hJpYgtV1gceyEUxgK7i7Hf.png" alt="Nicklas Frahm">
+        <div class="speaker-name">Nicklas Frahm</div>
+        <div class="speaker-role">Director of Platform Engineering &middot; Corti.ai</div>
+        <p class="speaker-bio">You may find Nicklas in the depths of a Kubernetes cluster, messing with load balancers, gateways, ingress and BGP - or in between server racks. Passionate about bringing the programmability of cloud into more data centers using cloud-native technologies.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Slide 3: Why - regulated AI has nowhere to hide ── -->
+  <section class="slide" id="slide-2" data-theme="light">
+    <div class="keylines-top"></div>
+    <div class="keylines-bottom"></div>
+    <div class="slide-brand">
+      <i data-lucide="layers"></i> Kommodity &middot; Why
+    </div>
+    <div class="slide-header">
+      <div class="tag-pill anim">
+        <i data-lucide="heart-pulse"></i> Why &middot; The Starting Point
+      </div>
+      <h2 class="anim">Regulated AI has nowhere to hide.</h2>
+      <p class="anim">At Corti we build AI for regulated industries - healthcare being the prime example. Our infrastructure requirements are driven by regulation, not architecture astronautics.</p>
+    </div>
+    <div class="card-grid-2 anim-group">
+      <div class="feature-card anim">
+        <div class="feature-icon"><i data-lucide="map-pin"></i></div>
+        <div>
+          <h4>Data sovereignty</h4>
+          <p>Regulated data must stay in specific jurisdictions - patient records, financial data, citizen data. Some customers require fully on-premise deployments.</p>
+        </div>
+      </div>
+      <div class="feature-card anim">
+        <div class="feature-icon"><i data-lucide="file-lock"></i></div>
+        <div>
+          <h4>Compliance is law, not preference</h4>
+          <p>GDPR, ISO 27001, SOC 2. Encryption at rest is legally required - GDPR fines reach 4% of global turnover.</p>
+        </div>
+      </div>
+      <div class="feature-card anim">
+        <div class="feature-icon"><i data-lucide="clipboard-list"></i></div>
+        <div>
+          <h4>Auditability</h4>
+          <p>When regulators ask &ldquo;who accessed what, when?&rdquo; - we need answers, with evidence.</p>
+        </div>
+      </div>
+      <div class="feature-card anim">
+        <div class="feature-icon"><i data-lucide="users"></i></div>
+        <div>
+          <h4>Operational sanity</h4>
+          <p>A small platform team managing infrastructure across many environments - hyperscalers, virtualization, bare metal.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Slide 3: Why - what sovereign actually means ── -->
+  <section class="slide" id="slide-3" data-theme="light">
+    <div class="keylines-top"></div>
+    <div class="keylines-bottom"></div>
+    <div class="slide-brand">
+      <i data-lucide="layers"></i> Kommodity &middot; Why
+    </div>
+    <div class="two-col">
+      <div>
+        <div class="slide-header">
+          <div class="tag-pill anim">
+            <i data-lucide="shield-check"></i> Why &middot; Sovereignty
+          </div>
+          <h2 class="anim">Sovereign cloud, minus the buzzwords.</h2>
+          <p class="anim">Not &ldquo;avoiding the cloud&rdquo; - keeping control of your infrastructure, data, keys, and audit trail, independent of any single vendor.</p>
+        </div>
+        <p class="big-statement anim" style="font-size: clamp(20px, 2.2vw, 28px);">For regulated industries, this is a <span class="highlight">compliance requirement</span> - and building it is hard.</p>
+      </div>
+      <div class="anim-group">
+        <div class="feature-card anim" style="margin-bottom: 0.75rem;">
+          <div class="feature-icon"><i data-lucide="database"></i></div>
+          <div>
+            <h4>Data stays where you put it</h4>
+            <p>Jurisdictional control - Amsterdam for Dutch customers, Paris for French, on-prem when required.</p>
+          </div>
+        </div>
+        <div class="feature-card anim" style="margin-bottom: 0.75rem;">
+          <div class="feature-icon"><i data-lucide="key-round"></i></div>
+          <div>
+            <h4>Your keys are your keys</h4>
+            <p>You - not your cloud provider - control the master encryption keys. And can revoke them instantly.</p>
+          </div>
+        </div>
+        <div class="feature-card anim" style="margin-bottom: 0.75rem;">
+          <div class="feature-icon"><i data-lucide="cpu"></i></div>
+          <div>
+            <h4>Your machines are verifiable</h4>
+            <p>Hardware-rooted trust, not &ldquo;trust us, we&rsquo;re the cloud&rdquo;.</p>
+          </div>
+        </div>
+        <div class="feature-card anim">
+          <div class="feature-icon"><i data-lucide="shuffle"></i></div>
+          <div>
+            <h4>Your operations are portable</h4>
+            <p>Move between providers without rewriting everything. Portability from day one is cheaper than migration later.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Slide 4: Why - honest landscape evaluation ── -->
+  <section class="slide" id="slide-4" data-theme="light">
+    <div class="keylines-top"></div>
+    <div class="keylines-bottom"></div>
+    <div class="slide-brand">
+      <i data-lucide="layers"></i> Kommodity &middot; Why
+    </div>
+    <div class="slide-header">
+      <div class="tag-pill anim">
+        <i data-lucide="search"></i> Why &middot; The Landscape
+      </div>
+      <h2 class="anim">We evaluated the options honestly.</h2>
+    </div>
+    <div class="tier-list anim-group">
+      <div class="tier-row rejected anim">
+        <div>
+          <div class="tier-name">Terraform</div>
+          <div class="tier-type">Infrastructure as code</div>
+        </div>
+        <div class="tier-right">
+          <div class="tier-verdict">Works - but per-provider cognitive load</div>
+          <div class="tier-desc">Every cloud has different resource models, networking semantics, and quirks. You still manage HCL, state files, and multiple providers.</div>
+        </div>
+      </div>
+      <div class="tier-row rejected anim">
+        <div>
+          <div class="tier-name">Managed Kubernetes</div>
+          <div class="tier-type">EKS &middot; AKS &middot; GKE</div>
+        </div>
+        <div class="tier-right">
+          <div class="tier-verdict">Solves the control plane, creates lock-in</div>
+          <div class="tier-desc">Networking, IAM, and operational tooling differ per provider. The same workload definition doesn&rsquo;t run the same way twice.</div>
+        </div>
+      </div>
+      <div class="tier-row rejected anim">
+        <div>
+          <div class="tier-name">Vanilla Cluster API</div>
+          <div class="tier-type">Declarative lifecycle</div>
+        </div>
+        <div class="tier-right">
+          <div class="tier-verdict">Right model - heavy operational overhead</div>
+          <div class="tier-desc">Requires running a full management cluster with etcd, plus separate infrastructure and bootstrap providers. No first-class encryption or attestation.</div>
+        </div>
+      </div>
+      <div class="tier-row chosen anim">
+        <div>
+          <div class="tier-name">Cluster API + Talos, packaged</div>
+          <div class="tier-star">What we wanted</div>
+          <div class="tier-type">Kommodity</div>
+        </div>
+        <div class="tier-right">
+          <div class="tier-verdict">The declarative model - without the management-cluster tax</div>
+          <div class="tier-desc">One binary speaking the Kubernetes API, with disk encryption and hardware attestation built in from the start.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Slide 5: What - in the box ── -->
+  <section class="slide is-dark" id="slide-5" data-theme="dark">
+    <div class="keylines-top"></div>
+    <div class="keylines-bottom"></div>
+    <div class="slide-brand">
+      <i data-lucide="layers"></i> Kommodity &middot; What
+    </div>
+    <div class="slide-header">
+      <div class="tag-pill anim">
+        <i data-lucide="package"></i> What &middot; In the Box
+      </div>
+      <h2 class="anim">One binary. <span style="color: var(--accent);">Nine</span> moving parts.</h2>
+    </div>
+    <div class="card-grid-3 anim-group" style="gap: 1.5rem;">
+      <div class="feature-card anim">
+        <div class="feature-icon"><i data-lucide="server"></i></div>
+        <div>
+          <h4>Kubernetes API server</h4>
+          <p>Combined kube-apiserver, extension API server, and aggregation layer via <span style="font-family: var(--font-mono);">k8s.io/apiserver</span>.</p>
+        </div>
+      </div>
+      <div class="feature-card anim">
+        <div class="feature-icon"><i data-lucide="boxes"></i></div>
+        <div>
+          <h4>Cluster API controllers</h4>
+          <p>Cluster, machine, and machine-deployment lifecycle - plus cluster-autoscaler integration.</p>
+        </div>
+      </div>
+      <div class="feature-card anim">
+        <div class="feature-icon"><i data-lucide="terminal"></i></div>
+        <div>
+          <h4>Talos Linux providers</h4>
+          <p>Bootstrap and control-plane providers generating immutable machine configuration.</p>
+        </div>
+      </div>
+      <div class="feature-card anim">
+        <div class="feature-icon"><i data-lucide="database-zap"></i></div>
+        <div>
+          <h4>Kine</h4>
+          <p>etcd shim backed by PostgreSQL. No etcd to operate - state lives in a database you already know how to run.</p>
+        </div>
+      </div>
+      <div class="feature-card anim">
+        <div class="feature-icon"><i data-lucide="key-round"></i></div>
+        <div>
+          <h4>KMS service</h4>
+          <p>Networked LUKS2 key management with per-volume AES-256-GCM keys, bound to machine identity.</p>
+        </div>
+      </div>
+      <div class="feature-card anim">
+        <div class="feature-icon"><i data-lucide="fingerprint"></i></div>
+        <div>
+          <h4>Attestation service</h4>
+          <p>TPM 2.0 quote verification - machines prove boot integrity before receiving secrets.</p>
+        </div>
+      </div>
+      <div class="feature-card anim">
+        <div class="feature-icon"><i data-lucide="file-cog"></i></div>
+        <div>
+          <h4>Metadata service</h4>
+          <p>Talos machine config delivery - gated by attestation. No trust, no config.</p>
+        </div>
+      </div>
+      <div class="feature-card anim">
+        <div class="feature-icon"><i data-lucide="route"></i></div>
+        <div>
+          <h4>Talos proxy</h4>
+          <p>HTTP CONNECT proxy tunneling gRPC into private-network workload clusters - end-to-end mTLS preserved.</p>
+        </div>
+      </div>
+      <div class="feature-card anim" style="border-color: rgba(184,248,24,0.4);">
+        <div class="feature-icon"><i data-lucide="monitor"></i></div>
+        <div>
+          <h4>Web UI</h4>
+          <p>Kubeconfig retrieval, cluster overview, machine-deployment drill-down - the bits operators actually need.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Slide 6: What - architecture ── -->
+  <section class="slide" id="slide-6" data-theme="light">
+    <div class="keylines-top"></div>
+    <div class="keylines-bottom"></div>
+    <div class="slide-brand">
+      <i data-lucide="layers"></i> Kommodity &middot; What
+    </div>
+    <div class="slide-header">
+      <div class="tag-pill anim">
+        <i data-lucide="network"></i> What &middot; Architecture
+      </div>
+      <h2 class="anim">One port. One executable. PostgreSQL for state.</h2>
+      <p class="anim">The management plane: Kubernetes API server, Cluster API controllers, Talos providers, Kine, KMS, attestation &amp; metadata services - in a single binary.</p>
+    </div>
+    <div class="arch-figure anim">
+      <img src="../images/kommodity-architecture.excalidraw.png" alt="Kommodity architecture diagram">
+    </div>
+  </section>
+
+  <!-- ── Slide 7: How - inside the API server ── -->
+  <section class="slide is-dark" id="slide-7" data-theme="dark">
+    <div class="keylines-top"></div>
+    <div class="keylines-bottom"></div>
+    <div class="slide-brand">
+      <i data-lucide="layers"></i> Kommodity &middot; How
+    </div>
+    <div class="stack-wrap">
+      <div class="stack anim-group">
+        <div class="stack-layer anim">
+          <div class="stack-layer-label">Clients</div>
+          <div>
+            <div class="stack-layer-title">kubectl &middot; Helm &middot; Web UI &middot; GitOps</div>
+            <div class="stack-layer-sub">One kubeconfig. Standard Kubernetes APIs everywhere.</div>
+          </div>
+        </div>
+        <div class="stack-arrow anim"><i data-lucide="arrow-down"></i></div>
+        <div class="stack-layer accent-layer anim">
+          <div class="stack-layer-label">One port</div>
+          <div>
+            <div class="stack-layer-title">API server + aggregation + extensions</div>
+            <div class="stack-layer-sub">Assembled from <span style="font-family: var(--font-mono);">k8s.io/apiserver</span> and <span style="font-family: var(--font-mono);">k8s.io/apiextensions-apiserver</span> - the same libraries upstream Kubernetes uses.</div>
+          </div>
+        </div>
+        <div class="stack-arrow anim"><i data-lucide="arrow-down"></i></div>
+        <div class="stack-layer anim">
+          <div class="stack-layer-label">In-process</div>
+          <div class="stack-cells">
+            <div class="stack-cell"><i data-lucide="box"></i><span>CRDs<small>embedded, applied at startup</small></span></div>
+            <div class="stack-cell"><i data-lucide="boxes"></i><span>CAPI controllers<small>cluster lifecycle</small></span></div>
+            <div class="stack-cell"><i data-lucide="key-round"></i><span>KMS<small>LUKS2 seal/unseal gRPC</small></span></div>
+            <div class="stack-cell"><i data-lucide="fingerprint"></i><span>Attestation<small>TPM quote verification</small></span></div>
+            <div class="stack-cell"><i data-lucide="file-cog"></i><span>Metadata<small>machine config delivery</small></span></div>
+            <div class="stack-cell"><i data-lucide="users"></i><span>OIDC + audit<small>authn, RBAC, audit policy</small></span></div>
+          </div>
+        </div>
+        <div class="stack-arrow anim"><i data-lucide="arrow-down"></i></div>
+        <div class="stack-layer anim">
+          <div class="stack-layer-label">Storage</div>
+          <div>
+            <div class="stack-layer-title">Kine &rarr; PostgreSQL</div>
+            <div class="stack-layer-sub">An etcd shim backed by any Kine-supported SQL database. No etcd to operate, HA via HA PostgreSQL.</div>
+          </div>
+        </div>
+      </div>
+      <div class="stack-copy">
+        <h3 class="anim">How do you fuse an API server, an aggregator, and an extension server into one binary?</h3>
+        <p class="anim">Kommodity orchestrates the same building blocks upstream ships: the <strong>generic API server</strong> handles authn/authz, admission, and audit; the <strong>extension server</strong> serves CRDs; the <strong>aggregation layer</strong> is available for extension APIs - all wired to one listener, one TLS cert, one kubeconfig.</p>
+        <p class="anim">Security services (KMS, attestation, metadata) are <strong>in-process</strong>, so a machine&rsquo;s first secret never leaves the binary that verified it. No etcd: <strong>Kine</strong> translates the watch/cache layer onto PostgreSQL.</p>
+        <span class="mono-fact anim">aggregator.Listen() on :5000 - everything else is a library call</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Slide 8: How - machine trust (TPM attestation) ── -->
+  <section class="slide" id="slide-8" data-theme="light">
+    <div class="keylines-top"></div>
+    <div class="keylines-bottom"></div>
+    <div class="slide-brand">
+      <i data-lucide="layers"></i> Kommodity &middot; How
+    </div>
+    <div class="slide-header" style="margin-bottom: 1.25rem;">
+      <div class="pill-row">
+        <div class="tag-pill anim">
+          <i data-lucide="fingerprint"></i> How &middot; Machine Trust
+        </div>
+        <span class="wip-badge anim"><i data-lucide="hammer"></i> WIP &middot; not yet in production</span>
+      </div>
+      <h2 class="anim">No quote, no secrets.</h2>
+      <p class="anim">Machine identity in most clouds is &ldquo;being on the right network&rdquo;. Against compromised cloud credentials, that&rsquo;s not trust - it&rsquo;s hope. Kommodity requires hardware-rooted proof.</p>
+    </div>
+    <div class="flow-steps anim-group">
+      <div class="flow-step anim">
+        <div class="flow-num">1</div>
+        <h4>Boot</h4>
+        <p>Machine boots Talos with the attestation extension installed.</p>
+      </div>
+      <div class="flow-step anim">
+        <div class="flow-num">2</div>
+        <h4>Nonce</h4>
+        <p>Node fetches a single-use, IP-bound cryptographic nonce from Kommodity.</p>
+      </div>
+      <div class="flow-step anim">
+        <div class="flow-num">3</div>
+        <h4>TPM quote</h4>
+        <p>TPM signs a quote over PCR values with the nonce as ExtraData - tamper-proof, hardware-bound.</p>
+      </div>
+      <div class="flow-step anim">
+        <div class="flow-num">4</div>
+        <h4>Report</h4>
+        <p>Quote plus software measurements (Secure Boot, SELinux, kernel lockdown, extensions&hellip;) POSTed to Kommodity.</p>
+      </div>
+      <div class="flow-step anim">
+        <div class="flow-num">5</div>
+        <h4>Verify</h4>
+        <p>ECDSA signature, PCR digest, and every measurement checked against per-cluster policy.</p>
+      </div>
+    </div>
+    <div class="flow-verdict anim-group">
+      <div class="verdict-box pass anim">
+        <i data-lucide="check"></i>
+        <span>Pass &rarr; machine config delivered<small>Metadata service releases Talos configuration; KMS will unseal keys.</small></span>
+      </div>
+      <div class="verdict-box fail anim">
+        <i data-lucide="x"></i>
+        <span>Fail &rarr; connection rejected<small>Wrong kernel, tampered extension, disabled security control - no secrets, no config.</small></span>
+      </div>
+    </div>
+    <div class="chip-row anim">
+      <span class="m-chip"><i data-lucide="shield"></i> Secure Boot</span>
+      <span class="m-chip"><i data-lucide="shield"></i> AppArmor</span>
+      <span class="m-chip"><i data-lucide="shield"></i> SELinux mode</span>
+      <span class="m-chip"><i data-lucide="shield"></i> Kernel lockdown</span>
+      <span class="m-chip"><i data-lucide="shield"></i> SquashFS root</span>
+      <span class="m-chip"><i data-lucide="shield"></i> Extension hashes</span>
+      <span class="m-chip"><i data-lucide="shield"></i> Image layers</span>
+      <span class="m-chip"><i data-lucide="shield"></i> Talos version</span>
+    </div>
+    <div class="slide-footnote">Status: the full attestation flow is implemented, tested, and verified working end-to-end - but it is not yet used in production.</div>
+  </section>
+
+  <!-- ── Slide 9: How - sovereign disk encryption (network KMS) ── -->
+  <section class="slide is-dark" id="slide-9" data-theme="dark">
+    <div class="keylines-top"></div>
+    <div class="keylines-bottom"></div>
+    <div class="slide-brand">
+      <i data-lucide="layers"></i> Kommodity &middot; How
+    </div>
+    <div class="two-col">
+      <div>
+        <div class="slide-header">
+          <div class="tag-pill anim">
+            <i data-lucide="key-round"></i> How &middot; Disk Encryption
+          </div>
+          <h2 class="anim">Encryption is meaningless if your cloud holds the keys.</h2>
+          <p class="anim">Talos encrypts <span style="font-family: var(--font-mono);">STATE</span> and <span style="font-family: var(--font-mono);">EPHEMERAL</span> volumes with LUKS2. Keys live as Kubernetes Secrets in Kommodity&rsquo;s own database - never on the machine, never with the provider.</p>
+        </div>
+        <div class="keyflow anim-group">
+          <div class="keyflow-step anim">
+            <div class="keyflow-icon"><i data-lucide="lock"></i></div>
+            <div>
+              <h5>First boot - Seal</h5>
+              <p>Per-volume AES-256-GCM key generated on demand, encrypted with AAD = <span style="font-family: var(--font-mono);">nodeUUID &#8214; aadNonce &#8214; clientIP</span></p>
+            </div>
+          </div>
+          <div class="keyflow-step anim">
+            <div class="keyflow-icon"><i data-lucide="unlock"></i></div>
+            <div>
+              <h5>Every boot - Unseal</h5>
+              <p>Key fetched over the network; KMS rejects requests whose peer IP doesn&rsquo;t match the sealing IP.</p>
+            </div>
+          </div>
+          <div class="keyflow-step anim">
+            <div class="keyflow-icon"><i data-lucide="trash-2"></i></div>
+            <div>
+              <h5>Revocation - delete</h5>
+              <p><span class="mono-cmd">kubectl delete secret &lt;cluster&gt;-kms-&lt;node-uuid&gt;</span> &rarr; the machine can never decrypt its volumes again.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="callout-aside anim" style="margin-top: 4.5rem;">
+          <div class="callout-aside-icon"><i data-lucide="alert-triangle"></i></div>
+          <div class="callout-aside-label">The honest trade-off</div>
+          <p>With security features enabled, <strong>machines cannot boot without network access to Kommodity</strong>. That is the design: revocation must be possible, so key retrieval must be deniable.</p>
+          <p style="margin-top: 0.5rem;">This makes Kommodity a critical dependency - plan for HA PostgreSQL, redundant replicas, and surviving network paths. The features are also <strong>optional</strong>: run Kommodity as a pure CAPI management plane when your compliance doesn&rsquo;t mandate them.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Slide 10: How - multi-cloud with Cluster API ── -->
+  <section class="slide" id="slide-10" data-theme="light">
+    <div class="keylines-top"></div>
+    <div class="keylines-bottom"></div>
+    <div class="slide-brand">
+      <i data-lucide="layers"></i> Kommodity &middot; How
+    </div>
+    <div class="slide-header">
+      <div class="tag-pill anim">
+        <i data-lucide="cloud"></i> How &middot; Multi-Cloud
+      </div>
+      <h2 class="anim">Clusters as YAML, clouds as details.</h2>
+      <p class="anim">A sovereign deployment in practice: Amsterdam on Azure, Paris on Scaleway, disaster recovery on KubeVirt in a private datacenter - three YAML files, one operational model.</p>
+    </div>
+    <div class="two-col">
+      <div>
+        <div class="code-panel anim">
+          <div class="code-titlebar">
+            <span class="code-dot r"></span><span class="code-dot y"></span><span class="code-dot g"></span>
+            <span class="code-filename">values.yaml</span>
+          </div>
+<pre><span class="c-com"># Deploy a cluster on Scaleway - one values file</span>
+<span class="c-key">kommodity:</span>
+  <span class="c-key">provider:</span>
+    <span class="c-key">name:</span> <span class="c-str">Scaleway</span>          <span class="c-com"># swap per provider</span>
+    <span class="c-key">secret:</span>
+      <span class="c-key">name:</span> <span class="c-str">scaleway-secret</span>
+  <span class="c-key">region:</span> <span class="c-str">fr-par</span>
+  <span class="c-key">controlplane:</span>
+    <span class="c-key">replicas:</span> <span class="c-acc">3</span>
+    <span class="c-key">sku:</span> <span class="c-str">PLAY2-NANO</span>
+  <span class="c-key">nodepools:</span>
+    <span class="c-key">default:</span>
+      <span class="c-key">replicas:</span> <span class="c-acc">2</span>
+      <span class="c-key">sku:</span> <span class="c-str">PLAY2-NANO</span></pre>
+        </div>
+        <p class="anim" style="font-size: 13px; color: var(--text-secondary); margin-top: 1rem;">The controllers reconcile: cloud infrastructure &rarr; Talos machines &rarr; attestation &rarr; config delivery &rarr; control plane bootstrap &rarr; workers join.</p>
+      </div>
+      <div>
+        <p class="anim" style="font-size: 14px; font-weight: 600; margin-bottom: 0.25rem;">Same workflow, any provider:</p>
+        <div class="provider-row anim">
+          <span class="provider-chip"><i data-lucide="cloud"></i> Azure</span>
+          <span class="provider-chip"><i data-lucide="cloud"></i> Scaleway</span>
+          <span class="provider-chip"><i data-lucide="cloud"></i> KubeVirt</span>
+          <span class="provider-chip"><i data-lucide="cloud"></i> Docker</span>
+          <span class="provider-chip"><i data-lucide="hard-drive"></i> BYOT</span>
+          <span class="provider-chip is-wip"><i data-lucide="server"></i> WIP &middot; Bare metal</span>
+        </div>
+        <div class="callout-aside anim">
+          <div class="callout-aside-icon"><i data-lucide="scale"></i></div>
+          <div class="callout-aside-label">Reality check</div>
+          <p>Providers differ - API versions, capabilities, networking. This is not &ldquo;write once, run anywhere&rdquo;. It&rsquo;s <strong>&ldquo;learn once, operate anywhere&rdquo;</strong>: same kubectl, same Helm, same GitOps, same RBAC, same audit - on every cloud.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Slide 11: How - zero-touch auto-bootstrap ── -->
+  <section class="slide" id="slide-11" data-theme="light">
+    <div class="keylines-top"></div>
+    <div class="keylines-bottom"></div>
+    <div class="slide-brand">
+      <i data-lucide="layers"></i> Kommodity &middot; How
+    </div>
+    <div class="slide-header">
+      <div class="tag-pill anim">
+        <i data-lucide="zap"></i> How &middot; Zero-Touch Bootstrap
+      </div>
+      <h2 class="anim">&ldquo;Which node goes first?&rdquo; - nobody.</h2>
+      <p class="anim">Traditional Kubernetes bootstrap needs a designated first control-plane node. In automated environments that&rsquo;s a sequencing problem. The auto-bootstrap extension removes the question.</p>
+    </div>
+    <div class="flow-steps anim-group" style="grid-template-columns: repeat(4, 1fr);">
+      <div class="flow-step anim">
+        <div class="flow-num">1</div>
+        <h4>Peer discovery</h4>
+        <p>Each control-plane node scans the private-network CIDR for other Talos nodes.</p>
+      </div>
+      <div class="flow-step anim">
+        <div class="flow-num">2</div>
+        <h4>Deterministic election</h4>
+        <p>All nodes run the same algorithm: earliest boot time wins, lowest IP breaks ties. Same inputs, same answer - no coordination protocol.</p>
+      </div>
+      <div class="flow-step anim">
+        <div class="flow-num">3</div>
+        <h4>Quorum wait</h4>
+        <p>The winner waits until the configured number of peers are discovered (e.g. 3 for HA).</p>
+      </div>
+      <div class="flow-step anim">
+        <div class="flow-num">4</div>
+        <h4>Bootstrap &amp; join</h4>
+        <p>Leader initializes etcd and the control plane; the rest detect the cluster and join automatically.</p>
+      </div>
+    </div>
+    <div class="two-col" style="gap: 1.25rem; margin-top: 1.25rem;">
+      <div class="callout-aside anim">
+        <div class="callout-aside-icon"><i data-lucide="lock"></i></div>
+        <div class="callout-aside-label">Private networks only</div>
+        <p>Peer discovery scans the CIDR without TLS verification - appropriate for isolated infrastructure networks, never for the public internet. Once peers are discovered, Talos&rsquo;s certificate-based authentication takes over.</p>
+      </div>
+      <div class="callout-aside anim">
+        <div class="callout-aside-icon"><i data-lucide="git-branch"></i></div>
+        <div class="callout-aside-label">Fully declarative</div>
+        <p>Apply a manifest, and three nodes coordinate into an HA control plane with <strong>zero manual steps</strong>. Extensions live at <span style="font-family: var(--font-mono); font-size: 12px;">github.com/kommodity-io</span> - autobootstrap and attestation for Talos, plus an OIDC discovery proxy and talos-cluster-proxy for the platform.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Slide 12: Operations - honest trade-offs ── -->
+  <section class="slide is-dark" id="slide-12" data-theme="dark">
+    <div class="keylines-top"></div>
+    <div class="keylines-bottom"></div>
+    <div class="slide-brand">
+      <i data-lucide="layers"></i> Kommodity &middot; Operations
+    </div>
+    <div class="slide-header">
+      <div class="tag-pill anim">
+        <i data-lucide="wrench"></i> Operations
+      </div>
+      <h2 class="anim">A single binary is not a single point of failure.</h2>
+      <p class="anim">Let&rsquo;s talk about what running Kommodity actually looks like - including the parts that aren&rsquo;t free.</p>
+    </div>
+    <div class="card-grid-2 anim-group" style="grid-template-columns: repeat(2, 1fr); max-width: 1200px;">
+      <div class="feature-card anim">
+        <div class="feature-icon"><i data-lucide="unlink"></i></div>
+        <div>
+          <h4>Existing clusters are independent</h4>
+          <p>Once bootstrapped, workload clusters don&rsquo;t depend on Kommodity. Your workloads keep running through a management-plane outage.</p>
+        </div>
+      </div>
+      <div class="feature-card anim">
+        <div class="feature-icon"><i data-lucide="activity"></i></div>
+        <div>
+          <h4>Critical only during changes</h4>
+          <p>Provisioning, scaling, upgrades. Outside those operations, reconciliation is periodic - downtime is an inconvenience, not an incident.</p>
+        </div>
+      </div>
+      <div class="feature-card anim">
+        <div class="feature-icon"><i data-lucide="git-merge"></i></div>
+        <div>
+          <h4>Day two: addons &amp; GitOps handoff</h4>
+          <p>Cilium (eBPF CNI + Hubble) by default; any Helm chart is a first-class addon. <span style="font-family: var(--font-mono); font-size: 12px;">upgrade.disable: true</span> lets ArgoCD/Flux adopt releases without fights.</p>
+        </div>
+      </div>
+      <div class="feature-card anim">
+        <div class="feature-icon"><i data-lucide="scroll-text"></i></div>
+        <div>
+          <h4>Audit logging built in</h4>
+          <p>Standard Kubernetes audit policy format: user, source IP, timestamp, request bodies. CNPG instead of RDS, Strimzi instead of managed Kafka - sovereign replacements for managed services.</p>
+        </div>
+      </div>
+    </div>
+    <div class="callout-aside anim" style="max-width: 1200px; margin-top: 1rem; border-left-color: var(--red);">
+      <div class="callout-aside-label">What Kommodity doesn&rsquo;t do</div>
+      <p>Not zero-ops - you&rsquo;re still running infrastructure. Not a PaaS - what you run on the clusters is up to you. Not a silver bullet - you still need to understand each provider&rsquo;s limits. One instance per environment type, multiple replicas behind a load balancer, HA PostgreSQL.</p>
+    </div>
+  </section>
+
+  <!-- ── Slide 13: TL;DR ── -->
+  <section class="slide is-dark" id="slide-13" data-theme="dark">
+    <div class="keylines-top"></div>
+    <div class="keylines-bottom"></div>
+    <div class="slide-brand">
+      <i data-lucide="layers"></i> Kommodity &middot; TL;DR
+    </div>
+    <div class="slide-header" style="margin-bottom: 1.25rem;">
+      <div class="tag-pill anim">
+        <i data-lucide="check-check"></i> TL;DR
+      </div>
+      <h2 class="anim">Sovereignty built in - not bolted on.</h2>
+    </div>
+    <div class="tier-list anim-group">
+      <div class="tier-row anim">
+        <div><div class="tier-name">Learn each cloud&rsquo;s tools</div></div>
+        <div class="tier-right"><div class="tier-verdict" style="color: var(--accent);">One API - kubectl - for every cloud</div></div>
+      </div>
+      <div class="tier-row anim">
+        <div><div class="tier-name">Trust machines by network location</div></div>
+        <div class="tier-right"><div class="tier-verdict" style="color: var(--accent);">Verify machines cryptographically - TPM attestation</div></div>
+      </div>
+      <div class="tier-row anim">
+        <div><div class="tier-name">Cloud provider manages encryption keys</div></div>
+        <div class="tier-right"><div class="tier-verdict" style="color: var(--accent);">You manage keys - revocation is kubectl delete secret</div></div>
+      </div>
+      <div class="tier-row anim">
+        <div><div class="tier-name">Separate tools per environment</div></div>
+        <div class="tier-right"><div class="tier-verdict" style="color: var(--accent);">Same workflow everywhere - hyperscaler, virtualization, bare metal</div></div>
+      </div>
+      <div class="tier-row anim">
+        <div><div class="tier-name">Compliance bolted on after the fact</div></div>
+        <div class="tier-right"><div class="tier-verdict" style="color: var(--accent);">Encryption, attestation, audit logging - from day one</div></div>
+      </div>
+    </div>
+    <p class="big-statement anim" style="font-size: clamp(20px, 2.4vw, 30px); margin-top: 1.75rem;">One binary. Kubernetes APIs. Verifiable machines. Encrypted disks. <span class="highlight">Boring - exactly what infrastructure should be.</span></p>
+  </section>
+
+  <!-- ── Slide 14: Q&A ── -->
+  <section class="slide slide-qa is-dark" id="slide-14" data-theme="dark">
+    <div class="keylines-top"></div>
+    <div class="keylines-bottom"></div>
+    <div class="slide-brand">
+      <i data-lucide="layers"></i> Kommodity &middot; Cloud Native Denmark 2026
+    </div>
+    <div class="qa-content">
+      <div class="qa-icon-circle anim">
+        <i data-lucide="message-circle-question"></i>
+      </div>
+      <h2 class="anim">Questions?</h2>
+      <p class="anim" style="max-width: 900px; white-space: nowrap;">Come find us - let&rsquo;s talk about what sovereign infrastructure should look like.</p>
+      <div class="qa-links anim">
+        <a class="qa-link is-accent" href="https://github.com/kommodity-io/kommodity"><i data-lucide="git-branch"></i> github.com/kommodity-io/kommodity</a>
+        <a class="qa-link" href="https://github.com/kommodity-io/kommodity-attestation-extension"><i data-lucide="fingerprint"></i> attestation-extension</a>
+        <a class="qa-link" href="https://github.com/kommodity-io/kommodity-autobootstrap-extension"><i data-lucide="zap"></i> autobootstrap-extension</a>
+      </div>
+      <p class="anim" style="font-family: var(--font-mono); font-size: 13px; color: #555;">Apache 2.0 &middot; built by Corti with love &middot; contributions welcome</p>
+    </div>
+  </section>
+
+</div>
+
+<!-- ── Navigation Bar ── -->
+<div class="nav-bar" id="navBar">
+  <button class="nav-btn" id="prevBtn"><i data-lucide="chevron-left"></i></button>
+  <div class="slide-dots" id="slideDots"></div>
+  <span class="slide-counter" id="slideCounter">1 / 15</span>
+  <button class="nav-btn" id="nextBtn"><i data-lucide="chevron-right"></i></button>
+</div>
+
+<script>
+(function() {
+  const slides = document.querySelectorAll('.slide');
+  const total = slides.length;
+  let current = 0;
+  let scrollLock = false;
+
+  const prevBtn = document.getElementById('prevBtn');
+  const nextBtn = document.getElementById('nextBtn');
+  const counter = document.getElementById('slideCounter');
+  const dotsContainer = document.getElementById('slideDots');
+  const navBar = document.getElementById('navBar');
+
+  function refreshIcons() {
+    if (window.lucide) lucide.createIcons();
+  }
+  refreshIcons();
+
+  for (let i = 0; i < total; i++) {
+    const dot = document.createElement('span');
+    dot.className = 'dot' + (i === 0 ? ' active' : '');
+    dot.addEventListener('click', () => goTo(i));
+    dotsContainer.appendChild(dot);
+  }
+
+  const dots = document.querySelectorAll('.dot');
+
+  function updateUI() {
+    counter.textContent = (current + 1) + ' / ' + total;
+    dots.forEach((d, i) => d.classList.toggle('active', i === current));
+    prevBtn.disabled = current === 0;
+    nextBtn.disabled = current === total - 1;
+
+    const isDark = slides[current].classList.contains('is-dark');
+    navBar.classList.toggle('is-dark', isDark);
+
+    if (location.hash !== '#slide=' + (current + 1)) {
+      history.replaceState(null, '', '#slide=' + (current + 1));
+    }
+  }
+
+  function goTo(index) {
+    if (index < 0 || index >= total || index === current) return;
+
+    slides[current].classList.remove('in-view');
+    current = index;
+    slides[current].classList.add('in-view');
+
+    scrollLock = true;
+    slides[current].scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    setTimeout(() => {
+      refreshIcons();
+      updateUI();
+    }, 50);
+
+    setTimeout(() => { scrollLock = false; }, 800);
+  }
+
+  function next() { goTo(current + 1); }
+  function prev() { goTo(current - 1); }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ' || e.key === 'PageDown') {
+      e.preventDefault();
+      next();
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp' || e.key === 'PageUp') {
+      e.preventDefault();
+      prev();
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      goTo(0);
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      goTo(total - 1);
+    } else if (e.key >= '1' && e.key <= '9') {
+      const idx = parseInt(e.key) - 1;
+      if (idx < total) goTo(idx);
+    }
+  });
+
+  prevBtn.addEventListener('click', prev);
+  nextBtn.addEventListener('click', next);
+
+  const observer = new IntersectionObserver((entries) => {
+    if (scrollLock) return;
+    entries.forEach((entry) => {
+      if (entry.isIntersecting && entry.intersectionRatio > 0.5) {
+        const idx = Array.prototype.indexOf.call(slides, entry.target);
+        entry.target.classList.add('in-view');
+        if (idx !== current) {
+          slides[current].classList.remove('in-view');
+          current = idx;
+          slides[current].classList.add('in-view');
+          refreshIcons();
+          updateUI();
+        }
+      }
+    });
+  }, { threshold: [0.5] });
+
+  slides.forEach((s) => observer.observe(s));
+
+  const hashMatch = location.hash.match(/^#slide=(\d+)$/);
+  if (hashMatch) {
+    const hashSlide = parseInt(hashMatch[1]) - 1;
+    if (hashSlide >= 0 && hashSlide < total) {
+      current = hashSlide;
+    }
+  }
+
+  window.addEventListener('hashchange', () => {
+    const m = location.hash.match(/^#slide=(\d+)$/);
+    if (m) {
+      const idx = parseInt(m[1]) - 1;
+      if (idx >= 0 && idx < total && idx !== current) goTo(idx);
+    }
+  });
+
+  slides[current].classList.add('in-view');
+
+  requestAnimationFrame(() => {
+    slides.forEach((s) => {
+      const rect = s.getBoundingClientRect();
+      if (rect.top < window.innerHeight * 0.5 && rect.bottom > window.innerHeight * 0.5) {
+        if (!s.classList.contains('in-view')) {
+          s.classList.add('in-view');
+          refreshIcons();
+        }
+      }
+    });
+  });
+
+  let touchStartY = 0;
+  let touchEndY = 0;
+
+  document.addEventListener('touchstart', (e) => {
+    touchStartY = e.changedTouches[0].screenY;
+  });
+
+  document.addEventListener('touchend', (e) => {
+    touchEndY = e.changedTouches[0].screenY;
+    const diff = touchStartY - touchEndY;
+    if (Math.abs(diff) > 50) {
+      if (diff > 0) next();
+      else prev();
+    }
+  });
+
+  updateUI();
+})();
+</script>
+
+</body>
+</html>
