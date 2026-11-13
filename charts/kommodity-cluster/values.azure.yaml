@@ -94,24 +94,24 @@ kommodity:
     enabled: true
 
   global:
-    strategicPatches:
-      # NOTE: kubelet --cloud-provider=external is no longer set here — the chart
-      # auto-injects it whenever kommodity.provider.cloudControllerManager.enabled
-      # is true (see _helpers.tpl "mergedStrategicPatch"). Omitting it previously
-      # left nodes without a providerID, which broke CAPI NodeRef linking and
-      # wedged control-plane rollouts, so it must never be optional.
-      #
+    machineConfig:
       # Enable anonymous authentication on kube-apiserver.
       # CAPZ hardcodes an HTTPS GET /readyz probe on the apiserver LB (not configurable via the
-      # AzureCluster spec). Talos defaults --anonymous-auth=false, so /readyz returns HTTP 401 to
-      # the anonymous probe, causing the Azure LB to mark all backends unhealthy and silently drop
-      # apiserver traffic. Kubernetes' built-in system:public-info-viewer ClusterRoleBinding grants
-      # system:unauthenticated read access to /livez, /readyz, /healthz, and /version only —
+      # AzureCluster spec). Talos defaults anonymous auth to disabled, so /readyz returns HTTP 401
+      # to the anonymous probe, causing the Azure LB to mark all backends unhealthy and silently
+      # drop apiserver traffic. Kubernetes' built-in system:public-info-viewer ClusterRoleBinding
+      # grants system:unauthenticated read access to /livez, /readyz, /healthz, and /version only —
       # no resource data is exposed.
-      cluster:
-        apiServer:
-          extraArgs:
-            anonymous-auth: "true"
+      # Talos v1.14 rejects --anonymous-auth in KubeAPIServerConfig.extraArgs; it is structured
+      # authentication configuration (KubeAuthenticationConfig) instead.
+      KubeAuthenticationConfig:
+        configuration:
+          anonymous:
+            enabled: true
+            conditions:
+              - path: /livez
+              - path: /readyz
+              - path: /healthz
 
   network:
     ipv4:
@@ -277,13 +277,13 @@ talos:
   # builds the full ARM ID from kommodity.provider.config.subscriptionID and
   # kommodity.provider.config.talosImageResourceGroup, so you only supply the last
   # segment of the resource ID — the same `imageName` field Scaleway uses.
-  imageName: kommodity-talos-azure-v1.14.2
+  imageName: kommodity-talos-azure-v1.14.5
   #
   # Alternatives (take precedence over imageName in this order):
   #   id: <MANAGED_IMAGE_ARM_ID>            # explicit full ARM ID (escape hatch)
   #   computeGallery:                       # shared image gallery
   #     gallery: myGallery
-  #     name: talos-v1.14.2
+  #     name: talos-v1.14.5
   #     version: 1.0.0
   #   marketplace:                          # Azure Marketplace image (requires accepting terms)
   #     publisher: siderolabs

@@ -179,19 +179,19 @@ Compute sha256sum of parameters givens to the TalosConfigTemplate.
 Any values that should trigger a new Talos config template when changed should be added to the hash computation.
 */}}
 {{- define "kommodity-cluster.talosConfigHash" -}}
-{{- $hasPoolPatches := and .poolValues.strategicPatches (gt (len .poolValues.strategicPatches) 0) }}
-{{- $hasGlobalPatches := and .allValues.kommodity.global.strategicPatches (gt (len .allValues.kommodity.global.strategicPatches) 0) }}
 {{- $data := dict -}}
-{{- $patches := dict -}}
-{{- if $hasGlobalPatches }}
-	{{- $patches = mustMergeOverwrite $patches (deepCopy .allValues.kommodity.global.strategicPatches) -}}
-{{- end }}
-{{- if $hasPoolPatches }}
-	{{- $patches = mustMergeOverwrite $patches (deepCopy .poolValues.strategicPatches) -}}
-{{- end }}
-{{- if gt (len $patches) 0 }}
-	{{- $_ := set $data "strategicPatches" $patches -}}
-{{- end }}
+{{- /* Global and pool patches are hashed separately: merging them into one
+     dict would replace per-name map entries wholesale, silently dropping
+     global entries (e.g. KernelModuleConfig modules, registry hosts) the
+     renderer retains — a change to those would then not roll the workers. */ -}}
+{{- if and .allValues.kommodity.global.machineConfig (gt (len .allValues.kommodity.global.machineConfig) 0) -}}
+{{- $_ := set $data "globalMachineConfig" (deepCopy .allValues.kommodity.global.machineConfig) -}}
+{{- end -}}
+{{- if and .poolValues.machineConfig (gt (len .poolValues.machineConfig) 0) -}}
+{{- $_ := set $data "poolMachineConfig" (deepCopy .poolValues.machineConfig) -}}
+{{- end -}}
+{{- /* logLevel feeds LOG_LEVEL into every worker EnvironmentConfig */ -}}
+{{- $_ := set $data "logLevel" (default "" (index (index .allValues "kommodity") "logLevel")) -}}
 {{- $talosVersion := default .allValues.talos.version (dig "talos" "version" "" .poolValues) -}}
 {{- $_ := set $data "talosVersion" $talosVersion -}}
 
@@ -278,63 +278,200 @@ Any values that should trigger a new Machine template when changed should be add
 {{- end -}}
 
 {{/*
-Build a merged strategic patch from all configuration sources.
-Returns a YAML block scalar list item (- |\n  <yaml>) representing a single MachineConfig strategic patch.
-Returns empty string if there are no patches to apply.
-User patches from nodepools override global patches for same keys via deep merge.
-Note: /cluster/inlineManifests are handled separately in controlplane.yaml
-to preserve YAML block scalar formatting for multi-line contents.
+kommodity-cluster.hetznerResolverNameservers — Hetzner built-in ResolverConfig
+skip logic, shared by controlplane and worker templates. Returns the network
+nameservers on Hetzner when no user-supplied ResolverConfig exists (Talos
+rejects two ResolverConfig documents in one config), else an empty list.
 */}}
-{{- define "kommodity-cluster.mergedStrategicPatch" -}}
-{{- $result := dict -}}
-{{- /* Add labels */ -}}
-{{- if and .labels (gt (len .labels) 0) -}}
-{{- $_ := mustMergeOverwrite $result (dict "machine" (dict "nodeLabels" (deepCopy .labels))) -}}
-{{- end -}}
-{{- /* Add annotations */ -}}
-{{- if and .annotations (gt (len .annotations) 0) -}}
-{{- $_ := mustMergeOverwrite $result (dict "machine" (dict "nodeAnnotations" (deepCopy .annotations))) -}}
-{{- end -}}
-{{- /* Add taints */ -}}
-{{- if and .taints (gt (len .taints) 0) -}}
-{{- $taintStrings := list -}}
-{{- range $key, $value := .taints -}}
-{{- $taintStrings = append $taintStrings (printf "%s=%s" $key $value) -}}
-{{- end -}}
-{{- $_ := mustMergeOverwrite $result (dict "machine" (dict "kubelet" (dict "extraArgs" (dict "register-with-taints" (join "," $taintStrings))))) -}}
-{{- $_ := mustMergeOverwrite $result (dict "machine" (dict "nodeTaints" (deepCopy .taints))) -}}
-{{- end -}}
-{{- /* Add OIDC apiServer extraArgs */ -}}
-{{- if and .oidc .oidc.enabled -}}
-{{- $oidcExtraArgs := include "kommodity.talos.oidc.extraArgs" (dict "oidc" .oidc) | fromJson -}}
-{{- $_ := mustMergeOverwrite $result (dict "cluster" (dict "apiServer" (dict "extraArgs" $oidcExtraArgs))) -}}
+{{- define "kommodity-cluster.hetznerResolverNameservers" -}}
+{{- $globalPatches := default (dict) (dig "global" "machineConfig" (dict) .allValues.kommodity) -}}
+{{- $poolPatches := default (dict) (dig "machineConfig" (dict) .poolValues) -}}
+{{- $userResolverConfig := or (dig "ResolverConfig" false $globalPatches) (dig "ResolverConfig" false $poolPatches) -}}
+{{- ternary (dig "nameservers" (list) .allValues.kommodity.network) (list) (and (eq .allValues.kommodity.provider.name "Hetzner") (not $userResolverConfig)) | toJson -}}
 {{- end -}}
 
-{{- /* Add global Kommodity environment variables */ -}}
-{{- if .logLevel -}}
-{{- $globalEnv := include "kommodity.talos.globalEnv" (dict "logLevel" .logLevel) | fromJson -}}
-{{- $_ := mustMergeOverwrite $result (dict "machine" (dict "env" $globalEnv)) -}}
-{{- end -}}
-{{- /* Disable CNI (controlplane only) */ -}}
-{{- if .disableCNI -}}
-{{- $_ := mustMergeOverwrite $result (include "kommodity.talos.cni.disable" . | fromJson) -}}
-{{- end -}}
-{{- /* Disable proxy (controlplane only) */ -}}
-{{- if .disableProxy -}}
-{{- $_ := mustMergeOverwrite $result (include "kommodity.talos.proxy.disable" . | fromJson) -}}
-{{- end -}}
-{{- /* Merge global user patch (single MachineConfig dict) */ -}}
-{{- if and .globalPatches (gt (len .globalPatches) 0) -}}
-{{- $_ := mustMergeOverwrite $result (deepCopy .globalPatches) -}}
-{{- end -}}
-{{- /* Merge nodepool/controlplane user patch on top of global (wins on conflicts) */ -}}
-{{- if and .nodepoolPatches (gt (len .nodepoolPatches) 0) -}}
-{{- $_ := mustMergeOverwrite $result (deepCopy .nodepoolPatches) -}}
-{{- end -}}
-{{- /* Output as YAML block scalar if non-empty */ -}}
-{{- if gt (len (keys $result)) 0 -}}
+{{/*
+kommodity-cluster.docListItem — render one machine-config document as a
+strategicPatches "- |" list item.
+*/}}
+{{- define "kommodity-cluster.docListItem" -}}
 - |
-{{ $result | toYaml | indent 2 }}
+{{ printf "%s\n" (.doc | toYaml | indent 2) }}
+{{- end -}}
+
+{{/*
+Build merged machine config for strategicPatches (Talos v1.14 multi-doc kinds).
+Each returned block is one YAML document as a "- |" list item. Returns empty
+string if nothing to emit.
+
+machineConfig entries are dispatched three ways (kind classification is
+generated from Talos's published JSON schema for the chart's appVersion —
+see files/talos-doc-kinds.yaml, regenerated with `make
+generate-talos-doc-kinds`):
+  - named kinds (schema has a "name" property): map keyed by the document
+    "name"; the key is injected as the document name, one document per entry,
+    emitted sorted (kind, then name), nodepool entries replace global ones on
+    conflict. A body with an explicit "name" that disagrees with its map key
+    fails rendering. A non-map value fails rendering.
+  - singleton kinds (no "name" property): plain map of the document fields,
+    merged into a v1alpha1 apiVersion/kind envelope, no name. A non-map value
+    fails rendering.
+  - anything else (machine, cluster, ...): v1alpha1 strategic patch fragment,
+    emitted verbatim as escape hatch for fields with no document kind yet.
+
+Built-in documents (EnvironmentConfig LOG_LEVEL, KubeNodeConfig pool
+labels/annotations/taints, KubeAuthenticationConfig OIDC + anonymous policy,
+KubeFlannelCNIConfig/KubeProxyConfig disable documents) are seeded, then user
+patches overlay them. Seeded control-plane-only documents (auth, CNI/proxy
+disable) emit on control planes only; user-supplied keys of any kind are
+never gated — the chart renders them on workers too and Talos validates at
+apply time. extraDocuments is a raw multi-doc YAML string split on --- and
+appended verbatim.
+
+Precedence: built-in settings (LOG_LEVEL from kommodity.logLevel, CNI/proxy
+disable documents, OIDC authentication config, pool-level
+labels/annotations/taints) are seeded first, then user patches overlay them
+(nodepool wins over global).
+*/}}
+{{- define "kommodity-cluster.mergedMachineConfig" -}}
+{{- /* Seeded built-in documents; emission rule at the seededDocs loop below. */ -}}
+{{- $envConfig := dict -}}
+{{- if .logLevel -}}{{- $_ := set $envConfig "variables" (dict "LOG_LEVEL" .logLevel) -}}{{- end -}}
+{{- $flannelConfig := dict -}}
+{{- if .disableCNI -}}
+{{- $_ := set $flannelConfig "$patch" "delete" -}}
+{{- end -}}
+{{- $proxyConfig := dict -}}
+{{- if .disableProxy -}}
+{{- $_ := set $proxyConfig "enabled" false -}}
+{{- end -}}
+{{- $nodeConfig := dict -}}
+{{- if and .labels (gt (len .labels) 0) -}}
+{{- $_ := mustMergeOverwrite $nodeConfig (dict "labels" (deepCopy .labels)) -}}
+{{- end -}}
+{{- if and .annotations (gt (len .annotations) 0) -}}
+{{- $_ := mustMergeOverwrite $nodeConfig (dict "annotations" (deepCopy .annotations)) -}}
+{{- end -}}
+{{- if and .taints (gt (len .taints) 0) -}}
+{{- $_ := mustMergeOverwrite $nodeConfig (dict "taints" (deepCopy .taints)) -}}
+{{- end -}}
+{{- $authConfig := dict -}}
+{{- if and .oidc .oidc.enabled -}}
+{{- $_ := mustMergeOverwrite $authConfig (include "kommodity-cluster.oidcAuthenticationConfig" (dict "oidc" .oidc) | fromYaml) -}}
+{{- /* Seed Talos's default anonymous policy: a KubeAuthenticationConfig doc
+     replaces Talos's whole auth config, and without it Kubernetes defaults
+     to anonymous on all paths. User patches override below. */ -}}
+{{- $_ := mustMergeOverwrite $authConfig (dict "configuration" (dict "anonymous" (dict "enabled" true "conditions" (list (dict "path" "/livez") (dict "path" "/readyz") (dict "path" "/healthz"))))) -}}
+{{- end -}}
+{{- $merged := dict -}}
+
+{{- /* docKinds: generated kind classification (namedKinds/singletonKinds),
+     loaded by the caller from files/talos-doc-kinds.yaml. Named kinds are
+     maps keyed by the document "name": one document per entry, nodepool
+     entries replace global ones on conflict. Talos rejects duplicate names
+     within a kind, so name-keyed dicts make the merge semantics
+     unambiguous. */ -}}
+{{- $docKinds := default (dict) .docKinds -}}
+{{- $namedKinds := default (dict) (dig "namedKinds" (dict) $docKinds) -}}
+{{- $singletonKinds := default (dict) (dig "singletonKinds" (dict) $docKinds) -}}
+{{- $namedDocs := dict -}}
+{{- $singletonDocs := dict -}}
+{{- $extraDocs := "" -}}
+{{- /* Seeded singletons by kind, tracked separately so user-supplied keys
+     can be emitted ungated on workers. */ -}}
+{{- $seededDocs := dict "EnvironmentConfig" $envConfig "KubeFlannelCNIConfig" $flannelConfig "KubeProxyConfig" $proxyConfig "KubeNodeConfig" $nodeConfig "KubeAuthenticationConfig" $authConfig -}}
+{{- /* Keys the user supplied in any machineConfig (global or nodepool) */ -}}
+{{- $userKeys := dict -}}
+{{- /* Overlay user patches: global first, nodepool last (wins on conflicts) */ -}}
+{{- range $patches := list .globalPatches .nodepoolPatches -}}
+{{- if and $patches (gt (len $patches) 0) -}}
+{{- range $key := keys $patches -}}
+{{- $_ := set $userKeys $key true -}}
+{{- $value := deepCopy (index $patches $key) -}}
+{{- if hasKey $seededDocs $key -}}
+{{- $_ := mustMergeOverwrite (index $seededDocs $key) $value -}}
+{{- else if hasKey $namedKinds $key -}}
+{{- if not (kindIs "map" $value) -}}
+{{- fail (printf "machineConfig.%s must be a map keyed by document name, got %s" $key (kindOf $value)) -}}
+{{- end -}}
+{{- if not (hasKey $namedDocs $key) -}}
+{{- $_ := set $namedDocs $key (dict) -}}
+{{- end -}}
+{{- range $name, $body := $value -}}
+{{- if and (kindIs "map" $body) (hasKey $body "name") -}}
+{{- $bodyName := index $body "name" -}}
+{{- if ne $bodyName $name -}}
+{{- fail (printf "machineConfig.%s[%q]: body name %q does not match map key; drop the name field, the key is used" $key $name $bodyName) -}}
+{{- end -}}
+{{- end -}}
+{{- $_ := set (index $namedDocs $key) $name $body -}}
+{{- end -}}
+{{- else if hasKey $singletonKinds $key -}}
+{{- if not (kindIs "map" $value) -}}
+{{- fail (printf "machineConfig.%s must be a map of document fields, got %s" $key (kindOf $value)) -}}
+{{- end -}}
+{{- if not (hasKey $singletonDocs $key) -}}
+{{- $_ := set $singletonDocs $key (dict) -}}
+{{- end -}}
+{{- $_ := mustMergeOverwrite (index $singletonDocs $key) $value -}}
+{{- else if eq $key "extraDocuments" -}}
+{{- $extraDocs = $value -}}
+{{- else -}}
+{{- $_ := mustMergeOverwrite $merged (dict $key $value) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{- /* Worker-safe seeded kinds (EnvironmentConfig LOG_LEVEL, KubeNodeConfig
+     pool labels/taints) are valid on worker configs: seeded content emits
+     everywhere. The remaining seeded kinds are control-plane-only: user
+     keys emit everywhere (Talos validates at apply time), seeded-only
+     content on control planes only. */ -}}
+{{- $workerSafeSeededKinds := dict "EnvironmentConfig" true "KubeNodeConfig" true -}}
+{{- range $kind := keys $seededDocs | sortAlpha -}}
+{{- $seeded := index $seededDocs $kind -}}
+{{- $isUserKey := hasKey $userKeys $kind -}}
+{{- $emit := or $isUserKey (and (or (hasKey $workerSafeSeededKinds $kind) $.isControlPlane) (gt (len (keys $seeded)) 0)) -}}
+{{- if $emit -}}
+{{- $doc := dict "apiVersion" "v1alpha1" "kind" $kind -}}
+{{- $_ := mustMergeOverwrite $doc (deepCopy $seeded) -}}
+{{ include "kommodity-cluster.docListItem" (dict "doc" $doc) }}
+{{- end -}}
+{{- end -}}
+{{- /* Named kinds: one document per map entry, name from the map key,
+     sorted for deterministic output. */ -}}
+{{- range $kind := keys $namedDocs | sortAlpha -}}
+{{- range $name := keys (index $namedDocs $kind) | sortAlpha -}}
+{{- $doc := dict "apiVersion" "v1alpha1" "kind" $kind "name" $name -}}
+{{- /* Null body (e.g. `btrfs:` with no fields) contributes nothing
+     beyond the name; render it as an empty dict. */ -}}
+{{- $_ := mustMergeOverwrite $doc (deepCopy (default dict (index (index $namedDocs $kind) $name))) -}}
+{{ include "kommodity-cluster.docListItem" (dict "doc" $doc) }}
+{{- end -}}
+{{- end -}}
+{{- /* Singleton kinds: one document per kind, no name, envelope injected,
+     sorted for deterministic output. */ -}}
+{{- range $kind := keys $singletonDocs | sortAlpha -}}
+{{- $doc := dict "apiVersion" "v1alpha1" "kind" $kind -}}
+{{- $_ := mustMergeOverwrite $doc (deepCopy (index $singletonDocs $kind)) -}}
+{{ include "kommodity-cluster.docListItem" (dict "doc" $doc) }}
+{{- end -}}
+{{- if gt (len (keys $merged)) 0 -}}
+{{ include "kommodity-cluster.docListItem" (dict "doc" $merged) }}
+{{- end -}}
+{{- /* extraDocuments: raw multi-doc YAML appended verbatim. Split on
+     document separators (--- plus optional comment, trailing whitespace,
+     CRLF) so each document lands in its own patch item; content between
+     separators is preserved byte-for-byte, only its trailing newlines are
+     dropped (block scalar chomping adds them back). */ -}}
+{{- with $extraDocs -}}
+{{- range $doc := (regexSplit `(?:\r?\n|^)---(?:[ \t]+[^\r\n]*)?\r?\n` . -1) -}}
+{{- if (trim $doc) -}}
+- |+
+{{ printf "%s\n" (trimSuffix "\n" $doc | indent 2) }}
+{{- end -}}
+{{- end -}}
 {{- end -}}
 {{- end -}}
 
@@ -530,7 +667,7 @@ spec.template.spec.desiredTalosVersion (an installer image ref) for a byot pool.
 For BYOT the image is always an installer: the host is adopted in maintenance
 mode and upgraded via LifecycleClient.Upgrade, which runs /bin/installer from
 the ref. talos.imageName carries the full installer ref (e.g.
-ghcr.io/siderolabs/installer:v1.14.2, a factory.talos.dev schematic installer,
+ghcr.io/siderolabs/installer:v1.14.5, a factory.talos.dev schematic installer,
 or a custom-built installer with extensions). The tag is opaque to Talos, so
 any tag works (extensions ship through the installer image, not the machine
 config). Resolved with nodepool precedence — poolValues.talos.imageName
@@ -545,7 +682,7 @@ Returns the installer image ref string.
 {{- define "kommodity-cluster.byotDesiredTalosVersion" -}}
 {{- $imageName := default .allValues.talos.imageName (dig "talos" "imageName" "" .poolValues) -}}
 {{- if not $imageName -}}
-{{- fail "talos.imageName is required for BYOT (set it in values.byot.yaml to the installer image ref, e.g. ghcr.io/siderolabs/installer:v1.14.2)" -}}
+{{- fail "talos.imageName is required for BYOT (set it in values.byot.yaml to the installer image ref, e.g. ghcr.io/siderolabs/installer:v1.14.5)" -}}
 {{- end -}}
 {{- $imageName -}}
 {{- end -}}

@@ -399,23 +399,23 @@ tests:
     set:
       kommodity.provider.config.subscriptionID: sub-1234
       kommodity.provider.config.talosImageResourceGroup: shared-images-rg
-      talos.imageName: kommodity-talos-azure-v1.14.2
+      talos.imageName: kommodity-talos-azure-v1.14.5
     asserts:
       - equal:
           path: spec.template.spec.image.id
-          value: /subscriptions/sub-1234/resourceGroups/shared-images-rg/providers/Microsoft.Compute/images/kommodity-talos-azure-v1.14.2
+          value: /subscriptions/sub-1234/resourceGroups/shared-images-rg/providers/Microsoft.Compute/images/kommodity-talos-azure-v1.14.5
         documentIndex: 0
       # The same built id is used for worker nodepools.
       - equal:
           path: spec.template.spec.image.id
-          value: /subscriptions/sub-1234/resourceGroups/shared-images-rg/providers/Microsoft.Compute/images/kommodity-talos-azure-v1.14.2
+          value: /subscriptions/sub-1234/resourceGroups/shared-images-rg/providers/Microsoft.Compute/images/kommodity-talos-azure-v1.14.5
         documentIndex: 1
 
   - it: should require talosImageResourceGroup when only imageName is set
     template: templates/provider/azure/machinetemplate.yaml
     set:
       kommodity.provider.config.talosImageResourceGroup: null
-      talos.imageName: kommodity-talos-azure-v1.14.2
+      talos.imageName: kommodity-talos-azure-v1.14.5
     asserts:
       - failedTemplate:
           errorMessage: talos.imageName requires kommodity.provider.config.talosImageResourceGroup (the resource group holding the Talos managed image) to build the Talos image resource ID
@@ -507,11 +507,11 @@ tests:
     asserts:
       - equal:
           path: metadata.name
-          value: test-cluster-controlplane-3416ca
+          value: test-cluster-controlplane-2fd2ce
         documentIndex: 0
       - equal:
           path: metadata.name
-          value: test-cluster-worker-default-3416ca
+          value: test-cluster-worker-default-2fd2ce
         documentIndex: 1
   - it: should change the AzureMachineTemplate name when the gallery version changes
     template: templates/provider/azure/machinetemplate.yaml
@@ -526,11 +526,11 @@ tests:
     asserts:
       - equal:
           path: metadata.name
-          value: test-cluster-controlplane-3d3c12
+          value: test-cluster-controlplane-274b34
         documentIndex: 0
       - equal:
           path: metadata.name
-          value: test-cluster-worker-default-3d3c12
+          value: test-cluster-worker-default-274b34
         documentIndex: 1
   - it: should set disableExtensionOperations to true by default
     template: templates/provider/azure/machinetemplate.yaml
@@ -640,12 +640,18 @@ tests:
           path: spec.replicas
           value: 3
 
-  - it: should include anonymous-auth in strategicPatches via global.strategicPatches
+  - it: should include anonymous-auth KubeAuthenticationConfig via global.machineConfig
     template: templates/talos/controlplane.yaml
     asserts:
       - matchRegex:
-          path: spec.controlPlaneConfig.controlplane.strategicPatches[0]
-          pattern: "anonymous-auth"
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "kind: KubeAuthenticationConfig"
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "enabled: true"
+      - matchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
+          pattern: "path: /readyz"
 
   # CCM CRS tests — CCM manifest is delivered via ClusterResourceSet, not inlineManifests
   - it: should render ConfigMap and ClusterResourceSet for Azure CCM

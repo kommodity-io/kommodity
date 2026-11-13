@@ -23,17 +23,18 @@ spec:
         source: InfrastructureName
       {{- end }}
       {{- /* Build merged MachineConfig strategic patch for workers */ -}}
-      {{- $mergedPatch := include "kommodity-cluster.mergedStrategicPatch" (dict
-        "globalPatches" $.Values.kommodity.global.strategicPatches
-        "nodepoolPatches" $np.strategicPatches
+      {{- $mergedPatch := include "kommodity-cluster.mergedMachineConfig" (dict
+        "globalPatches" $.Values.kommodity.global.machineConfig
+        "nodepoolPatches" $np.machineConfig
         "taints" $np.taints
         "labels" $np.labels
         "annotations" $np.annotations
-        "version" (default $.Values.talos.version (dig "talos" "version" "" $np))
+        "isControlPlane" false
         "logLevel" $.Values.kommodity.logLevel
+        "docKinds" ($.Files.Get "files/talos-doc-kinds.yaml" | fromYaml)
       ) | trim -}}
       {{- $hetznerPrivate := and (eq $.Values.kommodity.provider.name "Hetzner") (not $.Values.kommodity.network.ipv4.public) }}
-      {{- $hetznerNameservers := ternary (dig "nameservers" (list) $.Values.kommodity.network) (list) (eq $.Values.kommodity.provider.name "Hetzner") }}
+      {{- $hetznerNameservers := include "kommodity-cluster.hetznerResolverNameservers" (dict "poolValues" $np "allValues" $.Values) | fromJsonArray -}}
       {{- $kmsEndpoint := "" -}}
       {{- if $.Values.kommodity.kms.enabled }}{{- $kmsEndpoint = $.Values.kommodity.kms.endpoint -}}{{- end -}}
       {{- $additionalVolumesPatch := include "kommodity.talos.additionalVolumes" (dict "additionalVolumes" $np.additionalVolumes "kmsEndpoint" $kmsEndpoint) | trim -}}

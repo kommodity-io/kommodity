@@ -165,7 +165,9 @@ func getKubeConfig(ctx context.Context, clusterName string, kubeClient *clientgo
 }
 
 // getOIDCConfigFromCluster fetches the machine config from the downstream Talos cluster
-// and extracts OIDC configuration from cluster.apiServer.extraArgs.
+// and extracts OIDC configuration. Talos v1.14 structured configuration is checked
+// first (KubeAuthenticationConfig jwt entries), falling back to legacy
+// cluster.apiServer extraArgs for older configs.
 func getOIDCConfigFromCluster(
 	ctx context.Context,
 	clusterName string,
@@ -177,17 +179,92 @@ func getOIDCConfigFromCluster(
 		return nil, fmt.Errorf("failed to get machine config: %w", err)
 	}
 
-	// Extract OIDC settings from cluster.apiServer.extraArgs
-	if provider.Cluster() == nil || provider.Cluster().APIServer() == nil {
+	oidcConfig := getOIDCFromAuthenticationConfig(provider)
+	if oidcConfig == nil {
+		oidcConfig, err = getOIDCFromExtraArgs(provider)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Client-side kubelogin flags (e.g. --oidc-extra-scope=...) are not apiserver
+	// flags, so they cannot travel via the machine config. They are rendered by the
+	// chart into a Secret in the management cluster (named "<clusterName>-oidc-client")
+	// and read here.
+	clientExtraFlags, err := getOIDCClientExtraFlags(ctx, clusterName, namespace, kubeClient)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get OIDC client extra flags: %w", err)
+	}
+
+	oidcConfig.ClientExtraFlags = clientExtraFlags
+
+	return oidcConfig, nil
+}
+
+// getOIDCFromAuthenticationConfig extracts OIDC settings from the structured
+// KubeAuthenticationConfig document (Talos v1.14+). Returns nil when the
+// document is absent or carries no JWT authenticator.
+func getOIDCFromAuthenticationConfig(provider talosconfig.Provider) *config.OIDCConfig {
+	authConfig := provider.K8sAuthenticationConfig()
+	if authConfig == nil {
+		return nil
+	}
+
+	jwts, _ := authConfig.Configuration()["jwt"].([]any)
+	if len(jwts) == 0 {
+		return nil
+	}
+
+	jwt, _ := jwts[0].(map[string]any)
+
+	issuer, _ := jwt["issuer"].(map[string]any)
+
+	issuerURL, _ := issuer["url"].(string)
+
+	audiences, _ := issuer["audiences"].([]any)
+	if issuerURL == "" || len(audiences) == 0 {
+		return nil
+	}
+
+	clientID, _ := audiences[0].(string)
+	if clientID == "" {
+		return nil
+	}
+
+	oidcConfig := &config.OIDCConfig{
+		IssuerURL: issuerURL,
+		ClientID:  clientID,
+	}
+
+	claimMappings, _ := jwt["claimMappings"].(map[string]any)
+	username, _ := claimMappings["username"].(map[string]any)
+
+	if usernameClaim, ok := username["claim"].(string); ok {
+		oidcConfig.UsernameClaim = usernameClaim
+	}
+
+	groups, _ := claimMappings["groups"].(map[string]any)
+
+	if groupsClaim, ok := groups["claim"].(string); ok {
+		oidcConfig.GroupsClaim = groupsClaim
+	}
+
+	return oidcConfig
+}
+
+// getOIDCFromExtraArgs extracts OIDC settings from the legacy
+// KubeAPIServerConfig extraArgs (pre-v1.14 configs).
+func getOIDCFromExtraArgs(provider talosconfig.Provider) (*config.OIDCConfig, error) {
+	apiServer := provider.K8sAPIServerConfig()
+	if apiServer == nil {
 		return nil, ErrOIDCNotConfigured
 	}
 
-	extraArgs := provider.Cluster().APIServer().ExtraArgs()
+	extraArgs := apiServer.ExtraArgs()
 	if extraArgs == nil {
 		return nil, ErrOIDCNotConfigured
 	}
 
-	// Check if OIDC is configured
 	issuerURL, hasIssuer := firstExtraArg(extraArgs, "oidc-issuer-url")
 	clientID, hasClientID := firstExtraArg(extraArgs, "oidc-client-id")
 
@@ -207,17 +284,6 @@ func getOIDCConfigFromCluster(
 	if groupsClaim, ok := firstExtraArg(extraArgs, "oidc-groups-claim"); ok {
 		oidcConfig.GroupsClaim = groupsClaim
 	}
-
-	// Client-side kubelogin flags (e.g. --oidc-extra-scope=...) are not apiserver
-	// flags, so they cannot travel via the machine config. They are rendered by the
-	// chart into a Secret in the management cluster (named "<clusterName>-oidc-client")
-	// and read here.
-	clientExtraFlags, err := getOIDCClientExtraFlags(ctx, clusterName, namespace, kubeClient)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get OIDC client extra flags: %w", err)
-	}
-
-	oidcConfig.ClientExtraFlags = clientExtraFlags
 
 	return oidcConfig, nil
 }

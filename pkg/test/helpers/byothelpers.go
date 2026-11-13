@@ -89,19 +89,19 @@ func (b ByotInfra) Overrides() map[string]any {
 		"kommodity.provider.config.controlPlaneEndpoint.host": b.ControlPlaneEndpointHost,
 		"kommodity.provider.config.controlPlaneEndpoint.port": int64(b.ControlPlaneEndpointPort),
 
-		helmKeyControlPlaneReplicas: int64(1),
+		helmKeyControlPlaneReplicas:               int64(1),
 		"kommodity.controlplane.resources.cpu":    b.CPU,
 		"kommodity.controlplane.resources.memory": b.Memory,
 		"kommodity.controlplane.os.disk.type":     b.DiskType,
 		"kommodity.controlplane.os.disk.size":     b.DiskSize,
-		"kommodity.controlplane.strategicPatches": talosInDockerPatch(),
+		"kommodity.controlplane.machineConfig":    talosInDockerPatch(),
 
-		helmKeyNodePoolReplicas: int64(1),
+		helmKeyNodePoolReplicas:                        int64(1),
 		"kommodity.nodepools.default.resources.cpu":    b.CPU,
 		"kommodity.nodepools.default.resources.memory": b.Memory,
 		"kommodity.nodepools.default.os.disk.type":     b.DiskType,
 		"kommodity.nodepools.default.os.disk.size":     b.DiskSize,
-		"kommodity.nodepools.default.strategicPatches": talosInDockerPatch(),
+		"kommodity.nodepools.default.machineConfig":    talosInDockerPatch(),
 		// Unset the per-FD zones from values.byot.yaml so the test runs a single
 		// domain-less worker MachineDeployment (one worker, not split across FDs).
 		"kommodity.nodepools.default.zones": nil,
@@ -149,16 +149,14 @@ func toStringAnyMap(in map[string]string) map[string]any {
 // talosInDockerPatch returns the machine config patch Talos-in-Docker needs
 // per https://docs.siderolabs.com/talos/v1.14/platform-specific-installations/local-platforms/docker:
 // host DNS forwarding, since a container cannot provide its own resolvers.
-// The chart deep-merges strategicPatches (a partial MachineConfig dict) into
+// The chart deep-merges machineConfig (a partial MachineConfig dict) into
 // the base config.
 func talosInDockerPatch() map[string]any {
 	return map[string]any{
-		"machine": map[string]any{
-			"features": map[string]any{
-				"hostDNS": map[string]any{
-					"enabled":              true,
-					"forwardKubeDNSToHost": true,
-				},
+		"ResolverConfig": map[string]any{
+			"hostDNS": map[string]any{
+				"enabled":              true,
+				"forwardKubeDNSToHost": true,
 			},
 		},
 	}

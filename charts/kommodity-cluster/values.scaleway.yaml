@@ -27,12 +27,11 @@ kommodity:
         tag: v0.35.3
 
   global:
-    strategicPatches:
+    machineConfig:
       # Required when using a Cloud Controller Manager (https://kubernetes.io/docs/tasks/administer-cluster/running-cloud-controller/#running-cloud-controller-manager)
-      machine:
-        kubelet:
-          extraArgs:
-            cloud-provider: external
+      KubeletConfig:
+        extraArgs:
+          cloud-provider: external
 
   network:
     ipv4:
@@ -129,4 +128,4 @@ kommodity:
 
 talos:
   # Follow this documentation to generate a Talos image for Scaleway: https://docs.siderolabs.com/talos/v1.14/platform-specific-installations/cloud-platforms/scaleway
-  imageName: kommodity-talos-scaleway-v1.14.2
+  imageName: kommodity-talos-scaleway-v1.14.5

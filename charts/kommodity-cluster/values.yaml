@@ -8,10 +8,10 @@ kommodity:
 
   oidc:
     enabled: false
-    issuerURL: <YOUR_ISSUER_URL> # sets apiserver flag and kubeconfig --oidc-issuer-url flag in UI
-    clientID: <YOUR_OIDC_CLIENT_ID> # sets apiserver flag and kubeconfig --oidc-client-id flag in UI
-    usernameClaim: email # sets apiserver flag
-    groupsClaim: groups # sets apiserver flag
+    issuerURL: <YOUR_ISSUER_URL> # sets jwt[].issuer.url in KubeAuthenticationConfig and the kubeconfig --oidc-issuer-url flag in UI
+    clientID: <YOUR_OIDC_CLIENT_ID> # sets jwt[].issuer.audiences in KubeAuthenticationConfig and the kubeconfig --oidc-client-id flag in UI
+    usernameClaim: email # sets jwt[].claimMappings.username.claim; empty prefix for email (stable usernames), issuer prefix otherwise
+    groupsClaim: groups # sets jwt[].claimMappings.groups.claim in KubeAuthenticationConfig
     # Extra flags for the OIDC client in the kubeconfig exec block served by the UI.
     # These are kubelogin (client) flags, NOT kube-apiserver flags.
     clientExtraFlags:
@@ -271,21 +271,53 @@ kommodity:
 
   global:
     # Configurations applied to all nodepools and controlplanes in the cluster
-    # Using Talos strategic merge patches: https://docs.siderolabs.com/talos/v1.12/configure-your-talos-cluster/system-configuration/patching
-    # A single partial MachineConfig YAML object that gets deep-merged into the base config.
-    # Controlplane / nodepool strategicPatches are deep-merged on top of global (later wins on conflicts).
+    # Talos v1.14 machine configuration (https://docs.siderolabs.com/talos/v1.14/getting-started/what's-new-in-talos#kubernetes-multi-document-configuration).
+    # Seeded built-ins keep their built-in behavior: EnvironmentConfig
+    # (kommodity.logLevel is added as LOG_LEVEL), KubeNodeConfig (pool
+    # labels/annotations/taints), KubeAuthenticationConfig (OIDC + anonymous
+    # policy), KubeFlannelCNIConfig/KubeProxyConfig (disable documents).
+    # User-supplied document kinds are never control-plane-gated: the chart
+    # renders them on workers too and Talos validates at apply time.
+    # machineConfig entries are dispatched three ways, based on the kind
+    # classification generated from Talos's published schema for the chart's
+    # appVersion (files/talos-doc-kinds.yaml):
+    #  - named kinds (any document kind with a "name" field): map keyed by
+    #    the document "name"; one document per entry, nodepool entries with
+    #    the same key replace global ones, emitted sorted. A null value (e.g.
+    #    `btrfs:`) emits a bare document. Do not set "name" inside an entry;
+    #    the map key is the name, and a mismatching body name fails rendering.
+    #  - singleton kinds (document kinds without a "name" field): plain map
+    #    of the document fields; the apiVersion/kind envelope is injected.
+    #  - anything else (machine, cluster, ...): v1alpha1 strategic patch
+    #    fragment, emitted verbatim as an escape hatch.
+    # extraDocuments is a raw multi-doc
+    # YAML string split on document separators (--- line, optional trailing
+    # comment) and appended verbatim, one patch item per document.
+    # Controlplane / nodepool machineConfig are deep-merged on top of global (later wins on conflicts).
     # Example:
-    #   strategicPatches:
-    #     machine:
-    #       kubelet:
-    #         extraArgs:
-    #           cloud-provider: external
-    strategicPatches: {}
+    #   machineConfig:
+    #     EnvironmentConfig:
+    #       variables:
+    #         MY_VAR: my-value
+    #     KubeletConfig:
+    #       extraArgs:
+    #         max-pods: "200"
+    #     KernelModuleConfig:
+    #       btrfs:            # null: just load the module
+    #       br_netfilter:
+    #         parameters: ["bridge-stp=1"]
+    #     SysctlConfig:             # singleton kind: plain dict
+    #       sysctls:
+    #         fs.file-max: "131072"
+    #     cluster:                  # v1alpha1 fragment escape hatch
+    #       externalCloudProvider:
+    #         enabled: true
+    machineConfig: {}
 
   controlplane:
     # Configurations related to the control plane nodes
     # Using Talos strategic merge patches: https://docs.siderolabs.com/talos/v1.12/configure-your-talos-cluster/system-configuration/patching
-    strategicPatches: {}
+    machineConfig: {}
 
     # Optional failure domains.
     # zones:
@@ -300,8 +332,8 @@ kommodity:
     # Talos version and imageName can be overridden here, otherwise the top-level talos.version and talos.imageName are used
     # This is especially useful for Talos upgrades, where it is recommended to not upgrade all nodes at once (https://docs.siderolabs.com/talos/v1.12/configure-your-talos-cluster/lifecycle-management/upgrading-talos)
     # talos:
-    #   version: v1.14.2
-    #   imageName: talos-base-v1.14.2
+    #   version: v1.14.5
+    #   imageName: talos-base-v1.14.5
 
     # labels:
     #   my-label: my-value
@@ -371,7 +403,7 @@ kommodity:
     #   #   - zone2
 
     #   # Using Talos strategic merge patches: https://docs.siderolabs.com/talos/v1.12/configure-your-talos-cluster/system-configuration/patching
-    #   strategicPatches: {}
+    #   machineConfig: {}
     #   # Kubernetes version can be overridden here, otherwise the top-level kubernetes.version is used
 
     #   kubernetes:
@@ -390,8 +422,8 @@ kommodity:
 
     #   # Talos version and imageName can be overridden here, otherwise the top-level talos.version and talos.imageName are used
     #   talos:
-    #     version: v1.14.2
-    #     imageName: talos-base-v1.14.2
+    #     version: v1.14.5
+    #     imageName: talos-base-v1.14.5
 
     #   labels:
     #     my-label: my-value
@@ -441,7 +473,7 @@ kommodity:
 
 # Configurations related to Talos
 talos:
-  version: v1.14.2
+  version: v1.14.5
   imageName: my-talos-image
   autoBootstrap:
     enabled: true
