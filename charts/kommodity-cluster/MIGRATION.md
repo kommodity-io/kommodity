@@ -26,7 +26,7 @@ per-kind knowledge, so any current or future Talos document kind works:
 | Key | Shape | Semantics |
 |---|---|---|
 | **Map kind** (`KubeletConfig`, `EnvironmentConfig`, `SysctlConfig`, `KubeAPIServerConfig`, ...) | plain map of the document's fields | `apiVersion`/`kind` envelope injected; global and nodepool deep-merged (nodepool wins per field); one document per kind |
-| **List kind** (`KernelModuleConfig`, `RegistryMirrorConfig`, `EtcFileConfig`, ...) | list of full documents | one document per item, in your list order, passed through verbatim — set `name` (and every other field) inside each item yourself; **a nodepool list replaces the global list wholesale** (restate the full list to combine scopes) |
+| **List kind** (`KernelModuleConfig`, `UserVolumeConfig`, `RegistryMirrorConfig`, `EtcFileConfig`, ...) | list of document fields per item | one document per item, in your list order; the `apiVersion`/`kind` envelope is injected around each item (an item carrying its own `apiVersion`/`kind` wins) — set `name` and every other field inside each item yourself; **a nodepool list replaces the global list wholesale** (restate the full list to combine scopes) |
 | **`machine:` / `cluster:`** | v1alpha1 fragment | deep-merged together and emitted verbatim as a single strategic patch — the escape hatch for fields with no multi-doc replacement |
 
 The five seeded built-in kinds (`EnvironmentConfig`, `KubeNodeConfig`,
@@ -55,18 +55,23 @@ kommodity:
 
 ### List kind example
 
-One item per document, in list order, verbatim. Duplicate `name` values within a
-kind are rejected by Talos at apply time, not by the chart:
+One item per document, in list order. The `apiVersion`/`kind` envelope is
+injected around each item (set `name` and all other fields inside the item).
+Duplicate `name` values within a kind are rejected by Talos at apply time, not
+by the chart:
 
 ```yaml
 kommodity:
   global:
     machineConfig:
-      KernelModuleConfig:
+      KernelModuleConfig:        # one item per kernel module
         - name: br_netfilter
         - name: nvidia
           parameters:
             - NVreg_EnableS0ixStreamingBER=0
+      UserVolumeConfig:           # one item per volume, name is the mount name
+        - name: scratch
+          volumeType: directory
   nodepools:
     gpu:
       machineConfig:

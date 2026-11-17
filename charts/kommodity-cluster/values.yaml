@@ -285,9 +285,9 @@ kommodity:
     #    envelope is injected around the map's fields. Global and
     #    nodepool/controlplane maps deep-merge (nodepool wins per field).
     #  - list: one standalone document per item, in your list order,
-    #    passed through verbatim (set "name" inside each item yourself).
-    #    A nodepool list REPLACES the global list wholesale, like Helm's
-    #    own values merge — restate the full list to combine scopes.
+    #    with the apiVersion/kind envelope injected around each item
+    #    (set "name" and all other fields inside each item yourself; an
+    #    item carrying its own apiVersion/kind wins).
     #  - machine / cluster: v1alpha1 strategic patch fragment,
     #    deep-merged across scopes, emitted verbatim as escape hatch for
     #    fields with no document kind.
@@ -303,7 +303,7 @@ kommodity:
     #     KubeletConfig:
     #       extraArgs:
     #         max-pods: "200"
-    #     KernelModuleConfig:      # list kind: one doc per item, verbatim
+    #     KernelModuleConfig:      # list kind: one doc per item
     #       - name: br_netfilter
     #       - name: nvidia
     #         parameters: ["NVreg_EnableS0ixStreamingBER=0"]

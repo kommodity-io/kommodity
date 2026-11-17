@@ -1456,7 +1456,8 @@ tests:
           path: spec.template.spec.strategicPatches[2]
           pattern: "kind: EnvironmentConfig"
 
-  # List-kind tests (one document per list item, order preserved, verbatim).
+  # List-kind tests (one document per list item, order preserved; the
+  # apiVersion/kind envelope is injected per item).
   # Worker strategicPatches baseline with the scaleway test values:
   # [0] EnvironmentConfig (seeded), [1] KubeNodeConfig (seeded pool
   # labels/annotations), [2] KubeletConfig (map kind), [3]+ list-kind docs.
@@ -1470,12 +1471,21 @@ tests:
     asserts:
       - matchRegex:
           path: spec.template.spec.strategicPatches[3]
+          pattern: "kind: KernelModuleConfig"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "apiVersion: v1alpha1"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
           pattern: "name: nvidia"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[4]
+          pattern: "kind: KernelModuleConfig"
       - matchRegex:
           path: spec.template.spec.strategicPatches[4]
           pattern: "name: vfio_pci"
 
-  - it: should emit KernelModuleConfig list items verbatim
+  - it: should emit KernelModuleConfig list items with fields intact
     template: templates/talos/configtemplate.yaml
     set:
       kommodity.global.machineConfig:

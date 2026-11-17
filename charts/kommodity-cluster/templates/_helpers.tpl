@@ -433,10 +433,16 @@ verbatim.
 {{- $_ := mustMergeOverwrite $doc (deepCopy (index $userDocs $kind)) -}}
 {{ include "kommodity-cluster.docListItem" (dict "doc" $doc) }}
 {{- end -}}
-{{- /* List kinds: one document per item in the user's order, verbatim. */ -}}
+{{- /* List kinds: one document per item in the user's order. The
+     apiVersion/kind envelope is injected the same way as map kinds
+     (bare items like {name: nvidia} are full documents only by virtue
+     of their key); explicit item fields win, so an item carrying its
+     own apiVersion/kind still controls them. */ -}}
 {{- range $kind := keys $listDocs | sortAlpha -}}
 {{- range $item := index $listDocs $kind -}}
-{{ include "kommodity-cluster.docListItem" (dict "doc" $item) }}
+{{- $doc := dict "apiVersion" "v1alpha1" "kind" $kind -}}
+{{- $_ := mustMergeOverwrite $doc (deepCopy $item) -}}
+{{ include "kommodity-cluster.docListItem" (dict "doc" $doc) }}
 {{- end -}}
 {{- end -}}
 {{- if gt (len (keys $merged)) 0 -}}
