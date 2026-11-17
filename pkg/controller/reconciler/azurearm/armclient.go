@@ -12,6 +12,7 @@ import (
 	armruntime "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 )
 
 const (
@@ -41,7 +42,7 @@ type armResponse struct {
 // fake implementation.
 type armRequester interface {
 	get(ctx context.Context, armID string, apiVersion string) (*armResponse, error)
-	put(ctx context.Context, armID string, apiVersion string, body any) (*armResponse, error)
+	put(ctx context.Context, armID string, apiVersion string, ifMatch string, body any) (*armResponse, error)
 	delete(ctx context.Context, armID string, apiVersion string) (*armResponse, error)
 }
 
@@ -66,16 +67,102 @@ func newARMClient(cred azcore.TokenCredential) (*armClient, error) {
 	return &armClient{endpoint: armEndpoint, pipeline: pipeline}, nil
 }
 
-// put issues a PUT-by-ID with the given ARM body (marshaled to JSON).
+// GenericARMClient is the exported ARM-by-ID surface for out-of-package
+// callers: method, ARM ID, api-version, optional If-Match preconditions, JSON
+// body in/out.
+type GenericARMClient interface {
+	Get(
+		ctx context.Context,
+		armID string,
+		apiVersion string,
+	) (statusCode int, body []byte, retryAfter time.Duration, err error)
+	Put(
+		ctx context.Context,
+		armID string,
+		apiVersion string,
+		ifMatch string,
+		payload any,
+	) (statusCode int, body []byte, retryAfter time.Duration, err error)
+}
+
+// GenericARMClientFactory builds a GenericARMClient from a service principal
+// triple, so per-cluster credentials can be resolved at reconcile time.
+type GenericARMClientFactory func(tenantID string, clientID string, clientSecret string) (GenericARMClient, error)
+
+// NewGenericARMClient builds a generic ARM-by-ID client for callers outside
+// this package (e.g. the Azure LB probe fixer) that need to read or mutate
+// ARM resources CAPZ does not model as ASO CRs.
+func NewGenericARMClient(cred azcore.TokenCredential) (GenericARMClient, error) {
+	armClient, err := newARMClient(cred)
+	if err != nil {
+		return nil, err
+	}
+
+	return armClient, nil
+}
+
+// NewGenericARMClientFactory returns a factory building a GenericARMClient
+// from a service principal triple, so per-cluster credentials can be resolved
+// at reconcile time.
+func NewGenericARMClientFactory() GenericARMClientFactory {
+	return func(tenantID string, clientID string, clientSecret string) (GenericARMClient, error) {
+		cred, err := azidentity.NewClientSecretCredential(tenantID, clientID, clientSecret, nil)
+		if err != nil {
+			return nil, fmt.Errorf("building client secret credential: %w", err)
+		}
+
+		return NewGenericARMClient(cred)
+	}
+}
+
+// Get implements GenericARMClient.
+func (c *armClient) Get(
+	ctx context.Context,
+	armID string,
+	apiVersion string,
+) (int, []byte, time.Duration, error) {
+	resp, err := c.get(ctx, armID, apiVersion)
+	if err != nil {
+		return 0, nil, 0, err
+	}
+
+	return resp.statusCode, resp.body, resp.retryAfter, nil
+}
+
+// Put implements GenericARMClient.
+func (c *armClient) Put(
+	ctx context.Context,
+	armID string,
+	apiVersion string,
+	ifMatch string,
+	payload any,
+) (int, []byte, time.Duration, error) {
+	resp, err := c.put(ctx, armID, apiVersion, ifMatch, payload)
+	if err != nil {
+		return 0, nil, 0, err
+	}
+
+	return resp.statusCode, resp.body, resp.retryAfter, nil
+}
+
+// put issues a PUT-by-ID with the given ARM body (marshaled to JSON). A
+// non-empty ifMatch is sent as an If-Match precondition header, so the write
+// only applies when the resource has not changed since the caller's GET
+// (optimistic concurrency, the same mechanism CAPZ uses for its LB updates).
 func (c *armClient) put(
 	ctx context.Context,
 	armID string,
 	apiVersion string,
+	ifMatch string,
 	body any,
 ) (*armResponse, error) {
 	req, err := c.newRequest(ctx, http.MethodPut, armID, apiVersion)
 	if err != nil {
 		return nil, err
+	}
+
+	if ifMatch != "" {
+		req.Raw().Header.Set("If-Match", ifMatch)
 	}
 
 	marshalErr := runtime.MarshalAsJSON(req, body)

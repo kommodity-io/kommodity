@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/kommodity-io/kommodity/pkg/config"
+	"github.com/kommodity-io/kommodity/pkg/controller/reconciler/azurearm"
 	"github.com/kommodity-io/kommodity/pkg/logging"
 	"go.uber.org/zap"
 	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
@@ -100,6 +101,14 @@ func setUpExtraReconcilers(ctx context.Context,
 		}).SetupWithManager(ctx, *manager, controllerOpts)
 		if err != nil {
 			return fmt.Errorf("failed to setup Azure credential materializer reconciler: %w", err)
+		}
+
+		err = (&AzureLBProbeFixer{
+			Client:    (*manager).GetClient(),
+			armClient: azurearm.NewGenericARMClientFactory(),
+		}).SetupWithManager(ctx, *manager, controllerOpts)
+		if err != nil {
+			return fmt.Errorf("failed to setup Azure LB probe fixer reconciler: %w", err)
 		}
 	}
 
