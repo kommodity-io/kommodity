@@ -230,11 +230,15 @@ Any `helm_path` pointing into the old key must be renamed, e.g.:
 
 ```
 kommodity.global.strategicPatches.machine.registries.config.corti.azurecr.io.auth.password
-→ kommodity.global.machineConfig.RegistryAuthConfig.corti.azurecr.io.auth.password
+→ kommodity.global.machineConfig.RegistryAuthConfig.corti.azurecr.io.password
 ```
 
 (named-kind maps are keyed by document name, so the registry host moved one level
-down into the kind's name map).
+down into the kind's name map. The old nested `auth:` map is gone —
+`RegistryAuthConfig` fields are flat strings: `username`, `password`, `auth`
+(raw base64 auth string), `identityToken`. Keeping the old `auth:` nesting
+breaks Talos at apply time: "cannot construct !!map into string".)
+
 
 ## Render-time validation
 
