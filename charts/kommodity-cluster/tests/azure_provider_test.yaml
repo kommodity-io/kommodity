@@ -639,10 +639,10 @@ tests:
           path: spec.replicas
           value: 3
 
-  - it: should include anonymous-auth in strategicPatches via global.strategicPatches
+  - it: should not include anonymous-auth in controlplane strategicPatches
     template: templates/talos/controlplane.yaml
     asserts:
-      - matchRegex:
+      - notMatchRegex:
           path: spec.controlPlaneConfig.controlplane.strategicPatches[0]
           pattern: "anonymous-auth"
 
