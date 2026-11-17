@@ -1456,52 +1456,46 @@ tests:
           path: spec.template.spec.strategicPatches[2]
           pattern: "kind: EnvironmentConfig"
 
-  # KernelModuleConfig tests
-  - it: should emit one KernelModuleConfig per entry
+  # List-kind tests (one document per list item, order preserved, verbatim).
+  # Worker strategicPatches baseline with the scaleway test values:
+  # [0] EnvironmentConfig (seeded), [1] KubeNodeConfig (seeded pool
+  # labels/annotations), [2] KubeletConfig (map kind), [3]+ list-kind docs.
+  - it: should emit one KernelModuleConfig per list item with order preserved
     template: templates/talos/configtemplate.yaml
     set:
       kommodity.global.machineConfig:
         KernelModuleConfig:
-          nvidia:
-          vfio_pci:
+          - name: nvidia
+          - name: vfio_pci
     asserts:
       - matchRegex:
-          path: spec.template.spec.strategicPatches[2]
-          pattern: "kind: KernelModuleConfig"
-      - matchRegex:
-          path: spec.template.spec.strategicPatches[2]
+          path: spec.template.spec.strategicPatches[3]
           pattern: "name: nvidia"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[3]
-          pattern: "kind: KernelModuleConfig"
-      - matchRegex:
-          path: spec.template.spec.strategicPatches[3]
+          path: spec.template.spec.strategicPatches[4]
           pattern: "name: vfio_pci"
 
-  - it: should emit KernelModuleConfig with parameters list
+  - it: should emit KernelModuleConfig list items verbatim
     template: templates/talos/configtemplate.yaml
     set:
       kommodity.global.machineConfig:
         KernelModuleConfig:
-          nvidia:
+          - name: nvidia
             parameters:
               - nvidia.noa=1
     asserts:
       - matchRegex:
-          path: spec.template.spec.strategicPatches[2]
-          pattern: "kind: KernelModuleConfig"
-      - matchRegex:
-          path: spec.template.spec.strategicPatches[2]
+          path: spec.template.spec.strategicPatches[3]
           pattern: "name: nvidia"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[2]
-          pattern: "- nvidia.noa=1"
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "- nvidia\\.noa=1"
 
-  - it: should not emit KernelModuleConfig when map empty
+  - it: should not emit KernelModuleConfig when list empty
     template: templates/talos/configtemplate.yaml
     set:
       kommodity.global.machineConfig:
-        KernelModuleConfig: {}
+        KernelModuleConfig: []
     asserts:
       - notMatchRegex:
           path: spec.template.spec.strategicPatches[0]
@@ -1513,40 +1507,34 @@ tests:
           path: spec.template.spec.strategicPatches[2]
           pattern: "KernelModuleConfig"
   # CRICustomizationConfig tests
-  - it: should emit one CRICustomizationConfig per entry
+  - it: should emit one CRICustomizationConfig per list item
     template: templates/talos/configtemplate.yaml
     set:
       kommodity.global.machineConfig:
         CRICustomizationConfig:
-          custom-cri-1:
+          - name: custom-cri-1
             content: cri-content-1
-          custom-cri-2:
+          - name: custom-cri-2
             content: cri-content-2
     asserts:
       - matchRegex:
-          path: spec.template.spec.strategicPatches[2]
-          pattern: "kind: CRICustomizationConfig"
-      - matchRegex:
-          path: spec.template.spec.strategicPatches[2]
+          path: spec.template.spec.strategicPatches[3]
           pattern: "name: custom-cri-1"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[2]
+          path: spec.template.spec.strategicPatches[3]
           pattern: "content: cri-content-1"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[3]
-          pattern: "kind: CRICustomizationConfig"
-      - matchRegex:
-          path: spec.template.spec.strategicPatches[3]
+          path: spec.template.spec.strategicPatches[4]
           pattern: "name: custom-cri-2"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[3]
+          path: spec.template.spec.strategicPatches[4]
           pattern: "content: cri-content-2"
 
-  - it: should not emit CRICustomizationConfig when map empty
+  - it: should not emit CRICustomizationConfig when list empty
     template: templates/talos/configtemplate.yaml
     set:
       kommodity.global.machineConfig:
-        CRICustomizationConfig: {}
+        CRICustomizationConfig: []
     asserts:
       - notMatchRegex:
           path: spec.template.spec.strategicPatches[0]
@@ -1647,15 +1635,15 @@ tests:
           path: spec.template.spec.strategicPatches[3]
           pattern: "TrailingSpacesDoc"
 
-  - it: should update TalosConfigTemplate name when global named-kind entries change
+  - it: should update TalosConfigTemplate name when global list-kind entries change
     template: templates/talos/configtemplate.yaml
     set:
       kommodity.global.machineConfig:
         KernelModuleConfig:
-          global-mod:
+          - name: global-mod
       kommodity.nodepools.default.machineConfig:
         KernelModuleConfig:
-          pool-mod:
+          - name: pool-mod
     asserts:
       - isKind:
           of: TalosConfigTemplate
@@ -1663,46 +1651,40 @@ tests:
           count: 1
       - equal:
           path: metadata.name
-          value: test-cluster-worker-default-84613d
+          value: test-cluster-worker-default-30592d
 
   # RegistryMirrorConfig tests
-  - it: should emit one RegistryMirrorConfig per entry
+  - it: should emit one RegistryMirrorConfig per list item
     template: templates/talos/configtemplate.yaml
     set:
       kommodity.global.machineConfig:
         RegistryMirrorConfig:
-          docker.io:
+          - name: docker.io
             endpoints:
               - url: https://mirror.local:5000
-          registry.k8s.io:
+          - name: registry.k8s.io
             endpoints:
               - url: https://mirror.local:5001
             skipFallback: true
     asserts:
       - matchRegex:
-          path: spec.template.spec.strategicPatches[2]
-          pattern: "kind: RegistryMirrorConfig"
-      - matchRegex:
-          path: spec.template.spec.strategicPatches[2]
+          path: spec.template.spec.strategicPatches[3]
           pattern: "name: docker.io"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[2]
+          path: spec.template.spec.strategicPatches[3]
           pattern: "url: https://mirror.local:5000"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[3]
-          pattern: "kind: RegistryMirrorConfig"
-      - matchRegex:
-          path: spec.template.spec.strategicPatches[3]
+          path: spec.template.spec.strategicPatches[4]
           pattern: "name: registry.k8s.io"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[3]
+          path: spec.template.spec.strategicPatches[4]
           pattern: "skipFallback: true"
 
-  - it: should not emit RegistryMirrorConfig when map empty
+  - it: should not emit RegistryMirrorConfig when list empty
     template: templates/talos/configtemplate.yaml
     set:
       kommodity.global.machineConfig:
-        RegistryMirrorConfig: {}
+        RegistryMirrorConfig: []
     asserts:
       - notMatchRegex:
           path: spec.template.spec.strategicPatches[0]
@@ -1715,45 +1697,38 @@ tests:
           pattern: "RegistryMirrorConfig"
 
   # RegistryAuthConfig tests
-  - it: should emit one RegistryAuthConfig per entry
+  - it: should emit one RegistryAuthConfig per list item
     template: templates/talos/configtemplate.yaml
     set:
       kommodity.global.machineConfig:
         RegistryAuthConfig:
-          gcr.example.com:
+          - name: gcr.example.com
             identityToken: my-token
-          my-private-registry.local:5000:
+          - name: my-private-registry.local:5000
             username: my-username
             password: my-password
     asserts:
-      # Entries emitted sorted by name: gcr.example.com before my-private-registry
       - matchRegex:
-          path: spec.template.spec.strategicPatches[2]
-          pattern: "kind: RegistryAuthConfig"
-      - matchRegex:
-          path: spec.template.spec.strategicPatches[2]
+          path: spec.template.spec.strategicPatches[3]
           pattern: "name: gcr\\.example\\.com"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[2]
+          path: spec.template.spec.strategicPatches[3]
           pattern: "identityToken: my-token"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[3]
-          pattern: "kind: RegistryAuthConfig"
-      - matchRegex:
-          path: spec.template.spec.strategicPatches[3]
+          path: spec.template.spec.strategicPatches[4]
           pattern: "name: my-private-registry\\.local:5000"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[3]
+          path: spec.template.spec.strategicPatches[4]
           pattern: "username: my-username"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[3]
+          path: spec.template.spec.strategicPatches[4]
           pattern: "password: my-password"
 
-  - it: should not emit RegistryAuthConfig when map empty
+  - it: should not emit RegistryAuthConfig when list empty
     template: templates/talos/configtemplate.yaml
     set:
       kommodity.global.machineConfig:
-        RegistryAuthConfig: {}
+        RegistryAuthConfig: []
     asserts:
       - notMatchRegex:
           path: spec.template.spec.strategicPatches[0]
@@ -1766,40 +1741,34 @@ tests:
           pattern: "RegistryAuthConfig"
 
   # RegistryTLSConfig tests
-  - it: should emit one RegistryTLSConfig per entry
+  - it: should emit one RegistryTLSConfig per list item
     template: templates/talos/configtemplate.yaml
     set:
       kommodity.global.machineConfig:
         RegistryTLSConfig:
-          my-private-registry.local:5000:
+          - name: my-private-registry.local:5000
             insecureSkipVerify: true
-          other-registry.local:5000:
+          - name: other-registry.local:5000
             ca: |
               -----BEGIN CERTIFICATE-----
               MIID...IDAQAB
               -----END CERTIFICATE-----
     asserts:
       - matchRegex:
-          path: spec.template.spec.strategicPatches[2]
-          pattern: "kind: RegistryTLSConfig"
-      - matchRegex:
-          path: spec.template.spec.strategicPatches[2]
+          path: spec.template.spec.strategicPatches[3]
           pattern: "name: my-private-registry.local:5000"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[2]
+          path: spec.template.spec.strategicPatches[3]
           pattern: "insecureSkipVerify: true"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[3]
-          pattern: "kind: RegistryTLSConfig"
-      - matchRegex:
-          path: spec.template.spec.strategicPatches[3]
+          path: spec.template.spec.strategicPatches[4]
           pattern: "BEGIN CERTIFICATE"
 
-  - it: should not emit RegistryTLSConfig when map empty
+  - it: should not emit RegistryTLSConfig when list empty
     template: templates/talos/configtemplate.yaml
     set:
       kommodity.global.machineConfig:
-        RegistryTLSConfig: {}
+        RegistryTLSConfig: []
     asserts:
       - notMatchRegex:
           path: spec.template.spec.strategicPatches[0]
@@ -1858,51 +1827,51 @@ tests:
           path: spec.template.spec.strategicPatches[2]
           pattern: "kind: ResolverConfig"
 
-  - it: should dedupe registry entries by name with nodepool winning
+  - it: should replace a global list kind wholesale with the nodepool list
     template: templates/talos/configtemplate.yaml
     set:
       kommodity.global.machineConfig:
         RegistryMirrorConfig:
-          docker.io:
+          - name: docker.io
             endpoints:
               - url: https://global-mirror.local:5000
-          registry.k8s.io:
+          - name: registry.k8s.io
             endpoints:
               - url: https://global-mirror.local:5001
       kommodity.nodepools.default.machineConfig:
         RegistryMirrorConfig:
-          docker.io:
+          - name: docker.io
             endpoints:
               - url: https://nodepool-mirror.local:5000
     asserts:
       - matchRegex:
-          path: spec.template.spec.strategicPatches[2]
-          pattern: "kind: RegistryMirrorConfig"
-      - matchRegex:
-          path: spec.template.spec.strategicPatches[2]
+          path: spec.template.spec.strategicPatches[3]
           pattern: "url: https://nodepool-mirror.local:5000"
-      - matchRegex:
-          path: spec.template.spec.strategicPatches[3]
-          pattern: "kind: RegistryMirrorConfig"
-      - matchRegex:
-          path: spec.template.spec.strategicPatches[3]
-          pattern: "name: registry.k8s.io"
+      - notMatchRegex:
+          path: spec.template.spec.strategicPatches[0]
+          pattern: "global-mirror"
+      - notMatchRegex:
+          path: spec.template.spec.strategicPatches[1]
+          pattern: "global-mirror"
       - notMatchRegex:
           path: spec.template.spec.strategicPatches[2]
           pattern: "global-mirror"
-      - matchRegex:
+      - notMatchRegex:
           path: spec.template.spec.strategicPatches[3]
-          pattern: "url: https://global-mirror.local:5001"
+          pattern: "global-mirror"
+      - notMatchRegex:
+          path: spec.template.spec.strategicPatches[4]
+          pattern: "global-mirror"
 
   - it: should emit RegistryAuthConfig auth and RegistryTLSConfig clientIdentity fields
     template: templates/talos/configtemplate.yaml
     set:
       kommodity.global.machineConfig:
         RegistryAuthConfig:
-          raw-auth-registry.local:
+          - name: raw-auth-registry.local
             auth: dXNlcjpwYXNz
         RegistryTLSConfig:
-          mtls-registry.local:
+          - name: mtls-registry.local
             clientIdentity:
               cert: |
                 -----BEGIN CERTIFICATE-----
@@ -1914,81 +1883,16 @@ tests:
                 -----END PRIVATE KEY-----
     asserts:
       - matchRegex:
-          path: spec.template.spec.strategicPatches[2]
-          pattern: "kind: RegistryAuthConfig"
-      - matchRegex:
-          path: spec.template.spec.strategicPatches[2]
+          path: spec.template.spec.strategicPatches[3]
           pattern: "auth: dXNlcjpwYXNz"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[3]
-          pattern: "kind: RegistryTLSConfig"
-      - matchRegex:
-          path: spec.template.spec.strategicPatches[3]
+          path: spec.template.spec.strategicPatches[4]
           pattern: "BEGIN CERTIFICATE"
       - matchRegex:
-          path: spec.template.spec.strategicPatches[3]
+          path: spec.template.spec.strategicPatches[4]
           pattern: "BEGIN PRIVATE KEY"
-
-  - it: should fail when named-kind entry body name does not match map key
-    template: templates/talos/controlplane.yaml
-    set:
-      kommodity.global.machineConfig:
-        KernelModuleConfig:
-          key-name:
-            name: other-name
-            parameters:
-              - foo=1
-    asserts:
-      # failedTemplate.errorMessage is an exact match, and the render error is
-      # attributed to the include site in controlplane.yaml; match by pattern.
-      - failedTemplate:
-          errorPattern: 'body name "other-name" does not match map key'
-
-  - it: should emit ResolverConfig hostDNS and searchDomains fields
-    template: templates/talos/configtemplate.yaml
-    set:
-      kommodity.global.machineConfig:
-        ResolverConfig:
-          hostDNS:
-            enabled: true
-            forwardKubeDNSToHost: true
-            resolveMemberNames: true
-          searchDomains:
-            disableDefault: true
-    asserts:
-      - matchRegex:
-          path: spec.template.spec.strategicPatches[3]
-          pattern: "kind: ResolverConfig"
-      - matchRegex:
-          path: spec.template.spec.strategicPatches[3]
-          pattern: "enabled: true"
-      - matchRegex:
-          path: spec.template.spec.strategicPatches[3]
-          pattern: "forwardKubeDNSToHost: true"
-      - matchRegex:
-          path: spec.template.spec.strategicPatches[3]
-          pattern: "disableDefault: true"
-
-  # Schema-derived kind dispatch tests (files/talos-doc-kinds.yaml)
-  - it: should emit a schema-derived named kind (EtcFileConfig) as standalone named document
-    template: templates/talos/configtemplate.yaml
-    set:
-      kommodity.global.machineConfig:
-        EtcFileConfig:
-          motd:
-            contents: hello world
-    asserts:
-      - matchRegex:
-          path: spec.template.spec.strategicPatches[2]
-          pattern: "kind: EtcFileConfig"
-      - matchRegex:
-          path: spec.template.spec.strategicPatches[2]
-          pattern: "name: motd"
-      - matchRegex:
-          path: spec.template.spec.strategicPatches[2]
-          pattern: "contents: hello world"
-
-  - it: should emit a schema-derived singleton kind (SysctlConfig) with injected envelope
+  # Shape-based dispatch tests
+  - it: should emit a map kind (SysctlConfig) with injected envelope
     template: templates/talos/configtemplate.yaml
     set:
       kommodity.global.machineConfig:
@@ -2006,29 +1910,120 @@ tests:
           path: spec.template.spec.strategicPatches[3]
           pattern: "fs.file-max: \"131072\""
 
-  - it: should route unknown kinds into the v1alpha1 fragment
+  - it: should deep-merge global and nodepool maps for the same kind with nodepool winning per field
     template: templates/talos/configtemplate.yaml
     set:
       kommodity.global.machineConfig:
-        NotATalosKind:
-          someField: someValue
+        SysctlConfig:
+          sysctls:
+            fs.file-max: "131072"
+            vm.max-map-count: "262144"
+      kommodity.nodepools.default.machineConfig:
+        SysctlConfig:
+          sysctls:
+            fs.file-max: "262144"
     asserts:
       - matchRegex:
           path: spec.template.spec.strategicPatches[3]
-          pattern: "NotATalosKind:"
+          pattern: "kind: SysctlConfig"
       - matchRegex:
           path: spec.template.spec.strategicPatches[3]
-          pattern: "someField: someValue"
+          pattern: "fs.file-max: \"262144\""
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "vm.max-map-count: \"262144\""
+
+  - it: should emit a list kind (EtcFileConfig) with one document per item in user order
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.global.machineConfig:
+        EtcFileConfig:
+          - name: motd
+            contents: hello world
+          - name: resolv.conf
+            contents: nameserver 1.1.1.1
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "name: motd"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "contents: hello world"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[4]
+          pattern: "name: resolv\\.conf"
+
+  - it: should route machine and cluster fragment keys into the v1alpha1 fragment
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.global.machineConfig:
+        machine:
+          type: worker
+        cluster:
+          externalCloudProvider:
+            enabled: true
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "machine:"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "type: worker"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "cluster:"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "externalCloudProvider:"
       - notMatchRegex:
           path: spec.template.spec.strategicPatches[3]
-          pattern: "kind: NotATalosKind"
+          pattern: "kind: machine"
+      - notMatchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "kind: cluster"
 
-  - it: should fail when a schema-derived singleton kind value is not a map
+  - it: should route machine fragment keys into the v1alpha1 fragment and not a document envelope
+    template: templates/talos/configtemplate.yaml
+    set:
+      kommodity.global.machineConfig:
+        machine:
+          certSANs:
+            - cluster.example.com
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "machine:"
+      - matchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "cluster.example.com"
+      - notMatchRegex:
+          path: spec.template.spec.strategicPatches[3]
+          pattern: "kind: machine"
+
+  - it: should fail when a kind value is a scalar
     template: templates/talos/controlplane.yaml
     set:
       kommodity.global.machineConfig:
-        SysctlConfig:
-          - not-a-map
+        SomeKind: hello
     asserts:
       - failedTemplate:
-          errorPattern: 'machineConfig.SysctlConfig must be a map of document fields, got slice'
+          errorPattern: 'machineConfig.SomeKind must be a map \(singleton document fields\) or a list \(one item per document\), got string'
+
+  - it: should fail when a kind value is a number
+    template: templates/talos/controlplane.yaml
+    set:
+      kommodity.global.machineConfig:
+        SomeKind: 42
+    asserts:
+      - failedTemplate:
+          errorPattern: 'machineConfig.SomeKind must be a map \(singleton document fields\) or a list \(one item per document\), got float64'
+
+  - it: should fail when a seeded kind is supplied as a list
+    template: templates/talos/controlplane.yaml
+    set:
+      kommodity.global.machineConfig:
+        EnvironmentConfig:
+          - name: x
+    asserts:
+      - failedTemplate:
+          errorPattern: 'machineConfig.EnvironmentConfig must be a map of document fields, got slice'

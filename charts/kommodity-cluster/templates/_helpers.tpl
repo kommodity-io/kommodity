@@ -304,34 +304,31 @@ Build merged machine config for strategicPatches (Talos v1.14 multi-doc kinds).
 Each returned block is one YAML document as a "- |" list item. Returns empty
 string if nothing to emit.
 
-machineConfig entries are dispatched three ways (kind classification is
-generated from Talos's published JSON schema for the chart's appVersion —
-see files/talos-doc-kinds.yaml, regenerated with `make
-generate-talos-doc-kinds`):
-  - named kinds (schema has a "name" property): map keyed by the document
-    "name"; the key is injected as the document name, one document per entry,
-    emitted sorted (kind, then name), nodepool entries replace global ones on
-    conflict. A body with an explicit "name" that disagrees with its map key
-    fails rendering. A non-map value fails rendering.
-  - singleton kinds (no "name" property): plain map of the document fields,
-    merged into a v1alpha1 apiVersion/kind envelope, no name. A non-map value
-    fails rendering.
-  - anything else (machine, cluster, ...): v1alpha1 strategic patch fragment,
-    emitted verbatim as escape hatch for fields with no document kind yet.
+machineConfig keys are dispatched purely by the shape of their value — no
+kind registry, so any current or future Talos document kind works without
+chart changes:
+  - map: one standalone document of that kind; the apiVersion: v1alpha1 /
+    kind: <Key> envelope is injected around the map's fields. Global and
+    nodepool/control-plane maps deep-merge (nodepool wins per field).
+  - list: one standalone document per item, emitted in the user's list
+    order, contents passed through verbatim. Lists are never merged across
+    scopes: a nodepool list replaces the global list wholesale, mirroring
+    Helm's own values-merge semantics. Duplicate names within a kind are
+    rejected by Talos at apply time, not at render time.
+  - machine / cluster: fixed fragment keys; deep-merged across scopes into
+    one v1alpha1 strategic patch, emitted verbatim as the escape hatch for
+    fields with no document kind.
+  - anything else (string, number): fails rendering with the key named.
 
 Built-in documents (EnvironmentConfig LOG_LEVEL, KubeNodeConfig pool
 labels/annotations/taints, KubeAuthenticationConfig OIDC + anonymous policy,
-KubeFlannelCNIConfig/KubeProxyConfig disable documents) are seeded, then user
-patches overlay them. Seeded control-plane-only documents (auth, CNI/proxy
-disable) emit on control planes only; user-supplied keys of any kind are
-never gated — the chart renders them on workers too and Talos validates at
-apply time. extraDocuments is a raw multi-doc YAML string split on --- and
-appended verbatim.
-
-Precedence: built-in settings (LOG_LEVEL from kommodity.logLevel, CNI/proxy
-disable documents, OIDC authentication config, pool-level
-labels/annotations/taints) are seeded first, then user patches overlay them
-(nodepool wins over global).
+KubeFlannelCNIConfig/KubeProxyConfig disable documents) are seeded first,
+then user patches overlay them; they accept maps only. Seeded
+control-plane-only documents (auth, CNI/proxy disable) emit on control
+planes only; user-supplied keys of any kind are never gated — the chart
+renders them on workers too and Talos validates at apply time.
+extraDocuments is a raw multi-doc YAML string split on --- and appended
+verbatim.
 */}}
 {{- define "kommodity-cluster.mergedMachineConfig" -}}
 {{- /* Seeded built-in documents; emission rule at the seededDocs loop below. */ -}}
@@ -365,59 +362,49 @@ labels/annotations/taints) are seeded first, then user patches overlay them
 {{- end -}}
 {{- $merged := dict -}}
 
-{{- /* docKinds: generated kind classification (namedKinds/singletonKinds),
-     loaded by the caller from files/talos-doc-kinds.yaml. Named kinds are
-     maps keyed by the document "name": one document per entry, nodepool
-     entries replace global ones on conflict. Talos rejects duplicate names
-     within a kind, so name-keyed dicts make the merge semantics
-     unambiguous. */ -}}
-{{- $docKinds := default (dict) .docKinds -}}
-{{- $namedKinds := default (dict) (dig "namedKinds" (dict) $docKinds) -}}
-{{- $singletonKinds := default (dict) (dig "singletonKinds" (dict) $docKinds) -}}
-{{- $namedDocs := dict -}}
-{{- $singletonDocs := dict -}}
-{{- $extraDocs := "" -}}
 {{- /* Seeded singletons by kind, tracked separately so user-supplied keys
      can be emitted ungated on workers. */ -}}
 {{- $seededDocs := dict "EnvironmentConfig" $envConfig "KubeFlannelCNIConfig" $flannelConfig "KubeProxyConfig" $proxyConfig "KubeNodeConfig" $nodeConfig "KubeAuthenticationConfig" $authConfig -}}
 {{- /* Keys the user supplied in any machineConfig (global or nodepool) */ -}}
 {{- $userKeys := dict -}}
+{{- /* User docs by kind: maps deep-merge across scopes (nodepool wins),
+     lists replace wholesale (nodepool list wins over the global list). */ -}}
+{{- $userDocs := dict -}}
+{{- $listDocs := dict -}}
+{{- $extraDocs := "" -}}
+{{- /* Fragment keys are fixed: everything else with a map value is a
+     singleton document kind, list value a repeated document kind. */ -}}
+{{- $fragmentKeys := list "machine" "cluster" -}}
 {{- /* Overlay user patches: global first, nodepool last (wins on conflicts) */ -}}
 {{- range $patches := list .globalPatches .nodepoolPatches -}}
 {{- if and $patches (gt (len $patches) 0) -}}
 {{- range $key := keys $patches -}}
 {{- $_ := set $userKeys $key true -}}
 {{- $value := deepCopy (index $patches $key) -}}
-{{- if hasKey $seededDocs $key -}}
-{{- $_ := mustMergeOverwrite (index $seededDocs $key) $value -}}
-{{- else if hasKey $namedKinds $key -}}
-{{- if not (kindIs "map" $value) -}}
-{{- fail (printf "machineConfig.%s must be a map keyed by document name, got %s" $key (kindOf $value)) -}}
-{{- end -}}
-{{- if not (hasKey $namedDocs $key) -}}
-{{- $_ := set $namedDocs $key (dict) -}}
-{{- end -}}
-{{- range $name, $body := $value -}}
-{{- if and (kindIs "map" $body) (hasKey $body "name") -}}
-{{- $bodyName := index $body "name" -}}
-{{- if ne $bodyName $name -}}
-{{- fail (printf "machineConfig.%s[%q]: body name %q does not match map key; drop the name field, the key is used" $key $name $bodyName) -}}
-{{- end -}}
-{{- end -}}
-{{- $_ := set (index $namedDocs $key) $name $body -}}
-{{- end -}}
-{{- else if hasKey $singletonKinds $key -}}
+{{- if eq $key "extraDocuments" -}}
+{{- $extraDocs = $value -}}
+{{- else if hasKey $seededDocs $key -}}
 {{- if not (kindIs "map" $value) -}}
 {{- fail (printf "machineConfig.%s must be a map of document fields, got %s" $key (kindOf $value)) -}}
 {{- end -}}
-{{- if not (hasKey $singletonDocs $key) -}}
-{{- $_ := set $singletonDocs $key (dict) -}}
+{{- $_ := mustMergeOverwrite (index $seededDocs $key) $value -}}
+{{- else if has $key $fragmentKeys -}}
+{{- if not (kindIs "map" $value) -}}
+{{- fail (printf "machineConfig.%s must be a map of v1alpha1 fragment fields, got %s" $key (kindOf $value)) -}}
 {{- end -}}
-{{- $_ := mustMergeOverwrite (index $singletonDocs $key) $value -}}
-{{- else if eq $key "extraDocuments" -}}
-{{- $extraDocs = $value -}}
-{{- else -}}
 {{- $_ := mustMergeOverwrite $merged (dict $key $value) -}}
+{{- else if kindIs "map" $value -}}
+{{- if not (hasKey $userDocs $key) -}}
+{{- $_ := set $userDocs $key (dict) -}}
+{{- end -}}
+{{- $_ := mustMergeOverwrite (index $userDocs $key) $value -}}
+{{- else if kindIs "slice" $value -}}
+{{- /* No cross-scope merge, no dedup, no sorting: a nodepool list
+     replaces the global list; item contents are the user's business,
+     Talos validates at apply time. */ -}}
+{{- $_ := set $listDocs $key $value -}}
+{{- else -}}
+{{- fail (printf "machineConfig.%s must be a map (singleton document fields) or a list (one item per document), got %s" $key (kindOf $value)) -}}
 {{- end -}}
 {{- end -}}
 {{- end -}}
@@ -439,23 +426,18 @@ labels/annotations/taints) are seeded first, then user patches overlay them
 {{ include "kommodity-cluster.docListItem" (dict "doc" $doc) }}
 {{- end -}}
 {{- end -}}
-{{- /* Named kinds: one document per map entry, name from the map key,
-     sorted for deterministic output. */ -}}
-{{- range $kind := keys $namedDocs | sortAlpha -}}
-{{- range $name := keys (index $namedDocs $kind) | sortAlpha -}}
-{{- $doc := dict "apiVersion" "v1alpha1" "kind" $kind "name" $name -}}
-{{- /* Null body (e.g. `btrfs:` with no fields) contributes nothing
-     beyond the name; render it as an empty dict. */ -}}
-{{- $_ := mustMergeOverwrite $doc (deepCopy (default dict (index (index $namedDocs $kind) $name))) -}}
-{{ include "kommodity-cluster.docListItem" (dict "doc" $doc) }}
-{{- end -}}
-{{- end -}}
-{{- /* Singleton kinds: one document per kind, no name, envelope injected,
-     sorted for deterministic output. */ -}}
-{{- range $kind := keys $singletonDocs | sortAlpha -}}
+{{- /* User kinds: maps sorted by kind for deterministic output, one
+     document per kind with the envelope injected (no name). */ -}}
+{{- range $kind := keys $userDocs | sortAlpha -}}
 {{- $doc := dict "apiVersion" "v1alpha1" "kind" $kind -}}
-{{- $_ := mustMergeOverwrite $doc (deepCopy (index $singletonDocs $kind)) -}}
+{{- $_ := mustMergeOverwrite $doc (deepCopy (index $userDocs $kind)) -}}
 {{ include "kommodity-cluster.docListItem" (dict "doc" $doc) }}
+{{- end -}}
+{{- /* List kinds: one document per item in the user's order, verbatim. */ -}}
+{{- range $kind := keys $listDocs | sortAlpha -}}
+{{- range $item := index $listDocs $kind -}}
+{{ include "kommodity-cluster.docListItem" (dict "doc" $item) }}
+{{- end -}}
 {{- end -}}
 {{- if gt (len (keys $merged)) 0 -}}
 {{ include "kommodity-cluster.docListItem" (dict "doc" $merged) }}

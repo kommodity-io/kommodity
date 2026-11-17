@@ -276,40 +276,45 @@ kommodity:
     # (kommodity.logLevel is added as LOG_LEVEL), KubeNodeConfig (pool
     # labels/annotations/taints), KubeAuthenticationConfig (OIDC + anonymous
     # policy), KubeFlannelCNIConfig/KubeProxyConfig (disable documents).
+    # They accept maps only; a list fails rendering.
     # User-supplied document kinds are never control-plane-gated: the chart
     # renders them on workers too and Talos validates at apply time.
-    # machineConfig entries are dispatched three ways, based on the kind
-    # classification generated from Talos's published schema for the chart's
-    # appVersion (files/talos-doc-kinds.yaml):
-    #  - named kinds (any document kind with a "name" field): map keyed by
-    #    the document "name"; one document per entry, nodepool entries with
-    #    the same key replace global ones, emitted sorted. A null value (e.g.
-    #    `btrfs:`) emits a bare document. Do not set "name" inside an entry;
-    #    the map key is the name, and a mismatching body name fails rendering.
-    #  - singleton kinds (document kinds without a "name" field): plain map
-    #    of the document fields; the apiVersion/kind envelope is injected.
-    #  - anything else (machine, cluster, ...): v1alpha1 strategic patch
-    #    fragment, emitted verbatim as an escape hatch.
+    # Each machineConfig key is dispatched by the shape of its value — no
+    # kind registry, any Talos document kind works:
+    #  - map: one standalone document of that kind; the apiVersion/kind
+    #    envelope is injected around the map's fields. Global and
+    #    nodepool/controlplane maps deep-merge (nodepool wins per field).
+    #  - list: one standalone document per item, in your list order,
+    #    passed through verbatim (set "name" inside each item yourself).
+    #    A nodepool list REPLACES the global list wholesale, like Helm's
+    #    own values merge — restate the full list to combine scopes.
+    #  - machine / cluster: v1alpha1 strategic patch fragment,
+    #    deep-merged across scopes, emitted verbatim as escape hatch for
+    #    fields with no document kind.
+    #  - anything else (string, number): fails rendering.
     # extraDocuments is a raw multi-doc
     # YAML string split on document separators (--- line, optional trailing
     # comment) and appended verbatim, one patch item per document.
-    # Controlplane / nodepool machineConfig are deep-merged on top of global (later wins on conflicts).
     # Example:
     #   machineConfig:
-    #     EnvironmentConfig:
+    #     EnvironmentConfig:       # map kind: envelope injected, merged
     #       variables:
     #         MY_VAR: my-value
     #     KubeletConfig:
     #       extraArgs:
     #         max-pods: "200"
-    #     KernelModuleConfig:
-    #       btrfs:            # null: just load the module
-    #       br_netfilter:
-    #         parameters: ["bridge-stp=1"]
-    #     SysctlConfig:             # singleton kind: plain dict
+    #     KernelModuleConfig:      # list kind: one doc per item, verbatim
+    #       - name: br_netfilter
+    #       - name: nvidia
+    #         parameters: ["NVreg_EnableS0ixStreamingBER=0"]
+    #     RegistryMirrorConfig:    # list kind
+    #       - name: registry.internal
+    #         endpoints:
+    #           - https://registry.internal/v2
+    #     SysctlConfig:            # map kind
     #       sysctls:
     #         fs.file-max: "131072"
-    #     cluster:                  # v1alpha1 fragment escape hatch
+    #     cluster:                 # v1alpha1 fragment escape hatch
     #       externalCloudProvider:
     #         enabled: true
     machineConfig: {}

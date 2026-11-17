@@ -163,9 +163,6 @@ run-byot-integration-test: ## Runs BYOT integration tests (requires Docker)
 run-helm-unit-tests:
 	helm unittest charts/*
 
-.PHONY: generate-talos-doc-kinds
-generate-talos-doc-kinds: ## Regenerate the vendored Talos document kind classification.
-	./scripts/generate-talos-doc-kinds.sh
 
 .PHONY: terraform-docs
 terraform-docs: ## Regenerate README.md for all Terraform modules.

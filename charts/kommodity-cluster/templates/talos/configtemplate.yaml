@@ -31,7 +31,6 @@ spec:
         "annotations" $np.annotations
         "isControlPlane" false
         "logLevel" $.Values.kommodity.logLevel
-        "docKinds" ($.Files.Get "files/talos-doc-kinds.yaml" | fromYaml)
       ) | trim -}}
       {{- $hetznerPrivate := and (eq $.Values.kommodity.provider.name "Hetzner") (not $.Values.kommodity.network.ipv4.public) }}
       {{- $hetznerNameservers := include "kommodity-cluster.hetznerResolverNameservers" (dict "poolValues" $np "allValues" $.Values) | fromJsonArray -}}

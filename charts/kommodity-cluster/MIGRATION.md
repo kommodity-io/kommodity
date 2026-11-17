@@ -18,18 +18,22 @@ Chart 0.39.0 upgrades Talos to v1.14.5 and replaces the deprecated v1alpha1
    renamed. Each rendered item is now a full multi-doc kind (or a v1alpha1 fragment
    for fields without a multi-doc replacement), not a single merged fragment.
 
-## The new `machineConfig` shape
+## The `machineConfig` shape
 
-Keys are dispatched three ways, based on the kind classification generated from
-Talos's published schema (`files/talos-doc-kinds.yaml`):
+Each key is dispatched purely by the **shape of its value** — the chart keeps no
+per-kind knowledge, so any current or future Talos document kind works:
 
 | Key | Shape | Semantics |
 |---|---|---|
-| **Singleton kind** (`KubeletConfig`, `EnvironmentConfig`, `SysctlConfig`, `KubeAPIServerConfig`, ...) | plain map of the document's fields | `apiVersion`/`kind` envelope injected; global and nodepool deep-merged (nodepool wins on conflicts); one document per kind |
-| **Named kind** (`KernelModuleConfig`, `RegistryMirrorConfig`, `EtcFileConfig`, ...) | map keyed by document `name` | one document per entry; the key becomes `name`; a null value emits a bare document; **a nodepool entry with the same name replaces the global entry wholesale** (Talos rejects duplicate names within a kind, so field-level merging across scopes is impossible); a body `name` that does not match the map key fails rendering |
-| **`machine:` / `cluster:` / unknown kinds** | v1alpha1 fragment | deep-merged together and emitted verbatim as a single strategic patch — the escape hatch for fields with no multi-doc replacement |
+| **Map kind** (`KubeletConfig`, `EnvironmentConfig`, `SysctlConfig`, `KubeAPIServerConfig`, ...) | plain map of the document's fields | `apiVersion`/`kind` envelope injected; global and nodepool deep-merged (nodepool wins per field); one document per kind |
+| **List kind** (`KernelModuleConfig`, `RegistryMirrorConfig`, `EtcFileConfig`, ...) | list of full documents | one document per item, in your list order, passed through verbatim — set `name` (and every other field) inside each item yourself; **a nodepool list replaces the global list wholesale** (restate the full list to combine scopes) |
+| **`machine:` / `cluster:`** | v1alpha1 fragment | deep-merged together and emitted verbatim as a single strategic patch — the escape hatch for fields with no multi-doc replacement |
 
-### Singleton kind example
+The five seeded built-in kinds (`EnvironmentConfig`, `KubeNodeConfig`,
+`KubeAuthenticationConfig`, `KubeFlannelCNIConfig`, `KubeProxyConfig`) accept maps
+only; supplying one as a list fails rendering.
+
+### Map kind example
 
 Plain map of the document's fields. Global and nodepool deep-merge — the nodepool
 wins per field, everything else from global is kept:
@@ -49,26 +53,27 @@ kommodity:
             max-pods: "512"   # nodepool wins; global KubeletConfig fields kept
 ```
 
-### Named kind example
+### List kind example
 
-Map keyed by document `name` — the key becomes the `name` field; do not set `name`
-in the body. A nodepool entry with the same name replaces the global entry
-wholesale; different names coexist:
+One item per document, in list order, verbatim. Duplicate `name` values within a
+kind are rejected by Talos at apply time, not by the chart:
 
 ```yaml
 kommodity:
   global:
     machineConfig:
       KernelModuleConfig:
-        br_netfilter: {}        # null body: bare document, just load the module
-        nvidia:
+        - name: br_netfilter
+        - name: nvidia
           parameters:
             - NVreg_EnableS0ixStreamingBER=0
   nodepools:
     gpu:
       machineConfig:
+        # REPLACES the global KernelModuleConfig list wholesale —
+        # restate br_netfilter here if the pool still needs it
         KernelModuleConfig:
-          nvidia:               # replaces the global `nvidia` entry wholesale
+          - name: nvidia
             parameters:
               - NVreg_DeviceOverrideGPUA75.4DBF.LT=1
 ```
@@ -93,32 +98,37 @@ Full list of document kinds and which v1alpha1 field each replaces:
 
 ## Field mapping
 
-| Old (`strategicPatches`) | New (`machineConfig`) | Notes |
+| Old (`strategicPatches`) | New (`machineConfig`) | Shape |
 |---|---|---|
-| `machine.kubelet.extraArgs` | `KubeletConfig.extraArgs` | singleton kind |
-| `machine.kubelet.extraConfig` | `KubeletConfig.config` | field renamed by Talos v1.14 |
-| `machine.env` | `EnvironmentConfig.variables` | singleton kind; `kommodity.logLevel` is auto-emitted as `LOG_LEVEL` here |
-| `machine.nodeLabels` | `KubeNodeConfig.labels` | pool-level `labels`/`annotations`/`taints` values (outside `machineConfig`) also emit `KubeNodeConfig` — no need to duplicate |
-| `machine.nodeAnnotations` | `KubeNodeConfig.annotations` | |
-| `machine.nodeTaints` | `KubeNodeConfig.taints` | the chart no longer emits `register-with-taints` as a kubelet extraArg — remove any manual override of it |
-| `machine.kernel.modules` | `KernelModuleConfig` (name-keyed) | one document per module: `KernelModuleConfig: {nvidia: null, br_netfilter: {parameters: [...]}}` |
-| `machine.sysctls` | `SysctlConfig.sysctls` | singleton kind |
-| `machine.sysfs` | `SysfsConfig.sysfs` | singleton kind |
-| `machine.network.nameservers` | `ResolverConfig` | singleton kind; on Hetzner, a user-supplied `ResolverConfig` suppresses the chart's built-in one |
-| `machine.registries.mirrors.<host>` | `RegistryMirrorConfig` (name-keyed by host) | one document per host |
-| `machine.registries.config.<host>.auth` | `RegistryAuthConfig` (name-keyed by host) | one document per host |
-| `machine.registries.config.<host>.tls` | `RegistryTLSConfig` (name-keyed by host) | one document per host |
-| `cluster.apiServer.extraArgs` | `KubeAPIServerConfig.extraArgs` | except OIDC/anonymous flags, see below |
-| `cluster.proxy` | `KubeProxyConfig` | |
-| `cluster.scheduler` | `KubeSchedulerConfig` | |
-| `cluster.controllerManager` | `KubeControllerManagerConfig` | |
-| `cluster.coreDNS` | `KubeCoreDNSConfig` | |
-| `cluster.allowSchedulingOnControlPlanes` | `KubeNodeConfig` with `taints."node-role.kubernetes.io/control-plane": {$patch: delete}` | |
-| `cluster.inlineManifests` | `KubeInlineManifestConfig` (name-keyed) | field `contents` renamed to `manifest`; one document per manifest |
-| `cluster.extraManifests` | `KubeExternalManifestConfig` | |
-| `machine.udev` | `UdevRulesConfig` | |
-| `machine.time` | `TimeSyncConfig` | |
-| `machine.install` | `UnattendedInstallConfig` | |
+| `machine.kubelet.extraArgs` | `KubeletConfig.extraArgs` | map |
+| `machine.kubelet.extraConfig` | `KubeletConfig.config` | map; field renamed by Talos v1.14 |
+| `machine.env` | `EnvironmentConfig.variables` | map; `kommodity.logLevel` is auto-emitted as `LOG_LEVEL` here |
+| `machine.nodeLabels` | `KubeNodeConfig.labels` | map; pool-level `labels`/`annotations`/`taints` values (outside `machineConfig`) also emit `KubeNodeConfig` — no need to duplicate |
+| `machine.nodeAnnotations` | `KubeNodeConfig.annotations` | map |
+| `machine.nodeTaints` | `KubeNodeConfig.taints` | map; the chart no longer emits `register-with-taints` as a kubelet extraArg — remove any manual override of it |
+| `machine.kernel.modules` | `KernelModuleConfig` | list; one item per module, e.g. `[{name: nvidia}, {name: br_netfilter, parameters: [...]}]` |
+| `machine.sysctls` | `SysctlConfig.sysctls` | map |
+| `machine.sysfs` | `SysfsConfig.sysfs` | map |
+| `machine.network.nameservers` | `ResolverConfig` | map; on Hetzner, a user-supplied `ResolverConfig` suppresses the chart's built-in one |
+| `machine.registries.mirrors.<host>` | `RegistryMirrorConfig` | list; one item per host with `name: <host>` |
+| `machine.registries.config.<host>.auth` | `RegistryAuthConfig` | list; one item per host with `name: <host>` |
+| `machine.registries.config.<host>.tls` | `RegistryTLSConfig` | list; one item per host with `name: <host>` |
+| `cluster.apiServer.extraArgs` | `KubeAPIServerConfig.extraArgs` | map; except OIDC/anonymous flags, see below |
+| `cluster.proxy` | `KubeProxyConfig` | map |
+| `cluster.scheduler` | `KubeSchedulerConfig` | map |
+| `cluster.controllerManager` | `KubeControllerManagerConfig` | map |
+| `cluster.coreDNS` | `KubeCoreDNSConfig` | map |
+| `cluster.allowSchedulingOnControlPlanes` | `KubeNodeConfig` with `taints."node-role.kubernetes.io/control-plane": {$patch: delete}` | map |
+| `cluster.inlineManifests` | `KubeInlineManifestConfig` | list; field `contents` renamed to `manifest`; one item per manifest with `name` |
+| `cluster.extraManifests` | `KubeExternalManifestConfig` | list; one item per manifest with `name` |
+| `machine.udev` | `UdevRulesConfig` | map |
+| `machine.time` | `TimeSyncConfig` | map |
+| `machine.install` | `UnattendedInstallConfig` | map |
+| `/etc` file overrides (`/etc/motd`, ...) | `EtcFileConfig` | list; one item per path with `name: <path>` |
+| user volumes | `UserVolumeConfig` | list; one item per volume with `name` |
+
+Any kind not in the table still works: map value for a singleton document, list
+value for repeated documents.
 
 ### Stay as v1alpha1 fragments (no multi-doc replacement in v1.14)
 
@@ -170,26 +180,26 @@ After (0.39.0):
 kommodity:
   global:
     machineConfig:
-      KubeletConfig:                 # singleton kind: plain fields
+      KubeletConfig:                 # map kind: plain fields
         extraArgs:
           cloud-provider: external
           max-pods: "200"
-      EnvironmentConfig:             # singleton kind
+      EnvironmentConfig:              # map kind
         variables:
           HTTP_PROXY: http://proxy.example.com:8080
-      KubeNodeConfig:                # singleton kind
+      KubeNodeConfig:                # map kind
         labels:
           pool: general
         taints:
           node-role.kubernetes.io/control-plane:
             $patch: delete           # was cluster.allowSchedulingOnControlPlanes
-      KernelModuleConfig:            # named kind: keyed by module name
-        br_netfilter: {}
-      RegistryMirrorConfig:          # named kind: keyed by registry host
-        registry.internal:
+      KernelModuleConfig:            # list kind: one item per module
+        - name: br_netfilter
+      RegistryMirrorConfig:          # list kind: one item per registry host
+        - name: registry.internal
           endpoints:
             - https://registry.internal/v2
-      KubeAuthenticationConfig:      # singleton kind
+      KubeAuthenticationConfig:      # map kind
         configuration:
           anonymous:
             enabled: true
@@ -230,20 +240,25 @@ Any `helm_path` pointing into the old key must be renamed, e.g.:
 
 ```
 kommodity.global.strategicPatches.machine.registries.config.corti.azurecr.io.auth.password
-→ kommodity.global.machineConfig.RegistryAuthConfig.corti.azurecr.io.password
+→ kommodity.global.machineConfig.RegistryAuthConfig[?name=="corti.azurecr.io"].password
 ```
 
-(named-kind maps are keyed by document name, so the registry host moved one level
-down into the kind's name map. The old nested `auth:` map is gone —
-`RegistryAuthConfig` fields are flat strings: `username`, `password`, `auth`
-(raw base64 auth string), `identityToken`. Keeping the old `auth:` nesting
-breaks Talos at apply time: "cannot construct !!map into string".)
-
+(list-form `RegistryAuthConfig` is a list of documents each carrying `name`,
+`username`, `password`, `auth` (raw base64 auth string), `identityToken`. Keeping
+the old `auth:` nesting breaks Talos at apply time: "cannot construct !!map into
+string".)
 
 ## Render-time validation
 
-The chart now fails rendering (instead of emitting a broken config) when:
+The chart fails rendering (instead of emitting a broken config) when:
 
-- a named-kind entry's body `name` does not match its map key — drop the `name`
-  field, the key is the name
-- a kind value is not a map
+- a `machineConfig` key holds a string or number instead of a map or list
+- one of the five seeded built-in kinds (`EnvironmentConfig`, `KubeNodeConfig`,
+  `KubeAuthenticationConfig`, `KubeFlannelCNIConfig`, `KubeProxyConfig`) is
+  supplied as a list
+- `machine` / `cluster` fragment keys hold anything but a map
+
+Duplicate `name` values within one kind's list, and the same kind defined as a
+list in both global and nodepool scopes, are validated by Talos at apply time —
+the chart deliberately keeps no kind knowledge beyond the seeded kinds and the
+two fragment keys.
