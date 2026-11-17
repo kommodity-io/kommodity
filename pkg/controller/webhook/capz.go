@@ -48,6 +48,20 @@ func setupCAPZ(ctx context.Context, manager ctrl.Manager) error {
 		return fmt.Errorf("failed to setup AzureMachinePool webhook: %w", err)
 	}
 
+	logger.Info("Setting up AzureClusterIdentity webhook")
+
+	err = setupAzureClusterIdentityWebhookWithManager(manager)
+	if err != nil {
+		return fmt.Errorf("failed to setup AzureClusterIdentity webhook: %w", err)
+	}
+
+	logger.Info("Setting up AzureMachinePoolMachine webhook")
+
+	err = setupAzureMachinePoolMachineWebhookWithManager(manager)
+	if err != nil {
+		return fmt.Errorf("failed to setup AzureMachinePoolMachine webhook: %w", err)
+	}
+
 	return nil
 }
 
@@ -91,6 +105,24 @@ func setupAzureMachinePoolWebhookWithManager(manager ctrl.Manager) error {
 	err := capzexpv1beta1.SetupAzureMachinePoolWebhookWithManager(manager)
 	if err != nil {
 		return fmt.Errorf("failed to setup AzureMachinePool webhook with manager: %w", err)
+	}
+
+	return nil
+}
+
+func setupAzureClusterIdentityWebhookWithManager(manager ctrl.Manager) error {
+	err := (&capzv1beta1.AzureClusterIdentity{}).SetupWebhookWithManager(manager)
+	if err != nil {
+		return fmt.Errorf("failed to setup AzureClusterIdentity webhook with manager: %w", err)
+	}
+
+	return nil
+}
+
+func setupAzureMachinePoolMachineWebhookWithManager(manager ctrl.Manager) error {
+	err := (&capzexpv1beta1.AzureMachinePoolMachine{}).SetupWebhookWithManager(manager)
+	if err != nil {
+		return fmt.Errorf("failed to setup AzureMachinePoolMachine webhook with manager: %w", err)
 	}
 
 	return nil
