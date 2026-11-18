@@ -316,7 +316,7 @@ func (r *AzureCredentialMaterializer) upsertManagedSecret(
 		// Collision guard: the Secret is materializer-managed but belongs to a different
 		// Cluster. Refuse to take it over — overwriting would steal that cluster's credentials
 		// and, on this cluster's teardown, garbage collect a Secret it still depends on. This is
-		// the signature of a values file copied from another cluster whose provider.secret.name
+		// the signature of a values file copied from another cluster whose provider.azure.secret.name
 		// was not updated.
 		owner := existing.Labels[clusterNameLabel]
 		if owner != "" && owner != cluster.Name {
@@ -326,7 +326,7 @@ func (r *AzureCredentialMaterializer) upsertManagedSecret(
 				zap.String("requestedBy", cluster.Name))
 
 			return fmt.Errorf("%w: Secret %s/%s is materialized for cluster %q, not %q "+
-				"(likely a duplicate provider.secret.name copied from another cluster's values)",
+				"(likely a duplicate provider.azure.secret.name copied from another cluster's values)",
 				ErrSecretOwnedByAnotherCluster, cluster.Namespace, name, owner, cluster.Name)
 		}
 	} else if !apierrors.IsNotFound(err) {

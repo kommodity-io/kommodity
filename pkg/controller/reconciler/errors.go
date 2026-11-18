@@ -23,6 +23,6 @@ var (
 	// ErrSecretOwnedByAnotherCluster is returned when a materialized Secret already belongs to a
 	// different Cluster. Taking it over would steal that cluster's credentials and, on this
 	// cluster's teardown, garbage collect a Secret the other cluster still depends on. This is the
-	// signature of a values file copied from another cluster without updating provider.secret.name.
+	// signature of a values file copied from another cluster without updating provider.azure.secret.name.
 	ErrSecretOwnedByAnotherCluster = errors.New("secret is materialized for another cluster")
 )

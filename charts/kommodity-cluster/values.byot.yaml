@@ -5,10 +5,10 @@
 kommodity:
   provider:
     name: Byot
-    # Control-plane endpoint (REQUIRED). Must exist before any host
-    # is claimed. CP host IPs are resolved at claim time and cannot be used
-    # here (VIP / load balancer / DNS name fronting the control plane (HA)).
-    config:
+    byot:
+      # Control-plane endpoint (REQUIRED). Must exist before any host
+      # is claimed. CP host IPs are resolved at claim time and cannot be used
+      # here (VIP / load balancer / DNS name fronting the control plane (HA)).
       controlPlaneEndpoint:
         host: <REPLACE-ME>
         port: 6443

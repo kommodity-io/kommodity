@@ -153,19 +153,23 @@ tests:
           pattern: "name: hcloud"
         documentIndex: 0
 
-  - it: should render when provider config is null rather than an empty map
+  - it: should fail when provider.hetzner is null (missing secret name)
     template: templates/provider/hetzner/cluster.yaml
     set:
-      kommodity.provider.config: null
+      kommodity.provider.hetzner: null
     asserts:
-      - isKind:
-          of: HetznerCluster
-      - equal:
-          path: spec.controlPlaneLoadBalancer.enabled
-          value: true
-      - equal:
-          path: spec.controlPlaneEndpoint.port
-          value: 6443
+      - failedTemplate:
+          errorMessage: "missing required secret name in kommodity.provider.hetzner.secret.name for Hetzner"
+
+  # A null secret block is valid YAML for null, which dig cannot walk; it must fail
+  # with the required-message instead of a template panic.
+  - it: should fail when provider.hetzner.secret is null rather than an empty map
+    template: templates/provider/hetzner/cluster.yaml
+    set:
+      kommodity.provider.hetzner.secret: null
+    asserts:
+      - failedTemplate:
+          errorMessage: "missing required secret name in kommodity.provider.hetzner.secret.name for Hetzner"
 
   - it: should fail when the hcloud-csi addon is enabled without the CCM
     template: templates/provider/hetzner/cluster.yaml
