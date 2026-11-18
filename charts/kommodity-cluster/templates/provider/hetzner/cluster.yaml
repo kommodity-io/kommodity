@@ -38,7 +38,7 @@ spec:
     host: {{ dig "host" "" $cpe | quote }}
     port: {{ dig "port" 6443 $cpe }}
   hetznerSecretRef:
-    name: {{ dig "secret" "name" "" $hetzner }}
+    name: {{ required "missing required secret name in kommodity.provider.hetzner.secret.name for Hetzner" (dig "name" "" (dig "secret" (dict) $hetzner | default (dict))) }}
     key:
       hcloudToken: hcloud
   {{- with (dig "sshKeyName" "" $config) }}

@@ -31,6 +31,20 @@ In 0.39.0 every provider reads its settings from its own key,
 | `kommodity.provider.identity.*`      | `kommodity.provider.<name>.identity.*` (Azure only) |
 | `kommodity.region`                   | `kommodity.provider.scaleway.region` (Scaleway only) |
 
+Wherever `provider.<name>.secret.name` feeds an infrastructure secret
+reference (`HetznerCluster.spec.hetznerSecretRef`, `KubevirtCluster.spec.infraClusterSecretRef`)
+it is now **required** — the chart fails fast at render time when it is missing
+instead of rendering an empty reference. Scaleway is the exception: its
+`ScalewayCluster.spec.scalewaySecretName` is mandatory, so the chart defaults
+`provider.scaleway.secret.name` to `scaleway-secret`.
+
+The CCM annotations (`kommodity.io/ccm-secret-name` /
+`kommodity.io/ccm-downstream-secret-name`) are now strictly opt-in. They are
+stamped on the Cluster only when `provider.<name>.secret.name` resolves to a
+name — the Azure `<release>-cloud-provider` default is gone (Scaleway keeps
+its `scaleway-secret` default, matching `scalewaySecretName`). With no name
+set, no CCM credentials are delivered.
+
 ### Azure clusters
 
 ```yaml
@@ -61,9 +75,12 @@ kommodity:
       # allowSharedResourceGroup: true
 ```
 
-The optional CCM secret override moves from `kommodity.provider.secret.name`
-to `kommodity.provider.azure.secret.name`; when unset it still defaults to
-`<release>-cloud-provider`.
+The CCM secret is now opt-in and the *only* way the Azure CCM receives its
+cloud-config: `kommodity.provider.azure.secret.name` moved from the generic
+`kommodity.provider.secret.name`, and the `<release>-cloud-provider` default is
+gone. The chart stamps the CCM annotations on the Cluster only when it is set —
+unset means no cloud-config Secret is materialized or delivered. Pick a name
+unique per cluster when several Azure clusters share one namespace.
 
 ### Hetzner clusters
 
@@ -153,10 +170,8 @@ kommodity:
     scaleway:
       region: fr-par
       projectID: <your-project-id>
-      # secret.name still defaults to "scaleway-secret" when omitted;
-      # set it only if you use a custom secret name.
       # secret:
-      #   name: scaleway-secret
+      #   name: scaleway-secret   # optional — defaults to "scaleway-secret" when omitted
 ```
 
 `kommodity.region` was only ever consumed by the Scaleway templates and is

@@ -28,24 +28,35 @@ metadata:
   {{- if .Values.kommodity.provider.cloudControllerManager.enabled }}
   {{- if eq .Values.kommodity.provider.name "Azure" }}
   {{- /*
-    Azure's CCM cloud-config Secret is materialized per cluster (not hand-created),
-    so its management-side name defaults to <release>-cloud-provider — unique per
-    release, letting multiple Azure clusters share one namespace without colliding.
-    An explicit provider.azure.secret.name overrides it (e.g. to point at a Secret you
-    manage yourself). The downstream name inside each workload cluster is always
+    Azure's CCM cloud-config Secret is materialized per cluster (not hand-created).
+    There is no default name: the annotations below are stamped only when the
+    operator sets provider.azure.secret.name — pick a name unique per release
+    when multiple Azure clusters share one namespace. The credential materializer
+    creates the cloud-config Secret under that name and the CCM CRS reconciler
+    delivers it; with no name set, no Secret is materialized or delivered.
+    The downstream name inside each workload cluster is always
     azure-cloud-provider (separate clusters, no collision).
   */}}
   {{- $azureProvider := dig "azure" (dict) .Values.kommodity.provider | default (dict) }}
-  {{- $azureCCMSecret := dig "secret" "name" "" $azureProvider | default (printf "%s-cloud-provider" .Release.Name) }}
+  {{- $azureCCMSecret := dig "name" "" (dig "secret" (dict) $azureProvider | default (dict)) }}
+  {{- if $azureCCMSecret }}
   {{- $_ := set $annotations "kommodity.io/ccm-secret-name" $azureCCMSecret }}
   {{- $_ := set $annotations "kommodity.io/ccm-downstream-secret-name" "azure-cloud-provider" }}
+  {{- end }}
   {{- else }}
   {{- $providerName := .Values.kommodity.provider.name }}
   {{- $providerConfig := dig (lower $providerName) (dict) .Values.kommodity.provider | default (dict) }}
-  {{- $ccmSecretName := dig "secret" "name" "" $providerConfig }}
+  {{- /* The CCM annotations are deliberately optional: they are stamped only when
+         provider.<name>.secret.name is explicitly set, so a cluster that delivers
+         its CCM credentials another way gets no annotations (and no CRS delivery).
+         Hetzner and Kubevirt already fail fast on a missing secret.name in their own
+         templates (infrastructure secretRef); Scaleway defaults to "scaleway-secret"
+         because its ScalewayCluster spec requires the Secret under that name. */}}
+  {{- $ccmSecretName := dig "name" "" (dig "secret" (dict) $providerConfig | default (dict)) }}
   {{- if and (eq $providerName "Scaleway") (not $ccmSecretName) }}
   {{- $ccmSecretName = "scaleway-secret" }}
   {{- end }}
+  {{- if $ccmSecretName }}
   {{- $_ := set $annotations "kommodity.io/ccm-secret-name" $ccmSecretName }}
   {{- if eq $providerName "Kubevirt" }}
   {{- $_ := set $annotations "kommodity.io/ccm-downstream-secret-name" "kubevirt-cloud-controller-manager" }}
@@ -54,6 +65,7 @@ metadata:
   {{- else if eq $providerName "Hetzner" }}
   {{- /* hcloud CCM and CSI both expect the token Secret to be named "hcloud". */}}
   {{- $_ := set $annotations "kommodity.io/ccm-downstream-secret-name" "hcloud" }}
+  {{- end }}
   {{- end }}
   {{- end }}
   {{- end }}

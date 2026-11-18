@@ -290,6 +290,9 @@ tests:
       - equal:
           path: metadata.annotations["kommodity.io/ccm-secret-name"]
           value: scaleway-secret
+      - equal:
+          path: metadata.annotations["kommodity.io/ccm-downstream-secret-name"]
+          value: scaleway-secret
 
   - it: should honour an explicit provider.scaleway.secret.name override for scalewaySecretName
     template: templates/provider/scaleway/cluster.yaml
