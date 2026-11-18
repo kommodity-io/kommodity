@@ -1,7 +1,9 @@
 package azurearm
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -12,6 +14,7 @@ import (
 	armruntime "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/streaming"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 )
 
@@ -165,7 +168,21 @@ func (c *armClient) put(
 		req.Raw().Header.Set("If-Match", ifMatch)
 	}
 
-	marshalErr := runtime.MarshalAsJSON(req, body)
+	// A []byte or json.RawMessage payload is already-marshaled JSON: set it
+	// as the request body directly. runtime.MarshalAsJSON would run
+	// json.Marshal on it, which base64-encodes a []byte into a JSON string —
+	// ARM then receives a string instead of the resource object and answers
+	// 400 on every PUT. Anything else is marshaled normally.
+	var marshalErr error
+	switch typed := body.(type) {
+	case []byte:
+		marshalErr = req.SetBody(streaming.NopCloser(bytes.NewReader(typed)), "application/json")
+	case json.RawMessage:
+		marshalErr = req.SetBody(streaming.NopCloser(bytes.NewReader(typed)), "application/json")
+	default:
+		marshalErr = runtime.MarshalAsJSON(req, body)
+	}
+
 	if marshalErr != nil {
 		return nil, fmt.Errorf("marshaling ARM request body: %w", marshalErr)
 	}
