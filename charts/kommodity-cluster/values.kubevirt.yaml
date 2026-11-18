@@ -22,27 +22,26 @@ kommodity:
         # type: Opaque
         name: kubevirt-credentials
 
-      config:
-        # Namespace in the external Kubevirt cluster where the VMs will be deployed
-        infraClusterNamespace: kubevirt-cluster-namespace
+      # Namespace in the external Kubevirt cluster where the VMs will be deployed
+      infraClusterNamespace: kubevirt-cluster-namespace
 
-        # Specify a storageClassName if needed
-        # storageClassName: my-storage-class
+      # Specify a storageClassName if needed
+      # storageClassName: my-storage-class
 
-        # Specify a controlPlaneServiceTemplate if needed
-        # Defaults: no annotations, spec.type=LoadBalancer
-        # controlPlaneServiceTemplate:
-        #   annotations:
-        #     my-annotation: my-value
-        #   spec:
-        #     type: LoadBalancer # Valid values are ExternalName, ClusterIP, NodePort, and LoadBalancer.
+      # Specify a controlPlaneServiceTemplate if needed
+      # Defaults: no annotations, spec.type=LoadBalancer
+      # controlPlaneServiceTemplate:
+      #   annotations:
+      #     my-annotation: my-value
+      #   spec:
+      #     type: LoadBalancer # Valid values are ExternalName, ClusterIP, NodePort, and LoadBalancer.
 
-        # Specify a controlPlaneEndpoint if needed
-        # controlPlaneEndpoint:
-        #   host: my-host-ip
-        #   port: 6443
+      # Specify a controlPlaneEndpoint if needed
+      # controlPlaneEndpoint:
+      #   host: my-host-ip
+      #   port: 6443
 
-        # evictionStrategy: "LiveMigrateIfPossible" # Valid values: "LiveMigrateIfPossible", "LiveMigrate", "None", "External"
+      # evictionStrategy: "LiveMigrateIfPossible" # Valid values: "LiveMigrateIfPossible", "LiveMigrate", "None", "External"
   global:
     strategicPatches:
       # Required when using a Cloud Controller Manager (https://kubernetes.io/docs/tasks/administer-cluster/running-cloud-controller/#running-cloud-controller-manager)

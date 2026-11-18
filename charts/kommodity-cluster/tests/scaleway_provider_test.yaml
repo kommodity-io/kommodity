@@ -65,6 +65,26 @@ tests:
           of: ScalewayCluster
       - hasDocuments:
           count: 1
+      - equal:
+          path: spec.region
+          value: fr-par
+      - equal:
+          path: spec.projectID
+          value: <YOUR_PROJECT_ID_HERE>
+  - it: should fail when projectID is missing
+    template: templates/provider/scaleway/cluster.yaml
+    set:
+      kommodity.provider.scaleway.projectID: null
+    asserts:
+      - failedTemplate:
+          errorMessage: "missing required projectID in kommodity.provider.scaleway for Scaleway"
+  - it: should fail when region is missing
+    template: templates/provider/scaleway/cluster.yaml
+    set:
+      kommodity.provider.scaleway.region: null
+    asserts:
+      - failedTemplate:
+          errorMessage: "missing required region in kommodity.provider.scaleway for Scaleway"
   - it: should make sure ScalewayMachineTemplates are created for controlplane and nodepools
     template: templates/provider/scaleway/machinetemplate.yaml
     asserts:

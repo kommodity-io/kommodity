@@ -1,6 +1,8 @@
 {{- if eq .Values.kommodity.provider.name "Azure" }}
 {{- include "kommodity.azure.validateNaming" . }}
 {{- $zones := include "kommodity-cluster.controlPlaneZones" . | fromJsonArray }}
+{{- /* `provider.azure:` with no value is valid YAML for null, which dig cannot walk. */}}
+{{- $azure := dig "azure" (dict) .Values.kommodity.provider | default (dict) }}
 apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
 kind: AzureCluster
 metadata:
@@ -11,23 +13,23 @@ metadata:
   annotations:
     helm.sh/resource-policy: keep # Prevent Helm from deleting the resource on uninstall, deletion will be handled by CAPI
 spec:
-  {{- if dig "azure" "config" "subscriptionID" "" .Values.kommodity.provider }}
-  subscriptionID: {{ (dig "azure" "config" "subscriptionID" "" .Values.kommodity.provider) }}
+  {{- if dig "subscriptionID" "" $azure }}
+  subscriptionID: {{ (dig "subscriptionID" "" $azure) }}
   {{- else }}
-  {{- fail "missing required subscriptionID in kommodity.provider.azure.config for Azure" -}}
+  {{- fail "missing required subscriptionID in kommodity.provider.azure for Azure" -}}
   {{- end }}
-  {{- $rg := dig "azure" "config" "resourceGroup" "" .Values.kommodity.provider | default .Release.Name }}
+  {{- $rg := dig "resourceGroup" "" $azure | default .Release.Name }}
   resourceGroup: {{ $rg }}
-  {{- if dig "azure" "config" "location" "" .Values.kommodity.provider }}
-  location: {{ (dig "azure" "config" "location" "" .Values.kommodity.provider) }}
+  {{- if dig "location" "" $azure }}
+  location: {{ (dig "location" "" $azure) }}
   {{- else }}
-  {{- fail "missing required location in kommodity.provider.azure.config for Azure" -}}
+  {{- fail "missing required location in kommodity.provider.azure for Azure" -}}
   {{- end }}
-  {{- if dig "azure" "identity" (dict) .Values.kommodity.provider }}
+  {{- if dig "identity" (dict) $azure }}
   identityRef:
     apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
     kind: AzureClusterIdentity
-    name: {{ (dig "azure" "identity" "name" "" .Values.kommodity.provider) }}
+    name: {{ (dig "identity" "name" "" $azure) }}
     namespace: {{ .Release.Namespace }}
   {{- end }}
   {{- if gt (len $zones) 0 }}

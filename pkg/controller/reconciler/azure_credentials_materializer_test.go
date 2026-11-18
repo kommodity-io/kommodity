@@ -249,7 +249,7 @@ func TestMaterializeDoesNotClobberOperatorSecret(t *testing.T) {
 
 // TestMaterializeRefusesSecretOwnedByAnotherCluster verifies the copy-paste collision
 // guard: when the target CCM Secret is materializer-managed but owned by a DIFFERENT
-// Cluster (the signature of a values file copied with a stale provider.secret.name), the
+// Cluster (the signature of a values file copied with a stale provider.azure.secret.name), the
 // reconcile fails with ErrSecretOwnedByAnotherCluster and the other cluster's Secret is
 // left untouched rather than stolen (which would GC it on this cluster's teardown).
 func TestMaterializeRefusesSecretOwnedByAnotherCluster(t *testing.T) {

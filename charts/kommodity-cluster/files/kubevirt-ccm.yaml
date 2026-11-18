@@ -186,7 +186,7 @@ metadata:
   namespace: kube-system
 data:
   cloud-config: |
-    namespace: {{ dig "kubevirt" "config" "infraClusterNamespace" "" .Values.kommodity.provider }}
+    namespace: {{ dig "infraClusterNamespace" "" (dig "kubevirt" (dict) .Values.kommodity.provider | default (dict)) }}
     kubeconfig: /etc/kubernetes/kubeconfig/value
     loadBalancer:
       enableEPSController: true

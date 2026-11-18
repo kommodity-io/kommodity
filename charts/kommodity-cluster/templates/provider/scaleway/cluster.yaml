@@ -16,13 +16,14 @@ spec:
     - {{ . }}
   {{- end }}
   {{- end }}
-  {{- $scaleway := dig "scaleway" (dict) .Values.kommodity.provider }}
-  {{- if hasKey (dig "config" (dict) $scaleway) "projectID" }}
-  projectID: {{ $scaleway.config.projectID }}
+  {{- $scaleway := dig "scaleway" (dict) .Values.kommodity.provider | default (dict) }}
+  {{- $projectID := dig "projectID" "" $scaleway }}
+  {{- if $projectID }}
+  projectID: {{ $projectID }}
   {{- else }}
-  {{- fail "missing required projectID in kommodity.provider.scaleway.config for Scaleway" -}}
+  {{- fail "missing required projectID in kommodity.provider.scaleway for Scaleway" -}}
   {{- end }}
-  region: {{ .Values.kommodity.region }}
+  region: {{ required "missing required region in kommodity.provider.scaleway for Scaleway" (dig "region" "" $scaleway) }}
   scalewaySecretName: {{ dig "secret" "name" "scaleway-secret" $scaleway | default "scaleway-secret" }}
   {{- if and .Values.kommodity.network.ipv4.enabled (not .Values.kommodity.network.ipv4.public) }}
   network:

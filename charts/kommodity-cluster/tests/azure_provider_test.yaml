@@ -397,8 +397,8 @@ tests:
   - it: should build the image id from imageName + talosImageResourceGroup
     template: templates/provider/azure/machinetemplate.yaml
     set:
-      kommodity.provider.azure.config.subscriptionID: sub-1234
-      kommodity.provider.azure.config.talosImageResourceGroup: shared-images-rg
+      kommodity.provider.azure.subscriptionID: sub-1234
+      kommodity.provider.azure.talosImageResourceGroup: shared-images-rg
       talos.imageName: kommodity-talos-azure-v1.14.2
     asserts:
       - equal:
@@ -414,11 +414,11 @@ tests:
   - it: should require talosImageResourceGroup when only imageName is set
     template: templates/provider/azure/machinetemplate.yaml
     set:
-      kommodity.provider.azure.config.talosImageResourceGroup: null
+      kommodity.provider.azure.talosImageResourceGroup: null
       talos.imageName: kommodity-talos-azure-v1.14.2
     asserts:
       - failedTemplate:
-          errorMessage: talos.imageName requires kommodity.provider.azure.config.talosImageResourceGroup (the resource group holding the Talos managed image) to build the Talos image resource ID
+          errorMessage: talos.imageName requires kommodity.provider.azure.talosImageResourceGroup (the resource group holding the Talos managed image) to build the Talos image resource ID
 
   # Escape hatch: an explicit full ARM id takes precedence over imageName.
   - it: should use an explicit image id when configured

@@ -153,10 +153,10 @@ tests:
           pattern: "name: hcloud"
         documentIndex: 0
 
-  - it: should render when provider config is null rather than an empty map
+  - it: should render when provider.hetzner is null rather than an empty map
     template: templates/provider/hetzner/cluster.yaml
     set:
-      kommodity.provider.hetzner.config: null
+      kommodity.provider.hetzner: null
     asserts:
       - isKind:
           of: HetznerCluster

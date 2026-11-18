@@ -1,6 +1,7 @@
 {{- if eq .Values.kommodity.provider.name "Kubevirt" }}
 {{- $ifType := dig "network" "cluster" "interfaceType" "bridge" .Values.kommodity }}
-{{- $config := dig "kubevirt" "config" (dict) .Values.kommodity.provider }}
+{{- /* `provider.kubevirt:` with no value is valid YAML for null, which dig cannot walk. */}}
+{{- $config := dig "kubevirt" (dict) .Values.kommodity.provider | default (dict) }}
 {{- $defaultStorageClass := dig "storageClassName" "" $config -}}
 {{- $cpSku := dig "sku" "" .Values.kommodity.controlplane -}}
 {{- $cpResources := dig "resources" "" .Values.kommodity.controlplane -}}

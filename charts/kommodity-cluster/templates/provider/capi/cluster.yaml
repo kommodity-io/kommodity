@@ -35,13 +35,13 @@ metadata:
     manage yourself). The downstream name inside each workload cluster is always
     azure-cloud-provider (separate clusters, no collision).
   */}}
-  {{- $azureProvider := dig "azure" (dict) .Values.kommodity.provider }}
+  {{- $azureProvider := dig "azure" (dict) .Values.kommodity.provider | default (dict) }}
   {{- $azureCCMSecret := dig "secret" "name" "" $azureProvider | default (printf "%s-cloud-provider" .Release.Name) }}
   {{- $_ := set $annotations "kommodity.io/ccm-secret-name" $azureCCMSecret }}
   {{- $_ := set $annotations "kommodity.io/ccm-downstream-secret-name" "azure-cloud-provider" }}
   {{- else }}
   {{- $providerName := .Values.kommodity.provider.name }}
-  {{- $providerConfig := dig (lower $providerName) (dict) .Values.kommodity.provider }}
+  {{- $providerConfig := dig (lower $providerName) (dict) .Values.kommodity.provider | default (dict) }}
   {{- $ccmSecretName := dig "secret" "name" "" $providerConfig }}
   {{- if and (eq $providerName "Scaleway") (not $ccmSecretName) }}
   {{- $ccmSecretName = "scaleway-secret" }}

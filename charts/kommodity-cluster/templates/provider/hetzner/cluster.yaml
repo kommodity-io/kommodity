@@ -1,7 +1,8 @@
 {{- if eq .Values.kommodity.provider.name "Hetzner" }}
 {{- $privateNetwork := and .Values.kommodity.network.ipv4.enabled (not .Values.kommodity.network.ipv4.public) }}
-{{- /* `config:` with no value is valid YAML for null, which dig cannot walk. */}}
-{{- $config := dig "hetzner" "config" (dict) .Values.kommodity.provider | default (dict) }}
+{{- /* `provider.hetzner:` with no value is valid YAML for null, which dig cannot walk. */}}
+{{- $hetzner := dig "hetzner" (dict) .Values.kommodity.provider | default (dict) }}
+{{- $config := $hetzner }}
 {{- /*
   The hcloud-csi addon mounts the `hcloud` Secret that only the CCM
   ClusterResourceSet delivers, so the combination is rejected at render time
@@ -37,7 +38,7 @@ spec:
     host: {{ dig "host" "" $cpe | quote }}
     port: {{ dig "port" 6443 $cpe }}
   hetznerSecretRef:
-    name: {{ dig "hetzner" "secret" "name" "" .Values.kommodity.provider }}
+    name: {{ dig "secret" "name" "" $hetzner }}
     key:
       hcloudToken: hcloud
   {{- with (dig "sshKeyName" "" $config) }}
