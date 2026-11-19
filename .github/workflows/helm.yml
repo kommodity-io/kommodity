@@ -12,7 +12,6 @@ on:
       - main
     paths:
       - "charts/**"
-      - "Makefile"
       - ".github/workflows/helm.yml"
 
 jobs:
