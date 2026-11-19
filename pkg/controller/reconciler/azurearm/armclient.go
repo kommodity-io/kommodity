@@ -174,6 +174,7 @@ func (c *armClient) put(
 	// ARM then receives a string instead of the resource object and answers
 	// 400 on every PUT. Anything else is marshaled normally.
 	var marshalErr error
+
 	switch typed := body.(type) {
 	case []byte:
 		marshalErr = req.SetBody(streaming.NopCloser(bytes.NewReader(typed)), "application/json")

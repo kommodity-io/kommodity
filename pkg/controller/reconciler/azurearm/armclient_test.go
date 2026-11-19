@@ -42,11 +42,43 @@ func newTestPipeline(t *testing.T) azruntime.Pipeline {
 
 	pipeline, err := armruntime.NewPipeline(
 		armModuleName, armModuleVersion, testCredential{}, azruntime.PipelineOptions{},
-		&armpolicy.ClientOptions{ClientOptions: azcore.ClientOptions{Transport: transport}},
+		&armpolicy.ClientOptions{Transport: transport},
 	)
 	require.NoError(t, err)
 
 	return pipeline
+}
+
+// capturedARMRequest records what a test server received, for assertions
+// after the client call returns.
+type capturedARMRequest struct {
+	body    []byte
+	ifMatch string
+}
+
+// newCapturingLBServer starts an httptest TLS server that records the next
+// PUT's body and If-Match header and answers 200 with a provisioning
+// response, mirroring ARM's shape.
+func newCapturingLBServer(t *testing.T, captured *capturedARMRequest) *httptest.Server {
+	t.Helper()
+
+	server := httptest.NewTLSServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		var readErr error
+
+		captured.body, readErr = io.ReadAll(request.Body)
+		if readErr != nil {
+			t.Errorf("reading request body: %v", readErr)
+		}
+
+		captured.ifMatch = request.Header.Get("If-Match")
+
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusOK)
+		_, _ = writer.Write([]byte(`{"properties": {"provisioningState": "Succeeded"}}`))
+	}))
+	t.Cleanup(server.Close)
+
+	return server
 }
 
 // TestArmClientPutByteSliceBodyNotDoubleMarshaled is a regression test for the
@@ -72,26 +104,8 @@ func TestArmClientPutByteSliceBodyNotDoubleMarshaled(t *testing.T) {
 		}
 	}`)
 
-	var receivedBody []byte
-
-	var receivedIfMatch string
-
-	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var readErr error
-
-		receivedBody, readErr = io.ReadAll(r.Body)
-		if readErr != nil {
-			t.Errorf("reading request body: %v", readErr)
-		}
-
-		receivedIfMatch = r.Header.Get("If-Match")
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"properties": {"provisioningState": "Succeeded"}}`))
-	}))
-	defer server.Close()
-
+	captured := &capturedARMRequest{}
+	server := newCapturingLBServer(t, captured)
 	client := &armClient{endpoint: server.URL, pipeline: newTestPipeline(t)}
 
 	status, body, _, err := client.Put(
@@ -110,20 +124,21 @@ func TestArmClientPutByteSliceBodyNotDoubleMarshaled(t *testing.T) {
 	// proves the object shape survived the transport.
 	var decoded map[string]any
 
-	decodeErr := json.Unmarshal(receivedBody, &decoded)
-	require.NoError(t, decodeErr, "PUT body must be a JSON object, got: %s", string(receivedBody))
+	decodeErr := json.Unmarshal(captured.body, &decoded)
+	require.NoError(t, decodeErr, "PUT body must be a JSON object, got: %s", string(captured.body))
 
-	probes, ok := decoded["properties"].(map[string]any)["probes"].([]any)
-	require.True(t, ok, "PUT body must carry properties.probes")
+	probes, probesOK := decoded["properties"].(map[string]any)["probes"].([]any)
+	require.True(t, probesOK, "PUT body must carry properties.probes")
 
-	probe, ok := probes[0].(map[string]any)
-	require.True(t, ok)
+	probe, probeOK := probes[0].(map[string]any)
+	require.True(t, probeOK)
 	assert.Equal(t, "HTTPSProbe", probe["name"])
 
-	probeProps := probe["properties"].(map[string]any)
+	probeProps, propsOK := probe["properties"].(map[string]any)
+	require.True(t, propsOK)
 	assert.Equal(t, "Tcp", probeProps["protocol"])
-	assert.Equal(t, float64(6443), probeProps["port"])
+	assert.InDelta(t, 6443, probeProps["port"], 0.01)
 
 	// The If-Match precondition must survive to the wire.
-	assert.Equal(t, `W/"test-etag"`, receivedIfMatch)
+	assert.Equal(t, `W/"test-etag"`, captured.ifMatch)
 }
