@@ -81,8 +81,6 @@ on:
 
 env:
   REGISTRY: ghcr.io/kommodity-io
-  # Default values for inputs
-  DEFAULT_TALOS_VERSION: "v1.14.2"
 
 jobs:
   setup:
@@ -100,12 +98,11 @@ jobs:
         id: resolve-inputs
         env:
           TALOS_VERSION_INPUT: ${{ inputs.talos_version }}
-          DEFAULT_TALOS_VERSION: ${{ env.DEFAULT_TALOS_VERSION }}
           PUSH_INPUT: ${{ inputs.push }}
           EXTRA_KERNEL_ARGS_INPUT: ${{ inputs.extra_kernel_args }}
         run: |
           {
-            echo "talos_version=${TALOS_VERSION_INPUT:-${DEFAULT_TALOS_VERSION}}"
+            echo "talos_version=${TALOS_VERSION_INPUT}"
             echo "push=${PUSH_INPUT:-true}"
           } >> "$GITHUB_OUTPUT"
 
@@ -130,7 +127,7 @@ jobs:
           TALOS_VERSION: ${{ steps.resolve-inputs.outputs.talos_version }}
         run: |
           if [[ ! "${TALOS_VERSION}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
-            echo "::error::Invalid talos_version format. Expected semver (e.g., v1.14.2)"
+            echo "::error::Invalid talos_version format. Expected semver (e.g., v1.14.5)"
             exit 1
           fi
 

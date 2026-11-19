@@ -1,39 +1,27 @@
 {{/*
-Generate a single strategic patch containing cluster.inlineManifests
-from both addons and extra secrets with delivery: InlineManifest.
+Generate KubeInlineManifestConfig documents (Talos v1.14 multi-doc kind)
+for both addons and extra secrets with delivery: InlineManifest.
 
-Wraps the combined output of kommodity.addon.inlineManifestItems and
-kommodity.extraSecrets.inlineManifestItems in a single strategic patch
-list item (- |\n  cluster:\n    inlineManifests:). This replaces the
-direct kommodity.addon.inlineManifests call in the control plane template.
-
-Single cluster.inlineManifests list eliminates list-merge ambiguity.
+Each inline manifest is one separate strategic patch list item — a full
+document with apiVersion, kind: KubeInlineManifestConfig, name and
+manifest (the former v1alpha1 cluster.inlineManifests contents field).
+Concatenates the outputs of kommodity.addon.inlineManifestDocs and
+kommodity.extraSecrets.inlineManifestDocs.
 
 Usage: {{ include "kommodity.inlineManifests" (dict "addons" $.Values.kommodity.addons "extraSecrets" $.Values.kommodity.extraSecrets "root" $) }}
 */}}
 {{- define "kommodity.inlineManifests" -}}
-{{- $addonItems := include "kommodity.addon.inlineManifestItems" (dict "addons" .addons "root" .root) | trim -}}
-{{- $secretItems := include "kommodity.extraSecrets.inlineManifestItems" (dict "extraSecrets" .extraSecrets "root" .root) | trim -}}
-{{- if or $addonItems $secretItems -}}
-- |
-  cluster:
-    inlineManifests:
-{{- if $addonItems }}
-{{ $addonItems | indent 4 }}
-{{- end }}
-{{- if $secretItems }}
-{{ $secretItems | indent 4 }}
-{{- end }}
-{{- end -}}
+{{- include "kommodity.addon.inlineManifestDocs" (dict "addons" .addons "root" .root) -}}
+{{- include "kommodity.extraSecrets.inlineManifestDocs" (dict "extraSecrets" .extraSecrets "root" .root) -}}
 {{- end -}}
 {{/*
-Generate inline manifest items for extra secrets with delivery: InlineManifest.
-Emits list items (name + contents) only — no outer cluster.inlineManifests
-wrapper. Called by the wrapper helper kommodity.inlineManifests.
+Generate KubeInlineManifestConfig documents for extra secrets with
+delivery: InlineManifest. Emits one document per secret — no outer
+cluster.inlineManifests wrapper. Called by kommodity.inlineManifests.
 
-Usage: {{ include "kommodity.extraSecrets.inlineManifestItems" (dict "extraSecrets" $.Values.kommodity.extraSecrets "root" $) }}
+Usage: {{ include "kommodity.extraSecrets.inlineManifestDocs" (dict "extraSecrets" $.Values.kommodity.extraSecrets "root" $) }}
 */}}
-{{- define "kommodity.extraSecrets.inlineManifestItems" -}}
+{{- define "kommodity.extraSecrets.inlineManifestDocs" -}}
 {{- $root := .root -}}
 {{- $extraSecrets := .extraSecrets | default dict -}}
 {{- $namespaces := keys $extraSecrets | sortAlpha -}}
@@ -42,10 +30,13 @@ Usage: {{ include "kommodity.extraSecrets.inlineManifestItems" (dict "extraSecre
 {{- range $secretName, $secret := $secrets -}}
 {{- if eq (default "CRS" $secret.delivery) "InlineManifest" }}
 {{- $manifest := include "kommodity.extraSecrets.manifest" (dict "secret" $secret "secretName" $secretName "namespace" $namespace "release" $root.Release.Name) | trim -}}
-- name: {{ $namespace }}-{{ $secretName }}
-  contents: |-
+- |
+  apiVersion: v1alpha1
+  kind: KubeInlineManifestConfig
+  name: {{ $namespace }}-{{ $secretName }}
+  manifest: |-
 {{ $manifest | indent 4 }}{{ "\n" }}
-{{- end }}
+{{- end -}}
 {{- end -}}
 {{- end -}}
 {{- end -}}
