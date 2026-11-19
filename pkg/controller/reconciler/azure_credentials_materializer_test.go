@@ -67,7 +67,7 @@ func buildMaterializer(t *testing.T, fixture materializerFixture) *AzureCredenti
 					SubscriptionID: testSubscription,
 					Location:       testLocation,
 					IdentityRef: &corev1.ObjectReference{
-						Kind: "AzureClusterIdentity", Name: "aci", Namespace: testMatNamespace,
+						Kind: testIdentityRefKind, Name: "aci", Namespace: testMatNamespace,
 					},
 				},
 				ResourceGroup: testRG,

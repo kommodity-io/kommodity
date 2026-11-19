@@ -25,4 +25,12 @@ var (
 	// cluster's teardown, garbage collect a Secret the other cluster still depends on. This is the
 	// signature of a values file copied from another cluster without updating provider.azure.secret.name.
 	ErrSecretOwnedByAnotherCluster = errors.New("secret is materialized for another cluster")
+	// ErrLBProbeFixUnresolvable indicates the Azure LB probe fixer could not
+	// resolve a required fact about the cluster (LB name, identity type) —
+	// not a transient credential state.
+	ErrLBProbeFixUnresolvable = errors.New("azure LB probe fix input unresolvable")
+	// ErrLBProbeFixCredentialsPending indicates the Azure LB probe fixer's
+	// identity chain (AzureClusterIdentity → clientSecret) is not complete
+	// yet and the reconcile should retry shortly.
+	ErrLBProbeFixCredentialsPending = errors.New("azure LB probe fix credentials pending")
 )

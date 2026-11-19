@@ -99,18 +99,6 @@ kommodity:
       # is true (see _helpers.tpl "mergedStrategicPatch"). Omitting it previously
       # left nodes without a providerID, which broke CAPI NodeRef linking and
       # wedged control-plane rollouts, so it must never be optional.
-      #
-      # Enable anonymous authentication on kube-apiserver.
-      # CAPZ hardcodes an HTTPS GET /readyz probe on the apiserver LB (not configurable via the
-      # AzureCluster spec). Talos defaults --anonymous-auth=false, so /readyz returns HTTP 401 to
-      # the anonymous probe, causing the Azure LB to mark all backends unhealthy and silently drop
-      # apiserver traffic. Kubernetes' built-in system:public-info-viewer ClusterRoleBinding grants
-      # system:unauthenticated read access to /livez, /readyz, /healthz, and /version only —
-      # no resource data is exposed.
-      cluster:
-        apiServer:
-          extraArgs:
-            anonymous-auth: "true"
 
   network:
     ipv4:

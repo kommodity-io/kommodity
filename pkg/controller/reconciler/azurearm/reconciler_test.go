@@ -40,7 +40,7 @@ func (f *fakeARM) delete(_ context.Context, _ string, _ string) (*armResponse, e
 	return f.delResp, f.delErr
 }
 
-func (f *fakeARM) put(_ context.Context, _ string, _ string, _ any) (*armResponse, error) {
+func (f *fakeARM) put(_ context.Context, _ string, _ string, _ string, _ any) (*armResponse, error) {
 	return &armResponse{statusCode: http.StatusOK}, nil
 }
 

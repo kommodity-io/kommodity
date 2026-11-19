@@ -429,7 +429,7 @@ The following are handled by the chart — you do **not** need to do these by ha
 
 | Concern | Mechanism |
 |---|---|
-| Anonymous auth on kube-apiserver | Talos configPatch applied for Azure (required for CAPZ's HTTPS /readyz LB health probe — see §8) |
+| LB health probe on apiserver | `AzureLBProbeFixer` in the management plane converts CAPZ's HTTPS /readyz probe to TCP (see §8) |
 | Internal LB for private clusters | `apiServerLB.type: Internal` in `AzureCluster` |
 | NAT gateway on CP + node subnets | Both subnets reference the same `<release>-node-natgw-1` |
 | NSG + route table for BYO-VNet | ASO `NetworkSecurityGroup` / `RouteTable` CRs (all BYO-VNet clusters; `allow-apiserver` source is `Internet` in public mode, `VirtualNetwork` in private) |
@@ -443,18 +443,26 @@ The following are handled by the chart — you do **not** need to do these by ha
 
 ---
 
-## 8. kube-apiserver anonymous auth (Azure LB health probe)
+## 8. kube-apiserver LB health probe (TCP, not HTTPS /readyz)
 
 CAPZ v1.21.0 hardcodes an **HTTPS GET /readyz** health probe on the API server load balancer.
 Talos defaults `--anonymous-auth=false` on kube-apiserver, so `/readyz` returns HTTP 401 to
 anonymous probes, causing Azure to mark all backends unhealthy and silently drop API server traffic.
 
-The chart automatically adds a Talos configPatch setting `--anonymous-auth=true` whenever
-`kommodity.provider.name` is `Azure` (see
-[`templates/talos/apiserver-anonymous-auth.yaml`](../charts/kommodity-cluster/templates/talos/apiserver-anonymous-auth.yaml)).
-Kubernetes' built-in `system:public-info-viewer` ClusterRoleBinding restricts
-`system:unauthenticated` access to `/livez`, `/readyz`, `/healthz`, and `/version` only — no
-resource data is exposed.
+The kommodity management plane runs an `AzureLBProbeFixer` reconciler that converts the probe to a
+plain **TCP connect** probe on the apiserver port (a successful TCP connect proves the endpoint is
+up without authenticating). LB probes are child objects of the LB resource with no sub-resource
+PUT endpoint in the ARM API, so the fixer performs a read-modify-write of the whole load balancer:
+it GETs the LB, flips the HTTPSProbe entry's protocol in place (LB rules reference the probe by
+name, so the rule's reference stays valid), and PUTs the full LB body back under an If-Match etag
+precondition — the same optimistic-concurrency pattern CAPZ itself uses. The conversion only fires
+while the probe still matches CAPZ's HTTPS /readyz shape, so operator-modified probes are left
+alone; a 10-minute drift-guard re-applies TCP if a future CAPZ bump restores the HTTPS probe.
+
+**Trade-off note:** a TCP probe is weaker than /readyz — a backend whose apiserver is listening
+but not ready (e.g. etcd unhealthy) stays in rotation where /readyz would have removed it. This
+is accepted deliberately: with anonymous auth disabled, the alternative is an all-backends-7031
+outage, which is strictly worse than briefly serving from a not-fully-ready backend.
 
 ---
 
@@ -512,9 +520,9 @@ does it and a needless widening of the audited surface.
 **Bootstrapping**: the Talos auto-bootstrap extension self-initializes the control plane (etcd peers
 over the private network intra-VNet), so no `talosctl bootstrap` call through the management plane is
 needed. The proxy tunnel becomes usable once the workload K8s API is up and its LB health probe
-passes — which requires the anonymous-auth patch (§8) so `/readyz` returns 200. The
-TalosControlPlane reconciler logs `bootstrap failed, retrying` until then, but the nodes come up
-healthy regardless.
+passes — which requires the TCP probe conversion (§8) so the probe no longer depends on
+unauthenticated `/readyz`. The TalosControlPlane reconciler logs `bootstrap failed, retrying` until
+then, but the nodes come up healthy regardless.
 
 ---
 

@@ -37,6 +37,16 @@ func resourceGroupARMID(
 	return fmt.Sprintf("/subscriptions/%s/resourceGroups/%s", subscriptionID, obj.AzureName()), nil
 }
 
+// LoadBalancerARMID builds the fully-qualified ARM ID of a load balancer in
+// the given subscription and resource group. Exported for the Azure LB probe
+// fixer, which mutates the apiserver LB probe outside the ASO CR path.
+func LoadBalancerARMID(subscriptionID string, resourceGroup string, name string) string {
+	return fmt.Sprintf(
+		"/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/loadBalancers/%s",
+		subscriptionID, resourceGroup, name,
+	)
+}
+
 // rgScopedARMID builds the ARM ID for any resource whose direct owner is a
 // ResourceGroup. The ARM path segment is derived from obj.GetType() (e.g.
 // "Microsoft.Network/virtualNetworks"), so this single function serves VirtualNetwork,
