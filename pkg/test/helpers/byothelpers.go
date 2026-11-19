@@ -86,8 +86,8 @@ func (b ByotInfra) ValuesFile() string { return byotValuesFile }
 // test pair.
 func (b ByotInfra) Overrides() map[string]any {
 	overrides := map[string]any{
-		"kommodity.provider.config.controlPlaneEndpoint.host": b.ControlPlaneEndpointHost,
-		"kommodity.provider.config.controlPlaneEndpoint.port": int64(b.ControlPlaneEndpointPort),
+		"kommodity.provider.byot.controlPlaneEndpoint.host": b.ControlPlaneEndpointHost,
+		"kommodity.provider.byot.controlPlaneEndpoint.port": int64(b.ControlPlaneEndpointPort),
 
 		helmKeyControlPlaneReplicas:               int64(1),
 		"kommodity.controlplane.resources.cpu":    b.CPU,

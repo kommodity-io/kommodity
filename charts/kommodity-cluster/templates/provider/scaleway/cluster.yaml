@@ -16,13 +16,18 @@ spec:
     - {{ . }}
   {{- end }}
   {{- end }}
-  {{- if hasKey .Values.kommodity.provider.config "projectID" }}
-  projectID: {{ .Values.kommodity.provider.config.projectID }}
+  {{- $scaleway := dig "scaleway" (dict) .Values.kommodity.provider | default (dict) }}
+  {{- $projectID := dig "projectID" "" $scaleway }}
+  {{- if $projectID }}
+  projectID: {{ $projectID }}
   {{- else }}
-  {{- fail "missing required projectID in kommodity.provider.config for Scaleway" -}}
+  {{- fail "missing required projectID in kommodity.provider.scaleway for Scaleway" -}}
   {{- end }}
-  region: {{ .Values.kommodity.region }}
-  scalewaySecretName: {{ .Values.kommodity.provider.secret.name }}
+  region: {{ required "missing required region in kommodity.provider.scaleway for Scaleway" (dig "region" "" $scaleway) }}
+  {{- /* Scaleway requires the credentials Secret; both ScalewayCluster.scalewaySecretName
+         and the CCM delivery reference it, and both default to "scaleway-secret". */}}
+  {{- $secretName := dig "name" "scaleway-secret" (dig "secret" (dict) $scaleway | default (dict)) | default "scaleway-secret" }}
+  scalewaySecretName: {{ $secretName }}
   {{- if and .Values.kommodity.network.ipv4.enabled (not .Values.kommodity.network.ipv4.public) }}
   network:
     privateNetwork:

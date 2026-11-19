@@ -33,7 +33,7 @@
 {{- $nodeNSGName := printf "%s-node-nsg" .Release.Name }}
 {{- $rtName := printf "%s-node-routetable" .Release.Name }}
 {{- $asoSecret := printf "%s-aso-secret" .Release.Name }}
-{{- $location := required "missing required location in kommodity.provider.config for Azure" (dig "config" "location" "" .Values.kommodity.provider) }}
+{{- $location := required "missing required location in kommodity.provider.azure for Azure" (dig "location" "" (dig "azure" (dict) .Values.kommodity.provider | default (dict))) }}
 ---
 apiVersion: network.azure.com/v1api20240301
 kind: NetworkSecurityGroup
@@ -101,9 +101,9 @@ spec:
   # must be reachable from the internet through the LB. A public LB forwards
   # inbound traffic with the original client source IP, so a VirtualNetwork-only
   # rule would drop all internet clients (including Kommodity reaching it from
-  # outside the VNet). The apiserver enforces TLS + RBAC; anonymous-auth only
-  # exposes /livez,/readyz,/healthz,/version. Node VMs still have no public IPs
-  # and the Talos API (50000) is never exposed here — only the K8s API is public.
+  # outside the VNet). The apiserver enforces TLS + RBAC. Node VMs still have no
+  # public IPs and the Talos API (50000) is never exposed here — only the K8s
+  # API is public.
   sourceAddressPrefix: Internet
   {{- else }}
   # Private mode: the apiserver is reached only via the internal LB from inside

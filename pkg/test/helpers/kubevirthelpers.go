@@ -47,8 +47,8 @@ func (k KubevirtInfra) ValuesFile() string { return kubevirtValuesFile }
 // Overrides returns the Helm value overrides for KubeVirt testing.
 func (k KubevirtInfra) Overrides() map[string]any {
 	return map[string]any{
-		"kommodity.provider.config.infraClusterNamespace": k.InfraClusterNamespace,
-		"kommodity.provider.config.controlPlaneEndpoint": map[string]any{
+		"kommodity.provider.kubevirt.infraClusterNamespace": k.InfraClusterNamespace,
+		"kommodity.provider.kubevirt.controlPlaneEndpoint": map[string]any{
 			"host": k.ControlPlaneEndpointHost,
 			"port": k.ControlPlaneEndpointPort,
 		},

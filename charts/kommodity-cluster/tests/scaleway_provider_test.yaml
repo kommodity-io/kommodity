@@ -65,6 +65,26 @@ tests:
           of: ScalewayCluster
       - hasDocuments:
           count: 1
+      - equal:
+          path: spec.region
+          value: fr-par
+      - equal:
+          path: spec.projectID
+          value: <YOUR_PROJECT_ID_HERE>
+  - it: should fail when projectID is missing
+    template: templates/provider/scaleway/cluster.yaml
+    set:
+      kommodity.provider.scaleway.projectID: null
+    asserts:
+      - failedTemplate:
+          errorMessage: "missing required projectID in kommodity.provider.scaleway for Scaleway"
+  - it: should fail when region is missing
+    template: templates/provider/scaleway/cluster.yaml
+    set:
+      kommodity.provider.scaleway.region: null
+    asserts:
+      - failedTemplate:
+          errorMessage: "missing required region in kommodity.provider.scaleway for Scaleway"
   - it: should make sure ScalewayMachineTemplates are created for controlplane and nodepools
     template: templates/provider/scaleway/machinetemplate.yaml
     asserts:
@@ -252,3 +272,42 @@ tests:
     asserts:
       - notExists:
           path: spec.failureDomains
+
+  - it: should default scalewaySecretName to scaleway-secret when provider.scaleway.secret is not set
+    template: templates/provider/scaleway/cluster.yaml
+    set:
+      kommodity.provider.scaleway.secret.name: ""
+    asserts:
+      - equal:
+          path: spec.scalewaySecretName
+          value: scaleway-secret
+
+  - it: should default ccm-secret-name to scaleway-secret when provider.scaleway.secret is not set
+    template: templates/provider/capi/cluster.yaml
+    set:
+      kommodity.provider.scaleway.secret.name: ""
+    asserts:
+      - equal:
+          path: metadata.annotations["kommodity.io/ccm-secret-name"]
+          value: scaleway-secret
+      - equal:
+          path: metadata.annotations["kommodity.io/ccm-downstream-secret-name"]
+          value: scaleway-secret
+
+  - it: should honour an explicit provider.scaleway.secret.name override for scalewaySecretName
+    template: templates/provider/scaleway/cluster.yaml
+    set:
+      kommodity.provider.scaleway.secret.name: my-custom-secret
+    asserts:
+      - equal:
+          path: spec.scalewaySecretName
+          value: my-custom-secret
+
+  - it: should honour an explicit provider.scaleway.secret.name override for ccm-secret-name
+    template: templates/provider/capi/cluster.yaml
+    set:
+      kommodity.provider.scaleway.secret.name: my-custom-secret
+    asserts:
+      - equal:
+          path: metadata.annotations["kommodity.io/ccm-secret-name"]
+          value: my-custom-secret

@@ -30,25 +30,24 @@ tests:
           path: spec.infrastructureRef.namespace
           value: default
 
-  - it: should default ccm-secret-name to <release>-cloud-provider (unique per cluster)
-    template: templates/provider/capi/cluster.yaml
-    asserts:
-      - equal:
-          path: metadata.annotations["kommodity.io/ccm-secret-name"]
-          value: test-cluster-cloud-provider
-
-  - it: should honour an explicit provider.secret.name override for ccm-secret-name
+  - it: should not set ccm annotations when provider.azure.secret.name is unset
     template: templates/provider/capi/cluster.yaml
     set:
-      kommodity.provider.secret.name: my-own-cloud-provider
+      kommodity.provider.azure.secret.name: null
+    asserts:
+      - notExists:
+          path: metadata.annotations["kommodity.io/ccm-secret-name"]
+      - notExists:
+          path: metadata.annotations["kommodity.io/ccm-downstream-secret-name"]
+
+  - it: should honour an explicit provider.azure.secret.name override for ccm-secret-name
+    template: templates/provider/capi/cluster.yaml
+    set:
+      kommodity.provider.azure.secret.name: my-own-cloud-provider
     asserts:
       - equal:
           path: metadata.annotations["kommodity.io/ccm-secret-name"]
           value: my-own-cloud-provider
-
-  - it: should set ccm-downstream-secret-name annotation to azure-cloud-provider
-    template: templates/provider/capi/cluster.yaml
-    asserts:
       - equal:
           path: metadata.annotations["kommodity.io/ccm-downstream-secret-name"]
           value: azure-cloud-provider
@@ -397,9 +396,9 @@ tests:
   - it: should build the image id from imageName + talosImageResourceGroup
     template: templates/provider/azure/machinetemplate.yaml
     set:
-      kommodity.provider.config.subscriptionID: sub-1234
-      kommodity.provider.config.talosImageResourceGroup: shared-images-rg
-      talos.imageName: kommodity-talos-azure-v1.14.5
+      kommodity.provider.azure.subscriptionID: sub-1234
+      kommodity.provider.azure.talosImageResourceGroup: shared-images-rg
+      talos.imageName: kommodity-talos-azure-v1.14.2
     asserts:
       - equal:
           path: spec.template.spec.image.id
@@ -414,11 +413,11 @@ tests:
   - it: should require talosImageResourceGroup when only imageName is set
     template: templates/provider/azure/machinetemplate.yaml
     set:
-      kommodity.provider.config.talosImageResourceGroup: null
-      talos.imageName: kommodity-talos-azure-v1.14.5
+      kommodity.provider.azure.talosImageResourceGroup: null
+      talos.imageName: kommodity-talos-azure-v1.14.2
     asserts:
       - failedTemplate:
-          errorMessage: talos.imageName requires kommodity.provider.config.talosImageResourceGroup (the resource group holding the Talos managed image) to build the Talos image resource ID
+          errorMessage: talos.imageName requires kommodity.provider.azure.talosImageResourceGroup (the resource group holding the Talos managed image) to build the Talos image resource ID
 
   # Escape hatch: an explicit full ARM id takes precedence over imageName.
   - it: should use an explicit image id when configured
@@ -652,6 +651,13 @@ tests:
       - matchRegex:
           path: spec.controlPlaneConfig.controlplane.strategicPatches[1]
           pattern: "path: /readyz"
+          
+  - it: should not include anonymous-auth in controlplane strategicPatches
+    template: templates/talos/controlplane.yaml
+    asserts:
+      - notMatchRegex:
+          path: spec.controlPlaneConfig.controlplane.strategicPatches[0]
+          pattern: "anonymous-auth"
 
   # CCM CRS tests — CCM manifest is delivered via ClusterResourceSet, not inlineManifests
   - it: should render ConfigMap and ClusterResourceSet for Azure CCM

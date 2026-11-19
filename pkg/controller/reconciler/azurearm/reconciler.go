@@ -367,7 +367,7 @@ func (r *Reconciler) putResource(
 		return ctrl.Result{}, err
 	}
 
-	putResp, err := creds.armClient.put(ctx, armID, apiVersion, armBody)
+	putResp, err := creds.armClient.put(ctx, armID, apiVersion, "", armBody)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("putting resource %s: %w", armID, err)
 	}

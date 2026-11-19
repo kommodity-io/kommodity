@@ -58,7 +58,7 @@ func (s ScalewayInfra) Overrides() map[string]any {
 	return map[string]any{
 		helmKeyNodePoolSKU:               scalewayTestSKU,
 		helmKeyControlPlaneSKU:           scalewayTestSKU,
-		"kommodity.provider.config.projectID": s.ProjectID,
+		"kommodity.provider.scaleway.projectID": s.ProjectID,
 		"kommodity.network.ipv4.nodeCIDR":     nil,
 	}
 }
