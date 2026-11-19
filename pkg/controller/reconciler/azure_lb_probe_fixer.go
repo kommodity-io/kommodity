@@ -17,7 +17,10 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	infrav1 "sigs.k8s.io/cluster-api-provider-azure/api/v1beta1"
+	"sigs.k8s.io/cluster-api-provider-azure/azure/scope"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	"sigs.k8s.io/cluster-api/util"
+	"sigs.k8s.io/cluster-api/util/annotations"
 	"sigs.k8s.io/cluster-api/util/predicates"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -147,19 +150,13 @@ func (r *AzureLBProbeFixer) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, fmt.Errorf("failed to get AzureCluster %s: %w", req.String(), err)
 	}
 
-	if r.armClient == nil {
-		// No Azure credential factory configured (e.g. Azure support disabled
-		// for this kommodity instance): observe-only.
-		logger.Info("No Azure credential factory configured; skipping LB probe fix")
-
-		return ctrl.Result{}, nil
+	skip, result, err := r.fixPreconditions(ctx, azureCluster, logger)
+	if err != nil {
+		return ctrl.Result{}, err
 	}
 
-	if azureCluster.GetDeletionTimestamp() != nil {
-		// Cluster is being torn down; its LB is going away with it.
-		logger.Info("AzureCluster is deleting; skipping LB probe fix")
-
-		return ctrl.Result{}, nil
+	if skip {
+		return result, nil
 	}
 
 	armClient, err := r.resolveCredentials(ctx, azureCluster)
@@ -177,8 +174,12 @@ func (r *AzureLBProbeFixer) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	if retryAfter > 0 {
-		// ARM rate limited us; back off for the requested duration.
-		logger.Info("ARM rate limited; requeueing", zap.Duration("retryAfter", retryAfter))
+		// ARM throttled us or the etag precondition hit concurrent LB write
+		// contention; back off for the requested duration so the probe is
+		// retried before the next drift-guard tick (which can exceed the
+		// MachineHealthCheck node startup timeout and wedge bootstrapping
+		// control planes for that whole interval).
+		logger.Info("ARM throttled or etag contention; requeueing", zap.Duration("retryAfter", retryAfter))
 
 		return ctrl.Result{RequeueAfter: retryAfter}, nil
 	}
@@ -251,9 +252,10 @@ func (r *AzureLBProbeFixer) reconcileLBProbe(
 
 	if putStatus == http.StatusPreconditionFailed {
 		// The LB changed between our GET and PUT (e.g. CAPZ concurrently
-		// appended a backend). Drop the result; the next reconcile re-reads
-		// and retries on a fresh etag.
-		return false, 0, nil
+		// appended a backend). Drop the result and retry shortly on a fresh
+		// etag: leaving the HTTPS probe in place for a whole drift-guard
+		// interval keeps the backends unreachable for minutes.
+		return false, RequeueAfter, nil
 	}
 
 	// Any 2xx accepts the update; Azure provisions LB changes asynchronously.
@@ -363,6 +365,16 @@ func (r *AzureLBProbeFixer) servicePrincipalIdentity(
 		)
 	}
 
+	// Enforce the identity's namespace policy (same check CAPZ applies in its
+	// own identity handling) before any credential is used: a nil
+	// allowedNamespaces denies every namespace, an empty object allows all.
+	if !scope.IsClusterNamespaceAllowed(ctx, r.Client, identity.Spec.AllowedNamespaces, azureCluster.Namespace) {
+		return nil, fmt.Errorf(
+			"%w: identity %s does not allow namespace %s",
+			ErrLBProbeFixUnresolvable, identityRefKey(azureCluster), azureCluster.Namespace,
+		)
+	}
+
 	return identity, nil
 }
 
@@ -399,6 +411,68 @@ func (r *AzureLBProbeFixer) identityClientSecret(
 	}
 
 	return clientSecret, nil
+}
+
+// fixPreconditions reports whether the reconcile should stop before any
+// credential is read or ARM call made, and with what result: Azure support is
+// disabled for this kommodity instance, the cluster is being torn down, or
+// the cluster is paused. The pause states are re-checked here on every
+// reconcile because the ResourceNotPaused event filter only guards watch
+// events — an already-scheduled drift-guard requeue still lands in Reconcile
+// after the cluster is paused.
+func (r *AzureLBProbeFixer) fixPreconditions(
+	ctx context.Context,
+	azureCluster *infrav1.AzureCluster,
+	logger *zap.Logger,
+) (bool, ctrl.Result, error) {
+	if r.armClient == nil {
+		logger.Info("No Azure credential factory configured; skipping LB probe fix")
+
+		return true, ctrl.Result{}, nil
+	}
+
+	if azureCluster.GetDeletionTimestamp() != nil {
+		// Cluster is being torn down; its LB is going away with it.
+		logger.Info("AzureCluster is deleting; skipping LB probe fix")
+
+		return true, ctrl.Result{}, nil
+	}
+
+	paused, err := r.clusterPaused(ctx, azureCluster)
+	if err != nil {
+		return false, ctrl.Result{}, err
+	}
+
+	if paused {
+		// Hold the fix while paused; requeue on the drift-guard cadence so an
+		// unpause takes effect here even if it does not produce a watch event
+		// (removing the pause annotation does re-enqueue via the filter).
+		logger.Info("Cluster paused; skipping LB probe fix")
+
+		return true, ctrl.Result{RequeueAfter: lbProbeFixInterval}, nil
+	}
+
+	return false, ctrl.Result{}, nil
+}
+
+// clusterPaused reports whether the fixer should hold off: either the owning
+// CAPI Cluster is paused (spec.paused) or the AzureCluster carries the
+// cluster.x-k8s.io/paused annotation. A cluster without an owner reference
+// (not yet adopted) is paused only via the annotation.
+func (r *AzureLBProbeFixer) clusterPaused(
+	ctx context.Context,
+	azureCluster *infrav1.AzureCluster,
+) (bool, error) {
+	owner, err := util.GetOwnerCluster(ctx, r.Client, azureCluster.ObjectMeta)
+	if err != nil {
+		return false, fmt.Errorf("getting owner of AzureCluster %s: %w", client.ObjectKeyFromObject(azureCluster), err)
+	}
+
+	if owner != nil && owner.Spec.Paused {
+		return true, nil
+	}
+
+	return annotations.HasPaused(azureCluster), nil
 }
 
 // clustersForIdentitySecret maps an identity clientSecret Secret to the

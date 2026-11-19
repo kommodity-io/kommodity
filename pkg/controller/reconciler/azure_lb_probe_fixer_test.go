@@ -12,6 +12,7 @@ import (
 
 	"github.com/kommodity-io/kommodity/pkg/controller/reconciler/azurearm"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	infrav1 "sigs.k8s.io/cluster-api-provider-azure/api/v1beta1"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
@@ -128,12 +129,33 @@ type fixerFixture struct {
 	withIdentity     bool
 	withClientSecret bool
 	withIdentityRef  bool
+	withOwnerCluster bool
+	ownerPaused      bool
+	selfPaused       bool
+	identityAllowed  *infrav1.AllowedNamespaces
 	lbType           infrav1.LBType
 }
 
 func buildFixer(t *testing.T, fixture fixerFixture, arm azurearm.GenericARMClient) *AzureLBProbeFixer {
 	t.Helper()
 
+	azureCluster, ownerCluster := newFixerClusterObjects(fixture)
+	objs := newFixerIdentityObjects(fixture, azureCluster, ownerCluster)
+
+	c := fake.NewClientBuilder().WithScheme(fixerScheme(t)).WithObjects(objs...).Build()
+
+	return &AzureLBProbeFixer{
+		Client:    c,
+		armClient: func(string, string, string) (azurearm.GenericARMClient, error) { return arm, nil },
+	}
+}
+
+// newFixerClusterObjects builds the fixture's AzureCluster and, when the
+// fixture asks for one, its owning CAPI Cluster with the pause state under
+// test.
+func newFixerClusterObjects(
+	fixture fixerFixture,
+) (*infrav1.AzureCluster, *clusterv1.Cluster) {
 	azureCluster := &infrav1.AzureCluster{}
 	azureCluster.Name = testFixerCluster
 	azureCluster.Namespace = testFixerNamespace
@@ -155,7 +177,45 @@ func buildFixer(t *testing.T, fixture fixerFixture, arm azurearm.GenericARMClien
 		}
 	}
 
+	if fixture.selfPaused {
+		azureCluster.Annotations = map[string]string{
+			clusterv1.PausedAnnotation: "true",
+		}
+	}
+
+	if !fixture.withOwnerCluster {
+		return azureCluster, nil
+	}
+
+	cluster := &clusterv1.Cluster{}
+	cluster.Name = testFixerCluster
+	cluster.Namespace = testFixerNamespace
+	cluster.Spec.Paused = fixture.ownerPaused
+	cluster.SetUID("test-owner-uid")
+
+	azureCluster.SetOwnerReferences([]metav1.OwnerReference{{
+		APIVersion: clusterv1.GroupVersion.String(),
+		Kind:       "Cluster",
+		Name:       cluster.Name,
+		UID:        cluster.UID,
+	}})
+
+	return azureCluster, cluster
+}
+
+// newFixerIdentityObjects assembles the fake client's object set: the
+// AzureCluster, the owning Cluster when present, and the identity chain
+// (identity + clientSecret) the fixture enables.
+func newFixerIdentityObjects(
+	fixture fixerFixture,
+	azureCluster *infrav1.AzureCluster,
+	ownerCluster *clusterv1.Cluster,
+) []client.Object {
 	objs := []client.Object{azureCluster}
+
+	if ownerCluster != nil {
+		objs = append(objs, ownerCluster)
+	}
 
 	identity := &infrav1.AzureClusterIdentity{}
 	identity.Name = testFixerIdentity
@@ -165,6 +225,14 @@ func buildFixer(t *testing.T, fixture fixerFixture, arm azurearm.GenericARMClien
 		TenantID:     testFixerTenant,
 		ClientID:     testFixerClientID,
 		ClientSecret: corev1.SecretReference{Name: testFixerIdentitySecret, Namespace: testFixerNamespace},
+	}
+
+	// Mirror the identity the live clusters use: an empty AllowedNamespaces
+	// object allows every namespace, while nil denies all (CRD semantics).
+	if fixture.identityAllowed != nil {
+		identity.Spec.AllowedNamespaces = fixture.identityAllowed
+	} else {
+		identity.Spec.AllowedNamespaces = &infrav1.AllowedNamespaces{}
 	}
 
 	if fixture.withIdentity {
@@ -180,12 +248,7 @@ func buildFixer(t *testing.T, fixture fixerFixture, arm azurearm.GenericARMClien
 		objs = append(objs, identitySecret)
 	}
 
-	c := fake.NewClientBuilder().WithScheme(fixerScheme(t)).WithObjects(objs...).Build()
-
-	return &AzureLBProbeFixer{
-		Client:    c,
-		armClient: func(string, string, string) (azurearm.GenericARMClient, error) { return arm, nil },
-	}
+	return objs
 }
 
 func fixerReconcile(t *testing.T, fixer *AzureLBProbeFixer) ctrl.Result {
@@ -611,7 +674,7 @@ func TestFixerRequeuesWhenPutRateLimited(t *testing.T) {
 	}
 }
 
-func TestFixerRetriesAfterPreconditionFailure(t *testing.T) {
+func TestFixerRequeuesSoonAfterPreconditionFailure(t *testing.T) {
 	t.Parallel()
 
 	arm := &fakeFixerARM{
@@ -624,8 +687,87 @@ func TestFixerRetriesAfterPreconditionFailure(t *testing.T) {
 
 	result := fixerReconcile(t, fixer)
 
-	if result.RequeueAfter != lbProbeFixInterval {
-		t.Errorf("RequeueAfter = %v, want drift-guard %v (stale etag)", result.RequeueAfter, lbProbeFixInterval)
+	// Contention must retry on the short cadence, not the drift-guard one:
+	// the HTTPS probe stays in place until the retry, and the drift interval
+	// exceeds the MachineHealthCheck node startup timeout.
+	if result.RequeueAfter != RequeueAfter {
+		t.Errorf("RequeueAfter = %v, want short retry %v (stale etag)", result.RequeueAfter, RequeueAfter)
+	}
+}
+
+func TestFixerSkipsDeniedNamespaceIdentity(t *testing.T) {
+	t.Parallel()
+
+	arm := &fakeFixerARM{getLBBody: lbGetBody("Https", "/readyz")}
+	fixer := buildFixer(t, fixerFixture{
+		withIdentity: true, withClientSecret: true, withIdentityRef: true,
+		identityAllowed: &infrav1.AllowedNamespaces{NamespaceList: []string{"somewhere-else"}},
+	}, arm)
+
+	result := fixerReconcile(t, fixer)
+
+	if arm.getCalls != 0 {
+		t.Errorf("getCalls = %d, want 0 (no ARM call from a denied namespace)", arm.getCalls)
+	}
+
+	if arm.putCalls != 0 {
+		t.Errorf("putCalls = %d, want 0 (no LB write from a denied namespace)", arm.putCalls)
+	}
+
+	if result.RequeueAfter != 0 {
+		t.Errorf("RequeueAfter = %v, want 0 (observe-only for a denied namespace)", result.RequeueAfter)
+	}
+}
+
+func TestFixerRespectsPausedCluster(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name    string
+		fixture fixerFixture
+		wantGet int
+	}{
+		{
+			name:    "paused annotation on AzureCluster",
+			fixture: fixerFixture{withIdentity: true, withClientSecret: true, withIdentityRef: true, selfPaused: true},
+			wantGet: 0,
+		},
+		{
+			name: "paused owner Cluster",
+			fixture: fixerFixture{
+				withIdentity: true, withClientSecret: true, withIdentityRef: true,
+				withOwnerCluster: true, ownerPaused: true,
+			},
+			wantGet: 0,
+		},
+		{
+			name: "unpaused owner Cluster still fixes",
+			fixture: fixerFixture{
+				withIdentity: true, withClientSecret: true, withIdentityRef: true,
+				withOwnerCluster: true, ownerPaused: false,
+			},
+			wantGet: 1,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			arm := &fakeFixerARM{getLBBody: lbGetBody("Https", "/readyz")}
+			fixer := buildFixer(t, testCase.fixture, arm)
+
+			result := fixerReconcile(t, fixer)
+
+			if arm.getCalls != testCase.wantGet {
+				t.Errorf("getCalls = %d, want %d", arm.getCalls, testCase.wantGet)
+			}
+
+			// Paused or not, the drift-guard cadence applies either way.
+			if result.RequeueAfter != lbProbeFixInterval {
+				t.Errorf("RequeueAfter = %v, want drift-guard %v", result.RequeueAfter, lbProbeFixInterval)
+			}
+		})
 	}
 }
 
