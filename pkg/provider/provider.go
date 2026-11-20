@@ -34,6 +34,44 @@ const conversionWebhookPath = "/convert"
 // conversionWebhook is the strategy name indicating a CRD uses webhook conversion.
 const conversionWebhook = "Webhook"
 
+// unservedWebhookPaths are clientConfig paths of embedded admission-webhook entries that
+// have no handler registered on the in-process webhook server (see SetupWebhooks in
+// pkg/controller/webhook), so installing them would make every matching admission request
+// fail with "failed calling webhook ... the server could not find the requested resource"
+// (all embedded configurations use failurePolicy: Fail). The entries are filtered out of
+// the applied webhook configurations in ApplyWebhookProviders.
+//
+// Each path must fall in one of two groups:
+//   - The rule's resource is not installable in kommodity at all (e.g. CRDs on
+//     providers.yaml's deny_list, like the azuremanaged*/azureasomanaged* kinds), so no
+//     admission request can ever match the rule.
+//   - The upstream handler lives in a Go package kommodity cannot import (e.g. CAPI's
+//     internal/webhooks/runtime ExtensionConfig webhook). The resource is installed, so
+//     admission silently passes without validation, matching upstream CAPZ/CAPI behaviour
+//     for deployments that disable webhooks.
+//
+//nolint:gochecknoglobals // fixed allowlist of manifest-derived paths, never mutated.
+var unservedWebhookPaths = map[string]struct{}{
+	// Azure managed/ASO kinds are denied in providers.yaml; their CRDs are never installed.
+	"/mutate-infrastructure-cluster-x-k8s-io-v1beta1-azuremanagedcontrolplane":           {},
+	"/mutate-infrastructure-cluster-x-k8s-io-v1beta1-azuremanagedcontrolplanetemplate":   {},
+	"/mutate-infrastructure-cluster-x-k8s-io-v1beta1-azuremanagedmachinepool":            {},
+	"/mutate-infrastructure-cluster-x-k8s-io-v1beta1-azuremanagedmachinepooltemplate":    {},
+	"/validate-infrastructure-cluster-x-k8s-io-v1beta1-azureasomanagedcluster":           {},
+	"/validate-infrastructure-cluster-x-k8s-io-v1beta1-azureasomanagedcontrolplane":      {},
+	"/validate-infrastructure-cluster-x-k8s-io-v1beta1-azureasomanagedmachinepool":       {},
+	"/validate-infrastructure-cluster-x-k8s-io-v1beta1-azuremanagedcluster":              {},
+	"/validate-infrastructure-cluster-x-k8s-io-v1beta1-azuremanagedclustertemplate":      {},
+	"/validate-infrastructure-cluster-x-k8s-io-v1beta1-azuremanagedcontrolplane":         {},
+	"/validate-infrastructure-cluster-x-k8s-io-v1beta1-azuremanagedcontrolplanetemplate": {},
+	"/validate-infrastructure-cluster-x-k8s-io-v1beta1-azuremanagedmachinepool":          {},
+	"/validate-infrastructure-cluster-x-k8s-io-v1beta1-azuremanagedmachinepooltemplate":  {},
+	// Runtime SDK is not enabled in kommodity, and the ExtensionConfig webhook handler
+	// lives in cluster-api's internal/webhooks/runtime package, which cannot be imported.
+	"/mutate-runtime-cluster-x-k8s-io-v1alpha1-extensionconfig":   {},
+	"/validate-runtime-cluster-x-k8s-io-v1alpha1-extensionconfig": {},
+}
+
 //go:embed crds/**/*.yaml
 var crds embed.FS
 
@@ -102,7 +140,7 @@ func (pc *Cache) LoadCache(ctx context.Context, cfg *config.KommodityConfig) err
 func (pc *Cache) ApplyCRDProviders(ctx context.Context,
 	webhookURL string,
 	webhookCRT []byte,
-	client *dynamic.DynamicClient) error {
+	client dynamic.Interface) error {
 	logger := logging.FromContext(ctx)
 
 	for group, objs := range pc.providerCRDs {
@@ -160,7 +198,7 @@ func (pc *Cache) ApplyCRDProviders(ctx context.Context,
 // patch is a server-side read-modify-write of just the clientConfig, which reliably updates it.
 func (pc *Cache) ReconcileConversionCABundles(
 	ctx context.Context,
-	client *dynamic.DynamicClient,
+	client dynamic.Interface,
 	webhookURL string,
 	webhookCRT []byte,
 ) error {
@@ -219,19 +257,100 @@ func (pc *Cache) ReconcileConversionCABundles(
 	return nil
 }
 
+// ServedWebhookPaths returns the sorted, de-duplicated clientConfig paths of every
+// embedded admission-webhook entry that is not in unservedWebhookPaths — i.e. exactly the
+// paths ApplyWebhookProviders would install. Webhook setup cross-checks that a handler is
+// registered for each of them (and fails startup otherwise), keeping the embedded
+// manifests and the in-process webhook server in sync.
+func ServedWebhookPaths() ([]string, error) {
+	objs, err := readEmbeddedWebhookConfigurations()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read embedded webhook configurations: %w", err)
+	}
+
+	paths := make([]string, 0, len(objs))
+
+	for _, obj := range objs {
+		entryPaths, err := webhookEntryPaths(obj)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, path := range entryPaths {
+			if _, unserved := unservedWebhookPaths[path]; unserved {
+				continue
+			}
+
+			if !slices.Contains(paths, path) {
+				paths = append(paths, path)
+			}
+		}
+	}
+
+	slices.Sort(paths)
+
+	return paths, nil
+}
+
+// webhookEntryPaths extracts the clientConfig service path of every entry in a webhook
+// configuration object, in declared order.
+func webhookEntryPaths(webhookConfig unstructured.Unstructured) ([]string, error) {
+	webhooks, found, err := unstructured.NestedSlice(webhookConfig.Object, "webhooks")
+	if err != nil || !found {
+		return nil, fmt.Errorf("failed to extract webhooks from webhook configuration: %w", err)
+	}
+
+	paths := make([]string, 0, len(webhooks))
+
+	for _, entry := range webhooks {
+		entryMap, success := entry.(map[string]any)
+		if !success {
+			return nil, ErrFailedToConvertWebhook
+		}
+
+		path, found, err := unstructured.NestedString(entryMap, "clientConfig", "service", "path")
+		if err != nil || !found {
+			return nil, fmt.Errorf("failed to extract path from webhook configuration: %w", err)
+		}
+
+		paths = append(paths, path)
+	}
+
+	return paths, nil
+}
+
 // ApplyWebhookProviders applies all provider webhooks to the given dynamic Kubernetes client.
+//
+// Entries whose clientConfig path is in unservedWebhookPaths are dropped before applying:
+// no handler for them is registered on the in-process webhook server, and with the embedded
+// failurePolicy: Fail they would reject every matching admission request with "failed
+// calling webhook ... the server could not find the requested resource". Dropping the entry
+// makes admission silently pass instead — matching upstream behaviour for deployments that
+// disable webhooks.
 func (pc *Cache) ApplyWebhookProviders(ctx context.Context,
 	webhookURL string,
 	webhookCRT []byte,
-	client *dynamic.DynamicClient) error {
+	client dynamic.Interface) error {
 	logger := logging.FromContext(ctx)
 
 	logger.Info("Applying provider webhooks", zap.Int("count", len(pc.providerWebhooks)))
 
 	for _, obj := range pc.providerWebhooks {
+		dropped, err := dropUnservedWebhooks(ctx, &obj)
+		if err != nil {
+			return fmt.Errorf("failed to filter webhook %s: %w", obj.GetName(), err)
+		}
+
+		if dropped {
+			logger.Info("Webhook configuration has no servable entries left, skipping",
+				zap.String("name", obj.GetName()))
+
+			continue
+		}
+
 		logger.Info("Applying webhook", zap.String("name", obj.GetName()))
 
-		err := pc.updateWebhooks(&obj, webhookURL, webhookCRT)
+		err = pc.updateWebhooks(&obj, webhookURL, webhookCRT)
 		if err != nil {
 			return fmt.Errorf("failed to update webhook %s with client data: %w", obj.GetName(), err)
 		}
@@ -251,6 +370,82 @@ func (pc *Cache) ApplyWebhookProviders(ctx context.Context,
 	}
 
 	return nil
+}
+
+// dropUnservedWebhooks removes every webhook entry whose clientConfig path is in
+// unservedWebhookPaths from the given webhook configuration, in place. It reports whether
+// no servable entries remain, in which case the whole configuration is skipped.
+func dropUnservedWebhooks(ctx context.Context, webhookConfig *unstructured.Unstructured) (bool, error) {
+	logger := logging.FromContext(ctx)
+
+	allPaths, err := webhookEntryPaths(*webhookConfig)
+	if err != nil {
+		return false, err
+	}
+
+	servable := make([]string, 0, len(allPaths))
+	servableSet := make(map[string]struct{}, len(allPaths))
+
+	for _, path := range allPaths {
+		if _, unserved := unservedWebhookPaths[path]; unserved {
+			logger.Info("Dropping admission webhook entry with no registered handler",
+				zap.String("name", webhookConfig.GetName()),
+				zap.String("path", path))
+
+			continue
+		}
+
+		servable = append(servable, path)
+		servableSet[path] = struct{}{}
+	}
+
+	if len(servable) == len(allPaths) {
+		return false, nil
+	}
+
+	if len(servable) == 0 {
+		return true, nil
+	}
+
+	updated := make([]any, 0, len(servable))
+
+	updated = append(updated, filterEntriesByPaths(webhookConfig, servableSet)...)
+
+	err = unstructured.SetNestedSlice(webhookConfig.Object, updated, "webhooks")
+	if err != nil {
+		return false, fmt.Errorf("failed to set webhooks in webhook configuration: %w", err)
+	}
+
+	return false, nil
+}
+
+// filterEntriesByPaths returns the raw entries of the webhook configuration whose
+// clientConfig service path is in the given set, preserving declared order.
+func filterEntriesByPaths(webhookConfig *unstructured.Unstructured, keep map[string]struct{}) []any {
+	entries, found, err := unstructured.NestedSlice(webhookConfig.Object, "webhooks")
+	if err != nil || !found {
+		return nil
+	}
+
+	filtered := make([]any, 0, len(entries))
+
+	for _, entry := range entries {
+		entryMap, success := entry.(map[string]any)
+		if !success {
+			continue
+		}
+
+		path, found, err := unstructured.NestedString(entryMap, "clientConfig", "service", "path")
+		if err != nil || !found {
+			continue
+		}
+
+		if _, ok := keep[path]; ok {
+			filtered = append(filtered, entry)
+		}
+	}
+
+	return filtered
 }
 
 func (pc *Cache) updateWebhooks(webhook *unstructured.Unstructured, webhookURL string, webhookCRT []byte) error {
@@ -448,32 +643,49 @@ func (pc *Cache) loadCRDInScheme(group string, obj *unstructured.Unstructured) {
 func (pc *Cache) loadWebhookCache(ctx context.Context) error {
 	logger := logging.FromContext(ctx)
 
-	entries, err := webhooks.ReadDir("webhooks")
+	objs, err := readEmbeddedWebhookConfigurations()
 	if err != nil {
-		return fmt.Errorf("failed to read webhook directory: %w", err)
+		return fmt.Errorf("failed to read embedded webhook configurations: %w", err)
 	}
 
-	for _, entry := range entries {
-		logger.Info("Loading webhook", zap.String("file", entry.Name()))
+	for _, obj := range objs {
+		logger.Info("Cached webhook", zap.String("name", obj.GetName()))
 
-		webhook, err := webhooks.ReadFile("webhooks/" + entry.Name())
+		pc.providerWebhooks = append(pc.providerWebhooks, obj)
+	}
+
+	return nil
+}
+
+// readEmbeddedWebhookConfigurations decodes every embedded webhook manifest into
+// unstructured objects.
+func readEmbeddedWebhookConfigurations() ([]unstructured.Unstructured, error) {
+	entries, err := webhooks.ReadDir("webhooks")
+	if err != nil {
+		return nil, fmt.Errorf("failed to read webhook directory: %w", err)
+	}
+
+	decoder := yaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
+
+	objs := make([]unstructured.Unstructured, 0, len(entries))
+
+	for _, entry := range entries {
+		manifest, err := webhooks.ReadFile("webhooks/" + entry.Name())
 		if err != nil {
-			return fmt.Errorf("failed to read webhook file %s: %w", entry.Name(), err)
+			return nil, fmt.Errorf("failed to read webhook file %s: %w", entry.Name(), err)
 		}
 
 		obj := &unstructured.Unstructured{}
 
-		_, _, err = pc.decoder.Decode(webhook, nil, obj)
+		_, _, err = decoder.Decode(manifest, nil, obj)
 		if err != nil {
-			return fmt.Errorf("failed to decode YAML: %w", err)
+			return nil, fmt.Errorf("failed to decode YAML: %w", err)
 		}
 
-		pc.providerWebhooks = append(pc.providerWebhooks, *obj)
-
-		logger.Info("Cached webhook", zap.String("name", obj.GetName()))
+		objs = append(objs, *obj)
 	}
 
-	return nil
+	return objs, nil
 }
 
 func (pc *Cache) decodeCRD(crd []byte) (string, *unstructured.Unstructured, error) {
@@ -497,7 +709,7 @@ func (pc *Cache) decodeCRD(crd []byte) (string, *unstructured.Unstructured, erro
 }
 
 func (pc *Cache) load(ctx context.Context,
-	client *dynamic.DynamicClient,
+	client dynamic.Interface,
 	gvr schema.GroupVersionResource,
 	obj *unstructured.Unstructured) error {
 	_, err := client.Resource(gvr).Create(ctx, obj, metav1.CreateOptions{})
