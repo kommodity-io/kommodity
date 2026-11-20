@@ -410,6 +410,222 @@ tests:
           value: /subscriptions/sub-1234/resourceGroups/shared-images-rg/providers/Microsoft.Compute/images/kommodity-talos-azure-v1.14.2
         documentIndex: 1
 
+  # Per-pool image selection (mirrors Hetzner/Scaleway/KubeVirt pool overrides):
+  # a nodepool may boot a different Talos image than the global one.
+  - it: should build a per-pool image id from nodepool talos.imageName
+    template: templates/provider/azure/machinetemplate.yaml
+    set:
+      kommodity.provider.azure.subscriptionID: sub-1234
+      kommodity.provider.azure.talosImageResourceGroup: shared-images-rg
+      talos.imageName: kommodity-talos-azure-v1.14.2
+      kommodity.nodepools.default.talos.imageName: kommodity-talos-azure-gpu-v1.14.2
+    asserts:
+      # Control plane keeps the global image.
+      - equal:
+          path: spec.template.spec.image.id
+          value: /subscriptions/sub-1234/resourceGroups/shared-images-rg/providers/Microsoft.Compute/images/kommodity-talos-azure-v1.14.2
+        documentIndex: 0
+      # The nodepool image wins over the global one, reusing the global
+      # subscriptionID + talosImageResourceGroup.
+      - equal:
+          path: spec.template.spec.image.id
+          value: /subscriptions/sub-1234/resourceGroups/shared-images-rg/providers/Microsoft.Compute/images/kommodity-talos-azure-gpu-v1.14.2
+        documentIndex: 1
+      # The per-pool image identity mints a different template name than the
+      # control plane's (infra templates are immutable per CAPZ).
+      - matchRegex:
+          path: metadata.name
+          pattern: ^test-cluster-worker-default-[a-f0-9]{6}$
+        documentIndex: 1
+
+  # A pool-level escape hatch (full ARM id) overrides the global imageName.
+  - it: should let a nodepool override the image with an explicit talos.id
+    template: templates/provider/azure/machinetemplate.yaml
+    set:
+      kommodity.provider.azure.subscriptionID: sub-1234
+      kommodity.provider.azure.talosImageResourceGroup: shared-images-rg
+      talos.imageName: kommodity-talos-azure-v1.14.2
+      kommodity.nodepools.default.talos.id: /subscriptions/gpu-sub/resourceGroups/gpu-rg/providers/Microsoft.Compute/images/gpu-image
+    asserts:
+      - equal:
+          path: spec.template.spec.image.id
+          value: /subscriptions/sub-1234/resourceGroups/shared-images-rg/providers/Microsoft.Compute/images/kommodity-talos-azure-v1.14.2
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.image.id
+          value: /subscriptions/gpu-sub/resourceGroups/gpu-rg/providers/Microsoft.Compute/images/gpu-image
+        documentIndex: 1
+
+  # Pool A's override must not leak into pool B (no live-values mutation) and
+  # must not leak global image keys into other pools' machine config blocks.
+  - it: should keep per-pool image overrides isolated across nodepools
+    template: templates/provider/azure/machinetemplate.yaml
+    set:
+      kommodity.provider.azure.subscriptionID: sub-1234
+      kommodity.provider.azure.talosImageResourceGroup: shared-images-rg
+      talos.imageName: kommodity-talos-azure-v1.14.2
+      kommodity.nodepools:
+        gpu:
+          replicas: 1
+          sku: Standard_NC6s_v3
+          os:
+            disk:
+              size: 50
+              type: Premium_LRS
+          talos:
+            imageName: kommodity-talos-azure-gpu-v1.14.2
+    asserts:
+      # Map range renders pools in alphabetical key order: default (doc 1),
+      # gpu (doc 2). The untouched default pool must still boot the global
+      # image while the gpu pool overrides it — proving no cross-pool leak.
+      - equal:
+          path: metadata.name
+          value: test-cluster-worker-default-3cc5c9
+        documentIndex: 1
+      - equal:
+          path: spec.template.spec.image.id
+          value: /subscriptions/sub-1234/resourceGroups/shared-images-rg/providers/Microsoft.Compute/images/kommodity-talos-azure-v1.14.2
+        documentIndex: 1
+      - equal:
+          path: spec.template.spec.image.id
+          value: /subscriptions/sub-1234/resourceGroups/shared-images-rg/providers/Microsoft.Compute/images/kommodity-talos-azure-gpu-v1.14.2
+        documentIndex: 2
+
+  # Regression (0.40): a pool-level image override must roll the template
+  # name, not just the rendered image. Pre-0.40, talosImageName already
+  # hashed a pool talos.imageName while the rendered image stayed global —
+  # upgrading without a hash roll would mutate the immutable template.
+  - it: should hash a per-pool image override into the template name
+    template: templates/provider/azure/machinetemplate.yaml
+    set:
+      kommodity.provider.azure.subscriptionID: sub-0400
+      kommodity.provider.azure.talosImageResourceGroup: shared-images-rg
+      talos.imageName: kommodity-talos-azure-v1.14.2
+      kommodity.nodepools.default.talos.imageName: kommodity-talos-azure-gpu-v1.15.0
+    asserts:
+      - equal:
+          path: spec.template.spec.image.id
+          value: /subscriptions/sub-0400/resourceGroups/shared-images-rg/providers/Microsoft.Compute/images/kommodity-talos-azure-gpu-v1.15.0
+        documentIndex: 1
+      # Exact pin: this hash includes the rendered pool image (azurePoolImage),
+      # so reverting the fix produces a different name (pre-fix: c55bb9 — the
+      # 0.39 hash input set, which hashed the pool imageName but rendered the
+      # global image).
+      - equal:
+          path: metadata.name
+          value: test-cluster-worker-default-50052a
+        documentIndex: 1
+
+  # Regression (0.40): same-version identity changes must roll the name. The
+  # identity list hashes only version/id/RG, so a gallery name change at the
+  # same version changes the rendered image without any identity change.
+  - it: should roll the template name for a same-version gallery name override
+    template: templates/provider/azure/machinetemplate.yaml
+    set:
+      talos.computeGallery:
+        gallery: kommodity-gallery
+        name: gallery-a
+        version: 1.14.2
+      kommodity.nodepools.default.talos.computeGallery:
+        gallery: kommodity-gallery
+        name: gallery-b
+        version: 1.14.2
+      kommodity.nodepools.gpu.talos.computeGallery:
+        gallery: kommodity-gallery
+        name: gallery-c
+        version: 1.14.2
+      kommodity.nodepools.gpu.sku: Standard_NC6s_v3
+      kommodity.nodepools.gpu.os:
+        disk:
+          size: 50
+          type: Premium_LRS
+    asserts:
+      # Control plane and the untouched gpu pool are rendered for context; the
+      # pinned assertion target is the default pool (documentIndex 1): its
+      # gallery-b differs from global gallery-a only by name (same version),
+      # and the pin (not the pre-fix 9ba1d7 name) requires the rendered pool
+      # image to be part of the hash.
+      - equal:
+          path: spec.template.spec.image.computeGallery.name
+          value: gallery-a
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.image.computeGallery.name
+          value: gallery-b
+        documentIndex: 1
+      - equal:
+          path: spec.template.spec.image.computeGallery.name
+          value: gallery-c
+        documentIndex: 2
+      - equal:
+          path: metadata.name
+          value: test-cluster-worker-default-24f80c
+        documentIndex: 1
+      - equal:
+          path: metadata.name
+          value: test-cluster-worker-gpu-5cd915
+        documentIndex: 2
+
+  # Regression (0.40): a pool whose talos block equals the global one must
+  # still hash its rendered image — if the blocks later change together
+  # (e.g. both rename the gallery at the same version), the template name
+  # must roll. A global-vs-pool comparison would omit the input in this
+  # equality case and freeze the name.
+  - it: should hash the pool image even when it matches the global image
+    template: templates/provider/azure/machinetemplate.yaml
+    set:
+      kommodity.provider.azure.subscriptionID: sub-1234
+      talos.computeGallery.name: gallery-a
+      talos.computeGallery.version: 1.14.2
+      talos.computeGallery.gallery: kommodity-gallery
+      kommodity.nodepools.default.talos.computeGallery.name: gallery-a
+      kommodity.nodepools.default.talos.computeGallery.version: 1.14.2
+      kommodity.nodepools.default.talos.computeGallery.gallery: kommodity-gallery
+    asserts:
+      - equal:
+          path: spec.template.spec.image.computeGallery.name
+          value: gallery-a
+        documentIndex: 1
+      # Exact pin: 0dce87 requires the pool's rendered image in the hash.
+      # Renaming gallery-a to gallery-z in both blocks rolls the name (the
+      # pool image changes); under the old global-vs-pool comparison the
+      # input was omitted in this equality case and the name stayed frozen.
+      - equal:
+          path: metadata.name
+          value: test-cluster-worker-default-0dce87
+        documentIndex: 1
+
+
+  # Regression (0.40): with every pool overridden, the global talos block may
+  # be unrenderable (imageName without talosImageResourceGroup) while the
+  # effective pool images are valid. The hash must not render the global
+  # image — only the pool's — or the whole chart fails to render.
+  - it: should render pool id overrides when the unused global imageName lacks its resource group
+    template: templates/provider/azure/machinetemplate.yaml
+    set:
+      kommodity.provider.azure.subscriptionID: sub-1234
+      kommodity.provider.azure.talosImageResourceGroup: null
+      talos.imageName: global-image
+      kommodity.controlplane.talos.id: /subscriptions/s/resourceGroups/rg/providers/Microsoft.Compute/images/cp
+      kommodity.nodepools.default.talos.id: /subscriptions/s/resourceGroups/rg/providers/Microsoft.Compute/images/w
+    asserts:
+      - equal:
+          path: spec.template.spec.image.id
+          value: /subscriptions/s/resourceGroups/rg/providers/Microsoft.Compute/images/cp
+        documentIndex: 0
+      - equal:
+          path: metadata.name
+          value: test-cluster-controlplane-9db11b
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.image.id
+          value: /subscriptions/s/resourceGroups/rg/providers/Microsoft.Compute/images/w
+        documentIndex: 1
+      - equal:
+          path: metadata.name
+          value: test-cluster-worker-default-bb46f8
+        documentIndex: 1
+
   - it: should require talosImageResourceGroup when only imageName is set
     template: templates/provider/azure/machinetemplate.yaml
     set:
