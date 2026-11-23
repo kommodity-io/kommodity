@@ -15,7 +15,7 @@ spec:
         cluster-name: {{ $.Release.Name }}
       vmSize: {{ .Values.kommodity.controlplane.sku }}
       image:
-        {{- include "kommodity.azure.image" . | nindent 8 }}
+        {{- include "kommodity.azure.image" (dict "root" . "poolTalos" (dig "talos" "" .Values.kommodity.controlplane)) | nindent 8 }}
       {{- if not (and .Values.azure .Values.azure.disableSSHPublicKey) }}
       sshPublicKey: {{ dig "sshPublicKey" "" (.Values.azure | default dict) | quote }}
       {{- end }}
@@ -57,7 +57,7 @@ spec:
     spec:
       vmSize: {{ $np.sku }}
       image:
-        {{- include "kommodity.azure.image" $ | nindent 8 }}
+        {{- include "kommodity.azure.image" (dict "root" $ "poolTalos" (dig "talos" "" $np)) | nindent 8 }}
       {{- if not (and $.Values.azure $.Values.azure.disableSSHPublicKey) }}
       sshPublicKey: {{ dig "sshPublicKey" "" ($.Values.azure | default dict) | quote }}
       {{- end }}

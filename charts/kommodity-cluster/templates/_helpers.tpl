@@ -260,12 +260,19 @@ Any values that should trigger a new Machine template when changed should be add
 {{- $_ := set $data "byotHostSelector" (dig "hostSelector" "" .poolValues) -}}
 {{- $_ := set $data "desiredTalosVersion" (include "kommodity-cluster.byotDesiredTalosVersion" (dict "poolValues" .poolValues "allValues" .allValues)) -}}
 {{- end -}}
-{{- /* Azure: the effective image identity must mint a new template name (infrastructure templates are immutable per CAPZ). Hash the identity sources, mirroring kommodity.azure.image's precedence (marketplace > computeGallery > id > imageName; imageName is hashed as talosImageName above, and the derived resource-ID reshaping via provider.azure.talosImageResourceGroup is included so the rendered id rolls). Hashing the identity instead of the rendered block avoids duplicating the required-error paths in the hash evaluation. */ -}}
+{{- /* Azure: the effective image identity must mint a new template name (infrastructure templates are immutable per CAPZ). Hash the identity sources, mirroring kommodity.azure.image's precedence (marketplace > computeGallery > id > imageName; the derived resource-ID reshaping via provider.azure.talosImageResourceGroup is included so the rendered id rolls). Pool-level talos.* image keys override the global ones per key (same merge as kommodity.azure.image), so the hash must use the merged block. Hashing the identity instead of the rendered block avoids duplicating the required-error paths in the hash evaluation. Additionally, any pool setting at least one image key (marketplace/computeGallery/id/imageName) hashes its rendered image (azurePoolImage): talosImageName already covered pool imageName pre-0.40 while the rendered image was still global, so without this the 0.40 render would mutate the immutable template without rolling its name; the identity list also sees only version/id/RG fields, so same-version identity changes (gallery name, marketplace publisher/offer/SKU) would otherwise leave the hash unchanged — including when the pool block happens to match the global one and both change together. The global image is deliberately NOT rendered here: with every pool overridden, the global block may be unconfigured/unrenderable (e.g. an unused imageName without its resource group) while the effective pool images are valid. Pools without image keys (including a pool setting only non-image keys like talos.version) add no input, keeping their names identical to 0.39.x. */ -}}
 {{- if eq .allValues.kommodity.provider.name "Azure" -}}
-{{- $talos := .allValues.talos -}}
+{{- $talos := mergeOverwrite (deepCopy .allValues.talos) (deepCopy (default (dict) (dig "talos" (dict) .poolValues))) -}}
 {{- /* `provider.azure:` with no value is valid YAML for null, which dig cannot walk. */ -}}
 {{- $azure := dig "azure" (dict) .allValues.kommodity.provider | default (dict) -}}
 {{- $_ := set $data "azureImageIdentity" (list (dig "marketplace" "version" "" $talos) (dig "computeGallery" "version" "" $talos) (dig "id" "" $talos) (dig "talosImageResourceGroup" "" $azure)) -}}
+{{- $poolTalos := default (dict) (dig "talos" (dict) .poolValues) -}}
+{{- /* Image keys only — a pool may legitimately set only non-image talos keys (e.g. talos.version for its machine config), and hashing their unchanged global image would spuriously roll the template name. */ -}}
+{{- if or (hasKey $poolTalos "marketplace") (hasKey $poolTalos "computeGallery") (hasKey $poolTalos "id") (hasKey $poolTalos "imageName") -}}
+{{- $imageCtx := dict "root" (dict "Values" .allValues) -}}
+{{- $poolImage := trim (include "kommodity.azure.image" (merge (deepCopy $imageCtx) (dict "poolTalos" $poolTalos))) -}}
+{{- $_ := set $data "azurePoolImage" $poolImage -}}
+{{- end -}}
 {{- end -}}
 {{- if and (hasKey . "isControlPlane") .isControlPlane -}}
 {{- $inlineManifests := include "kommodity.inlineManifests" (dict "addons" .root.Values.kommodity.addons "extraSecrets" .root.Values.kommodity.extraSecrets "root" .root) | trim -}}
@@ -396,10 +403,18 @@ Precedence (first match wins):
                               kommodity.provider.azure.subscriptionID +
                               kommodity.provider.azure.talosImageResourceGroup
 
-Usage (after an `image:` key): {{- include "kommodity.azure.image" . | nindent 8 }}
+A nodepool may override any of these keys per pool (pass "poolTalos" with the
+pool's `talos` block; omit it for the global image). Pool keys win over the
+global ones per key — matching the other providers' `poolValues.talos`
+override model — so e.g. a pool can pick a different imageName while the
+marketplace/computeGallery/id escape hatches stay global. A pool-level
+imageName still uses the global subscriptionID/talosImageResourceGroup to
+build its ARM ID.
+
+Usage (after an `image:` key): {{- include "kommodity.azure.image" (dict "root" . "poolTalos" (dig "talos" "" $np)) | nindent 8 }}
 */}}
 {{- define "kommodity.azure.image" -}}
-{{- $talos := .Values.talos -}}
+{{- $talos := mergeOverwrite (deepCopy .root.Values.talos) (deepCopy (default (dict) .poolTalos)) -}}
 {{- if dig "marketplace" "" $talos -}}
 marketplace:
   publisher: {{ $talos.marketplace.publisher }}
@@ -420,8 +435,8 @@ computeGallery:
 {{- else if dig "id" "" $talos -}}
 id: {{ $talos.id }}
 {{- else if dig "imageName" "" $talos -}}
-{{- $subID := required "talos.imageName requires kommodity.provider.azure.subscriptionID to build the Talos image resource ID" (dig "subscriptionID" "" (dig "azure" (dict) .Values.kommodity.provider | default (dict))) -}}
-{{- $imageRG := required "talos.imageName requires kommodity.provider.azure.talosImageResourceGroup (the resource group holding the Talos managed image) to build the Talos image resource ID" (dig "talosImageResourceGroup" "" (dig "azure" (dict) .Values.kommodity.provider | default (dict))) -}}
+{{- $subID := required "talos.imageName requires kommodity.provider.azure.subscriptionID to build the Talos image resource ID" (dig "subscriptionID" "" (dig "azure" (dict) .root.Values.kommodity.provider | default (dict))) -}}
+{{- $imageRG := required "talos.imageName requires kommodity.provider.azure.talosImageResourceGroup (the resource group holding the Talos managed image) to build the Talos image resource ID" (dig "talosImageResourceGroup" "" (dig "azure" (dict) .root.Values.kommodity.provider | default (dict))) -}}
 id: {{ printf "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Compute/images/%s" $subID $imageRG $talos.imageName }}
 {{- else -}}
 {{- fail "no Talos image configured for Azure: set talos.imageName (recommended) together with kommodity.provider.azure.talosImageResourceGroup, or use talos.id / talos.computeGallery / talos.marketplace" -}}
