@@ -255,7 +255,7 @@ kommodity:
           - type: Ready
             status: "False"
             timeout: 300s
-      # Per-pool Talos image override (mirrors other providers' pool overrides):
+      # Per-pool Talos image override:
       # any talos.* image key may be set per nodepool — imageName (built into
       # an ARM ID via the global subscriptionID/talosImageResourceGroup),
       # id (full ARM ID), computeGallery, or marketplace. Pool keys win over

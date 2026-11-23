@@ -410,7 +410,7 @@ tests:
           value: /subscriptions/sub-1234/resourceGroups/shared-images-rg/providers/Microsoft.Compute/images/kommodity-talos-azure-v1.14.2
         documentIndex: 1
 
-  # Per-pool image selection (mirrors Hetzner/Scaleway/KubeVirt pool overrides):
+  # Per-pool image selection:
   # a nodepool may boot a different Talos image than the global one.
   - it: should build a per-pool image id from nodepool talos.imageName
     template: templates/provider/azure/machinetemplate.yaml
