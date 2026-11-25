@@ -267,6 +267,14 @@ kommodity:
           - type: Ready
             status: "False"
             timeout: 300s
+      # Per-pool Talos image override:
+      # any talos.* image key may be set per nodepool — imageName (built into
+      # an ARM ID via the global subscriptionID/talosImageResourceGroup),
+      # id (full ARM ID), computeGallery, or marketplace. Pool keys win over
+      # the global talos block per key; pools without a talos block boot the
+      # global image.
+      # talos:
+      #   imageName: kommodity-talos-azure-gpu-v1.14.2
 
 talos:
   # Follow this documentation to generate a Talos image for Azure:
@@ -289,6 +297,13 @@ talos:
   #     offer: talos
   #     sku: talos
   #     version: 1.13.0
+  #
+  # Per-pool override: kommodity.nodepools.<pool>.talos (or
+  # kommodity.controlplane.talos) may set any of these keys; per key, the pool
+  # value wins over this global block (same precedence order within the pool).
+  # A pool-level imageName still reuses the global subscriptionID +
+  # talosImageResourceGroup to build its ARM ID. Pools without a talos block
+  # boot the global image.
 
 # Azure-specific overrides applied to the generated AzureMachineTemplates.
 # azure:
