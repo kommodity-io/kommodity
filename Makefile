@@ -48,7 +48,6 @@ export CADDY_CONTAINER_PORT
 .PHONY: .env
 .env: ## Create a .env file from the template. Use sed to only add if it does not already exist.
 	touch .env
-	grep -q '^KOMMODITY_DB_URI=' .env || echo 'KOMMODITY_DB_URI=postgres://kommodity:kommodity@localhost:5432/kommodity?sslmode=disable' >> .env
 	grep -q '^KOMMODITY_PORT=' .env || echo 'KOMMODITY_PORT=5000' >> .env
 	grep -q '^KOMMODITY_INSECURE_DISABLE_AUTHENTICATION=' .env || echo 'KOMMODITY_INSECURE_DISABLE_AUTHENTICATION=true' >> .env
 	grep -q '^KOMMODITY_DEVELOPMENT_MODE=' .env || echo 'KOMMODITY_DEVELOPMENT_MODE=true' >> .env
@@ -75,17 +74,12 @@ compose-down-all: ## Shut down every compose stack started from this compose.yml
 	rm -f Caddyfile
 
 .PHONY: select-in-local-db
-select-in-local-db:
-	psql -h localhost -p $(POSTGRES_HOST_PORT) -d kommodity -U kommodity -c "SELECT * FROM kine;"
+select-in-local-db: ## Query the compose stack's kine table via docker exec.
+	docker compose -p $(COMPOSE_PROJECT_NAME) exec postgres \
+		psql -U kommodity -d kommodity -c "SELECT * FROM kine;"
 
 .PHONY: setup
 setup: generate compose-up
-
-.PHONY: run
-run: ## Run the application locally.
-	LOG_FORMAT=console \
-	LOG_LEVEL=info \
-	go run $(GO_FLAGS) cmd/kommodity/main.go
 
 .PHONY: fetch-providers
 fetch-providers: 
@@ -137,13 +131,6 @@ build-image: ## Build the Docker image.
 	--build-arg VERSION=$(VERSION) \
 	--load
 
-# Run the container image outside compose (image built by 'make compose-up')
-.PHONY: run-container
-run-container:
-	docker run --rm \
-		--env-file .env \
-		--network $(COMPOSE_PROJECT_NAME)_kommodity-net \
-		kommodity:latest
 
 setup-kind-management-cluster:
 	./scripts/setup-kind-management-cluster.sh

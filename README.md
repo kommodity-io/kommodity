@@ -90,10 +90,10 @@ cd kommodity
 
 # Boot PostgreSQL + Caddy, build and run Kommodity in Docker
 make compose-up
-
-# Or run Kommodity locally against the compose stack
-make run
 ```
+
+Kommodity runs as a compose service; the stack's PostgreSQL is reachable only
+inside the compose network.
 
 Then point `kubectl` at it:
 
@@ -103,11 +103,11 @@ kubectl --kubeconfig kommodity.yaml create -f examples/namespace.yaml
 ```
 
 Run several isolated stacks in parallel by overriding the compose project name and
-the published host ports:
+the Caddy entry-point port:
 
 ```bash
 make compose-up COMPOSE_PROJECT_NAME=kommodity2 \
-  CADDY_HOST_PORT=5444 POSTGRES_HOST_PORT=5433 PGADMIN_HOST_PORT=5051
+  KOMMODITY_BASE_URL=https://localhost:5444 CADDY_HOST_PORT=5444
 ```
 
 ---
@@ -331,7 +331,6 @@ make build                            # binary in bin/
 make compose-up                       # build and run Kommodity in Docker (with PostgreSQL + Caddy)
 make compose-down                     # tear down the compose stack (COMPOSE_PROJECT_NAME=<name> to pick one)
 make compose-down-all                 # tear down every compose stack started from this repo
-make run                              # run locally against the compose stack
 make run-kubevirt-integration-test    # deploy a workload cluster on local KubeVirt
 make run-scaleway-integration-test    # deploy a workload cluster on Scaleway (costs $$)
 make run-hetzner-integration-test     # deploy a workload cluster on Hetzner Cloud (costs $$)
