@@ -41,6 +41,9 @@ export
 KOMMODITY_BASE_URL ?= https://localhost:5443
 KOMMODITY_PORT     ?= 5000
 COMPOSE_PROJECT_NAME ?= kommodity
+# Caddy listens in-container on the port from KOMMODITY_BASE_URL; CADDY_HOST_PORT maps to it.
+CADDY_CONTAINER_PORT ?= $(shell sed -n 's|^.*:\([0-9][0-9]*\)$$|\1|p' <<< "$(KOMMODITY_BASE_URL)")
+export CADDY_CONTAINER_PORT
 
 .PHONY: .env
 .env: ## Create a .env file from the template. Use sed to only add if it does not already exist.
@@ -50,9 +53,9 @@ COMPOSE_PROJECT_NAME ?= kommodity
 	grep -q '^KOMMODITY_INSECURE_DISABLE_AUTHENTICATION=' .env || echo 'KOMMODITY_INSECURE_DISABLE_AUTHENTICATION=true' >> .env
 	grep -q '^KOMMODITY_DEVELOPMENT_MODE=' .env || echo 'KOMMODITY_DEVELOPMENT_MODE=true' >> .env
 
-generate-caddyfile: # Generate a Caddyfile for local development. Caddy always listens on 5443 inside
-# the container; the host port is mapped by compose (CADDY_HOST_PORT).
-	echo "https://localhost:5443 {\n  reverse_proxy kommodity:$(KOMMODITY_PORT) {\n    transport http {\n      versions h2c\n    }\n  }\n  tls internal\n}" > Caddyfile
+generate-caddyfile: # Generate a Caddyfile for local development. Caddy listens in-container on the
+# port from KOMMODITY_BASE_URL; CADDY_HOST_PORT maps to it.
+	echo "$(KOMMODITY_BASE_URL) {\n  reverse_proxy kommodity:$(KOMMODITY_PORT) {\n    transport http {\n      versions h2c\n    }\n  }\n  tls internal\n}" > Caddyfile
 
 .PHONY: compose-up
 compose-up: .env generate-caddyfile ## Start the docker compose stack (builds the kommodity image). Optional: COMPOSE_PROJECT_NAME=<name> or make compose-up COMPOSE_PROJECT_NAME=<name>.

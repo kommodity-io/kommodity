@@ -60,7 +60,7 @@ services:
     image: caddy:2
     restart: always
     ports:
-      - "${CADDY_HOST_PORT:-5443}:5443"
+      - "${CADDY_HOST_PORT:-5443}:${CADDY_CONTAINER_PORT:-5443}"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile
     networks:
