@@ -50,11 +50,10 @@ KOMMODITY_PORT     ?= 5000
 	grep -q '^KOMMODITY_DEVELOPMENT_MODE=' .env || echo 'KOMMODITY_DEVELOPMENT_MODE=true' >> .env
 
 generate-caddyfile: # Generate a Caddyfile for local development.
-	touch Caddyfile
-	echo "$(KOMMODITY_BASE_URL) {\n  reverse_proxy host.docker.internal:$(KOMMODITY_PORT) {\n    transport http {\n      versions h2c\n    }\n  }\n  tls internal\n}" > Caddyfile
+	echo "$(KOMMODITY_BASE_URL) {\n  reverse_proxy kommodity:5000 {\n    transport http {\n      versions h2c\n    }\n  }\n  tls internal\n}" > Caddyfile
 
 .PHONY: compose-up
-compose-up: generate-caddyfile
+compose-up: .env generate-caddyfile ## Start the docker compose stack (builds the kommodity image).
 	docker compose up -d --build --force-recreate
 
 .PHONY: compose-down
@@ -125,14 +124,10 @@ build-image: ## Build the Docker image.
 	--build-arg VERSION=$(VERSION) \
 	--load
 
-# Run the container image
-# .env file created by 'make .env'
-# Make sure KOMMODITY_DB_URI targets 'postgres' not 'localhost'
-# kommodity_kommodity-net network created by 'make compose-up'
+# Run the container image outside compose (image built by 'make compose-up')
 .PHONY: run-container
 run-container:
 	docker run --rm \
-		-p $(KOMMODITY_PORT):$(KOMMODITY_PORT) \
 		--env-file .env \
 		--network kommodity_kommodity-net \
 		kommodity:latest

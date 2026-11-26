@@ -34,6 +34,28 @@ services:
     networks:
       - kommodity-net
 
+  kommodity:
+    build:
+      context: .
+      dockerfile: Containerfile
+      args:
+        VERSION: ${VERSION:-dev}
+    image: kommodity:latest
+    restart: always
+    env_file:
+      - .env
+    environment:
+      KOMMODITY_DB_URI: postgres://kommodity:kommodity@postgres:5432/kommodity?sslmode=disable
+    networks:
+      - kommodity-net
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    security_opt:
+      - label=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   caddy:
     image: caddy:2
     restart: always
@@ -44,7 +66,7 @@ services:
     networks:
       - kommodity-net
     depends_on:
-      - postgres
+      - kommodity
 
 volumes:
   pgdata:

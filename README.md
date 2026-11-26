@@ -88,10 +88,10 @@ gvm use go1.27.3 --default
 git clone https://github.com/kommodity-io/kommodity
 cd kommodity
 
-# Boot PostgreSQL + Caddy, run code generation
-make setup
+# Boot PostgreSQL + Caddy, build and run Kommodity in Docker
+make compose-up
 
-# Run Kommodity
+# Or run Kommodity locally against the compose stack
 make run
 ```
 
@@ -320,7 +320,8 @@ current-context: kommodity
 
 ```bash
 make build                            # binary in bin/
-make run                              # run locally against the docker-compose stack
+make compose-up                       # build and run Kommodity in Docker (with PostgreSQL + Caddy)
+make run                              # run locally against the compose stack
 make teardown                         # tear down the docker-compose stack
 make run-kubevirt-integration-test    # deploy a workload cluster on local KubeVirt
 make run-scaleway-integration-test    # deploy a workload cluster on Scaleway (costs $$)
