@@ -50,7 +50,7 @@ KOMMODITY_PORT     ?= 5000
 	grep -q '^KOMMODITY_DEVELOPMENT_MODE=' .env || echo 'KOMMODITY_DEVELOPMENT_MODE=true' >> .env
 
 generate-caddyfile: # Generate a Caddyfile for local development.
-	echo "$(KOMMODITY_BASE_URL) {\n  reverse_proxy kommodity:5000 {\n    transport http {\n      versions h2c\n    }\n  }\n  tls internal\n}" > Caddyfile
+	echo "$(KOMMODITY_BASE_URL) {\n  reverse_proxy kommodity:$(KOMMODITY_PORT) {\n    transport http {\n      versions h2c\n    }\n  }\n  tls internal\n}" > Caddyfile
 
 .PHONY: compose-up
 compose-up: .env generate-caddyfile ## Start the docker compose stack (builds the kommodity image).
