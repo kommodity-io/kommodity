@@ -28,6 +28,7 @@ services:
       KOMMODITY_DB_URI: postgres://kommodity:kommodity@postgres:5432/kommodity?sslmode=disable
       KOMMODITY_INSECURE_DISABLE_AUTHENTICATION: true
       KOMMODITY_DEVELOPMENT_MODE: true
+      KOMMODITY_BASE_URL: ${KOMMODITY_BASE_URL:-https://localhost:5443}
     networks:
       - kommodity-net
     volumes:
@@ -42,7 +43,7 @@ services:
     image: caddy:2
     restart: always
     ports:
-      - "${CADDY_HOST_PORT:-5443}:${CADDY_CONTAINER_PORT:-5443}"
+      - "${CADDY_HOST_PORT:-5443}:${CADDY_HOST_PORT:-5443}"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile
     networks:

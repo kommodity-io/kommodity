@@ -106,9 +106,11 @@ Run several isolated stacks in parallel by overriding the compose project name a
 the Caddy entry-point port:
 
 ```bash
-make compose-up COMPOSE_PROJECT_NAME=kommodity2 \
-  KOMMODITY_BASE_URL=https://localhost:5444 CADDY_HOST_PORT=5444
+make compose-up COMPOSE_PROJECT_NAME=kommodity2 CADDY_HOST_PORT=5444
 ```
+
+The stack's advertised base URL (`KOMMODITY_BASE_URL`) is derived from
+`CADDY_HOST_PORT`, so `kubectl` talks to `https://localhost:5444`.
 
 ---
 

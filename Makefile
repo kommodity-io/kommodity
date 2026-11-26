@@ -37,15 +37,16 @@ LINTER := go tool golangci-lint
 
 # All runtime env vars are set in compose.yml; overrides go on the make command line.
 
-KOMMODITY_BASE_URL ?= https://localhost:5443
 KOMMODITY_PORT     ?= 5000
 COMPOSE_PROJECT_NAME ?= kommodity
-# Caddy listens in-container on the port from KOMMODITY_BASE_URL; CADDY_HOST_PORT maps to it.
-CADDY_CONTAINER_PORT ?= $(shell sed -n 's|^.*:\([0-9][0-9]*\)$$|\1|p' <<< "$(KOMMODITY_BASE_URL)")
-export CADDY_CONTAINER_PORT
+# Single port knob: Caddy publishes on it and KOMMODITY_BASE_URL is derived from it.
+CADDY_HOST_PORT ?= 5443
+KOMMODITY_BASE_URL ?= https://localhost:$(CADDY_HOST_PORT)
+export CADDY_HOST_PORT
+export KOMMODITY_BASE_URL
 
-generate-caddyfile: # Generate a Caddyfile for local development. Caddy listens in-container on the
-# port from KOMMODITY_BASE_URL; CADDY_HOST_PORT maps to it.
+generate-caddyfile: # Generate a Caddyfile for local development. Caddy listens in-container on
+# CADDY_HOST_PORT (same as the published host port).
 	echo "$(KOMMODITY_BASE_URL) {\n  reverse_proxy kommodity:$(KOMMODITY_PORT) {\n    transport http {\n      versions h2c\n    }\n  }\n  tls internal\n}" > Caddyfile
 
 .PHONY: compose-up
