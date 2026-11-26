@@ -102,6 +102,14 @@ kubectl --kubeconfig kommodity.yaml api-resources
 kubectl --kubeconfig kommodity.yaml create -f examples/namespace.yaml
 ```
 
+Run several isolated stacks in parallel by overriding the compose project name and
+the published host ports:
+
+```bash
+make compose-up COMPOSE_PROJECT_NAME=kommodity2 \
+  CADDY_HOST_PORT=5444 POSTGRES_HOST_PORT=5433 PGADMIN_HOST_PORT=5051
+```
+
 ---
 
 ## Architecture

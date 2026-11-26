@@ -7,7 +7,7 @@ services:
       POSTGRES_PASSWORD: kommodity
       POSTGRES_DB: kommodity
     ports:
-      - "5432:5432"
+      - "${POSTGRES_HOST_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     networks:
@@ -28,7 +28,7 @@ services:
     volumes:
       - ./pgadmin/servers.json:/pgadmin4/servers.json
     ports:
-      - "5050:80"
+      - "${PGADMIN_HOST_PORT:-5050}:80"
     depends_on:
       - postgres
     networks:
@@ -60,7 +60,7 @@ services:
     image: caddy:2
     restart: always
     ports:
-      - "5443:5443"
+      - "${CADDY_HOST_PORT:-5443}:5443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile
     networks:
