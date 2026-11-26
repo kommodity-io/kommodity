@@ -329,8 +329,9 @@ current-context: kommodity
 ```bash
 make build                            # binary in bin/
 make compose-up                       # build and run Kommodity in Docker (with PostgreSQL + Caddy)
+make compose-down                     # tear down the compose stack (COMPOSE_PROJECT_NAME=<name> to pick one)
+make compose-down-all                 # tear down every compose stack started from this repo
 make run                              # run locally against the compose stack
-make teardown                         # tear down the docker-compose stack
 make run-kubevirt-integration-test    # deploy a workload cluster on local KubeVirt
 make run-scaleway-integration-test    # deploy a workload cluster on Scaleway (costs $$)
 make run-hetzner-integration-test     # deploy a workload cluster on Hetzner Cloud (costs $$)

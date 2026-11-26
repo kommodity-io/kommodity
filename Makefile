@@ -62,8 +62,16 @@ compose-up: .env generate-caddyfile ## Start the docker compose stack (builds th
 	docker compose -p $(COMPOSE_PROJECT_NAME) up -d --build --force-recreate
 
 .PHONY: compose-down
-compose-down: ## Shut down the docker compose stack. Use the same COMPOSE_PROJECT_NAME used for compose-up.
+compose-down: ## Shut down the docker compose stack. Optional: COMPOSE_PROJECT_NAME=<name> (same one used for compose-up).
 	docker compose -p $(COMPOSE_PROJECT_NAME) down --remove-orphans -v
+	rm -f Caddyfile
+
+.PHONY: compose-down-all
+compose-down-all: ## Shut down every compose stack started from this compose.yml.
+	for name in $$(docker compose ls --all --format json 2>/dev/null \
+		| jq -r '.[] | select(.ConfigFiles | contains("$(CURDIR)/compose.yml")) | .Name'); do \
+		docker compose -p $$name down --remove-orphans -v; \
+	done
 	rm -f Caddyfile
 
 .PHONY: select-in-local-db
