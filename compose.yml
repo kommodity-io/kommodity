@@ -42,10 +42,10 @@ services:
         VERSION: ${VERSION:-dev}
     image: kommodity:latest
     restart: always
-    env_file:
-      - .env
     environment:
       KOMMODITY_DB_URI: postgres://kommodity:kommodity@postgres:5432/kommodity?sslmode=disable
+      KOMMODITY_INSECURE_DISABLE_AUTHENTICATION: true
+      KOMMODITY_DEVELOPMENT_MODE: true
     networks:
       - kommodity-net
     volumes:
