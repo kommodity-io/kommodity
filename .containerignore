@@ -1,0 +1,45 @@
+# VCS data — VERSION/COMMIT passed via build args
+.git
+.gitignore
+.gitattributes
+
+# Build artifacts and local state
+bin
+.bin
+.env
+.env.*
+!.env.example
+
+# Large non-build directories
+terraform
+articles
+examples
+pgadmin
+images
+charts
+openapi
+scripts
+hack
+
+# Claude/opencode session files
+.claude*
+.mcp.json
+CLAUDE.md
+AGENTS.md
+.local
+.codegraph
+
+# Misc
+compose.yml
+Caddyfile
+Containerfile
+.containerignore
+Makefile
+*.md
+!public/**/*.md
+LICENSE
+.vscode
+.idea
+*.log
+.tmp
+scaleway.secret.yaml
