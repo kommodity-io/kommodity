@@ -1,4 +1,5 @@
 VERSION			?= $(shell git describe --tags --always)
+export VERSION
 TREE_STATE      ?= $(shell git describe --always --dirty --exclude='*' | grep -q dirty && echo dirty || echo clean)
 COMMIT			?= $(shell git rev-parse HEAD)
 BUILD_DATE		?= $(shell date -u +'%Y-%m-%dT%H:%M:%SZ')
@@ -34,9 +35,7 @@ LINTER := go tool golangci-lint
 
 ##@ Development
 
-# Load .env file if it exists, making its variables available to Make targets.
--include .env
-export
+# All runtime env vars are set in compose.yml; overrides go on the make command line.
 
 KOMMODITY_BASE_URL ?= https://localhost:5443
 KOMMODITY_PORT     ?= 5000
@@ -45,19 +44,12 @@ COMPOSE_PROJECT_NAME ?= kommodity
 CADDY_CONTAINER_PORT ?= $(shell sed -n 's|^.*:\([0-9][0-9]*\)$$|\1|p' <<< "$(KOMMODITY_BASE_URL)")
 export CADDY_CONTAINER_PORT
 
-.PHONY: .env
-.env: ## Create a .env file from the template. Use sed to only add if it does not already exist.
-	touch .env
-	grep -q '^KOMMODITY_PORT=' .env || echo 'KOMMODITY_PORT=5000' >> .env
-	grep -q '^KOMMODITY_INSECURE_DISABLE_AUTHENTICATION=' .env || echo 'KOMMODITY_INSECURE_DISABLE_AUTHENTICATION=true' >> .env
-	grep -q '^KOMMODITY_DEVELOPMENT_MODE=' .env || echo 'KOMMODITY_DEVELOPMENT_MODE=true' >> .env
-
 generate-caddyfile: # Generate a Caddyfile for local development. Caddy listens in-container on the
 # port from KOMMODITY_BASE_URL; CADDY_HOST_PORT maps to it.
 	echo "$(KOMMODITY_BASE_URL) {\n  reverse_proxy kommodity:$(KOMMODITY_PORT) {\n    transport http {\n      versions h2c\n    }\n  }\n  tls internal\n}" > Caddyfile
 
 .PHONY: compose-up
-compose-up: .env generate-caddyfile ## Start the docker compose stack (builds the kommodity image). Optional: COMPOSE_PROJECT_NAME=<name> or make compose-up COMPOSE_PROJECT_NAME=<name>.
+compose-up: generate-caddyfile ## Start the docker compose stack (builds the kommodity image). Optional: COMPOSE_PROJECT_NAME=<name> or make compose-up COMPOSE_PROJECT_NAME=<name>.
 	docker compose -p $(COMPOSE_PROJECT_NAME) up -d --build --force-recreate
 
 .PHONY: compose-down
@@ -113,7 +105,7 @@ lint-fix: ## Run the linter and fix issues.
 	$(LINTER) run --fix
 	cd pkg/test && go tool -modfile=../../go.mod golangci-lint run --fix
 
-generate: .env fetch-providers ## Run code generation.
+generate: fetch-providers ## Run code generation.
 	go generate ./...
 	# openapi-gen has a bug where it strips the spec import from
 	# intstr/zz_generated.openapi.go for method-driven types like IntOrString.
