@@ -92,8 +92,7 @@ cd kommodity
 make compose-up
 ```
 
-Kommodity runs as a compose service; the stack's PostgreSQL is reachable only
-inside the compose network.
+Kommodity runs as a compose service.
 
 Then point `kubectl` at it:
 
@@ -109,8 +108,12 @@ the Caddy entry-point port:
 make compose-up COMPOSE_PROJECT_NAME=kommodity2 CADDY_HOST_PORT=5444
 ```
 
-The stack's advertised base URL (`KOMMODITY_BASE_URL`) is derived from
-`CADDY_HOST_PORT`, so `kubectl` talks to `https://localhost:5444`.
+Tear down the compose stack :
+
+```bash
+make compose-down     # add COMPOSE_PROJECT_NAME=<name> to pick one
+make compose-down-all # tear down every compose stack started from this repo
+```
 
 ---
 
