@@ -39,6 +39,7 @@ LINTER := go tool golangci-lint
 export
 
 KOMMODITY_BASE_URL ?= https://localhost:5443
+KOMMODITY_PORT     ?= 5000
 COMPOSE_PROJECT_NAME ?= kommodity
 
 .PHONY: .env
