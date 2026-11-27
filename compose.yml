@@ -22,6 +22,8 @@ services:
       dockerfile: Containerfile
       args:
         VERSION: ${VERSION:-dev}
+        TREE_STATE: ${TREE_STATE:-}
+        COMMIT: ${COMMIT:-}
     image: kommodity:latest
     restart: always
     environment:

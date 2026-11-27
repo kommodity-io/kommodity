@@ -1,7 +1,9 @@
 VERSION			?= $(shell git describe --tags --always)
 export VERSION
-TREE_STATE      ?= $(shell git describe --always --dirty --exclude='*' | grep -q dirty && echo dirty || echo clean)
+TREE_STATE		?= $(shell git describe --always --dirty --exclude='*' | grep -q dirty && echo dirty || echo clean)
+export TREE_STATE
 COMMIT			?= $(shell git rev-parse HEAD)
+export COMMIT
 BUILD_DATE		?= $(shell date -u +'%Y-%m-%dT%H:%M:%SZ')
 GO_FLAGS		:= -ldflags "-X 'k8s.io/component-base/version.gitVersion=$(VERSION)' -X 'k8s.io/component-base/version.gitTreeState=$(TREE_STATE)' -X 'k8s.io/component-base/version.buildDate=$(BUILD_DATE)' -X 'k8s.io/component-base/version.gitCommit=$(COMMIT)'"
 SOURCES			:= $(shell find . -name '*.go')
@@ -122,6 +124,8 @@ build-image: ## Build the Docker image.
 	-t kommodity:latest \
 	. \
 	--build-arg VERSION=$(VERSION) \
+	--build-arg TREE_STATE=$(TREE_STATE) \
+	--build-arg COMMIT=$(COMMIT) \
 	--load
 
 
