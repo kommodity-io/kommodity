@@ -6,8 +6,6 @@ services:
       POSTGRES_USER: kommodity
       POSTGRES_PASSWORD: kommodity
       POSTGRES_DB: kommodity
-    ports:
-      - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     networks:
@@ -18,33 +16,42 @@ services:
       timeout: 3s
       retries: 5
 
-  pgadmin:
-    image: dpage/pgadmin4:8
+  kommodity:
+    build:
+      context: .
+      dockerfile: Containerfile
+      args:
+        VERSION: ${VERSION:-dev}
+        TREE_STATE: ${TREE_STATE:-}
+        COMMIT: ${COMMIT:-}
+    image: kommodity:latest
     restart: always
     environment:
-      PGADMIN_DEFAULT_EMAIL: kommodity@corti.ai
-      PGADMIN_DEFAULT_PASSWORD: kommodity
-      PGADMIN_CONFIG_SERVER_MODE: "False" # Load preconfigured servers
-    volumes:
-      - ./pgadmin/servers.json:/pgadmin4/servers.json
-    ports:
-      - "5050:80"
-    depends_on:
-      - postgres
+      KOMMODITY_DB_URI: postgres://kommodity:kommodity@postgres:5432/kommodity?sslmode=disable
+      KOMMODITY_INSECURE_DISABLE_AUTHENTICATION: true
+      KOMMODITY_DEVELOPMENT_MODE: true
+      KOMMODITY_BASE_URL: ${KOMMODITY_BASE_URL:-https://localhost:5443}
     networks:
       - kommodity-net
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    security_opt:
+      - label=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   caddy:
     image: caddy:2
     restart: always
     ports:
-      - "5443:5443"
+      - "${CADDY_BIND:-127.0.0.1}:${CADDY_HOST_PORT:-5443}:${CADDY_HOST_PORT:-5443}"
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile
+      - ${CADDYFILE:-.compose/kommodity.Caddyfile}:/etc/caddy/Caddyfile
     networks:
       - kommodity-net
     depends_on:
-      - postgres
+      - kommodity
 
 volumes:
   pgdata:

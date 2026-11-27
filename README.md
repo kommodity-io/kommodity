@@ -88,18 +88,31 @@ gvm use go1.27.3 --default
 git clone https://github.com/kommodity-io/kommodity
 cd kommodity
 
-# Boot PostgreSQL + Caddy, run code generation
-make setup
-
-# Run Kommodity
-make run
+# Boot PostgreSQL + Caddy, build and run Kommodity in Docker
+make compose-up
 ```
+
+Kommodity runs as a compose service.
 
 Then point `kubectl` at it:
 
 ```bash
 kubectl --kubeconfig kommodity.yaml api-resources
 kubectl --kubeconfig kommodity.yaml create -f examples/namespace.yaml
+```
+
+Run several isolated stacks in parallel by overriding the compose project name and
+the Caddy entry-point port:
+
+```bash
+make compose-up COMPOSE_PROJECT_NAME=kommodity2 CADDY_HOST_PORT=5444
+```
+
+Tear down the compose stack :
+
+```bash
+make compose-down     # add COMPOSE_PROJECT_NAME=<name> to pick one
+make compose-down-all # tear down every compose stack started from this repo
 ```
 
 ---
@@ -320,8 +333,9 @@ current-context: kommodity
 
 ```bash
 make build                            # binary in bin/
-make run                              # run locally against the docker-compose stack
-make teardown                         # tear down the docker-compose stack
+make compose-up                       # build and run Kommodity in Docker (with PostgreSQL + Caddy)
+make compose-down                     # tear down the compose stack (COMPOSE_PROJECT_NAME=<name> to pick one)
+make compose-down-all                 # tear down every compose stack started from this repo
 make run-kubevirt-integration-test    # deploy a workload cluster on local KubeVirt
 make run-scaleway-integration-test    # deploy a workload cluster on Scaleway (costs $$)
 make run-hetzner-integration-test     # deploy a workload cluster on Hetzner Cloud (costs $$)

@@ -1,6 +1,9 @@
 VERSION			?= $(shell git describe --tags --always)
-TREE_STATE      ?= $(shell git describe --always --dirty --exclude='*' | grep -q dirty && echo dirty || echo clean)
+export VERSION
+TREE_STATE		?= $(shell git describe --always --dirty --exclude='*' | grep -q dirty && echo dirty || echo clean)
+export TREE_STATE
 COMMIT			?= $(shell git rev-parse HEAD)
+export COMMIT
 BUILD_DATE		?= $(shell date -u +'%Y-%m-%dT%H:%M:%SZ')
 GO_FLAGS		:= -ldflags "-X 'k8s.io/component-base/version.gitVersion=$(VERSION)' -X 'k8s.io/component-base/version.gitTreeState=$(TREE_STATE)' -X 'k8s.io/component-base/version.buildDate=$(BUILD_DATE)' -X 'k8s.io/component-base/version.gitCommit=$(COMMIT)'"
 SOURCES			:= $(shell find . -name '*.go')
@@ -34,49 +37,53 @@ LINTER := go tool golangci-lint
 
 ##@ Development
 
-# Load .env file if it exists, making its variables available to Make targets.
--include .env
-export
+# All runtime env vars are set in compose.yml; overrides go on the make command line.
 
-KOMMODITY_BASE_URL ?= https://localhost:5443
 KOMMODITY_PORT     ?= 5000
+COMPOSE_PROJECT_NAME ?= kommodity
+# Single port knob: Caddy publishes on it and KOMMODITY_BASE_URL is derived from it.
+CADDY_HOST_PORT ?= 5443
+KOMMODITY_BASE_URL ?= https://localhost:$(CADDY_HOST_PORT)
+export CADDY_HOST_PORT
+export KOMMODITY_BASE_URL
+# One Caddyfile per compose project so parallel stacks never overwrite
+# each other's proxy config.
+CADDY_DIR := .compose
+CADDYFILE := $(CADDY_DIR)/$(COMPOSE_PROJECT_NAME).Caddyfile
+export CADDYFILE
 
-.PHONY: .env
-.env: ## Create a .env file from the template. Use sed to only add if it does not already exist.
-	touch .env
-	grep -q '^KOMMODITY_DB_URI=' .env || echo 'KOMMODITY_DB_URI=postgres://kommodity:kommodity@localhost:5432/kommodity?sslmode=disable' >> .env
-	grep -q '^KOMMODITY_PORT=' .env || echo 'KOMMODITY_PORT=5000' >> .env
-	grep -q '^KOMMODITY_INSECURE_DISABLE_AUTHENTICATION=' .env || echo 'KOMMODITY_INSECURE_DISABLE_AUTHENTICATION=true' >> .env
-	grep -q '^KOMMODITY_DEVELOPMENT_MODE=' .env || echo 'KOMMODITY_DEVELOPMENT_MODE=true' >> .env
-
-generate-caddyfile: # Generate a Caddyfile for local development.
-	touch Caddyfile
-	echo "$(KOMMODITY_BASE_URL) {\n  reverse_proxy host.docker.internal:$(KOMMODITY_PORT) {\n    transport http {\n      versions h2c\n    }\n  }\n  tls internal\n}" > Caddyfile
+generate-caddyfile: # Generate the project's Caddyfile. Caddy listens in-container on
+# CADDY_HOST_PORT (same as the published host port).
+	mkdir -p $(CADDY_DIR)
+	echo "$(KOMMODITY_BASE_URL) {\n  reverse_proxy kommodity:$(KOMMODITY_PORT) {\n    transport http {\n      versions h2c\n    }\n  }\n  tls internal\n}" > $(CADDYFILE)
 
 .PHONY: compose-up
-compose-up: generate-caddyfile
-	docker compose up -d --build --force-recreate
+compose-up: generate-caddyfile ## Start the docker compose stack (builds the kommodity image). Optional: COMPOSE_PROJECT_NAME=<name> or make compose-up COMPOSE_PROJECT_NAME=<name>.
+	docker compose -p $(COMPOSE_PROJECT_NAME) up -d --build --force-recreate
 
 .PHONY: compose-down
-compose-down: # Shuts down docker containers and removes volumes
-	docker compose down --remove-orphans -v
-	rm -f Caddyfile
+compose-down: ## Shut down the docker compose stack. Optional: COMPOSE_PROJECT_NAME=<name> (same one used for compose-up).
+	docker compose -p $(COMPOSE_PROJECT_NAME) down --remove-orphans -v
+	rm -f $(CADDYFILE)
+
+.PHONY: compose-down-all
+compose-down-all: ## Shut down every compose stack started from this compose.yml.
+	for name in $$(docker compose ls --all --format json 2>/dev/null \
+		| jq -r '.[] | select(.ConfigFiles | contains("$(CURDIR)/compose.yml")) | .Name'); do \
+		docker compose -p $$name down --remove-orphans -v; \
+		rm -f $(CADDY_DIR)/$$name.Caddyfile; \
+	done
 
 .PHONY: select-in-local-db
-select-in-local-db:
-	psql -h localhost -d kommodity -U kommodity -c "SELECT * FROM kine;"
+select-in-local-db: ## Query the compose stack's kine table via docker exec.
+	docker compose -p $(COMPOSE_PROJECT_NAME) exec postgres \
+		psql -U kommodity -d kommodity -c "SELECT * FROM kine;"
 
 .PHONY: setup
 setup: generate compose-up
 
-.PHONY: run
-run: ## Run the application locally.
-	LOG_FORMAT=console \
-	LOG_LEVEL=info \
-	go run $(GO_FLAGS) cmd/kommodity/main.go
-
 .PHONY: fetch-providers
-fetch-providers: 
+fetch-providers:
 	./scripts/fetch-providers.sh
 	./scripts/add-to-scheme-providers.sh
 	./scripts/generate-provider-consts.sh
@@ -107,7 +114,7 @@ lint-fix: ## Run the linter and fix issues.
 	$(LINTER) run --fix
 	cd pkg/test && go tool -modfile=../../go.mod golangci-lint run --fix
 
-generate: .env fetch-providers ## Run code generation.
+generate: fetch-providers ## Run code generation.
 	go generate ./...
 	# openapi-gen has a bug where it strips the spec import from
 	# intstr/zz_generated.openapi.go for method-driven types like IntOrString.
@@ -123,19 +130,10 @@ build-image: ## Build the Docker image.
 	-t kommodity:latest \
 	. \
 	--build-arg VERSION=$(VERSION) \
+	--build-arg TREE_STATE=$(TREE_STATE) \
+	--build-arg COMMIT=$(COMMIT) \
 	--load
 
-# Run the container image
-# .env file created by 'make .env'
-# Make sure KOMMODITY_DB_URI targets 'postgres' not 'localhost'
-# kommodity_kommodity-net network created by 'make compose-up'
-.PHONY: run-container
-run-container:
-	docker run --rm \
-		-p $(KOMMODITY_PORT):$(KOMMODITY_PORT) \
-		--env-file .env \
-		--network kommodity_kommodity-net \
-		kommodity:latest
 
 setup-kind-management-cluster:
 	./scripts/setup-kind-management-cluster.sh

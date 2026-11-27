@@ -156,6 +156,9 @@ jobs:
           cache-to: type=gha,mode=max
           build-args: |
             VERSION=${{ needs.prepare.outputs.version }}
+            TREE_STATE=clean
+            COMMIT=${{ github.sha }}
+            COMPRESS=true
 
       - name: Save image as artifact
         run: docker save kommodity:latest -o kommodity-image.tar
@@ -351,6 +354,9 @@ jobs:
           cache-to: type=gha,mode=max
           build-args: |
             VERSION=${{ needs.prepare.outputs.version }}
+            TREE_STATE=clean
+            COMMIT=${{ github.sha }}
+            COMPRESS=true
           outputs: type=oci,dest=/tmp/image.tar
 
       - name: Upload container image artifact

@@ -1,22 +1,38 @@
 FROM --platform=$BUILDPLATFORM golang:1.27-alpine AS build-api
 
-# This is set automatically by buildx
 ARG TARGETARCH
 ARG TARGETOS
 ARG VERSION
+ARG TREE_STATE
+ARG COMMIT
+ARG COMPRESS=false
+
+# Pin toolchain so a go.mod toolchain bump doesn't invalidate the build cache.
+ENV GOTOOLCHAIN=local
 
 WORKDIR /app
 
 RUN go env -w GOCACHE=/go-cache
 RUN go env -w GOMODCACHE=/gomod-cache
 
-RUN apk update && apk add git make upx
-
 COPY go.mod go.sum ./
-RUN go mod download
+RUN --mount=type=cache,target=/gomod-cache go mod download
 
-COPY . .
-RUN --mount=type=cache,target=/gomod-cache --mount=type=cache,target=/go-cache GOOS=${TARGETOS} GOARCH=${TARGETARCH} VERSION=${VERSION} make build-api
+# Copy only Go sources and embedded assets so non-Go changes (charts,
+# docs, terraform) don't invalidate the compile cache.
+COPY public ./public
+COPY cmd ./cmd
+COPY pkg ./pkg
+RUN --mount=type=cache,target=/gomod-cache --mount=type=cache,target=/go-cache \
+    GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
+    go build -ldflags "-X 'k8s.io/component-base/version.gitVersion=${VERSION}' -X 'k8s.io/component-base/version.gitTreeState=${TREE_STATE}' -X 'k8s.io/component-base/version.gitCommit=${COMMIT}'" \
+    -o bin/kommodity ./cmd/kommodity
+
+# Compress the binary for published images (COMPRESS=true). Local builds keep
+# it uncompressed: faster container start and the binary stays debuggable.
+RUN if [ "${COMPRESS}" = "true" ]; then \
+        apk add --no-cache upx && upx -qq bin/kommodity; \
+    fi
 
 FROM gcr.io/distroless/static-debian12 AS runtime
 
