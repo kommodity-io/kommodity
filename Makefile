@@ -77,7 +77,7 @@ select-in-local-db: ## Query the compose stack's kine table via docker exec.
 setup: generate compose-up
 
 .PHONY: fetch-providers
-fetch-providers: 
+fetch-providers:
 	./scripts/fetch-providers.sh
 	./scripts/add-to-scheme-providers.sh
 	./scripts/generate-provider-consts.sh
