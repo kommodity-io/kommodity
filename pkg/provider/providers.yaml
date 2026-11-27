@@ -25,6 +25,7 @@ providers:
       - api/addons/v1beta1
       - exp/api/v1beta1
       - exp/runtime/api/v1alpha1
+      - exp/ipam/api/v1beta1
     webhooks:
       - config/webhook/manifests.yaml
   - name: cabpt
