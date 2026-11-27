@@ -5,6 +5,7 @@ ARG TARGETOS
 ARG VERSION
 ARG TREE_STATE
 ARG COMMIT
+ARG COMPRESS=false
 
 # Pin toolchain so a go.mod toolchain bump doesn't invalidate the build cache.
 ENV GOTOOLCHAIN=local
@@ -25,6 +26,12 @@ COPY pkg ./pkg
 RUN --mount=type=cache,target=/gomod-cache --mount=type=cache,target=/go-cache \
     go build -ldflags "-X 'k8s.io/component-base/version.gitVersion=${VERSION}' -X 'k8s.io/component-base/version.gitTreeState=${TREE_STATE}' -X 'k8s.io/component-base/version.gitCommit=${COMMIT}'" \
     -o bin/kommodity ./cmd/kommodity
+
+# Compress the binary for published images (COMPRESS=true). Local builds keep
+# it uncompressed: faster container start and the binary stays debuggable.
+RUN if [ "${COMPRESS}" = "true" ]; then \
+        apk add --no-cache upx && upx -qq bin/kommodity; \
+    fi
 
 FROM gcr.io/distroless/static-debian12 AS runtime
 
