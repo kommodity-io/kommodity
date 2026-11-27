@@ -47,7 +47,7 @@ services:
     ports:
       - "${CADDY_HOST_PORT:-5443}:${CADDY_HOST_PORT:-5443}"
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile
+      - ${CADDYFILE:-.compose/kommodity.Caddyfile}:/etc/caddy/Caddyfile
     networks:
       - kommodity-net
     depends_on:

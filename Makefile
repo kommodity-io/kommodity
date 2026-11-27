@@ -46,10 +46,16 @@ CADDY_HOST_PORT ?= 5443
 KOMMODITY_BASE_URL ?= https://localhost:$(CADDY_HOST_PORT)
 export CADDY_HOST_PORT
 export KOMMODITY_BASE_URL
+# One Caddyfile per compose project so parallel stacks never overwrite
+# each other's proxy config.
+CADDY_DIR := .compose
+CADDYFILE := $(CADDY_DIR)/$(COMPOSE_PROJECT_NAME).Caddyfile
+export CADDYFILE
 
-generate-caddyfile: # Generate a Caddyfile for local development. Caddy listens in-container on
+generate-caddyfile: # Generate the project's Caddyfile. Caddy listens in-container on
 # CADDY_HOST_PORT (same as the published host port).
-	echo "$(KOMMODITY_BASE_URL) {\n  reverse_proxy kommodity:$(KOMMODITY_PORT) {\n    transport http {\n      versions h2c\n    }\n  }\n  tls internal\n}" > Caddyfile
+	mkdir -p $(CADDY_DIR)
+	echo "$(KOMMODITY_BASE_URL) {\n  reverse_proxy kommodity:$(KOMMODITY_PORT) {\n    transport http {\n      versions h2c\n    }\n  }\n  tls internal\n}" > $(CADDYFILE)
 
 .PHONY: compose-up
 compose-up: generate-caddyfile ## Start the docker compose stack (builds the kommodity image). Optional: COMPOSE_PROJECT_NAME=<name> or make compose-up COMPOSE_PROJECT_NAME=<name>.
@@ -58,15 +64,15 @@ compose-up: generate-caddyfile ## Start the docker compose stack (builds the kom
 .PHONY: compose-down
 compose-down: ## Shut down the docker compose stack. Optional: COMPOSE_PROJECT_NAME=<name> (same one used for compose-up).
 	docker compose -p $(COMPOSE_PROJECT_NAME) down --remove-orphans -v
-	rm -f Caddyfile
+	rm -f $(CADDYFILE)
 
 .PHONY: compose-down-all
 compose-down-all: ## Shut down every compose stack started from this compose.yml.
 	for name in $$(docker compose ls --all --format json 2>/dev/null \
 		| jq -r '.[] | select(.ConfigFiles | contains("$(CURDIR)/compose.yml")) | .Name'); do \
 		docker compose -p $$name down --remove-orphans -v; \
+		rm -f $(CADDY_DIR)/$$name.Caddyfile; \
 	done
-	rm -f Caddyfile
 
 .PHONY: select-in-local-db
 select-in-local-db: ## Query the compose stack's kine table via docker exec.
