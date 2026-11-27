@@ -1,11 +1,11 @@
 {{/*
-Generate inline manifest items for addons with delivery: InlineManifest.
-Emits list items (name + contents) only — no outer cluster.inlineManifests
-wrapper. Called by the wrapper helper kommodity.inlineManifests.
+Generate KubeInlineManifestConfig documents for addons with delivery:
+InlineManifest. Emits one document per manifest — no outer
+cluster.inlineManifests wrapper. Called by kommodity.inlineManifests.
 
-Usage: {{ include "kommodity.addon.inlineManifestItems" (dict "addons" $.Values.kommodity.addons "root" $) }}
+Usage: {{ include "kommodity.addon.inlineManifestDocs" (dict "addons" $.Values.kommodity.addons "root" $) }}
 */}}
-{{- define "kommodity.addon.inlineManifestItems" -}}
+{{- define "kommodity.addon.inlineManifestDocs" -}}
 {{- $root := .root -}}
 {{- $addonNames := keys .addons | sortAlpha -}}
 {{- range $name := $addonNames -}}
@@ -14,26 +14,38 @@ Usage: {{ include "kommodity.addon.inlineManifestItems" (dict "addons" $.Values.
 {{- $addonNamespace := default $name $addon.namespace -}}
 {{- if $addon.namespace }}
 {{- $nsManifest := include "kommodity.addon.namespace" (dict "namespace" $addon.namespace) | trim }}
-- name: {{ $name }}-namespace
-  contents: |-
-{{ $nsManifest | indent 4 }}
+- |
+  apiVersion: v1alpha1
+  kind: KubeInlineManifestConfig
+  name: {{ $name }}-namespace
+  manifest: |-
+{{ $nsManifest | indent 4 }}{{ "\n" }}
 {{- end }}
 {{- if $addon.manifest }}
 {{- $manifestContents := tpl $addon.manifest $root | trim }}
-- name: {{ $name }}-manifest
-  contents: |-
-{{ $manifestContents | indent 4 }}
+- |
+  apiVersion: v1alpha1
+  kind: KubeInlineManifestConfig
+  name: {{ $name }}-manifest
+  manifest: |-
+{{ $manifestContents | indent 4 }}{{ "\n" }}
 {{- end }}
 {{- if $addon.initialExtraValues }}
 {{- $valsManifest := include "kommodity.addon.extra-values" (dict "name" $name "namespace" $addonNamespace "initialExtraValues" $addon.initialExtraValues) | trim }}
-- name: {{ $name }}-extra-values
-  contents: |-
-{{ $valsManifest | indent 4 }}
+- |
+  apiVersion: v1alpha1
+  kind: KubeInlineManifestConfig
+  name: {{ $name }}-extra-values
+  manifest: |-
+{{ $valsManifest | indent 4 }}{{ "\n" }}
 {{- end }}
 {{- $installerManifest := include "kommodity.addon.installer" (dict "name" $name "addon" $addon) | trim }}
-- name: {{ $name }}-installer
-  contents: |-
-{{ $installerManifest | indent 4 }}
+- |
+  apiVersion: v1alpha1
+  kind: KubeInlineManifestConfig
+  name: {{ $name }}-installer
+  manifest: |-
+{{ $installerManifest | indent 4 }}{{ "\n" }}
 {{- end }}
 {{- end }}
 {{- end }}
