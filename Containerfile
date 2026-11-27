@@ -24,6 +24,7 @@ COPY public ./public
 COPY cmd ./cmd
 COPY pkg ./pkg
 RUN --mount=type=cache,target=/gomod-cache --mount=type=cache,target=/go-cache \
+    GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
     go build -ldflags "-X 'k8s.io/component-base/version.gitVersion=${VERSION}' -X 'k8s.io/component-base/version.gitTreeState=${TREE_STATE}' -X 'k8s.io/component-base/version.gitCommit=${COMMIT}'" \
     -o bin/kommodity ./cmd/kommodity
 
